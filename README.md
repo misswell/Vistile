@@ -12,7 +12,7 @@
 git clone https://github.com/misswell/Vistile.git
 ```
 
-Release 页目前附带本机可用的 `Vistile-0.1.0-arm64-devsigned.zip`。它只有 Apple Development 签名、未做 Developer ID 与公证，换一台机器会被 Gatekeeper 拦下；下一个版本起改为 GitHub Actions 产出的 Developer ID 签名 + 已公证 `.dmg`，任何 Apple Silicon Mac 都能直接装，见下面「签名与公证」。
+Release 页目前附带本机可用的 `Vistile-0.1.0-arm64-devsigned.zip`。它只有 Apple Development 签名、未做 Developer ID 与公证，换一台机器会被 Gatekeeper 拦下；下一个版本起改为 GitHub Actions 产出的 Developer ID 签名 + 已公证 `.dmg`——那是装到别的 Apple Silicon Mac 上的**必要条件**，见下面「签名与公证」；真机放行还没实测过。
 
 > 公证只解决「别人能不能装」，不解决「功能对不对」：上面那条 P0 未验收的状态不会因为有票据而改变。
 
