@@ -1,0 +1,81 @@
+name: Vistile
+options:
+  bundleIdPrefix: com.misswell
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  developmentLanguage: zh-Hans
+  groupSortPosition: top
+
+settings:
+  base:
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    SWIFT_VERSION: "5.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+    CLANG_ENABLE_OBJC_ARC: "YES"
+    ENABLE_HARDENED_RUNTIME: "NO"
+    CODE_SIGN_IDENTITY: "Apple Development"
+    CODE_SIGN_STYLE: "Manual"
+    DEVELOPMENT_TEAM: "U8U443D7ZL"
+    COMBINE_HIDPI_IMAGES: "YES"
+
+packages:
+  VistileCore:
+    path: Packages/VistileCore
+
+targets:
+  Vistile:
+    type: application
+    platform: macOS
+    sources:
+      - App
+      - Permissions
+      - Discovery
+      - Capture
+      - Rendering
+      - Presentation
+      - Recovery
+      - Settings
+      - Diagnostics
+      - Resources
+    dependencies:
+      - package: VistileCore
+    settings:
+      base:
+        PRODUCT_NAME: "Vistile"
+        PRODUCT_BUNDLE_IDENTIFIER: com.misswell.Vistile
+        INFOPLIST_FILE: Support/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Support/Vistile.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+
+  UITestHarness:
+    type: application
+    platform: macOS
+    sources:
+      - UITestHarness
+    settings:
+      base:
+        PRODUCT_NAME: "UITestHarness"
+        PRODUCT_BUNDLE_IDENTIFIER: com.misswell.Vistile.UITestHarness
+        INFOPLIST_FILE: Support/UITestHarness-Info.plist
+        CODE_SIGN_ENTITLEMENTS: Support/UITestHarness.entitlements
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+
+schemes:
+  Vistile:
+    build:
+      targets:
+        Vistile: all
+        UITestHarness: all
+    run:
+      config: Debug
+
+  P0Probe:
+    build:
+      targets:
+        Vistile: all
+    run:
+      config: Debug
+      environmentVariables:
+        VISTILE_P0_MODE: "1"

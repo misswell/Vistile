@@ -1,0 +1,616 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		025451BFAB291BF34176AED2 /* VistileCore in Frameworks */ = {isa = PBXBuildFile; productRef = BD7428CEA4ACB87F840B7BED /* VistileCore */; };
+		0ABDF1235FB672B9E4F1101B /* WindowCaptureSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 924104F29146981BFEBCCFCD /* WindowCaptureSession.swift */; };
+		0B5CAF1D6149C6D6F18E900C /* P0Probe.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0FA4004CD0EABA6ECE6C3E /* P0Probe.swift */; };
+		0DC662E0EB28B6E2B8F6385A /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDBB08C7C49C725949173227 /* Logger.swift */; };
+		2438B7A2CBB4EFFF6A224B39 /* OverviewRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CF737B1EDD4A02BE6FC613A /* OverviewRenderer.swift */; };
+		2569D36CFD1EB7661E9C0C2A /* CardAccessibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91FD08B025E2B7EF42D6783C /* CardAccessibility.swift */; };
+		39F4C4506D2B093742743E86 /* TexturePool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 706165B8FEFF2F2BEBA18DD7 /* TexturePool.swift */; };
+		4AB099B12F1206ADA90EBEA8 /* AXWindowResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E87B41D716732ECB011756C /* AXWindowResolver.swift */; };
+		514B55F03CCA70A50E22EFF1 /* ProcessIdentityReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BDBCB9C0170214CC30C9DF5 /* ProcessIdentityReader.swift */; };
+		55752FA2A08A5FF3E63C44D3 /* WindowCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53BDE44215B7E07152CC3EE /* WindowCatalog.swift */; };
+		5F6CC44846BDA0C4A2189126 /* MetalContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC87C012B412A9A75EBF463 /* MetalContext.swift */; };
+		5FFE6EE75A0C3DB9A193ECDF /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = E43F151C6A384598DD4807FD /* main.swift */; };
+		73ED90BEED7B1CC01CD6E626 /* WindowJournalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A9DEB542BCFE9632A42431B /* WindowJournalStore.swift */; };
+		8EB78F1BF7959667448D358E /* AXObserverHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13A406160D736525598664BF /* AXObserverHub.swift */; };
+		9E830163D80D04874A4521DD /* PermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CF719590410959C2EA74B9A /* PermissionManager.swift */; };
+		A0AEFF687AD710EE5AAEB70D /* SettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24ACA3AFFAF93FB4D2243C31 /* SettingsModel.swift */; };
+		AF79A5ACC2EE0C0859F94087 /* CaptureCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04D019FC787F5F1113453C96 /* CaptureCoordinator.swift */; };
+		B0B597E40E2B5D8320CF116B /* ShaderSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 094AC6BDD927BE302227D9C5 /* ShaderSource.swift */; };
+		B2D4B50D378761F95139F28B /* OnboardingWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EDE34CF9D3F74B9154A5099 /* OnboardingWindowController.swift */; };
+		C5670A373EF1C7D2F938BC2B /* GlobalHotKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E1CDE8A1E92C87EB97FA75A /* GlobalHotKey.swift */; };
+		D334CE436697ED2B30EE4285 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 33C1B8EF35C3D6FD4AB6F52D /* Assets.xcassets */; };
+		DAE89AA003FF425046CB9C0C /* FocusCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E829AF8FD1B927477BF3DFF7 /* FocusCoordinator.swift */; };
+		DC01AB1F309878C525CFD4A6 /* RecoveryCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96CB721A1AD333FC7EF7238E /* RecoveryCoordinator.swift */; };
+		DE36F90E6C36EDBD3FE76196 /* CompatibilityRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C29A00FE838E5D6DC5E84B3 /* CompatibilityRecorder.swift */; };
+		E06AE1979EBF8532A052284B /* AppCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCDB480DD96FCE1FB3F291AD /* AppCoordinator.swift */; };
+		E0F5C806BB5849C62FF013C9 /* Metrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD7B6464FA260AFB96434DB5 /* Metrics.swift */; };
+		E170A404E52910D97F9BDBB1 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6803AFD08D18C59EC43BB922 /* MenuBarController.swift */; };
+		E2C44C14FE1AC9EEDD89E723 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35DACB50468E3040BDEB483A /* SettingsWindowController.swift */; };
+		EA92472FC61319D925DB9675 /* AppMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF1575851720940E48C98EF /* AppMain.swift */; };
+		F32331CD94A7445BC97D329B /* OverviewWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CCD0E79BD0162DFC25D3FF6 /* OverviewWindowController.swift */; };
+		F4C60ACDD4844F6E0411AEC1 /* OverviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9461AE7F36EBEB52DA9621A5 /* OverviewPanel.swift */; };
+		F5C3E048BF992AD9B2218515 /* TransitionProxyWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E40CDA738024A315D4897E /* TransitionProxyWindow.swift */; };
+		FAACE840F16FDB0C61387FDF /* OverviewContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AED590E4158A7DF96C811FB /* OverviewContentView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		04D019FC787F5F1113453C96 /* CaptureCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureCoordinator.swift; sourceTree = "<group>"; };
+		094AC6BDD927BE302227D9C5 /* ShaderSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShaderSource.swift; sourceTree = "<group>"; };
+		0BDBCB9C0170214CC30C9DF5 /* ProcessIdentityReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessIdentityReader.swift; sourceTree = "<group>"; };
+		0C29A00FE838E5D6DC5E84B3 /* CompatibilityRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompatibilityRecorder.swift; sourceTree = "<group>"; };
+		0CF719590410959C2EA74B9A /* PermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionManager.swift; sourceTree = "<group>"; };
+		0E87B41D716732ECB011756C /* AXWindowResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AXWindowResolver.swift; sourceTree = "<group>"; };
+		0FC87C012B412A9A75EBF463 /* MetalContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalContext.swift; sourceTree = "<group>"; };
+		13A406160D736525598664BF /* AXObserverHub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AXObserverHub.swift; sourceTree = "<group>"; };
+		1CCD0E79BD0162DFC25D3FF6 /* OverviewWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewWindowController.swift; sourceTree = "<group>"; };
+		1CF737B1EDD4A02BE6FC613A /* OverviewRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewRenderer.swift; sourceTree = "<group>"; };
+		1DF1575851720940E48C98EF /* AppMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMain.swift; sourceTree = "<group>"; };
+		20BBCCDE3166F40B296A2081 /* Vistile.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Vistile.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		24ACA3AFFAF93FB4D2243C31 /* SettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsModel.swift; sourceTree = "<group>"; };
+		2AED590E4158A7DF96C811FB /* OverviewContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewContentView.swift; sourceTree = "<group>"; };
+		33C1B8EF35C3D6FD4AB6F52D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		35DACB50468E3040BDEB483A /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
+		3A9DEB542BCFE9632A42431B /* WindowJournalStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowJournalStore.swift; sourceTree = "<group>"; };
+		3E1CDE8A1E92C87EB97FA75A /* GlobalHotKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalHotKey.swift; sourceTree = "<group>"; };
+		3E530AFE0CB1DE726F2E5020 /* UITestHarness.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = UITestHarness.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		50E40CDA738024A315D4897E /* TransitionProxyWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitionProxyWindow.swift; sourceTree = "<group>"; };
+		6803AFD08D18C59EC43BB922 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
+		706165B8FEFF2F2BEBA18DD7 /* TexturePool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TexturePool.swift; sourceTree = "<group>"; };
+		77152A385FDC4AEE49D6B57F /* VistileCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = VistileCore; path = Packages/VistileCore; sourceTree = SOURCE_ROOT; };
+		7EDE34CF9D3F74B9154A5099 /* OnboardingWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWindowController.swift; sourceTree = "<group>"; };
+		91FD08B025E2B7EF42D6783C /* CardAccessibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardAccessibility.swift; sourceTree = "<group>"; };
+		924104F29146981BFEBCCFCD /* WindowCaptureSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowCaptureSession.swift; sourceTree = "<group>"; };
+		9461AE7F36EBEB52DA9621A5 /* OverviewPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewPanel.swift; sourceTree = "<group>"; };
+		96CB721A1AD333FC7EF7238E /* RecoveryCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryCoordinator.swift; sourceTree = "<group>"; };
+		BD7B6464FA260AFB96434DB5 /* Metrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Metrics.swift; sourceTree = "<group>"; };
+		CCDB480DD96FCE1FB3F291AD /* AppCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinator.swift; sourceTree = "<group>"; };
+		CDBB08C7C49C725949173227 /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
+		D53BDE44215B7E07152CC3EE /* WindowCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowCatalog.swift; sourceTree = "<group>"; };
+		E43F151C6A384598DD4807FD /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		E829AF8FD1B927477BF3DFF7 /* FocusCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusCoordinator.swift; sourceTree = "<group>"; };
+		FE0FA4004CD0EABA6ECE6C3E /* P0Probe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = P0Probe.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		79FC7B7341971A9DD45977E8 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				025451BFAB291BF34176AED2 /* VistileCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		03570ABC6CFFEB54309AE9C7 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				3E530AFE0CB1DE726F2E5020 /* UITestHarness.app */,
+				20BBCCDE3166F40B296A2081 /* Vistile.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		06565B49AE5C4BFADD6D50B4 /* UITestHarness */ = {
+			isa = PBXGroup;
+			children = (
+				E43F151C6A384598DD4807FD /* main.swift */,
+			);
+			path = UITestHarness;
+			sourceTree = "<group>";
+		};
+		06BB384E80742A7B4B575146 /* Presentation */ = {
+			isa = PBXGroup;
+			children = (
+				E829AF8FD1B927477BF3DFF7 /* FocusCoordinator.swift */,
+				7EDE34CF9D3F74B9154A5099 /* OnboardingWindowController.swift */,
+				2AED590E4158A7DF96C811FB /* OverviewContentView.swift */,
+				9461AE7F36EBEB52DA9621A5 /* OverviewPanel.swift */,
+				1CCD0E79BD0162DFC25D3FF6 /* OverviewWindowController.swift */,
+				35DACB50468E3040BDEB483A /* SettingsWindowController.swift */,
+				50E40CDA738024A315D4897E /* TransitionProxyWindow.swift */,
+			);
+			path = Presentation;
+			sourceTree = "<group>";
+		};
+		0734B1F63EE6503517936E14 = {
+			isa = PBXGroup;
+			children = (
+				90AB55CBD0D2E09AEBF90A30 /* App */,
+				F5B41298C79CA170EE1247FC /* Capture */,
+				DB6C1EAB938DE3D0FF6AD638 /* Diagnostics */,
+				ECAEECFCEF856FB19CD3AE26 /* Discovery */,
+				9AA141C587C1F522C2407B94 /* Packages */,
+				41225BD09527C15ED7187DFD /* Permissions */,
+				06BB384E80742A7B4B575146 /* Presentation */,
+				669E41F0D7EF06E79F5C7709 /* Recovery */,
+				6EAA0C82DB283037C3A7FB1E /* Rendering */,
+				CB29930AB1FCFAC3BE6ED960 /* Resources */,
+				ECEF00C0894B8B4967585DDA /* Settings */,
+				06565B49AE5C4BFADD6D50B4 /* UITestHarness */,
+				03570ABC6CFFEB54309AE9C7 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		41225BD09527C15ED7187DFD /* Permissions */ = {
+			isa = PBXGroup;
+			children = (
+				0CF719590410959C2EA74B9A /* PermissionManager.swift */,
+			);
+			path = Permissions;
+			sourceTree = "<group>";
+		};
+		669E41F0D7EF06E79F5C7709 /* Recovery */ = {
+			isa = PBXGroup;
+			children = (
+				96CB721A1AD333FC7EF7238E /* RecoveryCoordinator.swift */,
+				3A9DEB542BCFE9632A42431B /* WindowJournalStore.swift */,
+			);
+			path = Recovery;
+			sourceTree = "<group>";
+		};
+		6EAA0C82DB283037C3A7FB1E /* Rendering */ = {
+			isa = PBXGroup;
+			children = (
+				91FD08B025E2B7EF42D6783C /* CardAccessibility.swift */,
+				1CF737B1EDD4A02BE6FC613A /* OverviewRenderer.swift */,
+				094AC6BDD927BE302227D9C5 /* ShaderSource.swift */,
+				706165B8FEFF2F2BEBA18DD7 /* TexturePool.swift */,
+			);
+			path = Rendering;
+			sourceTree = "<group>";
+		};
+		90AB55CBD0D2E09AEBF90A30 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				CCDB480DD96FCE1FB3F291AD /* AppCoordinator.swift */,
+				1DF1575851720940E48C98EF /* AppMain.swift */,
+				3E1CDE8A1E92C87EB97FA75A /* GlobalHotKey.swift */,
+				6803AFD08D18C59EC43BB922 /* MenuBarController.swift */,
+				FE0FA4004CD0EABA6ECE6C3E /* P0Probe.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		9AA141C587C1F522C2407B94 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				77152A385FDC4AEE49D6B57F /* VistileCore */,
+			);
+			path = Packages;
+			sourceTree = "<group>";
+		};
+		CB29930AB1FCFAC3BE6ED960 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				33C1B8EF35C3D6FD4AB6F52D /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		DB6C1EAB938DE3D0FF6AD638 /* Diagnostics */ = {
+			isa = PBXGroup;
+			children = (
+				0C29A00FE838E5D6DC5E84B3 /* CompatibilityRecorder.swift */,
+				CDBB08C7C49C725949173227 /* Logger.swift */,
+				BD7B6464FA260AFB96434DB5 /* Metrics.swift */,
+			);
+			path = Diagnostics;
+			sourceTree = "<group>";
+		};
+		ECAEECFCEF856FB19CD3AE26 /* Discovery */ = {
+			isa = PBXGroup;
+			children = (
+				13A406160D736525598664BF /* AXObserverHub.swift */,
+				0E87B41D716732ECB011756C /* AXWindowResolver.swift */,
+				0BDBCB9C0170214CC30C9DF5 /* ProcessIdentityReader.swift */,
+				D53BDE44215B7E07152CC3EE /* WindowCatalog.swift */,
+			);
+			path = Discovery;
+			sourceTree = "<group>";
+		};
+		ECEF00C0894B8B4967585DDA /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				24ACA3AFFAF93FB4D2243C31 /* SettingsModel.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		F5B41298C79CA170EE1247FC /* Capture */ = {
+			isa = PBXGroup;
+			children = (
+				04D019FC787F5F1113453C96 /* CaptureCoordinator.swift */,
+				0FC87C012B412A9A75EBF463 /* MetalContext.swift */,
+				924104F29146981BFEBCCFCD /* WindowCaptureSession.swift */,
+			);
+			path = Capture;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		7AE94FE36169F5A56B388E77 /* Vistile */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 508D592B316C08FAC6FC1D08 /* Build configuration list for PBXNativeTarget "Vistile" */;
+			buildPhases = (
+				9FC911AEB96CDE966E872D80 /* Sources */,
+				19FD077D9D44B2BC46564BB7 /* Resources */,
+				79FC7B7341971A9DD45977E8 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Vistile;
+			packageProductDependencies = (
+				BD7428CEA4ACB87F840B7BED /* VistileCore */,
+			);
+			productName = Vistile;
+			productReference = 20BBCCDE3166F40B296A2081 /* Vistile.app */;
+			productType = "com.apple.product-type.application";
+		};
+		DAB5E5AAA98BC726754B260A /* UITestHarness */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B6DFAD5C82440494214F25F2 /* Build configuration list for PBXNativeTarget "UITestHarness" */;
+			buildPhases = (
+				6FB12E9FDA64C56AD04697B9 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = UITestHarness;
+			packageProductDependencies = (
+			);
+			productName = UITestHarness;
+			productReference = 3E530AFE0CB1DE726F2E5020 /* UITestHarness.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		F222F72A9B07481EFAADBBF4 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					7AE94FE36169F5A56B388E77 = {
+						DevelopmentTeam = U8U443D7ZL;
+						ProvisioningStyle = Manual;
+					};
+					DAB5E5AAA98BC726754B260A = {
+						DevelopmentTeam = U8U443D7ZL;
+						ProvisioningStyle = Manual;
+					};
+				};
+			};
+			buildConfigurationList = 9FBA24FBD99DE6A40A553623 /* Build configuration list for PBXProject "Vistile" */;
+			developmentRegion = "zh-Hans";
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				"zh-Hans",
+			);
+			mainGroup = 0734B1F63EE6503517936E14;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				DDB8CC799917BF788F56F867 /* XCLocalSwiftPackageReference "Packages/VistileCore" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 03570ABC6CFFEB54309AE9C7 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				7AE94FE36169F5A56B388E77 /* Vistile */,
+				DAB5E5AAA98BC726754B260A /* UITestHarness */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		19FD077D9D44B2BC46564BB7 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D334CE436697ED2B30EE4285 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		6FB12E9FDA64C56AD04697B9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5FFE6EE75A0C3DB9A193ECDF /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9FC911AEB96CDE966E872D80 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8EB78F1BF7959667448D358E /* AXObserverHub.swift in Sources */,
+				4AB099B12F1206ADA90EBEA8 /* AXWindowResolver.swift in Sources */,
+				E06AE1979EBF8532A052284B /* AppCoordinator.swift in Sources */,
+				EA92472FC61319D925DB9675 /* AppMain.swift in Sources */,
+				AF79A5ACC2EE0C0859F94087 /* CaptureCoordinator.swift in Sources */,
+				2569D36CFD1EB7661E9C0C2A /* CardAccessibility.swift in Sources */,
+				DE36F90E6C36EDBD3FE76196 /* CompatibilityRecorder.swift in Sources */,
+				DAE89AA003FF425046CB9C0C /* FocusCoordinator.swift in Sources */,
+				C5670A373EF1C7D2F938BC2B /* GlobalHotKey.swift in Sources */,
+				0DC662E0EB28B6E2B8F6385A /* Logger.swift in Sources */,
+				E170A404E52910D97F9BDBB1 /* MenuBarController.swift in Sources */,
+				5F6CC44846BDA0C4A2189126 /* MetalContext.swift in Sources */,
+				E0F5C806BB5849C62FF013C9 /* Metrics.swift in Sources */,
+				B2D4B50D378761F95139F28B /* OnboardingWindowController.swift in Sources */,
+				FAACE840F16FDB0C61387FDF /* OverviewContentView.swift in Sources */,
+				F4C60ACDD4844F6E0411AEC1 /* OverviewPanel.swift in Sources */,
+				2438B7A2CBB4EFFF6A224B39 /* OverviewRenderer.swift in Sources */,
+				F32331CD94A7445BC97D329B /* OverviewWindowController.swift in Sources */,
+				0B5CAF1D6149C6D6F18E900C /* P0Probe.swift in Sources */,
+				9E830163D80D04874A4521DD /* PermissionManager.swift in Sources */,
+				514B55F03CCA70A50E22EFF1 /* ProcessIdentityReader.swift in Sources */,
+				DC01AB1F309878C525CFD4A6 /* RecoveryCoordinator.swift in Sources */,
+				A0AEFF687AD710EE5AAEB70D /* SettingsModel.swift in Sources */,
+				E2C44C14FE1AC9EEDD89E723 /* SettingsWindowController.swift in Sources */,
+				B0B597E40E2B5D8320CF116B /* ShaderSource.swift in Sources */,
+				39F4C4506D2B093742743E86 /* TexturePool.swift in Sources */,
+				F5C3E048BF992AD9B2218515 /* TransitionProxyWindow.swift in Sources */,
+				0ABDF1235FB672B9E4F1101B /* WindowCaptureSession.swift in Sources */,
+				55752FA2A08A5FF3E63C44D3 /* WindowCatalog.swift in Sources */,
+				73ED90BEED7B1CC01CD6E626 /* WindowJournalStore.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		093A4C206E7E2457D906B4EC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Support/Vistile.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = Support/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = com.misswell.Vistile;
+				PRODUCT_NAME = Vistile;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		11BCA92D97D6DF356F4FF6E7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Support/UITestHarness.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = "Support/UITestHarness-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = com.misswell.Vistile.UITestHarness;
+				PRODUCT_NAME = UITestHarness;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		758ED4736CC1E08E8A4CA146 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Support/UITestHarness.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = "Support/UITestHarness-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = com.misswell.Vistile.UITestHarness;
+				PRODUCT_NAME = UITestHarness;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		B747055218E5EC898E82D23A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = U8U443D7ZL;
+				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		E653B8904B8F32AFEB887A07 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Support/Vistile.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = Support/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = com.misswell.Vistile;
+				PRODUCT_NAME = Vistile;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		FD927D54A9C4E43590525240 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = U8U443D7ZL;
+				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		508D592B316C08FAC6FC1D08 /* Build configuration list for PBXNativeTarget "Vistile" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E653B8904B8F32AFEB887A07 /* Debug */,
+				093A4C206E7E2457D906B4EC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		9FBA24FBD99DE6A40A553623 /* Build configuration list for PBXProject "Vistile" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B747055218E5EC898E82D23A /* Debug */,
+				FD927D54A9C4E43590525240 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		B6DFAD5C82440494214F25F2 /* Build configuration list for PBXNativeTarget "UITestHarness" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				758ED4736CC1E08E8A4CA146 /* Debug */,
+				11BCA92D97D6DF356F4FF6E7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		DDB8CC799917BF788F56F867 /* XCLocalSwiftPackageReference "Packages/VistileCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/VistileCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		BD7428CEA4ACB87F840B7BED /* VistileCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = VistileCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = F222F72A9B07481EFAADBBF4 /* Project object */;
+}

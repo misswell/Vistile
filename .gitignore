@@ -1,0 +1,15 @@
+build/
+.build/
+DerivedData/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+.DS_Store
+.swiftpm/
+Package.resolved
+*.xcresult
+*.ipa
+*.dmg
+.clangd
+compile_commands.json
+docs/_work/
+*.log
