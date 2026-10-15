@@ -1,7 +1,8 @@
 name: Release
 
 # 构建 arm64 .app → Developer ID 签名 → Apple 公证 → 装订 → 出镜像 → 复核 → GitHub Release。
-# 需要仓库 secrets（缺哪项，verify 任务就点名报哪项，不会悄悄跳过）：
+# 需要仓库 secrets（缺哪项，verify 任务就点名报哪项）：缺凭据时构建仍跑一次未签名自检，
+# 用来先证明 runner 的工具链编得过；发布任务只在凭据齐、真走过公证装订时才执行。
 #   APPLE_DEVELOPER_ID_P12_BASE64 / APPLE_DEVELOPER_ID_P12_PASSWORD   签名证书
 #   公证二选一：APPLE_API_KEY_BASE64(+APPLE_API_KEY_ID/APPLE_API_ISSUER)
 #              或 APPLE_ID / APPLE_TEAM_ID / APPLE_APP_SPECIFIC_PASSWORD
@@ -38,7 +39,7 @@ env:
 jobs:
   verify:
     if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.probeCredentials) }}
-    runs-on: macos-15
+    runs-on: macos-14
     outputs:
       signing_ready: ${{ steps.credentials.outputs.ready }}
     steps:
@@ -46,8 +47,16 @@ jobs:
         with:
           ref: ${{ env.SOURCE_REF }}
 
-      - name: 工具链
-        run: sw_vers -productVersion; xcodebuild -version; swift --version
+      - name: 选最新 Xcode 并打印工具链
+        # Packages/VistileCore/Package.swift 要 swift-tools-version 6.0（Xcode 16+），
+        # 镜像的默认版本不一定够新，直接取装得最高的那个。
+        run: |
+          set -euo pipefail
+          newest="$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+          echo "DEVELOPER_DIR=$newest/Contents/Developer" >>"$GITHUB_ENV"
+          sw_vers -productVersion
+          xcodebuild -version
+          swift --version
 
       - name: 纯逻辑测试
         working-directory: Packages/VistileCore
@@ -89,15 +98,15 @@ jobs:
               echo '### 缺少的 secrets'
               for m in "${missing[@]}"; do echo "- \`$m\`"; done
               echo
-              echo '构建与发布任务被跳过——没有 Developer ID 与公证凭据，只能产出本机可跑的 Apple Development 包。'
+              echo '构建任务仍会跑一次未签名自检（证明 runner 能编过这个项目），发布任务会跳过——没有公证票据的安装包没有发布意义。'
               echo '在 <https://github.com/'"${GITHUB_REPOSITORY}"'/settings/secrets/actions> 填好后重新推标签。'
             } >>"$GITHUB_STEP_SUMMARY"
-            echo "缺凭据，后续构建任务将跳过：${missing[*]}"
+            echo "缺凭据，构建只做未签名自检，不会发布：${missing[*]}"
           fi
 
   probe-credentials:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.probeCredentials }}
-    runs-on: macos-15
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
         with:
@@ -144,15 +153,23 @@ jobs:
 
   build-macos:
     needs: verify
-    # 没证书就别跑完整构建，也别在 Release 上留一条红色的必需步骤。
-    if: ${{ needs.verify.outputs.signing_ready == 'true' }}
-    runs-on: macos-15
+    # 缺 secrets 也照样构建：SKIP_SIGNING 只出未签名镜像，用来暴露「干净 runner 编不过」这类
+    # 本机永远撞不到的缺口（首次上云最常见的就是它）。产物没签名没票据，release 任务不会发布它。
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.SOURCE_REF }}
 
+      - name: 选最新 Xcode
+        run: |
+          set -euo pipefail
+          newest="$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+          echo "DEVELOPER_DIR=$newest/Contents/Developer" >>"$GITHUB_ENV"
+          xcodebuild -version
+
       - name: 导入 Developer ID 证书
+        if: ${{ needs.verify.outputs.signing_ready == 'true' }}
         env:
           DEVELOPER_ID_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_P12_BASE64 }}
           DEVELOPER_ID_P12_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD }}
@@ -161,6 +178,7 @@ jobs:
       - name: 构建、签名、公证、装订、复核
         env:
           RELEASE_TAG: ${{ env.RELEASE_TAG }}
+          SKIP_SIGNING: ${{ needs.verify.outputs.signing_ready == 'true' && '0' || '1' }}
           APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
@@ -182,8 +200,9 @@ jobs:
           fi
 
   release:
-    needs: build-macos
-    if: ${{ github.event_name == 'push' || inputs.publish }}
+    needs: [verify, build-macos]
+    # 未签名自检产物一律不发：只有凭据齐、真走过公证装订的那条路线才有发布资格。
+    if: ${{ needs.verify.outputs.signing_ready == 'true' && (github.event_name == 'push' || inputs.publish) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
