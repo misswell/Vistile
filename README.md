@@ -12,7 +12,9 @@
 git clone https://github.com/misswell/Vistile.git
 ```
 
-Release 页附带本机可用的 `Vistile-0.1.0-arm64-devsigned.zip`。它只有 Apple Development 签名、未做 Developer ID 与公证，换一台机器会被 Gatekeeper 拦下；其它机器请按下面的命令自行构建。
+Release 页目前附带本机可用的 `Vistile-0.1.0-arm64-devsigned.zip`。它只有 Apple Development 签名、未做 Developer ID 与公证，换一台机器会被 Gatekeeper 拦下；下一个版本起改为 GitHub Actions 产出的 Developer ID 签名 + 已公证 `.dmg`，任何 Apple Silicon Mac 都能直接装，见下面「签名与公证」。
+
+> 公证只解决「别人能不能装」，不解决「功能对不对」：上面那条 P0 未验收的状态不会因为有票据而改变。
 
 ## 环境
 
@@ -35,7 +37,44 @@ xcodebuild -project Vistile.xcodeproj -scheme Vistile \
 纯逻辑层是本地 SwiftPM 包 `Packages/VistileCore`。**必须用 `-scheme` 构建**：用 `-target` 会因为 SPM 解析顺序报 `Unable to resolve module dependency: 'VistileCore'`。首次可先执行
 `xcodebuild -project Vistile.xcodeproj -scheme Vistile -resolvePackageDependencies`。`UITestHarness` 不依赖核心包，用 `-target` 构建即可。
 
-签名：Manual + `Apple Development`（团队 `U8U443D7ZL`），未做 Developer ID 与公证，产物只能在本机运行。
+签名：本机 Debug 产物是 Manual + `Apple Development`（团队 `U8U443D7ZL`），没有 Developer ID 与公证，只能在本机运行。Developer ID 签名与 Apple 公证由 GitHub Actions 完成，见下面「签名与公证」。
+
+## 签名与公证
+
+这台开发机上**没有** Developer ID Application 证书（钥匙串里只有 Apple Development 与 Apple Distribution），也没有公证凭据，所以公证只能在 CI 上做：推一个 `v*` 标签，Actions 会构建 arm64 的 Release 包、签名、公证、装订票据、出 `.dmg` 并复核后发布。
+
+流水线在 `.github/workflows/release.yml`，需要仓库 secrets（缺哪项，verify 任务点名报哪项并跳过构建，不会悄悄发一个没签名的包）：
+
+| 用途 | secrets |
+| --- | --- |
+| Developer ID 签名 | `APPLE_DEVELOPER_ID_P12_BASE64`、`APPLE_DEVELOPER_ID_P12_PASSWORD` |
+| 公证（二选一） | `APPLE_API_KEY_BASE64` + `APPLE_API_KEY_ID` + `APPLE_API_ISSUER`，或 `APPLE_ID` + `APPLE_TEAM_ID` + `APPLE_APP_SPECIFIC_PASSWORD` |
+
+填在这里：<https://github.com/misswell/Vistile/settings/secrets/actions>。值只经标准输入写进去，别放进命令参数、日志或聊天记录：
+
+```bash
+base64 -i developer-id.p12 | gh secret set APPLE_DEVELOPER_ID_P12_BASE64 -R misswell/Vistile
+gh secret set APPLE_DEVELOPER_ID_P12_PASSWORD -R misswell/Vistile        # 从标准输入读
+```
+
+先花十几秒验证凭据能不能在 runner 上用通，再花几十分钟构建：
+
+```bash
+gh workflow run release.yml -R misswell/Vistile -f tag=v9.9.9-dryrun -f probeCredentials=true
+```
+
+发布相关的脚本：`.github/scripts/import_signing_identity.sh`（一次性钥匙串 + 真试签）、`.github/scripts/build_sign_notarize.sh`（构建→签名→公证→装订→出镜像→挂载复核）、`Tools/make_dmg.sh`。
+
+本机可以先自检除公证之外的每一步（不需要任何凭据）：
+
+```bash
+SIGNING_IDENTITY="Apple Development: <你的身份>" RELEASE_TAG=v0.1.0 SKIP_NOTARIZE=1 \
+  bash .github/scripts/build_sign_notarize.sh
+```
+
+它明确跳过 `notarytool` 与依赖公证票据的复核，**跑通不等于公证过**。
+
+发布说明的唯一来源是仓库根的 `RELEASE_NOTES.md`，CI 直接拿它当 Release 正文；不要在 workflow 里另写一套模板，否则两条路线的话术会分叉。
 
 ## 测试
 

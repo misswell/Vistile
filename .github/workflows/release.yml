@@ -1,0 +1,231 @@
+name: Release
+
+# 构建 arm64 .app → Developer ID 签名 → Apple 公证 → 装订 → 出镜像 → 复核 → GitHub Release。
+# 需要仓库 secrets（缺哪项，verify 任务就点名报哪项，不会悄悄跳过）：
+#   APPLE_DEVELOPER_ID_P12_BASE64 / APPLE_DEVELOPER_ID_P12_PASSWORD   签名证书
+#   公证二选一：APPLE_API_KEY_BASE64(+APPLE_API_KEY_ID/APPLE_API_ISSUER)
+#              或 APPLE_ID / APPLE_TEAM_ID / APPLE_APP_SPECIFIC_PASSWORD
+# 只想知道凭据配没配对：手动触发并勾 probeCredentials，它只装证书、试签、问一次公证，
+# 不做构建，也不发布任何东西。
+# 只有 arm64：x86_64 从没在 Intel 真机上打开过，产一个没人验过的架构安装包，
+# 和说明里写「Intel 未测」自相矛盾。要发 Intel 先补真机验证。
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 用于产物命名的版本（例如 v0.1.1）
+        required: true
+        type: string
+      publish:
+        description: 校验通过后是否发布 GitHub Release
+        required: true
+        default: false
+        type: boolean
+      probeCredentials:
+        description: 只验证签名与公证凭据能否在 Runner 上用通，不做构建
+        required: false
+        default: false
+        type: boolean
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  SOURCE_REF: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.ref_name }}
+
+jobs:
+  verify:
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.probeCredentials) }}
+    runs-on: macos-15
+    outputs:
+      signing_ready: ${{ steps.credentials.outputs.ready }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_REF }}
+
+      - name: 工具链
+        run: sw_vers -productVersion; xcodebuild -version; swift --version
+
+      - name: 纯逻辑测试
+        working-directory: Packages/VistileCore
+        run: swift test
+
+      - name: 标签版本与 Info.plist 是否一致
+        run: |
+          set -euo pipefail
+          conf="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Support/Info.plist)"
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            [ "v${conf}" = "${RELEASE_TAG}" ] || {
+              echo "标签 ${RELEASE_TAG} 对不上 Support/Info.plist 的 ${conf}：先改版本号再打标签" >&2
+              exit 1
+            }
+            echo "==> ${RELEASE_TAG} 与 Info.plist 的 ${conf} 一致"
+          else
+            echo "==> 手动触发，跳过一致性检查（标签 ${RELEASE_TAG} 仅用于产物命名）"
+          fi
+
+      - name: 发布凭据是否齐备
+        id: credentials
+        env:
+          APPLE_DEVELOPER_ID_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_P12_BASE64 }}
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -n "${APPLE_DEVELOPER_ID_P12_BASE64:-}" ] || missing+=("APPLE_DEVELOPER_ID_P12_BASE64(+_PASSWORD)")
+          if [ -z "${APPLE_API_KEY_BASE64:-}" ] && [ -z "${APPLE_ID:-}" ]; then
+            missing+=("APPLE_API_KEY_BASE64(+APPLE_API_KEY_ID/APPLE_API_ISSUER) 或 APPLE_ID(+APPLE_TEAM_ID/APPLE_APP_SPECIFIC_PASSWORD)")
+          fi
+          if [ ${#missing[@]} -eq 0 ]; then
+            echo "ready=true" >>"$GITHUB_OUTPUT"
+            echo "签名与公证凭据齐备，构建任务会运行。"
+          else
+            echo "ready=false" >>"$GITHUB_OUTPUT"
+            {
+              echo '### 缺少的 secrets'
+              for m in "${missing[@]}"; do echo "- \`$m\`"; done
+              echo
+              echo '构建与发布任务被跳过——没有 Developer ID 与公证凭据，只能产出本机可跑的 Apple Development 包。'
+              echo '在 <https://github.com/'"${GITHUB_REPOSITORY}"'/settings/secrets/actions> 填好后重新推标签。'
+            } >>"$GITHUB_STEP_SUMMARY"
+            echo "缺凭据，后续构建任务将跳过：${missing[*]}"
+          fi
+
+  probe-credentials:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.probeCredentials }}
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_REF }}
+
+      - name: 导入 Developer ID 证书并试签
+        env:
+          DEVELOPER_ID_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_P12_BASE64 }}
+          DEVELOPER_ID_P12_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD }}
+        run: bash .github/scripts/import_signing_identity.sh
+
+      - name: 验证公证凭据
+        env:
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          set -euo pipefail
+          # history 证明的是这把凭据能读，submit 才是能提交公证；后者要等第一次真公证才算证明。
+          if [ -n "${APPLE_API_KEY_BASE64:-}" ]; then
+            key="$(mktemp -d)/AuthKey.p8"; chmod 600 "$key"
+            printf '%s' "$APPLE_API_KEY_BASE64" | base64 -D >"$key"
+            xcrun notarytool history --key "$key" --key-id "$APPLE_API_KEY_ID" \
+              --issuer "$APPLE_API_ISSUER" --output-format json | jq '.history | length'
+            echo "==> 公证可用：App Store Connect API key"
+          elif [ -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]; then
+            xcrun notarytool history --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \
+              --password "$APPLE_APP_SPECIFIC_PASSWORD" --output-format json | jq '.history | length'
+            echo "==> 公证可用：Apple ID + app-specific password"
+          else
+            echo "两条公证路线都没有凭据：需要 APPLE_API_KEY_BASE64(+ID/ISSUER) 或 APPLE_APP_SPECIFIC_PASSWORD" >&2
+            exit 1
+          fi
+
+      - name: 清理临时钥匙串
+        if: always()
+        run: |
+          if [ -n "${SIGNING_KEYCHAIN:-}" ] && [ -e "${SIGNING_KEYCHAIN}" ]; then
+            security delete-keychain "${SIGNING_KEYCHAIN}"
+          fi
+
+  build-macos:
+    needs: verify
+    # 没证书就别跑完整构建，也别在 Release 上留一条红色的必需步骤。
+    if: ${{ needs.verify.outputs.signing_ready == 'true' }}
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_REF }}
+
+      - name: 导入 Developer ID 证书
+        env:
+          DEVELOPER_ID_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_P12_BASE64 }}
+          DEVELOPER_ID_P12_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD }}
+        run: bash .github/scripts/import_signing_identity.sh
+
+      - name: 构建、签名、公证、装订、复核
+        env:
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: bash .github/scripts/build_sign_notarize.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64
+          path: release/*.dmg
+
+      - name: 清理临时钥匙串
+        if: always()
+        run: |
+          if [ -n "${SIGNING_KEYCHAIN:-}" ] && [ -e "${SIGNING_KEYCHAIN}" ]; then
+            security delete-keychain "${SIGNING_KEYCHAIN}"
+          fi
+
+  release:
+    needs: build-macos
+    if: ${{ github.event_name == 'push' || inputs.publish }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_REF }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-arm64
+          path: release
+
+      - name: 汇总产物与说明
+        run: |
+          set -euo pipefail
+          # 说明文字只有 RELEASE_NOTES.md 一个来源；CI 不自带模板，否则两条路线的话术会分叉。
+          [ -s RELEASE_NOTES.md ] || { echo "缺少 RELEASE_NOTES.md，Release 正文没东西可写" >&2; exit 1; }
+          ls -lh release/
+          dmg="Vistile_${RELEASE_TAG}_macos_arm64.dmg"
+          [ -s "release/${dmg}" ] || { echo "缺少 ${dmg}" >&2; exit 1; }
+          {
+            cat RELEASE_NOTES.md
+            echo
+            echo '## 下载'
+            echo
+            echo "| 平台 | 文件 |"
+            echo '|------|------|'
+            echo "| Apple Silicon | \`${dmg}\` |"
+            echo
+            echo 'Intel 未提供安装包，也未做真机验证。'
+          } >release-body.md
+
+      - name: 发布 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Vistile ${{ env.RELEASE_TAG }}
+          body_path: release-body.md
+          files: release/*.dmg
+          fail_on_unmatched_files: true
+          draft: false
+          # P0 未验收之前，这条不该自己冒充正式版。
+          prerelease: true
+          make_latest: false
