@@ -56,6 +56,8 @@ jobs:
           echo "DEVELOPER_DIR=$newest/Contents/Developer" >>"$GITHUB_ENV"
           sw_vers -productVersion
           xcodebuild -version
+          # 记进日志：兼容矩阵要说清发出去的包是用哪个 SDK 编的，不能凭印象。
+          xcrun --sdk macosx --show-sdk-version
           swift --version
 
       - name: 纯逻辑测试
@@ -214,11 +216,15 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: macos-arm64
-          path: release
+          path: artifacts
 
       - name: 汇总产物与说明
         run: |
           set -euo pipefail
+          # 先展平：download-artifact 是否按 artifact 名建子目录，取决于它拿到的路径与文件数，
+          # 这里不赌这个行为（Sevqo 就是这么踩平过这一层的）。
+          mkdir -p release
+          find artifacts -type f -name '*.dmg' -exec cp {} release/ \;
           # 说明文字只有 RELEASE_NOTES.md 一个来源；CI 不自带模板，否则两条路线的话术会分叉。
           [ -s RELEASE_NOTES.md ] || { echo "缺少 RELEASE_NOTES.md，Release 正文没东西可写" >&2; exit 1; }
           ls -lh release/
