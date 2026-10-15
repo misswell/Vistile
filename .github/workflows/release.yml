@@ -50,10 +50,13 @@ jobs:
       - name: 选最新 Xcode 并打印工具链
         # Packages/VistileCore/Package.swift 要 swift-tools-version 6.0（Xcode 16+），
         # 镜像的默认版本不一定够新，直接取装得最高的那个。
+        # 必须在本步就 export：只写 GITHUB_ENV 的话，下面这几行打印的还是镜像默认的 15.4，
+        # 日志会声称自己是另一套工具链——它跟真正构建用的那个不是一回事。
         run: |
           set -euo pipefail
           newest="$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
-          echo "DEVELOPER_DIR=$newest/Contents/Developer" >>"$GITHUB_ENV"
+          export DEVELOPER_DIR="$newest/Contents/Developer"
+          echo "DEVELOPER_DIR=$DEVELOPER_DIR" >>"$GITHUB_ENV"
           sw_vers -productVersion
           xcodebuild -version
           # 记进日志：兼容矩阵要说清发出去的包是用哪个 SDK 编的，不能凭印象。
@@ -164,11 +167,15 @@ jobs:
           ref: ${{ env.SOURCE_REF }}
 
       - name: 选最新 Xcode
+        # 同 verify：本步就要 export，只写 GITHUB_ENV 时这一步打印的是镜像默认版本，
+        # 真正构建用的却是下一步才生效的那个——日志和事实对不上。
         run: |
           set -euo pipefail
           newest="$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
-          echo "DEVELOPER_DIR=$newest/Contents/Developer" >>"$GITHUB_ENV"
+          export DEVELOPER_DIR="$newest/Contents/Developer"
+          echo "DEVELOPER_DIR=$DEVELOPER_DIR" >>"$GITHUB_ENV"
           xcodebuild -version
+          xcrun --sdk macosx --show-sdk-version
 
       - name: 导入 Developer ID 证书
         if: ${{ needs.verify.outputs.signing_ready == 'true' }}
