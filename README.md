@@ -72,9 +72,11 @@ SIGNING_IDENTITY="Apple Development: <你的身份>" RELEASE_TAG=v0.1.0 SKIP_NOT
   bash .github/scripts/build_sign_notarize.sh
 ```
 
-它明确跳过 `notarytool` 与依赖公证票据的复核，**跑通不等于公证过**。
+它明确跳过 `notarytool` 与依赖公证票据的复核，**跑通不等于公证过**；本机用的 `Apple Development` 身份也不会被算作签名链证据——脚本会在日志里直说「签名链不是 Developer ID Application」。
 
-跑在 `macos-14` runner 上，并自动选用镜像里版本号最高的 Xcode（写这份文档时是 16.2）。这比开发机的 Xcode 27 旧，差别是真实的：`Fixtures.records` 里一条嵌着整型除法与 `CGFloat` 乘法的表达式，在 Xcode 27 上编译正常，在 16.2 / Swift 6.0 上直接报「unable to type-check this expression in reasonable time」——第一次未签名自检就抓到了它。
+`spctl` 在这台开发机上不算验证：`spctl --status` 是 `assessments disabled`，连未签名的产物都会被回 `accepted / override=security disabled`。CI 因此先把评估状态打进日志，硬把关只放在与机器设置无关的两处——证书链里的 `Authority=Developer ID Application` 与挂载后对镜像内 `Vistile.app` 的 `stapler validate`。
+
+跑在 `macos-14` runner（系统 macOS 14.8.9）上，自动选用镜像里版本号最高的 Xcode，实测 **Xcode 16.2 / macOS SDK 15.2 / Swift 6.0.3**（默认 `xcodebuild` 是 15.4，不够新）。这比开发机的 Xcode 27 / SDK 27.0 旧，差别是真实的：`Fixtures.records` 里一条嵌着整型除法与 `CGFloat` 乘法的表达式，在 Xcode 27 上编译正常，在 16.2 / Swift 6.0 上直接报「unable to type-check this expression in reasonable time」——第一次未签名自检就抓到了它。
 
 发布说明的唯一来源是仓库根的 `RELEASE_NOTES.md`，CI 直接拿它当 Release 正文；不要在 workflow 里另写一套模板，否则两条路线的话术会分叉。
 

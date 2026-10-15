@@ -94,6 +94,25 @@ else
   case "$ent" in
     *'get-task-allow'* ) echo "签名里仍带 com.apple.security.get-task-allow，公证会拒" >&2; exit 1 ;;
   esac
+
+  # 签名链里必须有 Developer ID Application：Apple Development 也能签出 hardened runtime，
+  # 但它过不了公证，换台机器照样装不上。本机自检故意允许拿现成的 Development 身份跑，
+  # 所以这条只在真要发布的那条路上硬把关。
+  chain="$(codesign -dvvv "$app" 2>&1)"
+  case "$chain" in
+    *'Authority=Developer ID Application'* )
+      log "签名链：Developer ID Application"
+      ;;
+    *)
+      if [ "$SKIP_NOTARIZE" = 1 ]; then
+        echo "注意：签名链不是 Developer ID Application（自检模式允许），这条路不会有票据也不会发布" >&2
+      else
+        echo "签名链里没有 Developer ID Application，实际信息：" >&2
+        echo "$chain" >&2
+        exit 1
+      fi
+      ;;
+  esac
 fi
 
 notarize() {
@@ -144,11 +163,25 @@ xcrun stapler staple "$dmg"
 xcrun stapler validate "$dmg"
 
 log "验收"
-spctl -a -vvv -t exec "$app"
+# Gatekeeper 评估一旦在这台机器上关掉，spctl 对连签名都没有的 app 也会回
+# "accepted / override=security disabled"（本机实测就是这样）。所以先把评估状态打在日志里，
+# 硬把关留给签名链与票据；spctl 只在评估开着时才算一条独立证据。
+assess="$(spctl --status 2>&1 || true)"
+log "Gatekeeper 评估状态：${assess}"
+gatekeeper() {
+  if spctl -a -vvv -t exec "$1"; then
+    case "$assess" in
+      *disabled* ) log "  ↑ 评估已关闭，这个 accepted 不能当成公证证据" ;;
+    esac
+  else
+    echo "Gatekeeper 拒绝 $1（评估状态：${assess}）" >&2; exit 1
+  fi
+}
+gatekeeper "$app"
 # 只看 dmg 自己的票据发现不了「先造镜像、后装订 .app」：那时用户拖出来的是没票据的副本。
 hdiutil attach -readonly -nobrowse -mountpoint "$mnt" "$dmg" >/dev/null
 xcrun stapler validate "$mnt/Vistile.app"
-spctl -a -vvv -t exec "$mnt/Vistile.app"
+gatekeeper "$mnt/Vistile.app"
 case "$(codesign -dv --verbose=4 "$mnt/Vistile.app" 2>&1)" in
   *'flags=0x10000'*) ;;
   *) echo "镜像里的 app 没有 hardened runtime" >&2; exit 1 ;;

@@ -19,15 +19,27 @@
 
 | 项 | 值 | 来源 |
 | --- | --- | --- |
-| Runner 镜像 | `macos-14`，系统 macOS 14.8.9 | run [`38771432336`](https://github.com/misswell/Vistile/actions/runs/38771432336) 日志 |
-| 构建用 Xcode | 16.2（取镜像里装得最高的那个；默认 `xcodebuild` 是 15.4） | 同上 |
+| Runner 镜像 | `macos-14`，系统 macOS 14.8.9 | run [`38773723973`](https://github.com/misswell/Vistile/actions/runs/38773723973) 日志 |
+| 构建用 Xcode | 16.2（Build 16C5032a，`/Applications/Xcode_16.2.0.app`；取镜像里装得最高的那个，默认 `xcodebuild` 是 15.4） | 同上，脚本内 `==> 工具链：` 一行 |
+| macOS SDK | **15.2** | `xcrun --sdk macosx --show-sdk-version`，与产物 `otool -l` 的 `LC_BUILD_VERSION sdk 15.2` 一致 |
+| 部署目标 | `minos 14.0`（`arm64-apple-macosx14.0`，Swift 6.0.3） | 同上：解出的二进制 `otool -l` |
 | 产物架构 | `arm64` 单架构，从上传的 dmg 里解出 app 实测 `lipo -archs` | 同上 |
 | bundle id | `com.misswell.Vistile`（解包读 `Info.plist` 实测） | 同上 |
-| 已证明 | 未签名干跑通过：76 项测试在 Swift 6.0 下全绿、App 编译通过、dmg 能挂载 | 同上 |
-| 未证明 | 签名、公证、装订、`spctl` 这四处——缺 secrets，干跑时它们被显式跳过 | — |
-| macOS SDK 版本 | 待下一次运行打印（步骤已加） | — |
+| 干跑产物的签名实况 | `flags=0x20002(adhoc,linker-signed)`、无票据、`stapler validate` 报 "does not have a ticket" | 下载 run 38773467420 的 dmg 实测 |
+| 已证明 | 未签名干跑通过：76 项测试在 Swift 6.0.3 下全绿、App 用 SDK 15.2 编过、dmg 能挂载、镜像里的 app 是 arm64 单架构 | 同上 |
+| 未证明 | Developer ID 签名链、公证、票据装订、真机 Gatekeeper 放行——缺 secrets，干跑时这些被显式跳过 | — |
 
-开发机的 Xcode 27 与 runner 的 Xcode 16.2 差别是真实的：`_TestSupport.swift` 里一条把整型除法、
+同一套脚本在本机用 `Apple Development` 身份跑过 `SKIP_NOTARIZE=1`：镜像里的 app 确实是
+`flags=0x10000(runtime)`、证书链走到 Apple Root CA，但 `Authority` 不是 Developer ID Application，
+所以这条路不会有票据也不会发布——脚本现在会把这一点直接说出来。
+
+**`spctl` 在这台开发机上不构成证据**：`spctl --status` 是 `assessments disabled`，
+连上面那个 adhoc 的干跑产物都会被回 `accepted / override=security disabled`。
+CI 复核因此先把评估状态打进日志，硬把关放在两处与机器设置无关的地方——
+`codesign -dvvv` 里必须有 `Authority=Developer ID Application`，`stapler validate` 必须有票据
+（包括挂载后对镜像里那个 `Vistile.app` 再验一次）。评估开着时 `spctl` 才作为附加证据。
+
+开发机的 Xcode 27 / SDK 27.0 与 runner 的 Xcode 16.2 / SDK 15.2 差别是真实的：`_TestSupport.swift` 里一条把整型除法、
 `CGFloat` 乘法和 `CGRect(origin:size:)` 嵌进同一次调用的表达式，在本机正常、在 16.2 上直接
 类型推断超时（第一次干跑抓到，提交 `329c78d` 拆掉）。所以「本机编得过」不能当成「发出去的包编得过」。
 

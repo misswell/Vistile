@@ -14,7 +14,9 @@
 
 下载 `.dmg`，把 Vistile 拖进「应用程序」。首次启动需要在「系统设置 → 隐私与安全性」里手动授予**屏幕录制**与**辅助功能**，然后重启 App。默认呼出热键是 **⌃⌥空格**。
 
-安装包由 GitHub Actions 用 Developer ID 签名、经 Apple 公证并装订票据，Gatekeeper 不会拦；架构只有 arm64（Apple Silicon），Intel 包不提供。
+安装包由 GitHub Actions 用 Developer ID 签名（hardened runtime + 时间戳）、经 Apple 公证并装订票据。发布前 CI 会硬验两处：`codesign -dvvv` 的证书链里必须有 `Authority=Developer ID Application`，挂载后镜像里那个 `Vistile.app` 必须 `stapler validate` 通过。架构只有 arm64（Apple Silicon），Intel 包不提供。
+
+「装到别人机器上会不会被拦」这一格在兼容矩阵里仍是**未测**：公证票据是 Gatekeeper 放行的必要条件，但本机 `spctl` 的评估是被关掉的，测不出真实放行行为，所以这里不写「一定不拦」。
 
 ## 构建与测试
 
