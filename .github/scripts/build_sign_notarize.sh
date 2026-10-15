@@ -46,6 +46,10 @@ fi
 log() { echo "==> $*"; }
 
 log "构建 Release（构建阶段不签名，签名统一在这里做）"
+# 在真正调用编译的那一步里打印工具链，而不是只靠 workflow 的前置步骤：
+# 前置步骤的 DEVELOPER_DIR 要下一步才生效，而且换人重排步骤后日志就对不上产物的来源了。
+# 用命令替换 + tr 收全输出：`xcodebuild -version | head -1` 在 pipefail 下会被 SIGPIPE 打断。
+log "工具链：$(xcodebuild -version 2>/dev/null | tr '\n' ' ')，macOS SDK $(xcrun --sdk macosx --show-sdk-version)"
 # 显式锁 arm64：Release 配置的 ARCHS 是 x86_64+arm64，-destination 里的 arch 并不压制它。
 # 发一个从没在 Intel 上打开过的通用包，和说明里「Intel 未提供、未验证」自相矛盾。
 xcodebuild -project Vistile.xcodeproj -scheme Vistile -configuration Release \
