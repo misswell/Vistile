@@ -43,7 +43,7 @@ xcodebuild -project Vistile.xcodeproj -scheme Vistile \
 
 这台开发机上**没有** Developer ID Application 证书（钥匙串里只有 Apple Development 与 Apple Distribution），也没有公证凭据，所以公证只能在 CI 上做：推一个 `v*` 标签，Actions 会构建 arm64 的 Release 包、签名、公证、装订票据、出 `.dmg` 并复核后发布。
 
-流水线在 `.github/workflows/release.yml`，需要仓库 secrets（缺哪项，verify 任务点名报哪项并跳过构建，不会悄悄发一个没签名的包）：
+流水线在 [.github/workflows/release.yml](.github/workflows/release.yml)，需要仓库 secrets（缺哪项，verify 任务点名报哪项；构建仍会跑一次未签名自检，发布任务则必须凭据齐才执行，不会悄悄发一个没签名的包）：
 
 | 用途 | secrets |
 | --- | --- |
@@ -73,6 +73,8 @@ SIGNING_IDENTITY="Apple Development: <你的身份>" RELEASE_TAG=v0.1.0 SKIP_NOT
 ```
 
 它明确跳过 `notarytool` 与依赖公证票据的复核，**跑通不等于公证过**。
+
+跑在 `macos-14` runner 上，并自动选用镜像里版本号最高的 Xcode（写这份文档时是 16.2）。这比开发机的 Xcode 27 旧，差别是真实的：`Fixtures.records` 里一条嵌着整型除法与 `CGFloat` 乘法的表达式，在 Xcode 27 上编译正常，在 16.2 / Swift 6.0 上直接报「unable to type-check this expression in reasonable time」——第一次未签名自检就抓到了它。
 
 发布说明的唯一来源是仓库根的 `RELEASE_NOTES.md`，CI 直接拿它当 Release 正文；不要在 workflow 里另写一套模板，否则两条路线的话术会分叉。
 
