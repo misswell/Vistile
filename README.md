@@ -63,6 +63,8 @@ gh secret set APPLE_DEVELOPER_ID_P12_PASSWORD -R misswell/Vistile        # 从�
 gh workflow run release.yml -R misswell/Vistile -f tag=v9.9.9-dryrun -f probeCredentials=true
 ```
 
+secrets 还没填时这条会**红**，红在第一步并点名缺哪个键（`缺少 APPLE_DEVELOPER_ID_P12_BASE64`）——那是预期结果，不是流水线坏了；实测见 run [`38774694133`](https://github.com/misswell/Vistile/actions/runs/38774694133)。它不会静默通过，也不会发布任何东西。
+
 发布相关的脚本：`.github/scripts/import_signing_identity.sh`（一次性钥匙串 + 真试签）、`.github/scripts/build_sign_notarize.sh`（构建→签名→公证→装订→出镜像→挂载复核）、`Tools/make_dmg.sh`。
 
 本机可以先自检除公证之外的每一步（不需要任何凭据）：
