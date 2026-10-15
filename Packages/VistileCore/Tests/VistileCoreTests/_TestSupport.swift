@@ -55,13 +55,18 @@ enum Fixtures {
     }
 
     static func records(_ count: Int, size: CGSize = CGSize(width: 1_280, height: 800)) -> [WindowRecord] {
+        // 显式拆出每个中间值：一条嵌着 CGRect/CGPoint 与整型除法的表达式，
+        // 在较旧的工具链（Xcode 16.2 / Swift 6.0）上会卡在类型推断超时，本机新编译器却无感。
         (0..<count).map { index in
-            record(400 + Int32(index / 4), UInt32(1_000 + index),
-                   frame: CGRect(origin: CGPoint(x: 40 + CGFloat(index % 4) * 300,
-                                                 y: 40 + CGFloat(index / 4) * 200),
-                                 size: size),
-                   title: "窗口 \(index)",
-                   app: "App\(index / 4)")
+            let pid = 400 + Int32(index / 4)
+            let window = UInt32(1_000 + index)
+            let x = CGFloat(40 + (index % 4) * 300)
+            let y = CGFloat(40 + (index / 4) * 200)
+            let app = "App\(index / 4)"
+            return record(pid, window,
+                          frame: CGRect(x: x, y: y, width: size.width, height: size.height),
+                          title: "窗口 \(index)",
+                          app: app)
         }
     }
 

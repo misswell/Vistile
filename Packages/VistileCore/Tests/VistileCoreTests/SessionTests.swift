@@ -159,7 +159,7 @@ struct SessionReducerTests {
     @Test("无法唯一对应时禁止写 AX，只提示")
     func ambiguousTargetIsNotWritten() {
         var state = Fixtures.state(withCount: 1)
-        var blocked = Fixtures.record(500, 2_000, confidence: .ambiguous(alternatives: [0, 1]))
+        let blocked = Fixtures.record(500, 2_000, confidence: .ambiguous(alternatives: [0, 1]))
         state.records = [blocked.identity: blocked]
         state.slots = SlotRegistry(capacity: 8)
         _ = state.slots.assign(blocked.identity, memoryKey: blocked.memoryKey)
