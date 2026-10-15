@@ -6,6 +6,14 @@
 > P0 需要真机录屏与肉眼验收，而验收人是你。任何"未测"格子都不表示可用。
 > 详见 [Docs/Acceptance.md](Docs/Acceptance.md) 与 [Docs/Compatibility.md](Docs/Compatibility.md)。
 
+仓库：<https://github.com/misswell/Vistile>
+
+```bash
+git clone https://github.com/misswell/Vistile.git
+```
+
+Release 页附带本机可用的 `Vistile-0.1.0-arm64-devsigned.zip`。它只有 Apple Development 签名、未做 Developer ID 与公证，换一台机器会被 Gatekeeper 拦下；其它机器请按下面的命令自行构建。
+
 ## 环境
 
 - macOS 14 及以上（开发与实测机器为 macOS 27，Apple Silicon）
