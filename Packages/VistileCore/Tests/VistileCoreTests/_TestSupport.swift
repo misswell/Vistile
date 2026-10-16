@@ -41,14 +41,15 @@ enum Fixtures {
                        bundle: String? = "com.test.app",
                        confidence: MatchConfidence = .unique(score: 0.9, axIndex: 0),
                        puid: UInt64 = 1,
-                       generation: UInt64 = 1) -> WindowRecord {
+                       generation: UInt64 = 1,
+                       displayID: UInt32 = 1) -> WindowRecord {
         WindowRecord(identity: identity(pid, window, puid: puid),
                      bundleID: bundle,
                      applicationName: app,
                      title: title,
                      confidence: confidence,
                      frame: frame,
-                     displayID: 1,
+                     displayID: displayID,
                      isMovable: true,
                      isResizable: true,
                      sessionGeneration: generation)

@@ -31,6 +31,12 @@ public enum HintKind: Hashable, Sendable {
     /// 批次处理完毕但仍有窗口几何未恢复：数量必须说出来。
     case restoreIncomplete(Int)
     case displayUnavailable(String)
+    /// 工作台过渡失败（进入/返回）：失败必须说清楚，不能停在半套界面（方案 §4.2、§10.5）。
+    case workbenchTransitionFailed(String)
+    /// A/B 交换失败并已回滚：主窗口仍是原窗口，事实不能含糊（方案 §8.3）。
+    case workbenchSwitchFailed(String)
+    /// 主窗口未能按布局调整（侧栏切换、分隔线收敛）：位置保持可用，不假装已到位。
+    case workbenchMainFrameFailed(String)
 }
 
 /// 一次目录查询的身份：会话 ID + 请求代次。旧会话的结果不得生成当前会话的卡片（方案 §5.2）。
@@ -75,6 +81,28 @@ public enum SessionEvent: Hashable, Sendable {
     case captureFirstFrame(WindowIdentity, Date)
     case captureStreamFailed(WindowIdentity, String)
     case captureDowngraded(WindowIdentity, intervalMilliseconds: Int)
+
+    // MARK: 工作台（方案 §7.1）
+
+    /// 总览卡片被选中：每次打开都必须从这里进入工作台，不自动选主（方案 §4.1、§4.2）。
+    case overviewCardSelected(identity: WindowIdentity, slot: SlotID, revision: Int)
+    /// 轨道卡片被选中：A/B 交换，其他 slot 不动（方案 §4.3）。
+    case railCardSelected(slot: RailSlotID, identity: WindowIdentity)
+    case railCardDragged(from: RailSlotID, to: RailSlotID)
+    case railScrolled(rail: RailKind, offset: CGFloat)
+    case railSideChanged(RailSide)
+    /// 「全部窗口」按钮：回到完整总览，L 型上下文保存下来（方案 §4.4）。
+    case returnToOverviewRequested
+    /// 模式过渡结束（进入工作台或返回总览）：失败时停在原模式，不留半套界面。
+    case workbenchTransitionFinished(token: TransitionToken, kind: WorkbenchTransitionKind, result: WorkbenchStepOutcome)
+    /// A/B 交换的每一步单独回报；placement 只在 commit 时提交（方案 §8.2）。
+    case mainSwitchStepFinished(WorkbenchSwitchStepResult)
+    case mainSwitchCommitted(token: TransitionToken)
+    case mainSwitchFailed(token: TransitionToken, reason: String)
+    /// 用户拖动分隔线后的两条栏尺寸偏好；写盘只在拖动结束（方案 §11.2）。
+    case workbenchRailSizeChanged(topHeight: CGFloat?, sideWidth: CGFloat?)
+    /// 搜索框获得/失去键盘：only 搜索期间 Vistile 持有键盘（方案 §4.5、§9.3）。
+    case workbenchSearchFocusChanged(Bool)
 
     case expandRequested(WindowIdentity)
     case expandCompleted(TransitionToken)
@@ -128,6 +156,20 @@ public enum SessionEffect: Hashable, Sendable {
     case raiseTarget(WindowIdentity)
     /// 立刻结束进行中的代理动画：目标被销毁时不能让画面继续飞向一个不存在的窗口（方案 §12.2）。
     case cancelTransition
+    /// 进入工作台：把主窗口搬到 mainRect，其余窗口按 L 型排布（方案 §4.2、§10.1）。
+    case enterWorkbench(WorkbenchTransitionPlan)
+    /// 返回完整总览（方案 §4.4）。
+    case returnToOverview(WorkbenchTransitionPlan)
+    /// 开始一次 A/B 交换：按步骤串行执行，撤销时按逆序回滚（方案 §8.1、§8.3）。
+    case beginMainSwitch(WorkbenchSwitchPlan)
+    /// 撤销进行中的模式过渡：目标已消失或超时，不留半套界面（方案 §10.5）。
+    case cancelWorkbenchTransition
+    /// 撤下工作台面板（返回总览、回滚、隐藏）：不留下透明的全屏命中层（方案 §9.1）。
+    case hideWorkbench
+    /// 布局/占用/偏移变化后的重投影：宿主据此重排卡片、命中与帧路由。
+    case updateWorkbenchLayout(WorkbenchPresentation)
+    /// 主窗口几何微调（侧栏切换、分隔线收敛）：节流写入并读回，不改变 placement（方案 §11.2）。
+    case settleMainFrame(WindowIdentity, targetFrame: CGRect, token: TransitionToken, animationMS: Int)
     case setKeyboardFocus(KeyboardFocus)
     case scheduleReconcile(TimeInterval)
     case cancelReconcile

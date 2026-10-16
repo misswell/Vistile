@@ -38,6 +38,14 @@ public enum FocusGeometry {
                       height: height)
     }
 
+    /// 工作台主区停靠（方案 §11）：可调整窗口精确占 mainRect，不再套 0.86/0.88 旧比例；
+    /// 不可调整尺寸的窗口按原尺寸居中，留白由主区背景承担，不假装已铺满。
+    public static func dockedRect(in mainRect: CGRect, currentSize: CGSize?, isResizable: Bool) -> CGRect {
+        guard mainRect.width > 1, mainRect.height > 1 else { return mainRect }
+        guard isResizable else { return centeredOriginal(in: mainRect, size: currentSize) }
+        return mainRect
+    }
+
     /// 过渡代理的中间矩形：容器矩形插值 + 内容等比适配，不做非均匀图像拉伸。
     public static func interpolated(from source: CGRect, to destination: CGRect, progress: Double) -> CGRect {
         let t = min(1, max(0, progress))

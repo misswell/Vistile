@@ -49,12 +49,18 @@ public enum SessionReducer {
             } else if state.pendingTarget == identity {
                 state.pendingTarget = nil
             }
+            // 工作台：原 slot 留空、主窗口自动替补最多一次，不悬空（方案 §6.2）。
+            effects.append(contentsOf: WorkbenchReducer.handleWindowClosed(&state, identity: identity))
             return effects
 
         case .displaysChanged:
             guard state.phase.isVisible, state.recoveryDestination == nil else { return [] }
             // 屏幕集合变了，旧的冻结几何不再适用：先结束受控聚焦，再安全重建（方案 §8.2、§9.1）。
             state.gridsAreStale = true
+            // 工作台依赖活动屏坐标：先安全退出，不用旧坐标继续执行（方案 §13）。
+            if state.mode == .workbench || state.workbench.modeTransition.isTransitioning {
+                return recoverToHidden(&state, destination: .hidden)
+            }
             if state.hasPendingGeometryRestore { return recoverToHidden(&state, destination: .hidden) }
             return [startDiscoveryEffect(&state, reason: .displaysChanged)]
 
@@ -67,6 +73,8 @@ public enum SessionReducer {
     // MARK: - 常规事件
 
     private static func reduceNormal(_ state: inout SessionState, _ event: SessionEvent) -> [SessionEffect] {
+        // 工作台事件与模式相关行为先由 WorkbenchReducer 认领；认不出的交回下面既有逻辑。
+        if let workbench = WorkbenchReducer.reduce(&state, event) { return workbench }
         switch event {
         case .globalShortcut:
             return handleShortcut(&state)
@@ -385,7 +393,7 @@ public enum SessionReducer {
         state.pendingTarget = nil
         state.pendingDiscovery = nil
         state.resetForHiddenSession()
-        return [.cancelReconcile, .hideOverview, .stopAllCapture, .setKeyboardFocus(.none)]
+        return [.cancelReconcile, .hideOverview, .hideWorkbench, .stopAllCapture, .setKeyboardFocus(.none)]
     }
 
     private static func handleTargetRequest(_ state: inout SessionState, _ identity: WindowIdentity) -> [SessionEffect] {
@@ -499,10 +507,11 @@ public enum SessionReducer {
     }
 
     /// 同一事务不能反复覆盖原 frame：已存在的未完成事务只更新计划目标。
-    private static func ensureTransaction(_ state: inout SessionState,
-                                          target: WindowIdentity,
-                                          planned: CGRect,
-                                          displayID: UInt32) -> WindowTransaction? {
+    /// 工作台的两窗口交换复用同一入口，日志格式不分叉。
+    static func ensureTransaction(_ state: inout SessionState,
+                                  target: WindowIdentity,
+                                  planned: CGRect,
+                                  displayID: UInt32) -> WindowTransaction? {
         if let existing = state.transactions[target], existing.state.requiresRestore {
             let updated = existing.markingPlanned(frame: planned, displayID: displayID)
             state.transactions[target] = updated
@@ -519,7 +528,7 @@ public enum SessionReducer {
         return transaction
     }
 
-    private static func targetDisplay(for record: WindowRecord, state: SessionState) -> DisplayInfo? {
+    static func targetDisplay(for record: WindowRecord, state: SessionState) -> DisplayInfo? {
         state.displays.first { $0.id == record.displayID } ?? state.displays.first { $0.isPrimary } ?? state.displays.first
     }
 
@@ -541,7 +550,7 @@ public enum SessionReducer {
         state.pendingDiscovery = nil
         let identities = state.transactions.values.filter { $0.state.requiresRestore }
             .sorted { $0.created < $1.created }.map(\.identity)
-        var effects: [SessionEffect] = [.cancelReconcile, .hideOverview, .stopAllCapture]
+        var effects: [SessionEffect] = [.cancelReconcile, .hideOverview, .hideWorkbench, .stopAllCapture]
         guard !identities.isEmpty else {
             state.phase = .hidden
             state.isExitPending = false
@@ -562,7 +571,7 @@ public enum SessionReducer {
         return effects + hints
     }
 
-    private static func exitToHidden(_ state: inout SessionState) -> [SessionEffect] {
+    static func exitToHidden(_ state: inout SessionState) -> [SessionEffect] {
         recoverToHidden(&state, destination: .hidden)
     }
 
@@ -574,7 +583,8 @@ public enum SessionReducer {
         state.pendingDiscovery = nil
         state.keyboardFocus = .none
         state.resetForHiddenSession()
-        var effects: [SessionEffect] = [.cancelReconcile, .stopAllCapture, .hideOverview, .setKeyboardFocus(.none)]
+        var effects: [SessionEffect] = [.cancelReconcile, .stopAllCapture, .hideOverview, .hideWorkbench,
+                                        .setKeyboardFocus(.none)]
         if case let .hiddenAfterPermissionLost(kind) = destination {
             effects.append(.presentHint(.permissionMissing(kind)))
         }
@@ -585,6 +595,11 @@ public enum SessionReducer {
 
     private static func applyWriteResult(_ state: inout SessionState,
                                          _ result: GeometryWriteResult) -> [SessionEffect] {
+        // 工作台主窗口微调（侧栏切换/尺寸收敛）不在过渡令牌里，凭 mainFrameWrite 对账（方案 §11.2）。
+        if let pending = state.workbench.mainFrameWrite,
+           pending.token == result.token, pending.identity == result.identity {
+            return WorkbenchReducer.applyMainFrameResult(&state, result)
+        }
         guard var transaction = state.transactions[result.identity] else { return [] }
         guard state.phase.token == result.token else {
             // 过期结果不改状态：宿主必须已经做了补偿恢复。
@@ -664,6 +679,8 @@ public enum SessionReducer {
             guard record.slot != nil, record.capture == .idle else { return nil }
             return record.identity
         }
+        // 工作台：新窗口填空/追加，关闭的 slot 留空，不抢主、不重排（方案 §6.2）。
+        let workbenchEffects = WorkbenchReducer.syncCatalog(&state, generation: request.generation)
 
         var effects: [SessionEffect] = []
         switch state.phase {
@@ -687,6 +704,7 @@ public enum SessionReducer {
         default:
             break
         }
+        effects.append(contentsOf: workbenchEffects)
         return effects
     }
 

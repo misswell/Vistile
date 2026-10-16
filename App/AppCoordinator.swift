@@ -54,6 +54,7 @@ final class AppCoordinator {
     private var pendingHint: String?
     private var structuralRefreshWork: DispatchWorkItem?
     private var hasWarnedTinyThumbnails = false
+    private var hasReportedUnwiredWorkbench = false
     private var lastOpenConditions: OpenConditions?
     private var observers: [NSObjectProtocol] = []
 
@@ -336,6 +337,29 @@ final class AppCoordinator {
             // 目标没了：立刻收掉代理浮层并清空令牌，旧动画回调此后不再有效。
             focus.cancelAnimation()
 
+        // M1 阶段工作台只到核心层，宿主接线在 M2（方案 §21）。以下 case 如实记录，
+        // 不伪造动画或几何；hideWorkbench 是"确保工作台面板不存在"，当前天然成立。
+        case let .enterWorkbench(plan):
+            reportWorkbenchUnwired("enterWorkbench", identity: plan.identity)
+
+        case let .returnToOverview(plan):
+            reportWorkbenchUnwired("returnToOverview", identity: plan.identity)
+
+        case let .beginMainSwitch(plan):
+            reportWorkbenchUnwired("beginMainSwitch", identity: plan.intent.to)
+
+        case .cancelWorkbenchTransition:
+            reportWorkbenchUnwired("cancelWorkbenchTransition", identity: nil)
+
+        case .hideWorkbench:
+            break
+
+        case let .updateWorkbenchLayout(presentation):
+            reportWorkbenchUnwired("updateWorkbenchLayout", identity: presentation.mainIdentity)
+
+        case let .settleMainFrame(identity, _, _, _):
+            reportWorkbenchUnwired("settleMainFrame", identity: identity)
+
         case let .setKeyboardFocus(focus):
             applyKeyboardFocus(focus)
 
@@ -353,6 +377,15 @@ final class AppCoordinator {
             break
         }
         return true
+    }
+
+    /// M1 的工作台 effect 只在核心层可达；宿主接线在 M2。如实记录一次，避免静默吞掉。
+    private func reportWorkbenchUnwired(_ effect: String, identity: WindowIdentity?) {
+        log("workbench", "\(effect) 尚未接入宿主（M2），本次未执行")
+        guard !hasReportedUnwiredWorkbench else { return }
+        hasReportedUnwiredWorkbench = true
+        recorder.record("工作台宿主接入", subject: identity?.journalKey ?? "-", result: .failed,
+                        detail: "M1 只到核心层；\(effect) 未执行")
     }
 
     // MARK: - 展示同步
@@ -535,7 +568,7 @@ final class AppCoordinator {
 
     private func applyKeyboardFocus(_ focus: KeyboardFocus) {
         switch focus {
-        case .overview:
+        case .overview, .railSearch:
             let host = keyboardHost()
             for controller in controllers.values where controller !== host { controller.setKeyboardFocus(false) }
             host?.setKeyboardFocus(true)
@@ -557,6 +590,14 @@ final class AppCoordinator {
             }
             guard !host.keyboardAccepted else { return }
             log("keyboard", "总览键盘未落位：面板不是 key 或 first responder 不是内容视图，方向键/Esc/搜索不保证有效")
+        case .railSearch:
+            // 工作台搜索框持有键盘（M2 接入）；现在如实记录实况，不假装搜索可用。
+            guard let host else {
+                log("keyboard", "搜索需要键盘，但当前没有可用面板（工作台未接入，M2）")
+                return
+            }
+            guard !host.keyboardAccepted else { return }
+            log("keyboard", "搜索键盘未落位：面板不是 key（工作台未接入，M2）")
         case .targetApplication, .none:
             guard let still = controllers.values.first(where: { $0.isKey }) else { return }
             log("keyboard", "让出键盘后 display \(still.displayID) 面板仍是 key，原生输入可能落进总览")
@@ -756,6 +797,12 @@ final class AppCoordinator {
             text = "有 \(count) 个窗口的尺寸没恢复成功，下次启动会继续尝试"
         case let .displayUnavailable(name):
             text = "\(name) 所在的显示器已不可用，无法展开"
+        case let .workbenchTransitionFailed(reason):
+            text = "这次切换没有完成：\(reason)"
+        case let .workbenchSwitchFailed(reason):
+            text = "主窗口交换未完成：\(reason)"
+        case let .workbenchMainFrameFailed(reason):
+            text = "主窗口尺寸没能调整到位：\(reason)"
         }
         metrics.increment("hint")
         pendingHint = text

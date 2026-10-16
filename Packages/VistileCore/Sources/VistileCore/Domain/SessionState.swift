@@ -21,6 +21,8 @@ public struct InteractionToken: Hashable, Sendable {
 public enum KeyboardFocus: String, Hashable, Sendable {
     case none
     case overview
+    /// 工作台顶栏搜索持有键盘：Esc 先关搜索并还原主应用焦点（方案 §4.5）。
+    case railSearch
     case targetApplication
 }
 
@@ -128,6 +130,11 @@ public struct SessionPolicy: Hashable, Sendable {
 
 public struct SessionState: Sendable {
     public var phase: SessionPhase = .hidden
+    /// 展示模式（方案 §7）：与 phase 正交，phase 描述过渡中，mode 描述落地形态。
+    /// 每次从 hidden 打开都必须从 .overview 开始，不保留上次的模式（方案 §4.1、§4.5）。
+    public var mode: PresentationMode = .overview
+    /// 工作台（主窗口＋L 型）的独立会话状态（方案 §6、§7）。
+    public var workbench = WorkbenchState()
     public var records: [WindowIdentity: WindowRecord] = [:]
     public var slots = SlotRegistry(capacity: 0)
     public var catalogGeneration: UInt64 = 0
@@ -191,10 +198,13 @@ public struct SessionState: Sendable {
     }
 
     /// 会话结束：冻结网格不再有意义，但跨会话的顺序偏好要保留（方案 §8.2）。
+    /// 工作台同样清空：下次打开必须回到总览（方案 §4.5），不得从上次的主窗口恢复。
     public mutating func resetForHiddenSession() {
         grids = [:]
         gridsAreStale = false
         slots = SlotRegistry(capacity: slots.capacity, orderPreference: slots.orderPreference)
+        mode = .overview
+        workbench.resetForHiddenSession()
     }
 
     public func record(for identity: WindowIdentity) -> WindowRecord? {
