@@ -17,11 +17,18 @@ P0-7 第一次回「缺布局 2」，查明是测量时机（网格在会话隐�
 所以本文的 0.1.4 那几列是**转录**，无法再拿原始文件核对；0.1.5 起报告在探针启动时会先把上一轮归档进
 `_archive/<版本-时间>/`，桌面那份永远是最近一轮，事故已经堵住并由 `T16DiagnosticsOutputTests` 4 条用例守着。
 
+**0.1.6 之后的轮次不再逐轮扩本文的格子表**（那些轮次主攻探针口径与工作台新交互，转录在
+[Acceptance.md](Acceptance.md) §1 与 [Docs/Evidence](Evidence/README.md)）：0.1.6（17:46）`P0-3` 两个
+真实应用都判通过、`P0-7`/`P0-9` 各一条红；0.1.8 的 18:33 那轮 `P0-7` 转通过（另三轮锁定作废）；
+0.1.9 三轮把 `P0-4` 在晚班语义下复稳；0.1.10 连跑九轮（+16…+23）主攻工作台（P0-12…P0-18），
+对本文的唯一增量是一条脚手架数据：**`P0-3` 在 UITestHarness（6 窗口）上连续六轮通过**（+16…+21，
++22/+23 因中段锁定记未测）。**真实应用的「层级」格没有新增结论。**
+
 ## 1. 测试环境
 
 | 项 | 环境 A：正式版（已授权，唯一有真实数据的一组） | 环境 B：仓库 Debug 产物（未授权） |
 | --- | --- | --- |
-| 包 | `/Applications/Vistile.app`，Developer ID 签名 + 公证票据有效。四轮：0.1.1+2（15:13）、覆盖安装后的 0.1.3+4（15:26，含 R01–R11 与探针退出修复）、覆盖安装后的 0.1.4+5（15:56，改正 P0 判据）、覆盖安装后的 **0.1.5+6（16:37，`restoreOverview()` 与探针进场清场）** | `build/Build/Products/Debug/Vistile.app`，0.1.0+1 / 0.1.2+3，Apple Development 签名 |
+| 包 | `/Applications/Vistile.app`，Developer ID 签名 + 公证票据有效。四轮：0.1.1+2（15:13）、覆盖安装后的 0.1.3+4（15:26，含 R01–R11 与探针退出修复）、覆盖安装后的 0.1.4+5（15:56，改正 P0 判据）、覆盖安装后的 **0.1.5+6（16:37，`restoreOverview()` 与探针进场清场）**；此后又依次覆盖安装 **0.1.6+7、0.1.8+9、0.1.9+11…+13、0.1.10+16…+23（工作台九轮，本机 Xcode 27 构建）**，全部同 Developer ID，每轮报告里 `P0-0 系统权限` 都回「屏幕录制=true，辅助功能=true」，没有一次重新弹授权；0.1.10 发布后把 **CI 构建的发布字节**（二进制 `sha256 9f830aa5…`，见 §1.1 的 0.1.10 发布字节一行）覆盖装回 `/Applications`，run12 起探针跑的就是发布字节 | `build/Build/Products/Debug/Vistile.app`，0.1.0+1 / 0.1.2+3，Apple Development 签名 |
 | 系统版本 | macOS 27.0.1 | macOS 27.0.1 |
 | 硬件 | Apple M5（Mac17,2），arm64，10 核（4 Performance + 6 Efficiency），24GB | 同左 |
 | 显示器 | 2 块；0.1.3、0.1.4 与 0.1.5 三轮探针都读到 **负坐标 0 块、缩放 1 种**（与更早记录的"1 块负坐标、2 种缩放"不一致，说明这项随当天接线变化，不能当成固定环境） | 2 块（含 1 块负坐标、2 种缩放） |
@@ -64,21 +71,23 @@ P0-7 第一次回「缺布局 2」，查明是测量时机（网格在会话隐�
 | 已证明（0.1.3 发布字节） | `Vistile_v0.1.3_macos_arm64.dmg`：**1380791 字节**，`sha256 0bfb9a52712e2fa954700402606468ae19bef9b6cb7cf5ca556900a1fea760de`，与 `GET /repos/misswell/Vistile/releases/tags/v0.1.3` 里该资产的 `digest` 逐字节相同（先 `gh release download` 再比对）。挂载后：`Identifier=com.misswell.Vistile`、`flags=0x10000(runtime)`、证书链 `Developer ID Application: Guofeng Liu (U8U443D7ZL)` → `Developer ID Certification Authority` → `Apple Root CA`，dmg 与镜像内 `Vistile.app` 都回 `The staple and validate action worked!`，`codesign --verify --deep --strict` 回 `valid on disk` + `satisfies its Designated Requirement`，`lipo -archs` 只有 `arm64`，`Info.plist` 是 `0.1.3 / 4`，包内二进制 `sha256 5d91c359ef435aab…16a26141`（与 `/Applications/Vistile.app` 里那个相同，见 §1） | run [`38866800228`](https://github.com/misswell/Vistile/actions/runs/38866800228) 与本机对 Release 页下载文件实测（2026-10-16 15:31） |
 | 已证明（0.1.4 发布字节） | `Vistile_v0.1.4_macos_arm64.dmg`：**1400515 字节**，`sha256 196b617a24b088673cdccead54203f6fd75b91b6f675a160d7a80cc6a182a1a9`，与 `GET /repos/misswell/Vistile/releases/tags/v0.1.4` 里该资产的 `digest` 逐字节相同。挂载后：dmg 与镜像内 `Vistile.app` 都回 `The staple and validate action worked!`，`Info.plist` 是 `0.1.4 / 5`，包内二进制 `sha256 c1c64804df2e7f5e…de7a47d5`（与 `/Applications/Vistile.app` 里那个一字不差，见 §1）。runner 侧公证成对：`.app` 07:54:42 `Accepted` → `staple worked` 07:54:44，`.dmg` 07:55:18 `Accepted` → `staple worked` 07:55:19；`spctl --status` = `assessments enabled`，构建产物与挂载出来的 app 两处都回 `accepted` / `source=Notarized Developer ID`；`codesign --verify` 对 app 与 dmg 都回 `valid on disk` + `satisfies its Designated Requirement` | run [`38869893108`](https://github.com/misswell/Vistile/actions/runs/38869893108) 日志 + 本机对 `/tmp/v014/Vistile_v0.1.4_macos_arm64.dmg` 与 `/Applications/Vistile.app` 实测（2026-10-16 16:10） |
 | 已证明（0.1.5 发布字节） | `Vistile_v0.1.5_macos_arm64.dmg`：**1399736 字节**，`sha256 e8d15fa976231f8f7d6f0f20352a36e0b6782ad5f1115d3a2225c7fca44a8417`，与 `GET /repos/misswell/Vistile/releases/tags/v0.1.5` 里该资产的 `digest` 逐字节相同（先 `gh release download v0.1.5 -R misswell/Vistile` 再比对）。挂载后的全部复核见上面"探针跑的就是发布字节"那一行。runner 侧公证成对：`.app` 08:35:35 `Accepted` → `staple worked` 08:35:36，`.dmg` 08:35:59 `Accepted` → `staple worked` 08:35:59；`codesign --verify` 对 app 与 dmg 都回 `valid on disk` + `satisfies its Designated Requirement`；`spctl -a -t exec` 对构建产物与挂载出来的 app 都回 `accepted` | run [`38874504769`](https://github.com/misswell/Vistile/actions/runs/38874504769) 日志 + 本机对 `/tmp/v015/Vistile_v0.1.5_macos_arm64.dmg` 实测（2026-10-16 17:15） |
-| Apple 侧公证记录 | 按名字过滤共 **6 条，三对**（截至 0.1.2），每对都是一条 `.notarization.zip`（`.app` 本体）早于一条 `.dmg`：0.1.1 的 00:09:58→00:10:21（干跑）与 00:13:56→00:14:26（发布那次），0.1.2 的 06:52:45→06:53:11（发布），六条全 `Accepted`。只剩 dmg 就等于 `.app` 从没提交给 Apple，所以「成对且 zip 在前」这一条要看，不能只看 dmg。**0.1.3、0.1.4 与 0.1.5 那三对只从 run 日志核对**：0.1.3 是 zip 07:24:15 提交、07:24:32 `Accepted`，dmg 07:24:39 提交、07:25:02 `Accepted`；0.1.4 是 `.app` 07:54:42 `Accepted`、`.dmg` 07:55:18 `Accepted`；0.1.5 是 `.app` 08:35:35 `Accepted`、`.dmg` 08:35:59 `Accepted`。本机重跑 `notarytool history` 需要 issuer id（那是 CI secret），至今没取到，因此 Apple 侧列表里只有前三对 | 前三对：`xcrun notarytool history` 本机按名字过滤实测（2026-10-16）；0.1.3/0.1.4/0.1.5：run [`38866800228`](https://github.com/misswell/Vistile/actions/runs/38866800228)、[`38869893108`](https://github.com/misswell/Vistile/actions/runs/38869893108)、[`38874504769`](https://github.com/misswell/Vistile/actions/runs/38874504769) 的 `build-macos` 日志 |
+| 已证明（0.1.10 发布字节） | `Vistile_v0.1.10_macos_arm64.dmg`：**1995501 字节**，`sha256 4ac651588995d7273c56cf59f0de0e67ac1932b1bf5eebdb4e5e25ac79b786af`，与 `GET /repos/misswell/Vistile/releases/tags/v0.1.10` 里该资产的 `digest` 逐字节相同（先 `gh release download` 再比对）。挂载后：dmg 与镜像内 `Vistile.app` 都回 `The validate action worked!`，`Identifier=com.misswell.Vistile`、`flags=0x10000(runtime)`、证书链 `Developer ID Application: Guofeng Liu (U8U443D7ZL)` → `Developer ID Certification Authority` → `Apple Root CA`、`TeamIdentifier=U8U443D7ZL`，`codesign --verify --deep --strict` 回 `valid on disk` + `satisfies its Designated Requirement`，`lipo -archs` 只有 `arm64`，`Info.plist` 是 `0.1.10 / 24`，包内二进制 `sha256 9f830aa5aa43499034d149d7197a06418fdf5b8d3901f070a29f2370ae30a40f`。**该载荷已覆盖装回 `/Applications/Vistile.app`**（部署后同一文件哈希一字不差），run12 起探针跑的就是发布字节。runner 侧公证成对（CI 日志时间）：`.app` 18:30:49 提交 → 18:31:13 `Accepted` → 18:31:15 `staple worked`，`.dmg` 18:31:23 提交 → 18:31:45 `Accepted` → 18:31:46 `staple worked`；`spctl --status` = `assessments enabled`，构建产物与挂载出来的 app 两处都回 `accepted` / `source=Notarized Developer ID`；标签一致性检查回 `v0.1.10 与 Info.plist 的 0.1.10 一致` | run [`38947484361`](https://github.com/misswell/Vistile/actions/runs/38947484361) 日志 + 本机对 `/tmp/v0110/Vistile_v0.1.10_macos_arm64.dmg` 与 `/Applications/Vistile.app` 实测（2026-10-17 02:32） |
+| Apple 侧公证记录 | 按名字过滤共 **6 条，三对**（截至 0.1.2），每对都是一条 `.notarization.zip`（`.app` 本体）早于一条 `.dmg`：0.1.1 的 00:09:58→00:10:21（干跑）与 00:13:56→00:14:26（发布那次），0.1.2 的 06:52:45→06:53:11（发布），六条全 `Accepted`。只剩 dmg 就等于 `.app` 从没提交给 Apple，所以「成对且 zip 在前」这一条要看，不能只看 dmg。**0.1.3、0.1.4、0.1.5 与 0.1.10 那四对只从 run 日志核对**：0.1.3 是 zip 07:24:15 提交、07:24:32 `Accepted`，dmg 07:24:39 提交、07:25:02 `Accepted`；0.1.4 是 `.app` 07:54:42 `Accepted`、`.dmg` 07:55:18 `Accepted`；0.1.5 是 `.app` 08:35:35 `Accepted`、`.dmg` 08:35:59 `Accepted`；0.1.10 是 `.app` 18:31:13 `Accepted`（18:30:49 提交）、`.dmg` 18:31:45 `Accepted`（18:31:23 提交）。本机重跑 `notarytool history` 需要 issuer id（那是 CI secret），至今没取到，因此 Apple 侧列表里只有前三对 | 前三对：`xcrun notarytool history` 本机按名字过滤实测（2026-10-16）；0.1.3/0.1.4/0.1.5/0.1.10：run [`38866800228`](https://github.com/misswell/Vistile/actions/runs/38866800228)、[`38869893108`](https://github.com/misswell/Vistile/actions/runs/38869893108)、[`38874504769`](https://github.com/misswell/Vistile/actions/runs/38874504769)、[`38947484361`](https://github.com/misswell/Vistile/actions/runs/38947484361) 的 `build-macos` 日志 |
 | 修的那处真进了发出去的包 | **0.1.5：标签 `v0.1.5` → `c6653ed`，`v0.1.4..v0.1.5` = 3 个提交**（`d029fce` 每项从干净阶段与稳定窗口列表开始取证 = `restoreOverview()` + 稳定读数；`5751a05` P0-9 不再代填「层级」；`c6653ed` 版本号 0.1.5/6），发布任务 checkout 的是 `ref: v0.1.5`，16:37 那轮探针跑的二进制与镜像里那个哈希一字不差（上一行），所以 0.1.5 那轮报告里的"进场已清场"确实是发出去的代码在做。0.1.4：标签 `v0.1.4` → `7c4503b`（`fix(P0 探针): 三条口径错误改正，版本 0.1.4`，含核心包新增的 `CatalogIdentityAudit` 与 5 条单测），`v0.1.3..v0.1.4` = 2 个提交，发布任务 checkout 的就是 `ref: v0.1.4`；15:56 那轮探针跑的那个 `/Applications/Vistile.app` 二进制与镜像里那个哈希一字不差（§1），所以判据改正确实进了发出去的包。**同样的限制仍然成立**：写回这四轮实测证据的文档提交在标签之后，文档比包新。0.1.3：标签 → `35044b6`，`v0.1.2..v0.1.3` = 3 个提交（含探针退出修复 `fe4b83c`），发布任务 checkout 参数是 `ref: v0.1.3` / `SOURCE_REF: v0.1.3`。0.1.2：标签 → `477e132`，R01–R11 的全部修复提交（`27f8c90`、`901b4a9`、`3b690f4`、`4f49ae3`、`675227f`、`daf35c0`、`23cece2`）连同 CI 与文档提交都在标签里（`git rev-list --count v0.1.1..v0.1.2` = 14）。0.1.1 那次同法核对：标签 → `804e24f`，`.p8` 落盘顺序修复 `64c6635` 是其祖先 | 本机 git 查询 + run [`38874504769`](https://github.com/misswell/Vistile/actions/runs/38874504769)、[`38869893108`](https://github.com/misswell/Vistile/actions/runs/38869893108)、[`38866800228`](https://github.com/misswell/Vistile/actions/runs/38866800228)、[`38863514387`](https://github.com/misswell/Vistile/actions/runs/38863514387)、[`38828073929`](https://github.com/misswell/Vistile/actions/runs/38828073929) 的 env 行 |
 | 反面教材（已防呆） | 干跑那次手动触发了真实标签 `v0.1.1`，产出的 `Vistile_v0.1.1_macos_arm64.dmg` 与线上发布的同名文件**字节完全不同**（干跑 `1410db98…0a3f3a` / 发布 `01646765…97760`）。workflow 的 `workflow_dispatch.tag` 现在要求填测试标签，`verify` 任务在标签等于 `Info.plist` 版本时打 `::warning::` 并写进 job summary——不硬拦，因为「重发同一版」是合法兜底路线 | 两次 run 的 artifact 各自 `shasum -a 256` |
-| 已证明（当前测试面） | 核心包 137 项纯逻辑测试（14 个 suite，0.1.6 起新增 `TargetRaiseAuditTests` 6 条）+ 宿主层 84 项测试（真实控制器/内容视图/CAMetalLayer，目录与写入走注入替身，0.1.6 起新增 `T16DiagnosticsOutputTests` 4 条）在本机通过；宿主里「面板实际成为 key 窗口」一条依赖系统前台，取不到时显式 skip（本机几种结果都出现过：同一份代码 16:02 那轮 0 跳过、16:25 与 17:02 那两轮各 1 跳过，所以跳过条不能算异常）。CI 在 `pull_request` 与 `push main` 上跑同样两条（`.github/workflows/ci.yml`，不需要任何签名凭据），runner 侧数字：0.1.5 代码面 run [`38874498650`](https://github.com/misswell/Vistile/actions/runs/38874498650) 核心 `Test run with 131 tests passed`、宿主 `Executed 80 tests, with 1 test skipped and 0 failures`；更早的 0.1.4 代码面 run [`38869704821`](https://github.com/misswell/Vistile/actions/runs/38869704821) 同样是 131 / 80；0.1.3 代码面 run [`38866564471`](https://github.com/misswell/Vistile/actions/runs/38866564471) 核心是 126 项（那轮还没有 `CatalogIdentityAudit`）。**137 / 84 这对数字目前只有本机证据**，要等 `v0.1.6` 的 CI 跑完才能写"runner 侧也已追上" | 本机 Xcode 27 / SDK 27.0，2026-10-16，命令见 [Acceptance.md](Acceptance.md) §4；runner 侧 run [`38874498650`](https://github.com/misswell/Vistile/actions/runs/38874498650)、[`38869704821`](https://github.com/misswell/Vistile/actions/runs/38869704821)、[`38866564471`](https://github.com/misswell/Vistile/actions/runs/38866564471) 日志 |
+| 已证明（当前测试面） | **0.1.10 面**：核心包 swift-testing **147 项 / 15 suite** ＋ XCTest 46 项（`WorkbenchTests` 全部）＋ 宿主层 **157 项（1 skip）**，本机与 CI runner 两侧数字一致（CI main run [`38947471942`](https://github.com/misswell/Vistile/actions/runs/38947471942)：核心 `Test run with 147 tests passed`＋`Executed 46 tests`，宿主 `Executed 157 tests, with 1 test skipped and 0 failures`）。宿主里「面板实际成为 key 窗口」一条依赖系统前台，取不到时显式 `XCTSkip`（本机两种结果都出现过，跳过条不能算异常；按方案 §22 也不计为成功）。更早的数字：0.1.5 代码面 run [`38874498650`](https://github.com/misswell/Vistile/actions/runs/38874498650) 核心 131、宿主 80（0.1.4 的 [`38869704821`](https://github.com/misswell/Vistile/actions/runs/38869704821) 相同）；0.1.3 的 [`38866564471`](https://github.com/misswell/Vistile/actions/runs/38866564471) 核心 126（那时还没有 `CatalogIdentityAudit`）。CI 在 `pull_request` 与 `push main` 上跑同样两条（`.github/workflows/ci.yml`，不需要任何签名凭据） | 本机 Xcode 27 / SDK 27.0，2026-10-17（[Acceptance.md](Acceptance.md) §7）；runner 侧 run [`38947471942`](https://github.com/misswell/Vistile/actions/runs/38947471942) 日志 |
 | 未证明 | 用户自己的 Mac 上双击安装的实际体验（权限授予流程、是否被拦）、Intel 机器、以及 P0 的功能行为 | — |
 
 同一套脚本在本机用 `Apple Development` 身份跑过 `SKIP_NOTARIZE=1`：镜像里的 app 确实是
 `flags=0x10000(runtime)`、证书链走到 Apple Root CA，但 `Authority` 不是 Developer ID Application，
 所以这条路不会有票据也不会发布——脚本现在会把这一点直接说出来。
 
-**`spctl` 在这台开发机上不构成证据**：`spctl --status` 是 `assessments disabled`，
-连上面那个 adhoc 的干跑产物都会被回 `accepted / override=security disabled`。
-CI 复核因此先把评估状态打进日志，硬把关放在两处与机器设置无关的地方——
+**`spctl` 的效力跟着这台机器的评估开关走**：`spctl --status` 早前是 `assessments disabled`，那时连上面那个
+adhoc 的干跑产物都会被回 `accepted / override=security disabled`；2026-10-17 复测已回 `assessments enabled`，
+因此 0.1.10 这次 `spctl -a -t exec` 的 `accepted / source=Notarized Developer ID` 是有效附加证据。
+规则不变：先看 `spctl --status` 再引用 `spctl` 结论；硬把关放在两处与机器设置无关的地方——
 `codesign -dvvv` 里必须有 `Authority=Developer ID Application`，`stapler validate` 必须有票据
-（包括挂载后对镜像里那个 `Vistile.app` 再验一次）。评估开着时 `spctl` 才作为附加证据。
+（包括挂载后对镜像里那个 `Vistile.app` 再验一次）。
 
 真公证那一次（run 38827757461 / 发布那次 38828073929）里 runner 的评估状态是 `assessments enabled`，
 两条 `spctl -a -t exec` 都回 `accepted` 且 `source=Notarized Developer ID`——所以这条不是「没测」，
@@ -100,13 +109,17 @@ CI 复核因此先把评估状态打进日志，硬把关放在两处与机器�
 
 **这一列的写入方在四轮里改过两次，必须说清，否则读者会把"在前台"当成"不带动兄弟"**：
 0.1.4 及以前，除了 P0-3，`P0-9`（只有一个放大目标、没有兄弟窗口）和 `bringToFront` 的前台读回也会顺手写它；
-`5751a05`（在 v0.1.5 标签里）去掉了 P0-9 那处代填，`b763712`（0.1.6，未发布）去掉了前台读回那处。
+`5751a05`（在 v0.1.5 标签里）去掉了 P0-9 那处代填，`b763712`（0.1.6）去掉了前台读回那处。
 所以 0.1.5 报告里 ChatGPT 的「层级=通过」来源是前台读回而不是 P0-3，**它没有兄弟场景，不能当这一列的结论**；
 访达与 Chrome 的「层级=失败」才是 P0-3 写的。0.1.6 起这一列**只有 P0-3 能写**，其余应用的该格回到未测。
+写入方此后还修过一次：0.1.6（`b763712` 收回代填时）起一度只在失败分支写格子，
+**0.1.8 起通过分支同样写 `.passed`**；所以 0.1.6–0.1.7 两轮里 P0-3 判通过时机器矩阵是空的
+（0.1.6 那轮 Code/访达 两格的「通过」是从报告正文的 P0-3 明细**转录**的）。
+0.1.10 的九轮里 P0-3 跑在 `UITestHarness` 脚手架上，**真实应用的「层级」格没有新增结论**。
 
 | 应用 | 版本 | 捕获 | 关联 | 移动 | resize | 层级 | Sheet | 恢复 | 已知限制 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Finder（桌面 + 浏览器窗，报告里写 `访达`） | 未记录 | 未测 | 通过 | 未测 | 未测 | **失败（0.1.5，未定性）** | 未测 | 未测 | 0.1.5+6：2 个窗口，目标 #23→#7、兄弟 #21→#20 ⇒ 旧判据按绝对下标判"兄弟一起被提升"。兄弟只动了 1 格，很可能是两次读数之间无关窗口开关的余波（绝对下标不是同一个参照系），也可能是真提升——**两者现在分不开，等 0.1.6 的两两比较判据复跑才能定性**。除此之外访达其余格子仍无结论 |
+| Finder（桌面 + 浏览器窗，报告里写 `访达`） | 未记录 | 未测 | 通过 | 未测 | 未测 | **通过（0.1.6，见备注）** | 未测 | 未测 | 0.1.5+6：2 个窗口，目标 #23→#7、兄弟 #21→#20，旧判据按绝对下标判"兄弟一起被提升"——查明是两次读数不是同一个参照系，判据已下沉到两两比较（`TargetRaiseAudit`）。**0.1.6 那轮（17:46）同一场景用新判据判通过**：目标 #29→#7、兄弟 #20→#14，但对仍在场的窗口一个便宜都没占；该轮机器矩阵的通过分支当时不写格子（0.1.8 才补），这格是从报告正文的 P0-3 明细转录的。0.1.8/0.1.9/0.1.10 各轮它都没有 ≥2 个窗口被 P0-3 选中，未再复测。除此之外访达其余格子仍无结论 |
 | Safari | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
 | Terminal（终端） | 未记录 | 未测 | 通过 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
 | 文本编辑 TextEdit | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
@@ -114,13 +127,13 @@ CI 复核因此先把评估状态打进日志，硬把关放在两处与机器�
 | 预览 Preview | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
 | Mail | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
 | 系统设置 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
-| Google Chrome | 未记录 | 未测 | 通过 | 未测 | 未测 | **三轮三种红/绿** | 未测 | 未测 | 0.1.3+4：目标 #11→#8、兄弟 #12→#12 ⇒ 通过。0.1.4+5：目标 #14→#9、兄弟 #17→#13 ⇒ 失败，但 before 取在上一轮（Code）提升的余波还没落定的窗口列表上 ⇒ 那条红不可信。0.1.5+6（进场已清场、前后取稳定读数）：目标 #7→#7、兄弟 #8→#8 ⇒ 失败，两个下标一动没动，最像"Raise 根本没发出去"（`raiseOnly` 拿不到身份或句柄时静默 return）。0.1.6 起 `RaiseOutcome` 能把"没发出"和"发了没生效"分开记，**这一格仍未定性** |
+| Google Chrome | 未记录 | 未测 | 通过 | 未测 | 未测 | **三轮三种红/绿，至 0.1.10 未定性** | 未测 | 未测 | 0.1.3+4：目标 #11→#8、兄弟 #12→#12 ⇒ 通过。0.1.4+5：目标 #14→#9、兄弟 #17→#13 ⇒ 失败，但 before 取在上一轮（Code）提升的余波还没落定的窗口列表上 ⇒ 那条红不可信。0.1.5+6（进场已清场、前后取稳定读数）：目标 #7→#7、兄弟 #8→#8 ⇒ 失败，两个下标一动没动，最像"Raise 根本没发出去"（`raiseOnly` 拿不到身份或句柄时静默 return）。0.1.6 起 `RaiseOutcome` 能把"没发出"和"发了没生效"分开记，**但 0.1.6、0.1.8、0.1.9 与 0.1.10 九轮里它都没有 ≥2 个窗口的场景，至 0.1.10 仍未复测、未定性** |
 | Google Chrome Beta | 未记录 | 未测 | 通过 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
-| Visual Studio Code（报告里写 `Code`） | 未记录 | 未测 | 通过 | 未测 | 未测 | **通过（0.1.4 与 0.1.5 两轮）** | 未测 | 通过（0.1.1） | 0.1.1+2：目标 #8→#9、兄弟 #13→#15，两个索引都变大（离前台更远）⇒ 判失败，当时的失败原因是「目标没被提升」而不是兄弟被带动（下标越小越靠前）。**0.1.4+5 与 0.1.5+6 连续两轮复测这一格通过**：3 个窗口，目标 #17→#9、兄弟 #18→#18；以及目标 #12→#8、兄弟 #10→#12。注意 0.1.5 这轮 Code 的兄弟 #10→#12 是**变差**（离前台更远），旧判据的"兄弟是否未上移"只看下标有没有变小，这一格在新判据（兄弟不得把任何仍在场且原本在它前面的窗口甩到后面）下同样通过——这一条由 `TargetRaiseAuditTests.closedWindowsAboveSiblingAreNotARaise` 与 `siblingGenuinelyRaised` 两头钉住。恢复=通过来自 0.1.1 那轮真实写过的几何事务（表内「几何写入 17.9ms、读回偏差 0.0pt」+ 未结束事务 0 条）；0.1.4 与 0.1.5 那两轮没有事务可恢复，报告该格是未测 |
+| Visual Studio Code（报告里写 `Code`） | 未记录 | 未测 | 通过 | 未测 | 未测 | **通过（0.1.4/0.1.5/0.1.6 连续三轮）** | 未测 | 通过（0.1.1） | 0.1.1+2：目标 #8→#9、兄弟 #13→#15，两个索引都变大（离前台更远）⇒ 判失败，当时的失败原因是「目标没被提升」而不是兄弟被带动（下标越小越靠前）。**0.1.4+5、0.1.5+6 与 0.1.6+7 连续三轮复测这一格通过**：3 个窗口，目标 #17→#9、兄弟 #18→#18；目标 #12→#8、兄弟 #10→#12；目标 #15→#8、兄弟 #13→#13。注意 0.1.5 这轮 Code 的兄弟 #10→#12 是**变差**（离前台更远），旧判据的"兄弟是否未上移"只看下标有没有变小，这一格在新判据（兄弟不得把任何仍在场且原本在它前面的窗口甩到后面）下同样通过——这一条由 `TargetRaiseAuditTests.closedWindowsAboveSiblingAreNotARaise` 与 `siblingGenuinelyRaised` 两头钉住。0.1.6 那格的写入情况见上面对写入方的说明（从 P0-3 明细转录）；0.1.8/0.1.9/0.1.10 各轮无复测。恢复=通过来自 0.1.1 那轮真实写过的几何事务（表内「几何写入 17.9ms、读回偏差 0.0pt」+ 未结束事务 0 条）；0.1.4 与 0.1.5 那两轮没有事务可恢复，报告该格是未测 |
 | IntelliJ IDEA | 未记录 | 未测 | 通过 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
 | Qoder / Qoder CN | 未记录 | 未测 | 通过 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
 | UGit | 未记录 | 未测 | 通过 | 未测 | 未测 | 未测 | 未测 | 未测 | 0.1.3+4 那轮的 P0-9 真实链路放大的就是它：视图动作 1 次、阶段到达=true、真实背景点击后回到总览=true。**「层级」这一格 0.1.4 起回到未测**：0.1.3 的报告曾把它写成通过，那是 P0-9 顺手代填的，而 P0-9 只有一个放大目标、没有兄弟窗口可对照，证明不了该列定义的"不带动兄弟"；`5751a05`（v0.1.5 标签内）去掉了这处代填。P0-9 的链路事实仍完整记在自动结论表里 |
-| ChatGPT | 未记录 | 未测 | 通过 | 未测 | 未测 | **未测（0.1.6 起）** | 未测 | 未测 | 0.1.4+5 与 0.1.5+6 两轮 P0-9 放大的都是它：视图动作 1 次、阶段到达=true、真实背景点击 1 次后回到总览=true、最小化 0→0。**0.1.5 的报告仍把它的「层级」写成通过，来源不是 P0-9 而是 `bringToFront` 的前台读回**——那证明的是"目标在前台"，不是"没带动兄弟"，判据不同不能顶替；`b763712`（0.1.6，未发布）去掉了这处代填，所以 0.1.6 起这一格应当回到未测，**这是 0.1.6 复跑要确认的一条**：单窗口应用（ChatGPT、UGit、终端等）的「层级」格一个都不该再有结论 |
+| ChatGPT | 未记录 | 未测 | 通过 | 未测 | 未测 | **未测（0.1.6 起）** | 未测 | 未测 | 0.1.4+5 与 0.1.5+6 两轮 P0-9 放大的都是它：视图动作 1 次、阶段到达=true、真实背景点击 1 次后回到总览=true、最小化 0→0。**0.1.5 的报告把它的「层级」写成通过，来源不是 P0-9 而是 `bringToFront` 的前台读回**——那证明的是"目标在前台"，不是"没带动兄弟"，判据不同不能顶替；`b763712`（0.1.6）去掉了这处代填。**已确认：0.1.6 及以后报告里单窗口应用的「层级」格全部回到未测**（0.1.6 报告机器矩阵里 ChatGPT/UGit/终端等一律「未测」，0.1.10 九轮同样），规则是"只有 P0-3 能写这一列" |
 | ZCode / OrbStack / MacPilot / IdeaLightRun | 未记录 | 未测 | 通过 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
 | Xcode | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
 | Electron 类（Slack/微信/钉钉） | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
@@ -130,9 +143,10 @@ CI 复核因此先把评估状态打进日志，硬把关放在两处与机器�
 | Stage Manager 窗口组 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
 | Catalyst / iOS-on-Mac 应用 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
 | 无 AX 支持的进程 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
-| UITestHarness（脚手架，可控场景） | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
+| UITestHarness（脚手架，可控场景） | 未测 | 未测 | 未测 | 未测 | 未测 | **通过（0.1.10+16…+21，连续六轮）** | 未测 | 未测 | 0.1.10 工作台九轮里 P0-3 跑在这个 6 窗口脚手架上：目标在共同在场窗口的两两比较下被提升、兄弟未占到便宜（详情转录在 [Acceptance.md](Acceptance.md) §1 与 [Docs/Evidence](Evidence/README.md)）。+22/+23 两轮因中段桌面锁定记未测（锁定态 AX 列表为空，不许替产品下结论）；其余格子未测 |
 
-同一次探针里与这些格子直接相关的自动结论（四轮都是同一个 `/Applications/Vistile.app`、同一台机器、同一批窗口）：
+同一次探针里与这些格子直接相关的自动结论（四轮都是同一个 `/Applications/Vistile.app`、同一台机器、同一批窗口）。
+**0.1.6 及以后的轮次（含 0.1.10 工作台九轮）不扩这张表**，逐条转录在 [Acceptance.md](Acceptance.md) §1 与 [Docs/Evidence](Evidence/README.md)：
 
 | 判据 | 0.1.1+2（15:13，未含 R09–R11） | 0.1.3+4（15:26，含 R01–R11 与探针退出修复） | 0.1.4+5（15:56，改正 P0 判据与逐应用复测） || 0.1.5+6（16:37，进场清场 + 稳定读数） |
 | --- | --- | --- | --- || --- |
@@ -156,23 +170,24 @@ CI 复核因此先把评估状态打进日志，硬把关放在两处与机器�
 - **P0-3 的 Chrome 三轮三种结果**（0.1.3 通过、0.1.4 失败"兄弟被带动"、0.1.5 失败"目标一动没动"）。
   0.1.4 那条已定位为取证时机：`raiseOnly` 之后整张 `CGWindowList` 顺序表是异步改动的，before 读在了
   Code 那一轮的余波里。0.1.5 进场清场 + 前后稳定读数之后仍然红，而且红法换了，所以**这一格到现在
-  既不能算通过也不能算失败**；0.1.6 的 `RaiseOutcome` 才能把"Raise 没发出去"与"发了没生效"分开。
+  既不能算通过也不能算失败**；0.1.6 的 `RaiseOutcome` 能把"Raise 没发出去"与"发了没生效"分开，
+  但 0.1.6、0.1.8、0.1.9 与 0.1.10 九轮里 Chrome 都没有 ≥2 个窗口的场景可用，**至 0.1.10 仍未复测**。
 - **P0-4 与 P0-9 曾在同一次运行里结论相反**（0.1.3、0.1.4 两轮）：P0-9 说真实点击确实转接到了视图，
   P0-4 却记"没收到一次卡片动作"。0.1.4 查明原因是阶段脏（总览没打开、点不到格子）而不是键盘归属变坏；
   **0.1.5 两条同向（都通过），这条矛盾已经消掉**——但它消掉的方式是"探针自己先把进场清干净"，
   不是产品改了，所以它证明的是取证，不是层级链路。
 - **P0-5 结束时阶段四轮各不相同**（`collapsing` / `preparing` / `preparing` / `overview`）：soak 只保证
   "不累积副作用、最小化数不变"，阶段落在哪一步取决于采样时刻，不能拿来当状态机正确性判据。
-- **矩阵里「层级=通过」有过两个不同的代填者**：0.1.3 的 UGit 是 P0-9 写的（`5751a05`，v0.1.5 标签内去掉），
-  0.1.5 的 ChatGPT 是 `bringToFront` 的前台读回写的（`b763712`，0.1.6 去掉，未发布）。两者证明的都是
-  "目标在前台"，不是该列定义的"不带动兄弟"。**0.1.6 复跑时要专门确认：单窗口应用的「层级」格应全部回到未测，
-  只有 P0-3 跑过的 Code/Chrome/访达 三格允许有结论。**
-- **0.1.5 报告里矩阵「已知限制」的句子与 P0-3 详情不一致**：Chrome 的详情是"目标没被提升"，
+- **矩阵里「层级=通过」两个代填者都已收回（已解决）**：0.1.3 的 UGit 是 P0-9 写的（`5751a05`，v0.1.5 标签内去掉），
+  0.1.5 的 ChatGPT 是 `bringToFront` 的前台读回写的（`b763712`，0.1.6 去掉）。两者证明的都是
+  "目标在前台"，不是该列定义的"不带动兄弟"。**0.1.6 起单窗口应用的「层级」格在报告里全部回到未测
+  （已由 0.1.6 与 0.1.10 的报告核实），只有 P0-3 跑过的场景允许有结论。**
+- **0.1.5 报告里矩阵「已知限制」的句子与 P0-3 详情不一致（已解决）**：Chrome 的详情是"目标没被提升"，
   矩阵那句却无条件写"同应用兄弟窗口被一起提升"。那句是硬编码的，把三种红糊成一句话；0.1.6 起
-  该格写 `TargetRaiseAudit` 给出的真实 cause 与 `siblingGainedOver` 名单。**这属于证据表述错误，
-  不影响 P0-3 的通过/失败判定，但会影响读报告的人的判断，所以列在这里。**
+  该格改由 `TargetRaiseAudit` 给出真实 cause 与 `siblingGainedOver` 名单——0.1.8 那轮（锁定态）
+  失败格写的就是真实成因「Raise 没有发出（拿不到 AX 句柄…）……占了便宜的有 0 个」，不再是糊句。
 - **"降级影响 18 个目标"与"目录 17 个窗口"不自洽**（0.1.5 备注里 17 与 18 两条连着出现）。
-  还没查清是计数口径不同（目标含不可捕获窗口？）还是重复计入，先按原样记录，不当成已知事实。
+  还没查清是计数口径不同（目标含不可捕获窗口？）还是重复计入，先按原样记录，不当成已知事实；至 0.1.10 仍未查清。
 
 
 ## 3. 代码里已经存在的结构性预期

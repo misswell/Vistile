@@ -51,6 +51,11 @@
 - `P0-18` 能否在长跑轮次凑够 ≥100 帧样本并给出 §20.2 的每路径结论；
 - `P0-3`/`P0-4`/`P0-9` 在解锁桌面上的复跑（+23 那轮中途锁定段按"未测"记，不作产品结论）。
 
+### 发布与复跑基线（run12 起跑发布字节）
+
+- `v0.1.10` 已发布：Release run [`38947484361`](https://github.com/misswell/Vistile/actions/runs/38947484361) checkout 的是 `v0.1.10` → `ceb7f01`，`verify` 回了「`v0.1.10` 与 `Info.plist` 的 `0.1.10` 一致」。CI 在 macos-14 / Xcode 16.2 上重新构建、签名（Developer ID U8U443D7ZL）、公证：runner 侧公证成对（`.app` 18:31:13 `Accepted`、`.dmg` 18:31:45 `Accepted`，两次 `staple worked`），`spctl --status` = `assessments enabled`，产物回 `accepted / source=Notarized Developer ID`。
+- 发布字节已本机复核并覆盖装回 `/Applications/Vistile.app`：dmg **1995501 字节**、`sha256 4ac65158…86af`（与资产接口 `digest` 逐字节相同），包内二进制 `sha256 9f830aa5…a40f`；dmg 与包内 app 的 `stapler validate` 都回 `The validate action worked!`，证书链到 `Developer ID Application: Guofeng Liu (U8U443D7ZL)`（同签名身份，授权保留，不需要重新授权）。**上面那张表里的 +16…+23 跑的是各轮本机 Xcode 27 构建（`5f7e8ae8…` 是 +24 本机构建，从未被任何一轮跑到）；run12 起跑的才是 CI 构建的发布字节**（与标签同源码，含全部 +24 修复）。
+
 ### 回归测试
 
 - 核心包（`swift test`）：swift-testing **147 项 / 15 个 suite** ＋ XCTest 46 项，全过（EXIT=0）。
