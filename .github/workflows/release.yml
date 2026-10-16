@@ -8,6 +8,8 @@ name: Release
 #              或 APPLE_ID / APPLE_TEAM_ID / APPLE_APP_SPECIFIC_PASSWORD
 # 只想知道凭据配没配对：手动触发并勾 probeCredentials，它只装证书、试签、问一次公证，
 # 不做构建，也不发布任何东西。
+# 手动自检请填测试标签（v9.9.9-dryrun）：产物名由标签决定，照抄真实版本号会产出一个
+# 和线上 Release 资产同名、字节完全不同的包（verify 任务会为此打警告）。
 # 只有 arm64：x86_64 从没在 Intel 真机上打开过，产一个没人验过的架构安装包，
 # 和说明里写「Intel 未测」自相矛盾。要发 Intel 先补真机验证。
 
@@ -18,7 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 用于产物命名的版本（例如 v0.1.1）
+        description: 产物命名用的版本；自检请填 v9.9.9-dryrun，不要填真实版本号
         required: true
         type: string
       publish:
@@ -77,6 +79,18 @@ jobs:
               exit 1
             }
             echo "==> ${RELEASE_TAG} 与 Info.plist 的 ${conf} 一致"
+          elif [ "${RELEASE_TAG}" = "v${conf}" ]; then
+            # 产物文件名只由 RELEASE_TAG 决定。手动自检如果照抄真实版本号，就会产出一个
+            # 和线上 Release 资产同名、字节却完全不同的 dmg——v0.1.1 那次就是这么踩的，
+            # 隔几天回头看极易误当「这个版本已经发过了」。不硬拦，因为「重发同一版」是合法的兜底路线。
+            echo "::warning::手动触发却用了真实版本号 ${RELEASE_TAG}，自检产物会和线上同名资产混淆。自检请改用 v9.9.9-dryrun。"
+            {
+              echo "### 干跑用了真实版本号"
+              echo
+              echo "标签 \`${RELEASE_TAG}\` 等于 \`Support/Info.plist\` 的 \`${conf}\`，"
+              echo "自检产物会叫 \`Vistile_${RELEASE_TAG}_macos_arm64.dmg\`，和线上 Release 里那个同名但不同字节。"
+              echo "要自检就改用测试标签（例如 \`v9.9.9-dryrun\`）；要重发这一版本，请确认线上那个 Release 是你想覆盖的。"
+            } >>"$GITHUB_STEP_SUMMARY"
           else
             echo "==> 手动触发，跳过一致性检查（标签 ${RELEASE_TAG} 仅用于产物命名）"
           fi

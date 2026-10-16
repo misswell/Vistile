@@ -43,6 +43,21 @@ xcodebuild -project Vistile.xcodeproj -scheme Vistile \
 
 这台开发机上**没有** Developer ID Application 证书（钥匙串里只有 Apple Development 与 Apple Distribution），也没有公证凭据，所以公证只能在 CI 上做：推一个 `v*` 标签，Actions 会构建 arm64 的 Release 包、签名、公证、装订票据、出 `.dmg` 并复核后发布。
 
+发版顺序（**只推单个标签**——推标签即发布且没有确认环节，`git push --tags` 会连着发出多个 Release）：
+
+```bash
+# 1) 改版本号。CI 的一致性守卫读的是 Support/Info.plist，标签对不上它就直接红；
+#    测试壳要一起改，否则两处说的不是一件事。NSHumanReadableCopyright 里那句
+#    "Vistile 0.1.1 — …" 是纯文本，别忘了顺手改（旧值曾写着"未签名公证"）。
+for f in Support/Info.plist Support/UITestHarness-Info.plist; do
+  /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 0.1.2' "$f"
+  /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 3' "$f"
+done
+# 2) 更新 RELEASE_NOTES.md（Release 正文与更新说明的唯一来源），提交
+# 3) 打标签并只推这一个
+git tag v0.1.2 && git push origin v0.1.2
+```
+
 流水线在 [.github/workflows/release.yml](.github/workflows/release.yml)，需要仓库 secrets（缺哪项，verify 任务点名报哪项；构建仍会跑一次未签名自检，发布任务则必须凭据齐才执行，不会悄悄发一个没签名的包）：
 
 | 用途 | secrets |
@@ -85,9 +100,11 @@ secrets 还没填时这条会**红**，红在第一步并点名缺哪个键（`�
 本机可以先自检除公证之外的每一步（不需要任何凭据）：
 
 ```bash
-SIGNING_IDENTITY="Apple Development: <你的身份>" RELEASE_TAG=v0.1.1 SKIP_NOTARIZE=1 \
+SIGNING_IDENTITY="Apple Development: <你的身份>" RELEASE_TAG=v9.9.9-selfcheck SKIP_NOTARIZE=1 \
   bash .github/scripts/build_sign_notarize.sh
 ```
+
+`RELEASE_TAG` 别照抄真实版本号：它直接决定 `release/` 里那个 dmg 的文件名，用 `v0.1.1` 自检会产出一个和线上发布包同名、字节却不同的文件，隔几天回头看会误当「这版已经发过了」。这条我自己踩过，现在 `verify` 任务在手动触发却用真实版本时会打警告。
 
 它明确跳过 `notarytool` 与依赖公证票据的复核，**跑通不等于公证过**；本机用的 `Apple Development` 身份也不会被算作签名链证据——脚本会在日志里直说「签名链不是 Developer ID Application」。
 
