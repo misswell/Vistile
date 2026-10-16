@@ -4,33 +4,71 @@ import Foundation
 import ScreenCaptureKit
 import VistileCore
 
-/// 目录来源：SCShareableContent 决定"能不能真的捕获"，CGWindowList 补 alpha/layer/sharing，
-/// AX 提供可控性与几何事实。三者缺一不可，任一读不到都按能力分级降级。
-struct CatalogInputs {
-    let captureSnapshots: [CaptureWindowSnapshot]
+/// 一次来源读取拿到的原始事实：候选窗口 + 可捕获编号 + 捕获用的 SCWindow 句柄。
+/// 捕获来源决定"能不能真的捕获"，CG 补 alpha/layer/sharing，AX 提供可控性与几何事实；
+/// 三者缺一不可，任一读不到都按能力分级降级。
+struct CatalogContent {
+    let snapshots: [CaptureWindowSnapshot]
     let capturableIDs: Set<UInt32>
-    let windowsByID: [UInt32: SCWindow]
+    let scWindows: [UInt32: SCWindow]
+}
+
+/// 来源读取的结果：失败必须带上可显示的原因，不能与"没有窗口"混成同一种回报（方案 §5.2）。
+enum CatalogContentResult {
+    case loaded(CatalogContent)
+    case failed(DiscoveryFailure)
+}
+
+/// 窗口来源协议：生产用 ScreenCaptureKit + CGWindowList，宿主测试注入固定事实（方案 §15.1）。
+/// 没有这层协议，宿主测试只能对着真桌面跑，交错类回归（T06/T07）就无法确定性地复现。
+protocol CatalogContentSource {
+    func load() async -> CatalogContentResult
+}
+
+/// AX 句柄来源协议：生产用真实跨进程读取，测试注入固定句柄表。
+protocol CatalogAXSource {
+    func windows(pid: pid_t) async -> [AXWindowEntry]
+}
+
+extension AXWindowResolver: CatalogAXSource {}
+
+/// 屏幕事实来源：生产读 NSScreen，宿主测试注入固定显示器（方案 §15.1）。
+/// 恢复判定要看"原显示器是否还活着"，让它依赖真实桌面就没法做确定性回归。
+protocol DisplayInfoSource {
+    func displayInfos() -> [DisplayInfo]
+}
+
+struct ScreenDisplaySource: DisplayInfoSource {
+    func displayInfos() -> [DisplayInfo] { DisplayReader.displayInfos() }
 }
 
 /// 窗口目录：发现、身份、一对一关联、显示归属与保守的 Space 判定（方案 §6）。
 /// 记录与句柄表只在主 Actor 上成组发布，捕获层与几何层读到的永远是同一代次。
 @MainActor
 final class WindowCatalog {
-    var onRecords: (([WindowRecord], UInt64, DiscoveryReason) -> Void)?
+    /// 发布必须携带本次查询对应的请求：旧会话/旧请求的结果不得进入当前状态机（方案 §5.2）。
+    /// request 为 nil 表示这次发布不属于任何会话请求（例如启动恢复前的目录建立）。
+    var onRecords: (([WindowRecord], DiscoveryRequest?) -> Void)?
+    /// 失败同样是"这一次请求有结果"：必须让 in-flight 解锁，不能只靠成功路径（方案 §5.2）。
+    var onFailure: ((DiscoveryRequest?, DiscoveryFailure) -> Void)?
     var onStatus: ((String) -> Void)?
     var isExcludedBundle: (String?) -> Bool = { _ in false }
 
-    private let permissions: PermissionManager
-    private let resolver: AXWindowResolver
+    private let permissions: PermissionChecking
+    private let axSource: CatalogAXSource
+    private let contentSource: CatalogContentSource
+    private let displaySource: DisplayInfoSource
     private let ownProcessID = ProcessInfo.processInfo.processIdentifier
     /// 自己的总览/动画窗口统一排除，阻止无限镜像（方案 §6.9）。
     private var ownWindowIDs: Set<UInt32> = []
     private(set) var records: [WindowIdentity: WindowRecord] = [:]
     /// 显示器事实与捕获权限无关，启动就有值：不能因为一次查询失败就连屏幕都"看不见"。
-    private(set) var mapper = CoordinateMapper(displays: DisplayReader.displayInfos())
+    private(set) var mapper: CoordinateMapper
 
     private var isInFlight = false
     private var pendingReason: DiscoveryReason?
+    /// 合并排队期间仍要记住"哪些请求在等结果"：一次查询可能同时答复多个请求。
+    private var outstanding: [DiscoveryRequest] = []
     private var waiters: [CheckedContinuation<Void, Never>] = []
     private var generation: UInt64 = 0
     /// 捕获层与几何层需要的句柄表，只在同一次代次内有效。
@@ -57,9 +95,16 @@ final class WindowCatalog {
         return nil
     }
 
-    init(permissions: PermissionManager, resolver: AXWindowResolver = AXWindowResolver()) {
+    init(permissions: PermissionChecking,
+         resolver: AXWindowResolver = AXWindowResolver(),
+         axSource: CatalogAXSource? = nil,
+         contentSource: CatalogContentSource = ScreenCaptureContentSource(),
+         displaySource: DisplayInfoSource = ScreenDisplaySource()) {
         self.permissions = permissions
-        self.resolver = resolver
+        self.axSource = axSource ?? resolver
+        self.contentSource = contentSource
+        self.displaySource = displaySource
+        self.mapper = CoordinateMapper(displays: displaySource.displayInfos())
     }
 
     func registerOwnWindow(id: UInt32) { ownWindowIDs.insert(id) }
@@ -76,7 +121,9 @@ final class WindowCatalog {
     // MARK: - 刷新
 
     /// 一次查询仍在进行时不再叠加；结束后把排队原因合并成一次（方案 §6.7）。
-    func refresh(reason: DiscoveryReason) {
+    /// 合并期间登记的请求全部算"这次查询的答复"，否则先到的请求会被永久卡住。
+    func refresh(reason: DiscoveryReason, request: DiscoveryRequest? = nil) {
+        if let request { outstanding.append(request) }
         if isInFlight {
             pendingReason = reason
             onStatus?("discover queued: \(reason.rawValue)")
@@ -89,24 +136,49 @@ final class WindowCatalog {
     }
 
     /// 恢复流程必须基于最新记录做判定，因此它要等这一次查询真正结束。
-    func refreshAndWait(reason: DiscoveryReason) async {
-        if isInFlight {
+    /// 循环等待：合并排队的下一轮查询开始时不能插队并发跑。
+    func refreshAndWait(reason: DiscoveryReason, request: DiscoveryRequest? = nil) async {
+        if let request { outstanding.append(request) }
+        while isInFlight {
             await withCheckedContinuation { waiters.append($0) }
         }
         isInFlight = true
         await run(reason: reason)
     }
 
+    private enum CatalogResult {
+        case published(CatalogOutput)
+        /// 记录仍然发布（例如权限被收回要标记降级），但这次请求要按失败回报，不能假装成功。
+        case degraded(CatalogOutput, DiscoveryFailure)
+        case failure(DiscoveryFailure)
+    }
+
     private func run(reason: DiscoveryReason) async {
-        let output = await build(reason: reason)
-        if let output { publish(output) } else {
-            onStatus?("discover unavailable: \(reason.rawValue)")
+        let requests = outstanding
+        outstanding.removeAll()
+        let result = await build(reason: reason)
+        switch result {
+        case .published(let output):
+            publish(output)
+            if requests.isEmpty { onRecords?(output.records, nil) }
+            for request in requests { onRecords?(output.records, request) }
+        case .degraded(let output, let failure):
+            publish(output)
+            report(failure: failure, requests: requests)
+        case .failure(let failure):
+            report(failure: failure, requests: requests)
         }
         isInFlight = false
         let pending = waiters
         waiters = []
         for continuation in pending { continuation.resume() }
         drainQueuedRefresh()
+    }
+
+    private func report(failure: DiscoveryFailure, requests: [DiscoveryRequest]) {
+        onStatus?("discover failed: \(failure.message)")
+        guard !requests.isEmpty else { onFailure?(nil, failure); return }
+        for request in requests { onFailure?(request, failure) }
     }
 
     private func drainQueuedRefresh() {
@@ -116,19 +188,18 @@ final class WindowCatalog {
     }
 
     private func publish(_ output: CatalogOutput) {
-        mapper = CoordinateMapper(displays: DisplayReader.displayInfos())
+        mapper = CoordinateMapper(displays: displaySource.displayInfos())
         generation = max(generation, output.generation)
         scWindows = output.scWindows
         axEntries = output.axEntries
         // 上一轮已确认关闭的身份不再累积。
         records = records.filter { $0.value.capture != .closed }
         for record in output.records { records[record.identity] = record }
-        onRecords?(output.records, output.generation, output.reason)
     }
 
     /// 显示器配置变化后重建映射（方案 §12）。
     func rebuildDisplayMapping() {
-        mapper = CoordinateMapper(displays: DisplayReader.displayInfos())
+        mapper = CoordinateMapper(displays: displaySource.displayInfos())
     }
 
     struct CatalogOutput {
@@ -140,29 +211,33 @@ final class WindowCatalog {
         let axEntries: [pid_t: [AXWindowEntry]]
     }
 
-    private func build(reason: DiscoveryReason) async -> CatalogOutput? {
+    private func build(reason: DiscoveryReason) async -> CatalogResult {
         let nextGeneration = generation &+ 1
-        guard permissions.isGranted(.screenRecording) else {
+        guard permissions.status.screenRecording else {
             onStatus?("screen recording permission missing")
-            return permissionMissingOutput(generation: nextGeneration, reason: reason)
+            let degraded = permissionMissingOutput(generation: nextGeneration, reason: reason)
+            let failure = DiscoveryFailure.permissionMissing(.screenRecording)
+            if let degraded { return .degraded(degraded, failure) }
+            return .failure(failure)
         }
-        guard let content = await shareableContent() else { return nil }
-
-        let cg = cgWindowInformation()
-        let inputs = snapshots(content: content, cg: cg)
-        let mapper = CoordinateMapper(displays: DisplayReader.displayInfos())
+        let inputs: CatalogContent
+        switch await contentSource.load() {
+        case .loaded(let loaded): inputs = loaded
+        case .failed(let failure): return .failure(failure)
+        }
+        let mapper = CoordinateMapper(displays: displaySource.displayInfos())
         self.mapper = mapper
         var freshAX: [pid_t: [AXWindowEntry]] = [:]
 
         var output: [WindowRecord] = []
         var seen: Set<WindowIdentity> = []
-        let byProcess = Dictionary(grouping: inputs.captureSnapshots, by: { $0.identity.processID })
+        let byProcess = Dictionary(grouping: inputs.snapshots, by: { $0.identity.processID })
 
         // 只对确实有候选窗口的进程读 AX，跨进程调用有超时上限。
         for (pid, snapshots) in byProcess.sorted(by: { $0.key < $1.key }) {
             let eligible = snapshots.filter { isIncluded($0) }
             guard !eligible.isEmpty else { continue }
-            let entries = await resolver.windows(pid: pid)
+            let entries = await axSource.windows(pid: pid)
             freshAX[pid] = entries
             let axSnapshots = entries.map(\.snapshot).filter { !$0.isSheetLike }
             let confidence = WindowMatcher.match(capture: eligible, ax: axSnapshots)
@@ -182,7 +257,7 @@ final class WindowCatalog {
 
         // 本轮未再出现的旧身份：只有"AX 也读不到且捕获列表也没有"才判为关闭。
         for (identity, stale) in records where !seen.contains(identity) && stale.capture != .closed {
-            let stillTracked = inputs.captureSnapshots.contains { $0.identity == identity }
+            let stillTracked = inputs.snapshots.contains { $0.identity == identity }
             if !stillTracked, stale.capture != .permissionMissing {
                 var closed = stale
                 closed.capture = .closed
@@ -196,11 +271,16 @@ final class WindowCatalog {
             }
         }
 
-        return CatalogOutput(records: output,
-                             generation: nextGeneration,
-                             reason: reason,
-                             scWindows: inputs.windowsByID,
-                             axEntries: freshAX)
+        let catalogOutput = CatalogOutput(records: output,
+                                         generation: nextGeneration,
+                                         reason: reason,
+                                         scWindows: inputs.scWindows,
+                                         axEntries: freshAX)
+        // 没有任何一个候选窗口通过筛选：要说"没有可用的窗口"，不能显示空白面板当作成功（方案 §5.2）。
+        if seen.isEmpty, reason == .shortcut {
+            return .degraded(catalogOutput, .emptyCatalog)
+        }
+        return .published(catalogOutput)
     }
 
     private func permissionMissingOutput(generation: UInt64,
@@ -225,87 +305,6 @@ final class WindowCatalog {
                                                           ownWindowIDs: ownWindowIDs)
         guard eligibility.isIncluded else { return false }
         return !isExcludedBundle(snapshot.bundleID)
-    }
-
-    // MARK: - 来源读取
-
-    private func shareableContent() async -> SCShareableContent? {
-        await withCheckedContinuation { continuation in
-            SCShareableContent.getWithCompletionHandler { content, error in
-                if let error {
-                    let message = (error as Error).localizedDescription
-                    // 回调不在主线程：状态文字要回主线程，不能直接碰 @MainActor 的属性。
-                    Task { @MainActor in self.onStatus?("SCShareableContent failed: \(message)") }
-                    continuation.resume(returning: nil)
-                } else {
-                    continuation.resume(returning: content)
-                }
-            }
-        }
-    }
-
-    private func cgWindowInformation() -> [UInt32: [String: Any]] {
-        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
-        guard let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else { return [:] }
-        var result: [UInt32: [String: Any]] = [:]
-        result.reserveCapacity(list.count)
-        for info in list {
-            guard let number = info[kCGWindowNumber as String] as? NSNumber else { continue }
-            result[number.uint32Value] = info
-        }
-        return result
-    }
-
-    private func snapshots(content: SCShareableContent, cg: [UInt32: [String: Any]]) -> CatalogInputs {
-        var captureSnapshots: [CaptureWindowSnapshot] = []
-        var capturable: Set<UInt32> = []
-        var windowsByID: [UInt32: SCWindow] = [:]
-        captureSnapshots.reserveCapacity(content.windows.count)
-
-        for window in content.windows {
-            // 本 SDK 的 SCWindow 不提供 windowType：只用 CG 的 layer 过滤桌面元素（§6.2 三重来源）。
-            let id = UInt32(window.windowID)
-            capturable.insert(id)
-            windowsByID[id] = window
-            let pid = window.owningApplication?.processID ?? 0
-            let info = cg[id]
-            captureSnapshots.append(CaptureWindowSnapshot(
-                identity: identity(pid: pid, windowID: id),
-                frame: window.frame,
-                title: window.title ?? "",
-                ownerName: window.owningApplication?.applicationName ?? "",
-                bundleID: window.owningApplication?.bundleIdentifier,
-                layer: Int(window.windowLayer),
-                alpha: (info?[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1,
-                isOnScreen: window.isOnScreen,
-                sharingState: (info?[kCGWindowSharingState as String] as? NSNumber)?.intValue ?? 1
-            ))
-        }
-
-        // CG 列出但 SC 未列出的窗口仍然入目录：只允许预览并明确标记不可捕获。
-        for (id, info) in cg where !capturable.contains(id) {
-            let pid = (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value ?? 0
-            captureSnapshots.append(CaptureWindowSnapshot(
-                identity: identity(pid: pid, windowID: id),
-                frame: Self.rect(from: info[kCGWindowBounds as String] as? [String: Any]) ?? .zero,
-                title: info[kCGWindowName as String] as? String ?? "",
-                ownerName: info[kCGWindowOwnerName as String] as? String ?? "",
-                bundleID: nil,
-                layer: (info[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0,
-                alpha: (info[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1,
-                isOnScreen: (info[kCGWindowIsOnscreen as String] as? NSNumber)?.boolValue ?? true,
-                sharingState: (info[kCGWindowSharingState as String] as? NSNumber)?.intValue ?? 1
-            ))
-        }
-        return CatalogInputs(captureSnapshots: captureSnapshots,
-                             capturableIDs: capturable,
-                             windowsByID: windowsByID)
-    }
-
-    private func identity(pid: pid_t, windowID: UInt32) -> WindowIdentity {
-        WindowIdentity(processID: pid,
-                       processStartIdentity: ProcessIdentityReader.startIdentity(for: pid),
-                       windowID: windowID)
     }
 
     // MARK: - 记录组装
@@ -392,6 +391,103 @@ final class WindowCatalog {
             && abs(frame.minY - owner.frame.minY) <= 2
             && abs(frame.width - owner.frame.width) <= 2
             && abs(frame.height - owner.frame.height) <= 2
+    }
+}
+
+/// 生产用的窗口来源：SCShareableContent 给出"能被真正捕获"的集合，
+/// CGWindowList 补 alpha/layer/sharing，AX 的可控性事实由目录另行读取。
+/// 查询失败必须带原因上抛：把"读不到"和"没有窗口"混成空数组会谎报成功（方案 §5.2）。
+struct ScreenCaptureContentSource: CatalogContentSource {
+    func load() async -> CatalogContentResult {
+        switch await shareableContent() {
+        case .failed(let failure): return .failed(failure)
+        case .loaded(let content):
+            let cg = cgWindowInformation()
+            return .loaded(snapshots(content: content, cg: cg))
+        }
+    }
+
+    private enum Content {
+        case loaded(SCShareableContent)
+        case failed(DiscoveryFailure)
+    }
+
+    private func shareableContent() async -> Content {
+        await withCheckedContinuation { continuation in
+            SCShareableContent.getWithCompletionHandler { content, error in
+                if let error {
+                    continuation.resume(returning: .failed(.contentUnavailable((error as Error).localizedDescription)))
+                } else if let content {
+                    continuation.resume(returning: .loaded(content))
+                } else {
+                    continuation.resume(returning: .failed(.contentUnavailable("接口返回空内容且没有错误")))
+                }
+            }
+        }
+    }
+
+    private func cgWindowInformation() -> [UInt32: [String: Any]] {
+        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        guard let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else { return [:] }
+        var result: [UInt32: [String: Any]] = [:]
+        result.reserveCapacity(list.count)
+        for info in list {
+            guard let number = info[kCGWindowNumber as String] as? NSNumber else { continue }
+            result[number.uint32Value] = info
+        }
+        return result
+    }
+
+    private func snapshots(content: SCShareableContent, cg: [UInt32: [String: Any]]) -> CatalogContent {
+        var captureSnapshots: [CaptureWindowSnapshot] = []
+        var capturable: Set<UInt32> = []
+        var windowsByID: [UInt32: SCWindow] = [:]
+        captureSnapshots.reserveCapacity(content.windows.count)
+
+        for window in content.windows {
+            // 本 SDK 的 SCWindow 不提供 windowType：只用 CG 的 layer 过滤桌面元素（§6.2 三重来源）。
+            let id = UInt32(window.windowID)
+            capturable.insert(id)
+            windowsByID[id] = window
+            let pid = window.owningApplication?.processID ?? 0
+            let info = cg[id]
+            captureSnapshots.append(CaptureWindowSnapshot(
+                identity: identity(pid: pid, windowID: id),
+                frame: window.frame,
+                title: window.title ?? "",
+                ownerName: window.owningApplication?.applicationName ?? "",
+                bundleID: window.owningApplication?.bundleIdentifier,
+                layer: Int(window.windowLayer),
+                alpha: (info?[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1,
+                isOnScreen: window.isOnScreen,
+                sharingState: (info?[kCGWindowSharingState as String] as? NSNumber)?.intValue ?? 1
+            ))
+        }
+
+        // CG 列出但 SC 未列出的窗口仍然入目录：只允许预览并明确标记不可捕获。
+        for (id, info) in cg where !capturable.contains(id) {
+            let pid = (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value ?? 0
+            captureSnapshots.append(CaptureWindowSnapshot(
+                identity: identity(pid: pid, windowID: id),
+                frame: Self.rect(from: info[kCGWindowBounds as String] as? [String: Any]) ?? .zero,
+                title: info[kCGWindowName as String] as? String ?? "",
+                ownerName: info[kCGWindowOwnerName as String] as? String ?? "",
+                bundleID: nil,
+                layer: (info[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0,
+                alpha: (info[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1,
+                isOnScreen: (info[kCGWindowIsOnscreen as String] as? NSNumber)?.boolValue ?? true,
+                sharingState: (info[kCGWindowSharingState as String] as? NSNumber)?.intValue ?? 1
+            ))
+        }
+        return CatalogContent(snapshots: captureSnapshots,
+                              capturableIDs: capturable,
+                              scWindows: windowsByID)
+    }
+
+    private func identity(pid: pid_t, windowID: UInt32) -> WindowIdentity {
+        WindowIdentity(processID: pid,
+                       processStartIdentity: ProcessIdentityReader.startIdentity(for: pid),
+                       windowID: windowID)
     }
 
     static func rect(from dictionary: Any?) -> CGRect? {

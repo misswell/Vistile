@@ -49,7 +49,7 @@ final class AppCoordinator {
     private var pendingHint: String?
     private var structuralRefreshWork: DispatchWorkItem?
     private var hasWarnedTinyThumbnails = false
-    private var quitRestoreSettled = true
+    private var lastOpenConditions: OpenConditions?
     private var observers: [NSObjectProtocol] = []
 
     /// 渲染设备与着色器由调用方先建好：启动被阻塞时要分得清是"没有 Metal 设备"还是"着色器没编译过"。
@@ -72,25 +72,37 @@ final class AppCoordinator {
         self.journal = journal
         self.catalog = catalog
         self.capture = CaptureCoordinator(metal: metal, catalog: catalog)
+        // 恢复执行器先建：过渡执行器的恢复全部委托给它，避免两套恢复规则（方案 §6.5）。
+        let recovery = RecoveryCoordinator(store: journal,
+                                           writer: resolver,
+                                           catalog: catalog,
+                                           settings: settings,
+                                           permissions: permissions)
+        self.recovery = recovery
         self.focus = FocusCoordinator(catalog: catalog,
                                       metal: metal,
-                                      resolver: resolver,
+                                      writer: resolver,
                                       store: journal,
                                       settings: settings,
                                       metrics: metrics,
-                                      recorder: recorder)
-        self.recovery = RecoveryCoordinator(store: journal,
-                                            resolver: resolver,
-                                            catalog: catalog,
-                                            settings: settings)
+                                      recorder: recorder,
+                                      recovery: recovery,
+                                      permissions: permissions)
     }
 
     // MARK: - 启动
 
     func start() {
         catalog.isExcludedBundle = { [weak self] bundleID in self?.settings.isExcluded(bundleID) ?? false }
-        catalog.onRecords = { [weak self] records, generation, reason in
-            self?.dispatch(.catalogUpdated(records: records, generation: generation, reason: reason))
+        // 结果必须原样带回它对应的那一次请求：旧会话/旧请求的目录不得进入当前状态机（方案 §5.2）。
+        catalog.onRecords = { [weak self] records, request in
+            guard let self, let request else { return }
+            self.dispatch(.catalogUpdated(request: request, records: records))
+        }
+        // 失败也要解锁 in-flight，否则一次查询失败会把总览永久卡在准备中。
+        catalog.onFailure = { [weak self] request, failure in
+            guard let self, let request else { return }
+            self.dispatch(.catalogDiscoveryFailed(request: request, failure: failure))
         }
         catalog.onStatus = { [weak self] text in self?.log("discover", text) }
 
@@ -99,6 +111,8 @@ final class AppCoordinator {
         focus.onStatus = { [weak self] text in self?.log("focus", text) }
         focus.cardRectProvider = { [weak self] identity in self?.cardRects[identity] }
         focus.textureProvider = { [weak self] identity in self?.renderer.texture(for: identity) }
+        // 过期的过渡不许再改状态：宿主用状态机自己那一次令牌判定。
+        focus.isTokenCurrent = { [weak self] token in self?.state.phase.token == token }
 
         observerHub.onWindowEvent = { [weak self] event in self?.handle(event) }
         observerHub.onSupportChanged = { [weak self] pid, supported in
@@ -114,6 +128,12 @@ final class AppCoordinator {
         hotKey.onFire = { [weak self] in self?.toggleOverview() }
 
         registerSystemObservers()
+        lastOpenConditions = openConditions()
+        if let issue = journal.loadIssue {
+            // 日志损坏要说明"已归档到哪、这次启动少恢复了什么"，不能静默当作没有事务。
+            log("journal", "事务日志不可读，已归档：\(issue)")
+            recorder.record("事务日志", subject: "启动读取", result: .failed, detail: issue)
+        }
         dispatch(.policyChanged(settings.sessionPolicy()))
         dispatch(.settingsChanged(density: settings.density))
 
@@ -143,12 +163,10 @@ final class AppCoordinator {
 
     func organizeNow() { dispatch(.organizeRequested) }
 
-    func refreshNow() { catalog.refresh(reason: .shortcut) }
+    func refreshNow() { dispatch(.reconcileTick) }
 
     func permissionsMayHaveChanged() {
-        let before = permissions.status
         let after = permissions.refresh()
-        guard after != before else { return }
         handlePermissionChange(after)
     }
 
@@ -159,13 +177,25 @@ final class AppCoordinator {
     }
 
     private func handlePermissionChange(_ status: PermissionStatus) {
+        let conditions = openConditions()
+        // 权限轮询与通知会重复回报同一状态：只有真变化才进事件管线（方案 §5.1）。
+        guard conditions != lastOpenConditions else { return }
+        lastOpenConditions = conditions
         if !status.screenRecording {
             dispatch(.permissionLost(.screenRecording))
         } else if !status.accessibility {
             dispatch(.permissionLost(.accessibility))
-        } else if state.phase.isVisible {
-            catalog.refresh(reason: .permissionRestored)
+        } else {
+            dispatch(.permissionRestored(.screenRecording))
         }
+    }
+
+    /// 打开前置条件的唯一口径：权限读缓存，restartRequired 由捕获流事实给出（R05）。
+    private func openConditions() -> OpenConditions {
+        let status = permissions.status
+        return OpenConditions(screenRecording: status.screenRecording,
+                              accessibility: status.accessibility,
+                              restartRequired: false)
     }
 
     // MARK: - 事件管线
@@ -202,20 +232,32 @@ final class AppCoordinator {
     }
 
     private func handleEvent(_ event: SessionEvent) {
-        if case let .catalogUpdated(records, _, _) = event {
+        if case let .catalogUpdated(_, records) = event {
             // 方案 §2.6：所有符合条件窗口都要有格子。容量随目录增长，绝不静默只留"最近 N 个"。
             state.slots.capacity = max(state.slots.capacity, records.count)
         }
+        // 显示器事实不属于任何事件：目标屏判定与"这一屏还在不在"都由它决定（方案 §12）。
+        state.displays = catalog.mapper.displays
         metrics.increment("event")
         let effects = SessionReducer.reduce(&state, event)
-        for effect in effects { run(effect) }
+        for effect in effects {
+            // 事务落盘失败时必须停止后续效果：先写 AX 会让窗口变成不可恢复的改动（方案 §6.2）。
+            guard run(effect) else { break }
+        }
         needsSync = true
     }
 
-    private func run(_ effect: SessionEffect) {
+    /// 返回 false 表示这条 effect 之后不允许继续执行。
+    @discardableResult
+    private func run(_ effect: SessionEffect) -> Bool {
         switch effect {
-        case let .discover(_, reason):
-            catalog.refresh(reason: reason)
+        case let .discover(request):
+            catalog.refresh(reason: request.reason, request: request)
+
+        case let .evaluateOpenConditions(reopenIfReady):
+            let conditions = openConditions()
+            lastOpenConditions = conditions
+            dispatch(.openConditionsChanged(conditions: conditions, reopenIfReady: reopenIfReady))
 
         case let .startCapture(identities, generation):
             // 真正的启动交给统一的目标集同步；这里只登记状态，避免部分目标误停其它流。
@@ -236,16 +278,25 @@ final class AppCoordinator {
             hideOverview()
 
         case let .writeJournal(transaction):
-            journal.apply(transaction)
+            let result = journal.apply(transaction)
+            guard !result.isPersisted else { return true }
+            let reason = result.reason ?? "未知原因"
+            log("journal", "事务未落盘：\(reason)")
+            recorder.record("几何事务落盘", subject: transaction.identity.journalKey, result: .failed,
+                            detail: reason)
+            dispatch(.journalWriteFailed(transaction.identity, reason))
+            return false
 
-        case let .clearJournal(sessionID):
-            journal.clear(sessionID: sessionID)
+        case let .clearJournal(sessionID, settledIdentities):
+            let result = journal.clearSettled(sessionID: sessionID, settledIdentities: settledIdentities)
+            if let reason = result.reason { log("journal", "清理已完成事务失败：\(reason)") }
 
         case let .dropJournal(identity):
-            journal.drop(identity)
+            let result = journal.drop(identity)
+            if let reason = result.reason { log("journal", "删除事务失败：\(reason)") }
 
-        case let .expand(identity, token, animationMS):
-            focus.expand(identity, token: token, animationMS: animationMS)
+        case let .expand(identity, targetFrame, token, animationMS):
+            focus.expand(identity, targetFrame: targetFrame, token: token, animationMS: animationMS)
 
         case let .collapse(identity, token, animationMS):
             focus.collapse(identity, token: token, animationMS: animationMS)
@@ -253,8 +304,7 @@ final class AppCoordinator {
         case let .restoreGeometry(identity, token):
             focus.restoreGeometry(identity, token: token)
 
-        case let .restoreAll(token):
-            let identities = state.transactions.filter { $0.value.state.requiresRestore }.map(\.key)
+        case let .restoreAll(token, identities):
             focus.restoreAll(identities, token: token)
 
         case let .raiseTarget(identity):
@@ -276,6 +326,7 @@ final class AppCoordinator {
         case .none:
             break
         }
+        return true
     }
 
     // MARK: - 展示同步
@@ -406,6 +457,7 @@ final class AppCoordinator {
         // 关闭后不留纹理与流，空闲 CPU 才能回基线（方案 §14）。
         capture.stopAll(releasingMailboxes: true)
         renderer.releaseAll()
+        focus.pruneIdleChannels()
         settings.apply(state.slots)
     }
 
@@ -546,19 +598,21 @@ final class AppCoordinator {
             let element = event.element
             Task { [weak self] in
                 guard let self, let frame = await self.resolver.currentFrame(of: element) else { return }
-                self.dispatch(.windowGeometryChangedExternally(record.identity, frame,
-                                                               isUserAction: !self.focus.isWritingGeometry.contains(record.identity)))
+                // 归因由过渡执行器按"写入中/写后读回"判定，不能用一个瞬时布尔猜测（方案 §6.5）。
+                let source = self.focus.changeSource(for: record.identity, observed: frame)
+                self.dispatch(.windowGeometryChangedExternally(record.identity, frame, source: source))
             }
         default:
             scheduleStructuralRefresh()
         }
     }
 
-    /// 结构性变化合并成一次目录刷新；一次查询未结束时目录自己会排队（方案 §6.7）。
+    /// 结构性变化合并成一次目录刷新，并且必须经过状态机：直接调目录会让 in-flight 记账出现两份（方案 §6.7）。
+    /// 已有查询在跑时这一次会被 reconcile 的在飞保护吞掉，由下一个周期补上，不会堆积。
     private func scheduleStructuralRefresh() {
         structuralRefreshWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
-            self?.catalog.refresh(reason: .windowEvent)
+            self?.dispatch(.reconcileTick)
         }
         structuralRefreshWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
@@ -594,7 +648,8 @@ final class AppCoordinator {
         observe(workspace, NSWorkspace.didWakeNotification) { [weak self] _ in
             guard let self else { return }
             self.catalog.rebuildDisplayMapping()
-            if self.state.phase.isVisible { self.catalog.refresh(reason: .reconcile) }
+            // 唤醒后的补查同样只经状态机，保持"发现"有一条记账线。
+            self.dispatch(.reconcileTick)
         }
         observe(NotificationCenter.default, Notification.Name("NSApplicationDidChangeScreenParameters")) { [weak self] _ in
             guard let self else { return }
@@ -660,6 +715,14 @@ final class AppCoordinator {
             text = "\(name) 的窗口尺寸未能恢复，请手动确认"
         case .ambiguousWindow:
             text = "同名窗口无法唯一对应，已禁用受控聚焦"
+        case let .discoveryFailed(reason):
+            text = "窗口列表没查到：\(reason)"
+        case let .journalWriteFailed(reason):
+            text = "改动没能记入事务日志（\(reason)），已取消这次聚焦"
+        case let .restoreIncomplete(count):
+            text = "有 \(count) 个窗口的尺寸没恢复成功，下次启动会继续尝试"
+        case let .displayUnavailable(name):
+            text = "\(name) 所在的显示器已不可用，无法展开"
         }
         metrics.increment("hint")
         pendingHint = text
@@ -683,36 +746,64 @@ final class AppCoordinator {
 
     // MARK: - 退出
 
+    /// 退出总期限：到期就回报终止，未完成事务留在日志里交给下次启动。
+    static let terminationCeiling: TimeInterval = 2.0
+
     /// 正常退出：先恢复本次临时修改的几何，再落盘诊断。恢复未确认时保留事务给下次启动。
-    func prepareForTermination() {
+    /// 等待用可续起的 Task 完成，不在主线程嵌套 RunLoop，也不并行开第二条恢复路径（方案 §6.6）。
+    func beginTermination(settled: @escaping @MainActor () -> Void) {
+        guard !isTerminationBegun else { return }
+        isTerminationBegun = true
         hotKey.unregister()
         observerHub.stopAll()
         reconcileTimer?.invalidate()
         reconcileTimer = nil
+        structuralRefreshWork?.cancel()
         if state.phase.isVisible { dispatch(.quitRequested) }
 
-        let deadline = Date().addingTimeInterval(1.2)
-        while Date() < deadline, !isTerminationSettled {
-            _ = RunLoop.main.run(mode: .default, before: min(deadline, Date().addingTimeInterval(0.05)))
+        Task { [weak self] in
+            guard let self else { return }
+            let ceiling = Date().addingTimeInterval(Self.terminationCeiling)
+            while Date() < ceiling, !self.isTerminationSettled {
+                try? await Task.sleep(nanoseconds: 20_000_000)
+            }
+            // 状态机路径没走完时（例如过渡仍在跑），用日志里的未完成事务做有界兜底恢复。
+            if !self.journal.unfinished.isEmpty {
+                await self.restoreOnQuitWithin(ceiling)
+            }
+            self.finishTermination()
+            settled()
         }
-        // 状态机路径没走完时（例如过渡仍在跑），用目录句柄再做一次有界兜底恢复。
-        if !journal.unfinished.isEmpty {
-            quitRestoreSettled = false
-            let fallback = Task { @MainActor [weak self] in
+    }
+
+    private var isTerminationBegun = false
+
+    private var isTerminationSettled: Bool {
+        state.phase == .hidden && journal.unfinished.isEmpty && focus.isIdle
+    }
+
+    /// 兜底恢复与剩余期限赛跑：到期就放弃等待，事务留在日志里。
+    private func restoreOnQuitWithin(_ deadline: Date) async {
+        let remaining = max(0, deadline.timeIntervalSinceNow)
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { @MainActor [weak self] in
                 guard let self else { return }
-                await self.recovery.restoreOnQuit()
-                self.quitRestoreSettled = true
+                _ = await self.recovery.restoreOnQuit()
             }
-            let secondDeadline = Date().addingTimeInterval(0.8)
-            while !quitRestoreSettled, Date() < secondDeadline {
-                _ = RunLoop.main.run(mode: .default, before: min(secondDeadline, Date().addingTimeInterval(0.05)))
+            group.addTask { @MainActor in
+                try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
             }
-            // 超过兜底时限就放弃等待：未完成事务仍留在日志里，下次启动继续恢复。
-            fallback.cancel()
+            _ = await group.next()
+            group.cancelAll()
         }
+    }
+
+    private func finishTermination() {
         let unfinished = journal.unfinished.count
         if unfinished == 0 {
-            journal.clear(sessionID: state.sessionID)
+            // 只清已完成条目：其他会话的未完成记录必须留下（方案 §6.4）。
+            _ = journal.clearSettled(sessionID: journal.currentSessionID,
+                                     settledIdentities: journal.settledIdentities(sessionID: journal.currentSessionID))
         } else {
             recorder.note("退出时仍有 \(unfinished) 条事务未确认恢复，已交给下次启动的保守恢复")
         }
@@ -723,9 +814,5 @@ final class AppCoordinator {
                         result: unfinished == 0 ? .passed : .failed,
                         detail: "未结束事务 \(unfinished) 条")
         _ = recorder.flush()
-    }
-
-    private var isTerminationSettled: Bool {
-        state.phase == .hidden && journal.unfinished.isEmpty
     }
 }

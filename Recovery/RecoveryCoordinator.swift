@@ -2,130 +2,201 @@ import AppKit
 import Foundation
 import VistileCore
 
-/// 崩溃恢复：下次启动只做保守判定，绝不凭旧 windowID 或同标题盲恢复（方案 §10.5）。
-/// 目录与句柄表只在主 Actor 上发布，这里也必须在主 Actor 上读取同一代次。
+/// 进程实例身份判定：PID 会被复用，"这个号还在"不等于"还是原来那个进程"（方案 §6.5）。
+/// 真机读公开的启动标识，宿主测试注入固定结论，否则交错类回归只能对着真实进程跑。
+protocol ProcessIdentityChecking {
+    func isSameInstance(processID: pid_t, startIdentity: UInt64) -> Bool
+}
+
+/// 只用公开事实：NSRunningApplication + 进程启动标识。
+final class LiveProcessIdentity: ProcessIdentityChecking, @unchecked Sendable {
+    static let shared = LiveProcessIdentity()
+
+    func isSameInstance(processID: pid_t, startIdentity: UInt64) -> Bool {
+        guard let app = NSRunningApplication(processIdentifier: processID) else { return false }
+        return ProcessIdentityReader.startIdentity(for: app.processIdentifier) == startIdentity
+    }
+}
+
+/// 恢复执行器：收回、退出、崩溃恢复共用同一条逐条恢复路径（方案 §6.4、§6.5）。
+/// 不变量：先用事实判定（存活/frame/显示器），再写；只有读回与目标在容差内一致才算事务结束。
+/// 事实不足时既不写入也不删记录，绝不能"看起来处理完了"。
 @MainActor
 final class RecoveryCoordinator {
     private let store: WindowJournalStore
-    private let resolver: AXWindowResolver
+    private let writer: GeometryWriting
     private let catalog: WindowCatalog
     private let settings: SettingsModel
-
-    /// 恢复失败可重试一次，之后只保留诊断，不弹阻断操作的循环对话框。
-    private let maxRestoreAttempts = 1
+    private let permissions: PermissionChecking
+    private let processIdentity: ProcessIdentityChecking
 
     init(store: WindowJournalStore = WindowJournalStore(),
-         resolver: AXWindowResolver = AXWindowResolver(),
+         writer: GeometryWriting = AXWindowResolver(),
          catalog: WindowCatalog,
-         settings: SettingsModel) {
+         settings: SettingsModel,
+         permissions: PermissionChecking,
+         processIdentity: ProcessIdentityChecking = LiveProcessIdentity.shared) {
         self.store = store
-        self.resolver = resolver
+        self.writer = writer
         self.catalog = catalog
         self.settings = settings
+        self.permissions = permissions
+        self.processIdentity = processIdentity
     }
 
-    struct RestoredWindow {
-        let identity: WindowIdentity
-        let decision: RecoveryDecision
-        let verified: GeometryVerification?
+    /// 事务日志里读不到的原始信息也要能说明白：诊断记录用应用名，不猜窗口。
+    func applicationName(for entry: WindowTransaction) -> String {
+        catalog.record(for: entry.identity)?.applicationName
+            ?? NSRunningApplication(processIdentifier: entry.identity.processID)?.localizedName
+            ?? entry.bundleID ?? "未知应用"
     }
+
+    // MARK: - 逐条恢复
+
+    /// 单条恢复：不落盘、不发事件，只回报事实；调用方负责按身份串行化。
+    func restore(entry: WindowTransaction) async -> RestoreItemResult {
+        let name = applicationName(for: entry)
+        guard entry.state.requiresRestore else {
+            return RestoreItemResult(identity: entry.identity, outcome: .alreadyAtOriginal, applicationName: name)
+        }
+        guard permissionsReady else {
+            return item(entry, .notAttempted(permissionsMissingReason), name)
+        }
+        guard let record = catalog.record(for: entry.identity) else {
+            return item(entry, .notAttempted("目录中还没有该窗口的记录，无法确认它是否仍存在"), name)
+        }
+        let liveness = WindowLiveness(record: record,
+                                      processIsSameInstance: processIdentity.isSameInstance(
+                                        processID: entry.identity.processID,
+                                        startIdentity: entry.identity.processStartIdentity))
+        guard let ax = catalog.axEntry(for: record) else {
+            // 句柄读不到属于"事实不足"，不是窗口消失：事务必须保留（方案 §6.4）。
+            let outcome: RestoreOutcome = liveness.isConfirmedGone ? .windowGone : .notAttempted("辅助功能句柄暂不可用")
+            return item(entry, outcome, name)
+        }
+        let current = await writer.currentFrame(of: ax.element) ?? record.frame
+        let display = catalog.mapper.display(id: entry.originalDisplayID)
+        let decision = RecoveryPlanner.decide(entry: entry,
+                                             currentFrame: current,
+                                             liveness: liveness,
+                                             isOriginalDisplayLive: display != nil,
+                                             clampedFrame: clampTarget(entry.originalFrame, preferred: entry.originalDisplayID),
+                                             preserveUserGeometry: settings.preserveUserGeometry)
+        guard decision.shouldWriteAX, let target = decision.frame else {
+            guard let settled = decision.settledOutcome else { return item(entry, .notAttempted("判定结果缺少目标几何"), name) }
+            if settled.isSettled { settle(entry.identity, settled) }
+            return item(entry, settled, name)
+        }
+        // 所有恢复写入都夹回存活屏幕：原 frame 可能因为拔屏或分辨率变化已经完全在外面。
+        let written = await writer.apply(frame: clampTarget(target, preferred: record.displayID), element: ax.element)
+        return finishWrite(entry, written, name: name)
+    }
+
+    /// 只有 exact 才结束事务；constrained/rejected/unreadable 一律留痕并保留记录（方案 §6.1）。
+    private func finishWrite(_ entry: WindowTransaction,
+                             _ report: GeometryWriteReport,
+                             name: String) -> RestoreItemResult {
+        switch report.outcome {
+        case .exact:
+            settle(entry.identity, .restored)
+            return RestoreItemResult(identity: entry.identity, outcome: .restored, applicationName: name)
+        case let .constrained(readBack):
+            let deviation = Double(AXWindowResolver.deviation(readBack, report.target))
+            return keep(entry.markingFailed("恢复读回偏差 \(String(format: "%.1f", deviation))pt"),
+                        .constrained(deviation: deviation), name)
+        case .rejected(let reason):
+            return keep(entry.markingFailed(reason.message), .rejected(reason.message), name)
+        case .unreadable:
+            return keep(entry.markingFailed("恢复后读不回 frame"), .unreadable, name)
+        case .targetGone:
+            settle(entry.identity, .windowGone)
+            return RestoreItemResult(identity: entry.identity, outcome: .windowGone, applicationName: name)
+        }
+    }
+
+    private func item(_ entry: WindowTransaction, _ outcome: RestoreOutcome, _ name: String) -> RestoreItemResult {
+        RestoreItemResult(identity: entry.identity, outcome: outcome, applicationName: name)
+    }
+
+    /// 事务结束：日志里删除，state 由 reducer 决定去留。
+    private func settle(_ identity: WindowIdentity, _ outcome: RestoreOutcome) {
+        store.markRestored(identity)
+        if store.drop(identity).isPersisted { return }
+        // 删不掉也要说清事实：下次启动仍会按保守策略复核这条记录。
+        VistileLog.session.log(level: .error, "恢复事务落盘失败: \(identity.journalKey, privacy: .public)")
+    }
+
+    /// 未成功：写回可重试记录，绝不静默丢弃原 frame。
+    private func keep(_ entry: WindowTransaction, _ outcome: RestoreOutcome, _ name: String) -> RestoreItemResult {
+        if store.apply(entry).isPersisted == false {
+            VistileLog.session.log(level: .error, "恢复失败状态落盘失败: \(entry.identity.journalKey, privacy: .public)")
+        }
+        return RestoreItemResult(identity: entry.identity, outcome: outcome, applicationName: name)
+    }
+
+    // MARK: - 启动恢复
 
     /// 启动时处理上次未结束的事务。返回逐条事实供诊断记录。
     @discardableResult
-    func restoreOnLaunch(recorder: CompatibilityRecorder? = nil) async -> [RestoredWindow] {
+    func restoreOnLaunch(recorder: CompatibilityRecorder? = nil) async -> [RestoreItemResult] {
         let pending = store.unfinished
         guard !pending.isEmpty else { return [] }
         recorder?.note("发现 \(pending.count) 条未结束的几何事务，按保守策略处理")
-
+        if let issue = store.loadIssue { recorder?.note("事务日志读取问题：\(issue)") }
         // 先建立一次目录，才能判断进程是否重启、窗口是否仍存活。
         // 这里等的是"这一轮查询真正结束"，不是固定睡眠：慢机器上 250ms 并不足以拿到 AX 句柄。
         await catalog.refreshAndWait(reason: .shortcut)
 
-        var results: [RestoredWindow] = []
-        let mapper = catalog.mapper
+        var results: [RestoreItemResult] = []
         for entry in pending {
-            let record = catalog.record(for: entry.identity)
-            let isProcessAlive = NSRunningApplication(processIdentifier: entry.identity.processID)
-                .map { $0.processIdentifier == entry.identity.processID
-                    && ProcessIdentityReader.startIdentity(for: $0.processIdentifier) == entry.identity.processStartIdentity }
-                ?? false
-            let isWindowAlive = record != nil && record?.capture != .closed
-            let isOriginalDisplayLive = mapper.display(id: entry.originalDisplayID) != nil
-            let clamped = mapper.display(id: entry.originalDisplayID).map { _ in
-                entry.originalFrame
-            } ?? mapper.clamp(entry.originalFrame, to: nil)
-
-            let decision = RecoveryPlanner.decide(entry: entry,
-                                                  currentFrame: record?.frame,
-                                                  isWindowAlive: isWindowAlive,
-                                                  isProcessAlive: isProcessAlive,
-                                                  isOriginalDisplayLive: isOriginalDisplayLive,
-                                                  clampedFrame: clamped,
-                                                  preserveUserGeometry: settings.preserveUserGeometry)
-            guard decision.shouldWriteAX, let record, let ax = catalog.axEntry(for: record) else {
-                results.append(RestoredWindow(identity: entry.identity, decision: decision, verified: nil))
-                if case .skipProcessRestarted = decision { recorder?.note("跳过恢复：进程已重启 \(entry.bundleID ?? "")") }
-                if case .skipWindowGone = decision { recorder?.note("跳过恢复：窗口已不存在") }
-                if case let .skipUserMoved(current) = decision {
-                    recorder?.note("跳过恢复：用户已自行移动窗口（当前 \(Self.text(current))）")
-                }
-                store.drop(entry.identity)
-                continue
+            let result = await restore(entry: entry)
+            results.append(result)
+            recorder?.note("启动恢复 \(result.applicationName)：\(result.outcome.message)")
+            if result.outcome.isFailure {
+                recorder?.updateRow(application: result.applicationName, version: "",
+                                    restore: .failed, knownLimitation: result.outcome.message)
+            } else if result.outcome.isSettled {
+                recorder?.updateRow(application: result.applicationName, version: "", restore: .passed)
             }
-
-            let target = decision.frame ?? entry.originalFrame
-            let verification = await resolver.apply(frame: target, element: ax.element)
-            if verification.isExact || verification.isPartial {
-                store.markRestored(entry.identity)
-                store.drop(entry.identity)
-                if verification.isPartial {
-                    recorder?.note("恢复偏差 \(String(format: "%.1f", verification.deviation))pt：应用自身尺寸约束")
-                }
-            } else if entry.restoreAttempts < maxRestoreAttempts {
-                store.apply(entry.markingFailed("crash restore failed"))
-                recorder?.note("恢复失败，保留可重试记录：\(entry.identity)")
-            } else {
-                store.drop(entry.identity)
-                recorder?.note("恢复失败已达重试上限，终止重试：\(entry.identity)")
-            }
-            results.append(RestoredWindow(identity: entry.identity, decision: decision, verified: verification))
         }
         return results
     }
 
-    /// 正常退出：把所有仍未结束的事务恢复原 frame。崩溃不能靠 defer 保证执行。
-    func restoreOnQuit() async {
-        let pending = store.unfinished
-        guard !pending.isEmpty else { return }
-        for entry in pending {
-            guard let record = catalog.record(for: entry.identity),
-                  let ax = catalog.axEntry(for: record) else {
-                store.drop(entry.identity)
-                continue
-            }
-            let target = entry.restoreTargetFrame(preserveUserGeometry: settings.preserveUserGeometry)
-            let verification = await resolver.apply(frame: target, element: ax.element)
-            if verification.isExact || verification.isPartial {
-                store.markRestored(entry.identity)
-                store.drop(entry.identity)
-            } else {
-                store.apply(entry.markingFailed("quit restore failed"))
-            }
+    // MARK: - 退出兜底
+
+    /// 正常退出的兜底：状态机路径没走完时由这里补做，逻辑与逐条恢复完全一致（方案 §6.6）。
+    /// 不做并发第二条路径：调用方必须已经停止新的过渡。
+    @discardableResult
+    func restoreOnQuit() async -> [RestoreItemResult] {
+        var results: [RestoreItemResult] = []
+        for entry in store.unfinished {
+            let result = await restore(entry: entry)
+            results.append(result)
+            VistileLog.session.log(level: .info, "退出恢复 \(result.applicationName, privacy: .public): \(result.outcome.message, privacy: .public)")
         }
+        return results
+    }
+
+    // MARK: - 事实
+
+    /// 权限缺失时不写 AX、也不删事务：恢复推迟到权限回来或下次启动。
+    var permissionsReady: Bool {
+        permissions.status.screenRecording && permissions.status.accessibility
+    }
+
+    private var permissionsMissingReason: String {
+        permissions.status.screenRecording
+            ? "缺少辅助功能权限，无法写入窗口几何"
+            : "缺少屏幕录制权限，无法确认窗口是否仍存在"
     }
 
     static func text(_ rect: CGRect) -> String {
         "\(Int(rect.minX)),\(Int(rect.minY)) \(Int(rect.width))x\(Int(rect.height))"
     }
-}
 
-private extension RecoveryDecision {
-    var frame: CGRect? {
-        switch self {
-        case let .restore(to: to): return to
-        case let .clampAndRestore(to: to): return to
-        case let .skipPreserveUserGeometry(keep: keep): return keep
-        default: return nil
-        }
+    private func clampTarget(_ frame: CGRect, preferred displayID: UInt32?) -> CGRect {
+        let mapper = catalog.mapper
+        guard let target = mapper.display(id: displayID ?? 0) ?? mapper.primaryDisplay else { return frame }
+        return mapper.clamp(frame, to: target.id)
     }
 }

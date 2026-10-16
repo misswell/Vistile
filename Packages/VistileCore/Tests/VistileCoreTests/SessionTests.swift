@@ -3,13 +3,6 @@ import Foundation
 import CoreGraphics
 @testable import VistileCore
 
-private func expandToken(_ effects: [SessionEffect]) -> TransitionToken? {
-    for effect in effects {
-        if case let .expand(_, token, _) = effect { return token }
-    }
-    return nil
-}
-
 private func collapseToken(_ effects: [SessionEffect]) -> TransitionToken? {
     for effect in effects {
         if case let .collapse(_, token, _) = effect { return token }
@@ -19,20 +12,52 @@ private func collapseToken(_ effects: [SessionEffect]) -> TransitionToken? {
 
 private func recoveringToken(_ effects: [SessionEffect]) -> TransitionToken? {
     for effect in effects {
-        if case let .restoreAll(token) = effect { return token }
+        if case let .restoreAll(token, _) = effect { return token }
+    }
+    return nil
+}
+
+private func restoreAllIdentities(_ effects: [SessionEffect]) -> [WindowIdentity] {
+    for effect in effects {
+        if case let .restoreAll(_, identities) = effect { return identities }
+    }
+    return []
+}
+
+private func clearedSettled(_ effects: [SessionEffect]) -> [WindowIdentity]? {
+    for effect in effects {
+        if case let .clearJournal(_, settled) = effect { return settled }
     }
     return nil
 }
 
 private func expandTarget(_ effects: [SessionEffect]) -> WindowIdentity? {
     for effect in effects {
-        if case let .expand(identity, _, _) = effect { return identity }
+        if case let .expand(identity, _, _, _) = effect { return identity }
+    }
+    return nil
+}
+
+private func expandFrame(_ effects: [SessionEffect]) -> CGRect? {
+    for effect in effects {
+        if case let .expand(_, frame, _, _) = effect { return frame }
+    }
+    return nil
+}
+
+private func journaled(_ effects: [SessionEffect]) -> WindowTransaction? {
+    for effect in effects {
+        if case let .writeJournal(transaction) = effect { return transaction }
     }
     return nil
 }
 
 private func containsEffect(_ effects: [SessionEffect], _ predicate: (SessionEffect) -> Bool) -> Bool {
     effects.contains(where: predicate)
+}
+
+private func hasHint(_ effects: [SessionEffect], _ hint: HintKind) -> Bool {
+    containsEffect(effects) { if case .presentHint(let value) = $0 { return value == hint }; return false }
 }
 
 @Suite("SessionReducer")
@@ -42,44 +67,60 @@ struct SessionReducerTests {
         _ = Fixtures.dispatch(&state, .globalShortcut)
         #expect(state.phase == .preparing)
         let list = Fixtures.records(count)
-        _ = Fixtures.dispatch(&state, .catalogUpdated(records: list, generation: state.catalogGeneration, reason: .shortcut))
+        let effects = Fixtures.dispatch(&state, .openConditionsChanged(conditions: Fixtures.granted, reopenIfReady: true))
+        let request = Fixtures.discoverRequest(effects)
+        #expect(request != nil)
+        _ = Fixtures.dispatch(&state, .catalogUpdated(request: request!, records: list))
         #expect(state.phase == .overview)
         return (state, list)
     }
 
-    @Test("快捷键打开：发现 -> 目录更新 -> 总览并启动捕获")
+    @Test("快捷键打开：条件满足 -> 发现 -> 目录更新 -> 总览并启动捕获")
     func openFlow() {
         let (state, list) = overview(count: 4)
         #expect(state.keyboardFocus == .overview)
         #expect(state.slots.slots.count == 4)
         #expect(state.recordsInSlotOrder.count == 4)
         #expect(list.count == 4)
+        #expect(state.openConditions?.canOpen == true)
     }
 
-    @Test("旧代际的发现结果被忽略")
-    func staleGenerationIgnored() {
+    @Test("旧请求的发现结果被忽略")
+    func staleRequestIgnored() {
         var (state, _) = overview(count: 3)
         let before = state.records
-        var stale = Fixtures.records(3)
-        var renamed = stale[0]
+        var staleRecords = Fixtures.records(3)
+        var renamed = staleRecords[0]
         renamed.title = "已被替换"
-        stale[0] = renamed
-        _ = Fixtures.dispatch(&state, .catalogUpdated(records: stale, generation: state.catalogGeneration - 1, reason: .reconcile))
+        staleRecords[0] = renamed
+        // 上一个会话的请求：代次更大也不接受。
+        let stale = DiscoveryRequest(sessionID: UUID(), requestID: 1, generation: 99, reason: .reconcile)
+        _ = Fixtures.dispatch(&state, .catalogUpdated(request: stale, records: staleRecords))
+        #expect(state.records == before)
+        // 请求号对不上同样丢弃。
+        let bogus = DiscoveryRequest(sessionID: state.sessionID, requestID: (state.pendingDiscovery?.requestID ?? 0) + 50,
+                                     generation: 9_999, reason: .reconcile)
+        _ = Fixtures.dispatch(&state, .catalogUpdated(request: bogus, records: staleRecords))
         #expect(state.records == before)
     }
 
-    @Test("单击卡片：恢复记录必须先于写入")
+    @Test("单击卡片：计划先落盘，展开只写计划里的那个 frame")
     func journalPrecedesExpand() {
         var (state, list) = overview(count: 3)
         let effects = Fixtures.dispatch(&state, .cardClicked(list[1].identity))
-        let journalIndex = effects.firstIndex { if case .writeJournal = $0 { return true } ; return false }
-        let expandIndex = effects.firstIndex { if case .expand = $0 { return true } ; return false }
+        let journalIndex = effects.firstIndex { if case .writeJournal = $0 { return true }; return false }
+        let expandIndex = effects.firstIndex { if case .expand = $0 { return true }; return false }
         #expect(journalIndex != nil)
         #expect(expandIndex != nil)
         if let journalIndex, let expandIndex {
             #expect(journalIndex < expandIndex)
         }
-        #expect(state.transactions[list[1].identity] != nil)
+        // 落盘的事务已经是"修改意图"，且与要写的 frame 完全一致。
+        let transaction = journaled(effects)
+        #expect(transaction?.state == .mutationPlanned)
+        #expect(transaction?.plannedFrame == expandFrame(effects))
+        #expect(transaction?.originalFrame == list[1].frame)
+        #expect(state.transactions[list[1].identity]?.state == .mutationPlanned)
         #expect(state.phase.controlledTarget == list[1].identity)
     }
 
@@ -88,7 +129,7 @@ struct SessionReducerTests {
         var (state, list) = overview(count: 5)
         let before = state.slots.slots
         var effects = Fixtures.dispatch(&state, .cardClicked(list[2].identity))
-        let token = expandToken(effects)
+        let token = Fixtures.expandToken(effects)
         effects = Fixtures.dispatch(&state, .expandCompleted(token ?? TransitionToken(generation: 0)))
         effects = Fixtures.dispatch(&state, .backgroundClicked(interaction: InteractionToken()))
         _ = Fixtures.dispatch(&state, .collapseCompleted(collapseToken(effects) ?? TransitionToken(generation: 0)))
@@ -100,7 +141,8 @@ struct SessionReducerTests {
     func latestWinsTarget() {
         var (state, list) = overview(count: 4)
         let effects = Fixtures.dispatch(&state, .cardClicked(list[0].identity))
-        let firstToken = try? #require(expandToken(effects))
+        let firstToken = Fixtures.expandToken(effects)
+        #expect(firstToken != nil)
         _ = Fixtures.dispatch(&state, .cardClicked(list[1].identity))
         _ = Fixtures.dispatch(&state, .cardClicked(list[2].identity))
         #expect(state.pendingTarget == list[2].identity)
@@ -114,7 +156,7 @@ struct SessionReducerTests {
     func staleTokenCallbacksIgnored() {
         var (state, list) = overview(count: 3)
         let effects = Fixtures.dispatch(&state, .cardClicked(list[0].identity))
-        let oldToken = expandToken(effects)!
+        let oldToken = Fixtures.expandToken(effects)!
         let collapseEffects = Fixtures.dispatch(&state, .backgroundClicked(interaction: InteractionToken()))
         let currentToken = collapseToken(collapseEffects)!
         _ = Fixtures.dispatch(&state, .expandCompleted(oldToken))
@@ -124,36 +166,60 @@ struct SessionReducerTests {
         #expect(state.phase == .overview)
     }
 
-    @Test("快速 A→B→背景→退出 最终回到 hidden 且不残留未恢复事务")
+    @Test("旧 token 的写入结果不改事务状态")
+    func staleWriteResultIgnored() {
+        var (state, list) = overview(count: 2)
+        let effects = Fixtures.dispatch(&state, .cardClicked(list[0].identity))
+        let oldToken = Fixtures.expandToken(effects)!
+        let before = state.transactions[list[0].identity]
+        _ = Fixtures.dispatch(&state, .backgroundClicked(interaction: InteractionToken()))
+        // 收起已经开始，旧展开的写入结果晚到。
+        let late = Fixtures.dispatch(&state, Fixtures.writeResult(list[0].identity, token: oldToken,
+                                                          outcome: .exact(readBack: CGRect(x: 1, y: 1, width: 10, height: 10))))
+        #expect(late.isEmpty)
+        #expect(state.transactions[list[0].identity] == before)
+    }
+
+    @Test("快速 A→B→背景→退出 最终回到 hidden 且事务逐条结束")
     func fastSwitchThenExit() {
-        var (state, list) = overview(count: 4)
+        var policy = SessionPolicy()
+        policy.backgroundClickSwitches = true
+        var (state, list) = overview(count: 4, policy: policy)
         let a = list[0].identity
         let b = list[1].identity
+        let provisional = CGRect(x: 40, y: 40, width: 1_200, height: 800)
 
         var effects = Fixtures.dispatch(&state, .cardClicked(a))
-        let tokenA = expandToken(effects)!
-        _ = Fixtures.dispatch(&state, .geometryWritten(a, provisionalFrame: CGRect(x: 40, y: 40, width: 1_200, height: 800), displayID: 1))
-        _ = Fixtures.dispatch(&state, .geometryVerified(a, readBack: CGRect(x: 40, y: 40, width: 1_200, height: 800)))
-        _ = Fixtures.dispatch(&state, .cardClicked(b))
-        effects = Fixtures.dispatch(&state, .expandCompleted(tokenA))
-        let tokenB = expandToken(effects)!
-        _ = Fixtures.dispatch(&state, .backgroundClicked(interaction: InteractionToken()))
+        let tokenA = Fixtures.expandToken(effects)!
+        _ = Fixtures.dispatch(&state, Fixtures.writeResult(a, token: tokenA,
+                                                  outcome: .exact(readBack: CGRect(x: 40, y: 40, width: 1_200, height: 800))))
+        _ = Fixtures.dispatch(&state, .expandCompleted(tokenA))
+        #expect(state.phase == .focused(target: a))
+
+        // B 只落下了写入意图，还没收到任何 AX 结果：退出时同样必须进批次。
+        effects = Fixtures.dispatch(&state, .cardClicked(b))
+        let tokenB = Fixtures.expandToken(effects)!
+        #expect(state.transactions[b]?.state == .mutationPlanned)
         _ = Fixtures.dispatch(&state, .expandCompleted(tokenB))
-        _ = Fixtures.dispatch(&state, .geometryRestored(a))
-        let restoredA = state.transactions[a]?.state
-        let pendingB = state.transactions[b]?.state.requiresRestore
+        _ = Fixtures.dispatch(&state, Fixtures.writeResult(b, token: tokenB,
+                                                          outcome: .constrained(readBack: CGRect(x: 60, y: 60, width: 1_000, height: 700))))
+
+        effects = Fixtures.dispatch(&state, .backgroundClicked(interaction: InteractionToken()))
+        let collapse = collapseToken(effects)!
+        _ = Fixtures.dispatch(&state, .collapseCompleted(collapse))
+        #expect(state.phase == .overview)
+
         effects = Fixtures.dispatch(&state, .globalShortcut)
-        if let collapse = collapseToken(effects) {
-            _ = Fixtures.dispatch(&state, .collapseCompleted(collapse))
-        }
-        let exitEffects = Fixtures.dispatch(&state, .globalShortcut)
+        let batchToken = recoveringToken(effects)!
+        #expect(Set(restoreAllIdentities(effects)) == Set([a, b]))
+        _ = Fixtures.dispatch(&state, .geometryRestoreSettled(token: batchToken,
+                                                              items: [Fixtures.restoreItem(a, .restored),
+                                                                      Fixtures.restoreItem(b, .alreadyAtOriginal)]))
+        effects = Fixtures.dispatch(&state, .restoreCompleted(batchToken))
         #expect(state.phase == .hidden)
-        #expect(containsEffect(exitEffects) { if case .stopAllCapture = $0 { return true }; return false })
-        #expect(containsEffect(exitEffects) { if case .clearJournal = $0 { return true }; return false })
-        // 写过的窗口必须已经被恢复；未写入过 AX 的窗口不应被当成待恢复事务。
-        #expect(restoredA == .restored)
-        #expect(pendingB == false || pendingB == nil)
         #expect(state.transactions.isEmpty)
+        #expect(Set(clearedSettled(effects) ?? []) == Set([a, b]))
+        #expect(containsEffect(effects) { if case .stopAllCapture = $0 { return true }; return false })
     }
 
     @Test("无法唯一对应时禁止写 AX，只提示")
@@ -175,7 +241,7 @@ struct SessionReducerTests {
     func backgroundCardClickReturnsToOverviewByDefault() {
         var (state, list) = overview(count: 3)
         let effects = Fixtures.dispatch(&state, .cardClicked(list[0].identity))
-        _ = Fixtures.dispatch(&state, .expandCompleted(expandToken(effects)!))
+        _ = Fixtures.dispatch(&state, .expandCompleted(Fixtures.expandToken(effects)!))
         #expect(state.phase == .focused(target: list[0].identity))
         _ = Fixtures.dispatch(&state, .cardClicked(list[1].identity))
         #expect(state.phase.isTransitioning)
@@ -188,7 +254,7 @@ struct SessionReducerTests {
         policy.backgroundClickSwitches = true
         var (state, list) = overview(count: 3, policy: policy)
         let effects = Fixtures.dispatch(&state, .cardClicked(list[0].identity))
-        _ = Fixtures.dispatch(&state, .expandCompleted(expandToken(effects)!))
+        _ = Fixtures.dispatch(&state, .expandCompleted(Fixtures.expandToken(effects)!))
         let switchEffects = Fixtures.dispatch(&state, .cardClicked(list[2].identity))
         #expect(state.phase == .switching(from: list[0].identity, to: list[2].identity, token: state.phase.token!))
         #expect(expandTarget(switchEffects) == list[2].identity)
@@ -198,7 +264,7 @@ struct SessionReducerTests {
     func appEscNotIntercepted() {
         var (state, list) = overview(count: 2)
         let effects = Fixtures.dispatch(&state, .cardClicked(list[0].identity))
-        _ = Fixtures.dispatch(&state, .expandCompleted(expandToken(effects)!))
+        _ = Fixtures.dispatch(&state, .expandCompleted(Fixtures.expandToken(effects)!))
         #expect(state.keyboardFocus == .targetApplication)
         let before = state.phase
         #expect(Fixtures.dispatch(&state, .escapePressed).isEmpty)
@@ -210,19 +276,36 @@ struct SessionReducerTests {
         var (state, list) = overview(count: 2)
         let effects = Fixtures.dispatch(&state, .cardClicked(list[0].identity))
         let collapseEffects = Fixtures.dispatch(&state, .backgroundClicked(interaction: InteractionToken()))
-        let token = collapseToken(collapseEffects) ?? expandToken(effects)!
+        let token = collapseToken(collapseEffects) ?? Fixtures.expandToken(effects)!
         _ = Fixtures.dispatch(&state, .collapseCompleted(token))
         #expect(state.phase == .overview)
         #expect(state.keyboardFocus == .overview)
-        _ = Fixtures.dispatch(&state, .escapePressed)
+        // 点过卡片就留下了写入意图：Esc 先把窗口收进恢复批次，收到结果才落 hidden。
+        let exitEffects = Fixtures.dispatch(&state, .escapePressed)
+        let batchToken = recoveringToken(exitEffects)!
+        #expect(state.phase == .recovering(destination: .hidden, token: batchToken))
+        #expect(restoreAllIdentities(exitEffects) == [list[0].identity])
+        _ = Fixtures.dispatch(&state, .geometryRestoreSettled(token: batchToken,
+                                                              items: [Fixtures.restoreItem(list[0].identity, .alreadyAtOriginal)]))
+        _ = Fixtures.dispatch(&state, .restoreCompleted(batchToken))
         #expect(state.phase == .hidden)
+        #expect(state.transactions.isEmpty)
+    }
+
+    @Test("没点过卡片时 Esc 直接关闭，不等永远不会来的恢复结果")
+    func escFromCleanOverviewClosesImmediately() {
+        var (state, _) = overview(count: 2)
+        let effects = Fixtures.dispatch(&state, .escapePressed)
+        #expect(state.phase == .hidden)
+        #expect(!containsEffect(effects) { if case .restoreAll = $0 { return true }; return false })
+        #expect(containsEffect(effects) { if case .clearJournal = $0 { return true }; return false })
     }
 
     @Test("内部背景点击造成的失焦不触发退出")
     func internalInteractionDoesNotExit() {
         var (state, list) = overview(count: 2)
         let effects = Fixtures.dispatch(&state, .cardClicked(list[0].identity))
-        _ = Fixtures.dispatch(&state, .expandCompleted(expandToken(effects)!))
+        _ = Fixtures.dispatch(&state, .expandCompleted(Fixtures.expandToken(effects)!))
         let interaction = InteractionToken()
         let collapseEffects = Fixtures.dispatch(&state, .backgroundClicked(interaction: interaction))
         let token = collapseToken(collapseEffects)
@@ -235,7 +318,7 @@ struct SessionReducerTests {
     func activatingOwnTargetDoesNotExit() {
         var (state, list) = overview(count: 2)
         let effects = Fixtures.dispatch(&state, .cardClicked(list[0].identity))
-        _ = Fixtures.dispatch(&state, .expandCompleted(expandToken(effects)!))
+        _ = Fixtures.dispatch(&state, .expandCompleted(Fixtures.expandToken(effects)!))
         _ = Fixtures.dispatch(&state, .focusLost(origin: .otherApplication(bundleID: "com.test.app")))
         #expect(state.phase == .focused(target: list[0].identity))
     }
@@ -244,60 +327,41 @@ struct SessionReducerTests {
     func externalFocusLossRestoresAndExits() {
         var (state, list) = overview(count: 2)
         let effects = Fixtures.dispatch(&state, .cardClicked(list[0].identity))
-        _ = Fixtures.dispatch(&state, .expandCompleted(expandToken(effects)!))
-        _ = Fixtures.dispatch(&state, .geometryWritten(list[0].identity, provisionalFrame: CGRect(x: 10, y: 10, width: 1_000, height: 700), displayID: 1))
+        let token = Fixtures.expandToken(effects)!
+        _ = Fixtures.dispatch(&state, .expandCompleted(token))
+        _ = Fixtures.dispatch(&state, Fixtures.writeResult(list[0].identity, token: token,
+                                                   outcome: .exact(readBack: CGRect(x: 10, y: 10, width: 1_000, height: 700))))
         let exitEffects = Fixtures.dispatch(&state, .focusLost(origin: .commandTab))
-        #expect(state.phase == .recovering(token: state.phase.token!))
+        #expect(state.phase == .recovering(destination: .hidden, token: state.phase.token!))
         #expect(containsEffect(exitEffects) { if case .restoreAll = $0 { return true }; return false })
-        let token = recoveringToken(exitEffects)!
-        let done = Fixtures.dispatch(&state, .restoreCompleted(token))
+        let batchToken = recoveringToken(exitEffects)!
+        _ = Fixtures.dispatch(&state, .geometryRestoreSettled(token: batchToken,
+                                                              items: [Fixtures.restoreItem(list[0].identity, .restored)]))
+        let done = Fixtures.dispatch(&state, .restoreCompleted(batchToken))
         #expect(state.phase == .hidden)
         #expect(containsEffect(done) { if case .hideOverview = $0 { return true }; return false })
-    }
-
-    @Test("权限丢失立即挂起、停流并恢复")
-    func permissionLossSuspends() {
-        var (state, list) = overview(count: 2)
-        let effects = Fixtures.dispatch(&state, .cardClicked(list[0].identity))
-        _ = Fixtures.dispatch(&state, .expandCompleted(expandToken(effects)!))
-        _ = Fixtures.dispatch(&state, .geometryWritten(list[0].identity, provisionalFrame: CGRect(x: 10, y: 10, width: 1_000, height: 700), displayID: 1))
-        let suspendEffects = Fixtures.dispatch(&state, .permissionLost(.screenRecording))
-        #expect(state.phase == .suspended(reason: .permissionLost))
-        #expect(containsEffect(suspendEffects) { if case .stopAllCapture = $0 { return true }; return false })
-        #expect(containsEffect(suspendEffects) { if case .restoreAll = $0 { return true }; return false })
+        #expect(state.transactions.isEmpty)
     }
 
     @Test("目标销毁后不再尝试恢复该窗口")
     func destroyedTargetSkipsRestore() {
         var (state, list) = overview(count: 2)
         let effects = Fixtures.dispatch(&state, .cardClicked(list[0].identity))
-        _ = Fixtures.dispatch(&state, .expandCompleted(expandToken(effects)!))
-        _ = Fixtures.dispatch(&state, .geometryWritten(list[0].identity, provisionalFrame: CGRect(x: 10, y: 10, width: 1_000, height: 700), displayID: 1))
+        let token = Fixtures.expandToken(effects)!
+        _ = Fixtures.dispatch(&state, .expandCompleted(token))
+        _ = Fixtures.dispatch(&state, Fixtures.writeResult(list[0].identity, token: token,
+                                                   outcome: .exact(readBack: CGRect(x: 10, y: 10, width: 1_000, height: 700))))
         let closeEffects = Fixtures.dispatch(&state, .windowClosed(list[0].identity))
         #expect(state.phase == .overview)
         #expect(state.transactions.isEmpty)
         #expect(containsEffect(closeEffects) { if case .dropJournal = $0 { return true }; return false })
     }
 
-    @Test("Space 改变与锁屏都恢复并隐藏")
-    func spaceAndLockBehave() {
-        for event in [SessionEvent.spaceChanged, .screenLocked] {
-            var (state, list) = overview(count: 2)
-            let effects = Fixtures.dispatch(&state, .cardClicked(list[0].identity))
-            _ = Fixtures.dispatch(&state, .expandCompleted(expandToken(effects)!))
-            _ = Fixtures.dispatch(&state, .geometryWritten(list[0].identity, provisionalFrame: CGRect(x: 10, y: 10, width: 1_000, height: 700), displayID: 1))
-            let out = Fixtures.dispatch(&state, event)
-            #expect(!state.phase.isVisible)
-            #expect(containsEffect(out) { if case .stopAllCapture = $0 { return true }; return false })
-            #expect(containsEffect(out) { if case .restoreAll = $0 { return true }; return false })
-        }
-    }
-
     @Test("点击背景期间的其他应用切换不触发退出")
     func backgroundClickAbsorbsExternalActivation() {
         var (state, list) = overview(count: 2)
         let effects = Fixtures.dispatch(&state, .cardClicked(list[0].identity))
-        _ = Fixtures.dispatch(&state, .expandCompleted(expandToken(effects)!))
+        _ = Fixtures.dispatch(&state, .expandCompleted(Fixtures.expandToken(effects)!))
         _ = Fixtures.dispatch(&state, .backgroundClicked(interaction: InteractionToken()))
         let token = state.phase.token
         #expect(state.phase.isTransitioning)
@@ -312,9 +376,9 @@ struct SessionReducerTests {
         policy.backgroundClickSwitches = true
         var (state, list) = overview(count: 3, policy: policy)
         var effects = Fixtures.dispatch(&state, .cardClicked(list[0].identity))
-        _ = Fixtures.dispatch(&state, .expandCompleted(expandToken(effects)!))
+        _ = Fixtures.dispatch(&state, .expandCompleted(Fixtures.expandToken(effects)!))
         effects = Fixtures.dispatch(&state, .cardClicked(list[1].identity))
-        let switchToken = expandToken(effects)!
+        let switchToken = Fixtures.expandToken(effects)!
         #expect(state.phase == .switching(from: list[0].identity, to: list[1].identity, token: switchToken))
         _ = Fixtures.dispatch(&state, .expandCompleted(switchToken))
         #expect(state.phase == .focused(target: list[1].identity))
@@ -326,7 +390,9 @@ struct SessionReducerTests {
         let first = Fixtures.dispatch(&state, .reconcileTick)
         #expect(containsEffect(first) { if case .discover = $0 { return true }; return false })
         #expect(Fixtures.dispatch(&state, .reconcileTick).isEmpty)
-        _ = Fixtures.dispatch(&state, .catalogUpdated(records: Fixtures.records(2), generation: state.catalogGeneration, reason: .reconcile))
+        let request = Fixtures.discoverRequest(first)
+        #expect(request != nil)
+        _ = Fixtures.dispatch(&state, .catalogUpdated(request: request!, records: Fixtures.records(2)))
         #expect(containsEffect(Fixtures.dispatch(&state, .reconcileTick)) { if case .discover = $0 { return true }; return false })
     }
 
@@ -336,6 +402,200 @@ struct SessionReducerTests {
         let effects = Fixtures.dispatch(&state, .globalShortcut)
         #expect(state.phase == .hidden)
         #expect(containsEffect(effects) { if case .cancelReconcile = $0 { return true }; return false })
+    }
+
+    @Test("显示器断开且无待恢复事务时直接重查目录")
+    func displaysChangedWithoutRestore() {
+        var (state, _) = overview(count: 2)
+        let effects = Fixtures.dispatch(&state, .displaysChanged)
+        #expect(state.phase == .overview)
+        #expect(Fixtures.discoverRequest(effects) != nil)
+    }
+
+    // MARK: - 方案 §5.3 必测序列
+
+    @Test("Space 改变 → 恢复 → hidden → 再按快捷键能重新进入总览")
+    func spaceChangedThenReopen() {
+        var (state, list) = overview(count: 3)
+        let a = list[0].identity
+        var effects = Fixtures.dispatch(&state, .cardClicked(a))
+        let tokenA = Fixtures.expandToken(effects)!
+        _ = Fixtures.dispatch(&state, .expandCompleted(tokenA))
+        _ = Fixtures.dispatch(&state, Fixtures.writeResult(a, token: tokenA,
+                                                          outcome: .exact(readBack: CGRect(x: 30, y: 30, width: 1_100, height: 700))))
+
+        effects = Fixtures.dispatch(&state, .spaceChanged)
+        #expect(state.phase == .recovering(destination: .hidden, token: state.phase.token!))
+        #expect(restoreAllIdentities(effects) == [a])
+        #expect(containsEffect(effects) { if case .stopAllCapture = $0 { return true }; return false })
+        let batchToken = recoveringToken(effects)!
+        _ = Fixtures.dispatch(&state, .geometryRestoreSettled(token: batchToken, items: [Fixtures.restoreItem(a, .restored)]))
+        _ = Fixtures.dispatch(&state, .restoreCompleted(batchToken))
+        #expect(state.phase == .hidden)
+        #expect(state.transactions.isEmpty)
+
+        // 再一次快捷键必须走完整循环，不能卡在 recovering。
+        effects = Fixtures.dispatch(&state, .globalShortcut)
+        #expect(state.phase == .preparing)
+        #expect(containsEffect(effects) { if case .evaluateOpenConditions = $0 { return true }; return false })
+        effects = Fixtures.dispatch(&state, .openConditionsChanged(conditions: Fixtures.granted, reopenIfReady: true))
+        let request = Fixtures.discoverRequest(effects)
+        #expect(request != nil)
+        _ = Fixtures.dispatch(&state, .catalogUpdated(request: request!, records: Fixtures.records(3)))
+        #expect(state.phase == .overview)
+        #expect(state.slots.slots.count == 3)
+    }
+
+    @Test("无待恢复事务时 Space 改变直接落 hidden，不等恢复结果")
+    func spaceChangedWithoutPendingRestoreClosesImmediately() {
+        var (state, _) = overview(count: 2)
+        let effects = Fixtures.dispatch(&state, .spaceChanged)
+        #expect(state.phase == .hidden)
+        #expect(!containsEffect(effects) { if case .restoreAll = $0 { return true }; return false })
+    }
+
+    @Test("锁屏时正在聚焦：恢复后落 hidden，解锁再开")
+    func lockWhileFocusedThenReopen() {
+        var (state, list) = overview(count: 2)
+        let a = list[0].identity
+        var effects = Fixtures.dispatch(&state, .cardClicked(a))
+        let tokenA = Fixtures.expandToken(effects)!
+        _ = Fixtures.dispatch(&state, .expandCompleted(tokenA))
+        _ = Fixtures.dispatch(&state, Fixtures.writeResult(a, token: tokenA,
+                                                          outcome: .exact(readBack: CGRect(x: 30, y: 30, width: 1_100, height: 700))))
+
+        effects = Fixtures.dispatch(&state, .screenLocked)
+        let batchToken = recoveringToken(effects)!
+        #expect(state.phase == .recovering(destination: .hidden, token: batchToken))
+        _ = Fixtures.dispatch(&state, .geometryRestoreSettled(token: batchToken, items: [Fixtures.restoreItem(a, .restored)]))
+        _ = Fixtures.dispatch(&state, .restoreCompleted(batchToken))
+        #expect(state.phase == .hidden)
+
+        effects = Fixtures.dispatch(&state, .globalShortcut)
+        #expect(state.phase == .preparing)
+    }
+
+    @Test("录屏权限丢失：destination 带原因，恢复权限不自动抢焦点")
+    func permissionLossAndRestore() {
+        var (state, list) = overview(count: 2)
+        let a = list[0].identity
+        var effects = Fixtures.dispatch(&state, .cardClicked(a))
+        let tokenA = Fixtures.expandToken(effects)!
+        _ = Fixtures.dispatch(&state, .expandCompleted(tokenA))
+        _ = Fixtures.dispatch(&state, Fixtures.writeResult(a, token: tokenA,
+                                                          outcome: .exact(readBack: CGRect(x: 30, y: 30, width: 1_100, height: 700))))
+
+        effects = Fixtures.dispatch(&state, .permissionLost(.screenRecording))
+        let batchToken = recoveringToken(effects)!
+        #expect(state.phase == .recovering(destination: .hiddenAfterPermissionLost(.screenRecording), token: batchToken))
+        #expect(hasHint(effects, .permissionMissing(.screenRecording)))
+        _ = Fixtures.dispatch(&state, .geometryRestoreSettled(token: batchToken, items: [Fixtures.restoreItem(a, .restored)]))
+        effects = Fixtures.dispatch(&state, .restoreCompleted(batchToken))
+        #expect(state.phase == .hidden)
+        // 退出时必须把真实原因再提示一次，不能一律说成缺录屏权限以外的东西。
+        #expect(hasHint(effects, .permissionMissing(.screenRecording)))
+
+        // 权限恢复本身不自动打开总览：只请求重新评估条件。
+        effects = Fixtures.dispatch(&state, .permissionRestored(.screenRecording))
+        #expect(state.phase == .hidden)
+        #expect(!containsEffect(effects) { if case .showOverview = $0 { return true }; return false })
+        #expect(containsEffect(effects) {
+            if case .evaluateOpenConditions(let reopen) = $0 { return reopen == false }
+            return false
+        })
+
+        // 用户再次调用快捷键才重新进入。
+        _ = Fixtures.dispatch(&state, .globalShortcut)
+        #expect(state.phase == .preparing)
+    }
+
+    @Test("权限不足时打开：回 hidden 并说明缺哪一项，不留在 preparing")
+    func openBlockedByMissingPermission() {
+        var state = Fixtures.state(withCount: 2)
+        var effects = Fixtures.dispatch(&state, .globalShortcut)
+        #expect(state.phase == .preparing)
+        effects = Fixtures.dispatch(&state, .openConditionsChanged(conditions: Fixtures.blocked, reopenIfReady: true))
+        #expect(state.phase == .hidden)
+        #expect(hasHint(effects, .permissionMissing(.screenRecording)))
+        #expect(!containsEffect(effects) { if case .discover = $0 { return true }; return false })
+
+        // 下一次调用必须能重新评估，不形成永久死路。
+        effects = Fixtures.dispatch(&state, .globalShortcut)
+        #expect(state.phase == .preparing)
+        #expect(containsEffect(effects) { if case .evaluateOpenConditions = $0 { return true }; return false })
+    }
+
+    @Test("目录查询失败：清掉在途标记并按真实原因提示")
+    func discoveryFailureIsVisibleAndRetryable() {
+        let failure = DiscoveryFailure.contentUnavailable("SCShareableContent 超时")
+        var state = Fixtures.state(withCount: 2)
+        _ = Fixtures.dispatch(&state, .globalShortcut)
+        let effects = Fixtures.dispatch(&state, .openConditionsChanged(conditions: Fixtures.granted, reopenIfReady: true))
+        let request = Fixtures.discoverRequest(effects)!
+        #expect(state.isDiscoveryInFlight)
+
+        let failed = Fixtures.dispatch(&state, .catalogDiscoveryFailed(request: request, failure: failure))
+        #expect(state.phase == .hidden)
+        #expect(!state.isDiscoveryInFlight)
+        #expect(hasHint(failed, failure.hint))
+
+        // 旧请求的晚到结果既不能污染新会话，也不能清掉新的在途请求。
+        _ = Fixtures.dispatch(&state, .globalShortcut)
+        let second = Fixtures.discoverRequest(Fixtures.dispatch(&state, .openConditionsChanged(conditions: Fixtures.granted,
+                                                                                              reopenIfReady: true)))!
+        #expect(second.requestID != request.requestID)
+        _ = Fixtures.dispatch(&state, .catalogDiscoveryFailed(request: request, failure: .axUnavailable))
+        #expect(state.isDiscoveryInFlight)
+        _ = Fixtures.dispatch(&state, .catalogUpdated(request: request, records: Fixtures.records(2)))
+        #expect(state.phase == .preparing)
+        _ = Fixtures.dispatch(&state, .catalogUpdated(request: second, records: Fixtures.records(2)))
+        #expect(state.phase == .overview)
+    }
+
+    @Test("恢复批次里失败项保留，成功项单独清除")
+    func partialRestoreKeepsFailedEntry() {
+        var policy = SessionPolicy()
+        policy.backgroundClickSwitches = true
+        var (state, list) = overview(count: 2, policy: policy)
+        let a = list[0].identity
+        let b = list[1].identity
+        var effects = Fixtures.dispatch(&state, .cardClicked(a))
+        var token = Fixtures.expandToken(effects)!
+        _ = Fixtures.dispatch(&state, .expandCompleted(token))
+        _ = Fixtures.dispatch(&state, Fixtures.writeResult(a, token: token,
+                                                          outcome: .exact(readBack: CGRect(x: 30, y: 30, width: 1_100, height: 700))))
+        effects = Fixtures.dispatch(&state, .cardClicked(b))
+        token = Fixtures.expandToken(effects)!
+        _ = Fixtures.dispatch(&state, .expandCompleted(token))
+
+        effects = Fixtures.dispatch(&state, .quitRequested)
+        let batchToken = recoveringToken(effects)!
+        effects = Fixtures.dispatch(&state, .geometryRestoreSettled(token: batchToken,
+                                                                   items: [Fixtures.restoreItem(a, .restored, name: "A"),
+                                                                           Fixtures.restoreItem(b, .rejected("AX 拒绝写入(-25205)"), name: "B")]))
+        #expect(hasHint(effects, .restoreFailed("B")))
+        #expect(state.transactions[b]?.state == .failed)
+        #expect(state.transactions[b]?.restoreAttempts == 1)
+        // 失败项要重新落盘，成功项从 journal 移除。
+        #expect(containsEffect(effects) { if case .writeJournal = $0 { return true }; return false })
+
+        effects = Fixtures.dispatch(&state, .restoreCompleted(batchToken))
+        #expect(state.phase == .hidden)
+        #expect(Set(clearedSettled(effects) ?? []) == [a])
+        #expect(state.transactions.count == 1)
+        #expect(state.transactions[b] != nil)
+        #expect(hasHint(effects, .restoreIncomplete(1)))
+    }
+
+    @Test("只有写入意图的窗口也进恢复批次")
+    func plannedWindowIsIncludedInRestoreBatch() {
+        var (state, list) = overview(count: 2)
+        let a = list[0].identity
+        _ = Fixtures.dispatch(&state, .cardClicked(a))
+        #expect(state.transactions[a]?.state == .mutationPlanned)
+        let effects = Fixtures.dispatch(&state, .quitRequested)
+        #expect(restoreAllIdentities(effects) == [a])
+        #expect(state.phase.recoveryDestination == .hidden)
     }
 }
 

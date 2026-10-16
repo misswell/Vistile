@@ -85,6 +85,9 @@ enum Fixtures {
 
     static func mapper() -> CoordinateMapper { CoordinateMapper(displays: displays) }
 
+    static let granted = OpenConditions(screenRecording: true, accessibility: true)
+    static let blocked = OpenConditions(screenRecording: false, accessibility: true)
+
     static func state(withCount count: Int = 4, policy: SessionPolicy = SessionPolicy()) -> SessionState {
         var state = SessionState()
         state.policy = policy
@@ -93,11 +96,52 @@ enum Fixtures {
         for item in list { state.records[item.identity] = item }
         for item in list { state.slots.assign(item.identity, memoryKey: item.memoryKey) }
         state.catalogGeneration = 1
+        // 展开目标由 reducer 计算，显示器事实必须由宿主写进来。
+        state.displays = displays
         return state
     }
 
     static func dispatch(_ state: inout SessionState, _ event: SessionEvent) -> [SessionEffect] {
         SessionReducer.reduce(&state, event)
+    }
+
+    static func discoverRequest(_ effects: [SessionEffect]) -> DiscoveryRequest? {
+        for effect in effects {
+            if case let .discover(request) = effect { return request }
+        }
+        return nil
+    }
+
+    static func expandToken(_ effects: [SessionEffect]) -> TransitionToken? {
+        for effect in effects {
+            if case let .expand(_, _, token, _) = effect { return token }
+        }
+        return nil
+    }
+
+    /// 把会话带到总览：快捷键 → 条件满足 → 目录返回。返回真实目录记录。
+    @discardableResult
+    static func openToOverview(_ state: inout SessionState, records list: [WindowRecord]) -> [SessionEffect] {
+        _ = dispatch(&state, .globalShortcut)
+        let effects = dispatch(&state, .openConditionsChanged(conditions: granted, reopenIfReady: true))
+        guard let request = discoverRequest(effects) else { return effects }
+        return effects + dispatch(&state, .catalogUpdated(request: request, records: list))
+    }
+
+    static func writeResult(_ identity: WindowIdentity,
+                            token: TransitionToken,
+                            outcome: GeometryOutcome,
+                            target: CGRect = CGRect(x: 60, y: 50, width: 1_300, height: 860)) -> SessionEvent {
+        .geometryWriteFinished(GeometryWriteResult(identity: identity,
+                                                   token: token,
+                                                   operationID: UUID(),
+                                                   targetFrame: target,
+                                                   displayID: 1,
+                                                   outcome: outcome))
+    }
+
+    static func restoreItem(_ identity: WindowIdentity, _ outcome: RestoreOutcome, name: String = "TestApp") -> RestoreItemResult {
+        RestoreItemResult(identity: identity, outcome: outcome, applicationName: name)
     }
 }
 

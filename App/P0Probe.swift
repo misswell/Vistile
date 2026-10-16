@@ -270,9 +270,8 @@ final class P0Probe {
         case .expanding: return "expanding"
         case .focused: return "focused"
         case .collapsing: return "collapsing"
-        case .switching: return "switching"
-        case let .suspended(reason): return "suspended(\(reason))"
-        case .recovering: return "recovering"
+        case let .switching(_, to, _): return "switching(\(to.journalKey))"
+        case let .recovering(destination, _): return "recovering(\(destination))"
         }
     }
 

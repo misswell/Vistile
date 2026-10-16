@@ -14,28 +14,19 @@ public enum SessionReducer {
     private static func reducePriority(_ state: inout SessionState, _ event: SessionEvent) -> [SessionEffect]? {
         switch event {
         case .quitRequested:
-            guard state.phase.isVisible else { return [] }
+            // 已在恢复中就不再叠加第二条恢复路径。
+            guard state.phase != .hidden, state.recoveryDestination == nil else { return [] }
             return exitToHidden(&state)
 
         case let .permissionLost(kind):
-            guard state.phase != .hidden else { return [] }
-            let token = state.nextTransitionToken()
-            state.isExitPending = true
-            state.pendingTarget = nil
-            state.phase = .suspended(reason: .permissionLost)
-            var effects: [SessionEffect] = [.cancelReconcile, .stopAllCapture, .hideOverview]
-            if state.hasPendingGeometryRestore { effects.append(.restoreAll(token: token)) }
-            effects.append(.presentHint(.permissionMissing(kind)))
-            return effects
+            guard state.phase != .hidden, state.recoveryDestination == nil else { return [] }
+            return recoverToHidden(&state, destination: .hiddenAfterPermissionLost(kind),
+                                   hints: [.presentHint(.permissionMissing(kind))])
 
-        case .screenLocked:
-            guard state.phase.isVisible else { return [] }
-            return suspendAndRestore(&state, reason: .screenLocked)
-
-        case .spaceChanged:
-            // Space 切换时暂停并退出当前会话，重新打开时重新发现（方案 §12）。
-            guard state.phase.isVisible else { return [] }
-            return suspendAndRestore(&state, reason: .spaceChanged)
+        case .screenLocked, .spaceChanged:
+            // Space 切换与锁屏：停预览、隐藏总览、结束过渡、执行恢复，结束后落到 hidden（方案 §5.1、§12）。
+            guard state.phase != .hidden, state.recoveryDestination == nil else { return [] }
+            return recoverToHidden(&state, destination: .hidden)
 
         case let .windowClosed(identity):
             var effects: [SessionEffect] = [.stopCapture([identity])]
@@ -55,30 +46,13 @@ public enum SessionReducer {
             return effects
 
         case .displaysChanged:
-            guard state.phase.isVisible else { return [] }
-            state.isDiscoveryInFlight = true
-            if state.phase.controlledTarget != nil || state.hasPendingGeometryRestore {
-                let token = state.nextTransitionToken()
-                state.isExitPending = true
-                state.pendingTarget = nil
-                state.phase = .recovering(token: token)
-                return [.cancelReconcile, .restoreAll(token: token), .hideOverview]
-            }
-            return [.discover(generation: state.catalogGeneration, reason: .displaysChanged)]
+            guard state.phase.isVisible, state.recoveryDestination == nil else { return [] }
+            if state.hasPendingGeometryRestore { return recoverToHidden(&state, destination: .hidden) }
+            return [startDiscoveryEffect(&state, reason: .displaysChanged)]
 
         default:
             return nil
         }
-    }
-
-    private static func suspendAndRestore(_ state: inout SessionState, reason: SuspendReason) -> [SessionEffect] {
-        let token = state.nextTransitionToken()
-        state.isExitPending = true
-        state.pendingTarget = nil
-        state.phase = .suspended(reason: reason)
-        var effects: [SessionEffect] = [.cancelReconcile, .stopAllCapture, .hideOverview]
-        if state.hasPendingGeometryRestore { effects.append(.restoreAll(token: token)) }
-        return effects
     }
 
     // MARK: - 常规事件
@@ -126,8 +100,39 @@ public enum SessionReducer {
             }
             return handleFocusLost(&state, origin)
 
+        case .openConditionsChanged(let conditions, let reopenIfReady):
+            state.openConditions = conditions
+            guard case .preparing = state.phase else { return [] }
+            guard reopenIfReady else {
+                // 条件回报说"不要自动打开"：留在隐藏态等用户再次调用。
+                return closePreparingWithoutOpen(&state)
+            }
+            guard conditions.canOpen else {
+                var effects = closePreparingWithoutOpen(&state)
+                if let hint = conditions.blockingHint { effects.append(.presentHint(hint)) }
+                return effects
+            }
+            return [startDiscoveryEffect(&state, reason: .shortcut),
+                    .scheduleReconcile(state.policy.reconcileInterval)]
+
+        case .catalogDiscoveryFailed(let request, let failure):
+            guard state.isCurrentDiscovery(request) else { return [] }
+            state.pendingDiscovery = nil
+            state.consecutiveDiscoveryFailures += 1
+            switch state.phase {
+            case .preparing:
+                // 无权限且目录为空不得无限留在 preparing（方案 §5.2）。
+                var effects = closePreparingWithoutOpen(&state)
+                effects.append(.presentHint(failure.hint))
+                return effects
+            default:
+                guard state.consecutiveDiscoveryFailures >= SessionState.discoveryRetryLimit else { return [] }
+                // 有界退避到期：保留卡片与最后一帧，把真实原因说出来。
+                return [.presentHint(failure.hint)]
+            }
+
         case .expandCompleted(let token):
-            var effects: [SessionEffect] = [.setKeyboardFocus(.targetApplication)]
+            let effects: [SessionEffect] = [.setKeyboardFocus(.targetApplication)]
             switch state.phase {
             case let .expanding(target, current) where current == token:
                 state.phase = .focused(target: target)
@@ -163,14 +168,36 @@ public enum SessionReducer {
             }
             return effects
 
+        case .geometryRestoreSettled(let token, let items):
+            guard state.phase.token == token else { return [] }
+            var effects: [SessionEffect] = []
+            for item in items {
+                guard var transaction = state.transactions[item.identity] else { continue }
+                if item.outcome.isSettled {
+                    transaction = transaction.markingSettled(item.outcome)
+                    state.transactions[item.identity] = transaction
+                    effects.append(.dropJournal(item.identity))
+                } else {
+                    transaction = transaction.markingFailed(item.outcome.message)
+                    state.transactions[item.identity] = transaction
+                    effects.append(.writeJournal(transaction))
+                }
+                if item.outcome.isFailure {
+                    effects.append(.presentHint(.restoreFailed(item.applicationName)))
+                }
+            }
+            return effects
+
         case .restoreCompleted(let token):
-            guard case let .recovering(current) = state.phase, current == token else { return [] }
-            state.phase = .hidden
-            state.isExitPending = false
-            state.pendingTarget = nil
-            state.transactions.removeAll()
-            state.slots = SlotRegistry(capacity: state.slots.capacity, orderPreference: state.slots.orderPreference)
-            return [.stopAllCapture, .hideOverview, .clearJournal(sessionID: state.sessionID), .cancelReconcile]
+            guard case let .recovering(destination, current) = state.phase, current == token else { return [] }
+            var effects = landHidden(&state, destination: destination)
+            // 未成功的窗口必须继续留在 state 与 journal 里（方案 §6.4）。
+            let unresolved = state.transactions.values.filter { $0.state.requiresRestore }
+            let settled = state.transactions.values.filter { !$0.state.requiresRestore }.map(\.identity)
+            for identity in settled { state.transactions.removeValue(forKey: identity) }
+            effects.append(.clearJournal(sessionID: state.sessionID, settledIdentities: settled))
+            if !unresolved.isEmpty { effects.append(.presentHint(.restoreIncomplete(unresolved.count))) }
+            return effects
 
         case let .transitionTimedOut(token):
             switch state.phase {
@@ -188,16 +215,40 @@ public enum SessionReducer {
             case let .switching(_, target, current) where current == token:
                 let name = state.records[target]?.applicationName ?? "目标应用"
                 return beginCollapse(&state, target) + [.presentHint(.transitionTimedOut(name))]
-            case let .recovering(current) where current == token:
-                state.phase = .hidden
-                state.isExitPending = false
-                return [.stopAllCapture, .hideOverview, .cancelReconcile, .presentHint(.restoreFailed("会话恢复"))]
+            case let .recovering(destination, current) where current == token:
+                var effects = landHidden(&state, destination: destination)
+                effects.append(.presentHint(.restoreFailed("会话恢复")))
+                return effects
             default:
                 return []
             }
 
-        case let .catalogUpdated(records, generation, reason):
-            return mergeCatalog(&state, records: records, generation: generation, reason: reason)
+        case let .catalogUpdated(request, records):
+            return mergeCatalog(&state, request: request, records: records)
+
+        case let .geometryWriteFinished(result):
+            return applyWriteResult(&state, result)
+
+        case let .journalWriteFailed(identity, reason):
+            guard state.phase.controlledTarget == identity, state.phase.token != nil else { return [] }
+            // 还没有任何 AX 写入：直接退回总览，事务原样保留给退出兜底核对。
+            state.phase = .overview
+            state.keyboardFocus = .overview
+            state.pendingTarget = nil
+            return [.setKeyboardFocus(.overview), .presentHint(.journalWriteFailed(reason))]
+
+        case let .windowGeometryChangedExternally(identity, frame, source):
+            guard var record = state.records[identity] else { return [] }
+            record.frame = frame
+            state.records[identity] = record
+            // 只有确认是用户操作才记录 override；程序写入与"不确定"都不能当成用户改过。
+            guard source.recordsUserOverride,
+                  var transaction = state.transactions[identity],
+                  transaction.state.requiresRestore else { return [] }
+            transaction = transaction.withUserOverride(frame)
+            state.transactions[identity] = transaction
+            // state 改了但 journal 没同步，恢复执行器就读不到用户尺寸（方案 §6.5）。
+            return [.writeJournal(transaction)]
 
         case let .captureStarted(identity, generation):
             guard var record = state.records[identity], generation == record.sessionGeneration else { return [] }
@@ -231,41 +282,9 @@ public enum SessionReducer {
             state.records[identity] = record
             return []
 
-        case let .windowGeometryChangedExternally(identity, frame, isUserAction):
-            guard var record = state.records[identity] else { return [] }
-            record.frame = frame
-            state.records[identity] = record
-            // 程序引起的 AX 通知不能当成用户修改；只有真正的用户操作才记录 override。
-            if isUserAction, var transaction = state.transactions[identity], transaction.state.requiresRestore {
-                transaction = transaction.withUserOverride(frame)
-                state.transactions[identity] = transaction
-            }
-            return []
-
-        case let .geometryWritten(identity, provisionalFrame, displayID):
-            guard var transaction = state.transactions[identity] else { return [] }
-            transaction = transaction.markingWritten(provisionalFrame: provisionalFrame, displayID: displayID)
-            state.transactions[identity] = transaction
-            return [.writeJournal(transaction)]
-
-        case let .geometryVerified(identity, readBack):
-            guard var transaction = state.transactions[identity] else { return [] }
-            transaction = transaction.markingVerified(readBack: readBack,
-                                                      provisionalFrame: transaction.lastProvisionalFrame ?? readBack,
-                                                      tolerance: 2)
-            state.transactions[identity] = transaction
-            return [.writeJournal(transaction)]
-
-        case let .geometryRestored(identity):
-            guard var transaction = state.transactions[identity] else { return [] }
-            transaction = transaction.markingRestored()
-            state.transactions[identity] = transaction
-            return [.dropJournal(identity)]
-
         case .reconcileTick:
-            guard state.phase.isVisible, !state.isDiscoveryInFlight else { return [] }
-            state.isDiscoveryInFlight = true
-            return [.discover(generation: state.catalogGeneration, reason: .reconcile)]
+            guard state.phase.isVisible, !state.isDiscoveryInFlight, !state.isDiscoveryBudgetExhausted else { return [] }
+            return [startDiscoveryEffect(&state, reason: .reconcile)]
 
         case .organizeRequested:
             state.slots.organize()
@@ -289,13 +308,9 @@ public enum SessionReducer {
             return []
 
         case .permissionRestored:
-            // 回到引导态由宿主决定，状态机只保持 hidden 等待用户重新进入。
-            return []
-
-        case .restoreFailed(let token, let identity, let reason):
-            guard case .recovering = state.phase, state.phase.token == token else { return [] }
-            state.transactions[identity] = state.transactions[identity]?.markingFailed(reason)
-            return [.presentHint(.restoreFailed(state.records[identity]?.applicationName ?? reason))]
+            // 恢复权限本身不抢焦点：隐藏态只重新记录条件，用户再次调用才打开（方案 §5.1）。
+            guard state.phase.isVisible else { return [.evaluateOpenConditions(reopenIfReady: false)] }
+            return [startDiscoveryEffect(&state, reason: .permissionRestored)]
 
         default:
             return []
@@ -318,25 +333,32 @@ public enum SessionReducer {
             return beginCollapse(&state, target)
         case let .switching(_, target, _):
             return beginCollapse(&state, target)
-        case .suspended:
-            return [.presentHint(.permissionMissing(.screenRecording))]
         case .recovering:
             return []
         }
     }
 
+    /// 打开前先重新检查条件：录屏已授予才进入发现（方案 §5.1）。
     private static func openSession(_ state: inout SessionState) -> [SessionEffect] {
         state.sessionID = UUID()
-        state.catalogGeneration += 1
         state.phase = .preparing
         state.keyboardFocus = .overview
-        state.isDiscoveryInFlight = true
+        state.pendingTarget = nil
+        state.isExitPending = false
+        state.pendingDiscovery = nil
+        state.consecutiveDiscoveryFailures = 0
+        state.transactions.removeAll()
+        return [.evaluateOpenConditions(reopenIfReady: true), .setKeyboardFocus(.overview)]
+    }
+
+    private static func closePreparingWithoutOpen(_ state: inout SessionState) -> [SessionEffect] {
+        state.phase = .hidden
+        state.keyboardFocus = .none
         state.isExitPending = false
         state.pendingTarget = nil
-        state.transactions.removeAll()
-        return [.discover(generation: state.catalogGeneration, reason: .shortcut),
-                .scheduleReconcile(state.policy.reconcileInterval),
-                .setKeyboardFocus(.overview)]
+        state.pendingDiscovery = nil
+        state.slots = SlotRegistry(capacity: state.slots.capacity, orderPreference: state.slots.orderPreference)
+        return [.cancelReconcile, .hideOverview, .stopAllCapture, .setKeyboardFocus(.none)]
     }
 
     private static func handleTargetRequest(_ state: inout SessionState, _ identity: WindowIdentity) -> [SessionEffect] {
@@ -359,7 +381,7 @@ public enum SessionReducer {
         case .collapsing:
             state.pendingTarget = identity
             return []
-        case .hidden, .suspended, .recovering:
+        case .hidden, .recovering:
             return []
         }
     }
@@ -392,12 +414,17 @@ public enum SessionReducer {
         guard record.allowsAutoFocus else {
             return [.presentHint(record.confidence.isAmbiguous ? .ambiguousWindow : .cannotLocateWindow)]
         }
+        guard let display = targetDisplay(for: record, state: state) else {
+            return [.presentHint(.displayUnavailable(record.applicationName))]
+        }
+        guard let planned = plannedFrame(for: record, display: display, state: state) else { return [] }
         let token = state.nextTransitionToken()
         var effects: [SessionEffect] = []
-        if let transaction = ensureTransaction(&state, target: target) {
+        // 修改意图先落盘，宿主确认写盘成功后才允许动 AX（方案 §6.2）。
+        if let transaction = ensureTransaction(&state, target: target, planned: planned, displayID: display.id) {
             effects.append(.writeJournal(transaction))
         }
-        effects.append(.expand(target, token: token,
+        effects.append(.expand(target, targetFrame: planned, token: token,
                                animationMS: state.policy.animationMS(isExpand: true, style: state.style)))
         state.phase = .expanding(target: target, token: token)
         state.keyboardFocus = .targetApplication
@@ -423,15 +450,20 @@ public enum SessionReducer {
         guard state.records[to] != nil, state.records[to]?.allowsAutoFocus == true else {
             return beginCollapse(&state, from)
         }
+        guard let record = state.records[to],
+              let display = targetDisplay(for: record, state: state),
+              let planned = plannedFrame(for: record, display: display, state: state) else {
+            return beginCollapse(&state, from)
+        }
         let token = state.nextTransitionToken()
         var effects: [SessionEffect] = []
         if state.transactions[from]?.state.requiresRestore == true {
             effects.append(.restoreGeometry(from, token: token))
         }
-        if let transaction = ensureTransaction(&state, target: to) {
+        if let transaction = ensureTransaction(&state, target: to, planned: planned, displayID: display.id) {
             effects.append(.writeJournal(transaction))
         }
-        effects.append(.expand(to, token: token,
+        effects.append(.expand(to, targetFrame: planned, token: token,
                                animationMS: state.policy.animationMS(isExpand: true, style: state.style)))
         state.phase = .switching(from: from, to: to, token: token)
         state.keyboardFocus = .targetApplication
@@ -439,54 +471,136 @@ public enum SessionReducer {
         return effects
     }
 
-    /// 同一事务不能反复覆盖原 frame：已存在的未完成事务直接复用。
-    private static func ensureTransaction(_ state: inout SessionState, target: WindowIdentity) -> WindowTransaction? {
-        if let existing = state.transactions[target], existing.state.requiresRestore { return existing }
+    /// 同一事务不能反复覆盖原 frame：已存在的未完成事务只更新计划目标。
+    private static func ensureTransaction(_ state: inout SessionState,
+                                          target: WindowIdentity,
+                                          planned: CGRect,
+                                          displayID: UInt32) -> WindowTransaction? {
+        if let existing = state.transactions[target], existing.state.requiresRestore {
+            let updated = existing.markingPlanned(frame: planned, displayID: displayID)
+            state.transactions[target] = updated
+            return updated
+        }
         guard let record = state.records[target] else { return nil }
         let transaction = WindowTransaction(sessionID: state.sessionID,
                                             identity: target,
                                             bundleID: record.bundleID,
                                             originalFrame: record.frame,
                                             originalDisplayID: record.displayID)
+            .markingPlanned(frame: planned, displayID: displayID)
         state.transactions[target] = transaction
         return transaction
     }
 
-    private static func exitToHidden(_ state: inout SessionState) -> [SessionEffect] {
+    private static func targetDisplay(for record: WindowRecord, state: SessionState) -> DisplayInfo? {
+        state.displays.first { $0.id == record.displayID } ?? state.displays.first { $0.isPrimary } ?? state.displays.first
+    }
+
+    /// 目标 frame 在核心层算一次：日志里的计划与实际写入的必须是同一个值。
+    private static func plannedFrame(for record: WindowRecord, display: DisplayInfo, state: SessionState) -> CGRect? {
+        guard display.visibleFrame.width > 0, display.visibleFrame.height > 0 else { return nil }
+        return FocusGeometry.targetRect(visibleFrame: display.visibleFrame,
+                                       policy: state.policy,
+                                       currentSize: record.frame.size,
+                                       isResizable: record.allowsGeometryControl)
+    }
+
+    /// 恢复/退出/中断的唯一收口：有待恢复事务就走 recovering，没有就直接落 hidden（方案 §5.1）。
+    private static func recoverToHidden(_ state: inout SessionState,
+                                       destination: RecoveryDestination,
+                                       hints: [SessionEffect] = []) -> [SessionEffect] {
         state.pendingTarget = nil
         state.trustedInteraction = nil
-        if state.hasPendingGeometryRestore {
-            let token = state.nextTransitionToken()
-            state.isExitPending = true
-            state.phase = .recovering(token: token)
-            return [.cancelReconcile, .restoreAll(token: token)]
+        state.pendingDiscovery = nil
+        let identities = state.transactions.values.filter { $0.state.requiresRestore }
+            .sorted { $0.created < $1.created }.map(\.identity)
+        var effects: [SessionEffect] = [.cancelReconcile, .hideOverview, .stopAllCapture]
+        guard !identities.isEmpty else {
+            state.phase = .hidden
+            state.isExitPending = false
+            state.keyboardFocus = .none
+            state.slots = SlotRegistry(capacity: state.slots.capacity, orderPreference: state.slots.orderPreference)
+            let settled = state.transactions.values.filter { !$0.state.requiresRestore }.map(\.identity)
+            for identity in settled { state.transactions.removeValue(forKey: identity) }
+            effects.append(.clearJournal(sessionID: state.sessionID, settledIdentities: settled))
+            effects.append(.setKeyboardFocus(.none))
+            return effects + hints
         }
+        let token = state.nextTransitionToken()
+        state.isExitPending = true
+        state.keyboardFocus = .none
+        state.phase = .recovering(destination: destination, token: token)
+        effects.append(.setKeyboardFocus(.none))
+        effects.append(.restoreAll(token: token, identities: identities))
+        return effects + hints
+    }
+
+    private static func exitToHidden(_ state: inout SessionState) -> [SessionEffect] {
+        recoverToHidden(&state, destination: .hidden)
+    }
+
+    /// 恢复批次结束（成功或超时）后落到隐藏态。
+    private static func landHidden(_ state: inout SessionState, destination: RecoveryDestination) -> [SessionEffect] {
         state.phase = .hidden
         state.isExitPending = false
+        state.pendingTarget = nil
+        state.pendingDiscovery = nil
         state.keyboardFocus = .none
         state.slots = SlotRegistry(capacity: state.slots.capacity, orderPreference: state.slots.orderPreference)
-        state.transactions.removeAll()
-        return [.cancelReconcile, .stopAllCapture, .hideOverview,
-                .clearJournal(sessionID: state.sessionID), .setKeyboardFocus(.none)]
+        var effects: [SessionEffect] = [.cancelReconcile, .stopAllCapture, .hideOverview, .setKeyboardFocus(.none)]
+        if case let .hiddenAfterPermissionLost(kind) = destination {
+            effects.append(.presentHint(.permissionMissing(kind)))
+        }
+        return effects
+    }
+
+    // MARK: - 写入结果
+
+    private static func applyWriteResult(_ state: inout SessionState,
+                                         _ result: GeometryWriteResult) -> [SessionEffect] {
+        guard var transaction = state.transactions[result.identity] else { return [] }
+        guard state.phase.token == result.token else {
+            // 过期结果不改状态：宿主必须已经做了补偿恢复。
+            return []
+        }
+        switch result.outcome {
+        case let .exact(readBack):
+            transaction = transaction.markingVerified(readBack: readBack, displayID: result.displayID)
+        case let .constrained(readBack):
+            transaction = transaction.markingWritten(readBack: readBack, displayID: result.displayID,
+                                                     note: result.outcome.message)
+        case .rejected, .unreadable:
+            transaction = transaction.markingWriteFailed(result.outcome.message)
+        case .targetGone:
+            state.transactions.removeValue(forKey: result.identity)
+            return [.dropJournal(result.identity), .presentHint(.cannotLocateWindow)]
+        }
+        state.transactions[result.identity] = transaction
+        return [.writeJournal(transaction)]
     }
 
     // MARK: - 目录合并
 
+    private static func startDiscoveryEffect(_ state: inout SessionState,
+                                             reason: DiscoveryReason) -> SessionEffect {
+        .discover(request: state.nextDiscoveryRequest(reason: reason))
+    }
+
     private static func mergeCatalog(_ state: inout SessionState,
-                                     records: [WindowRecord],
-                                     generation: UInt64,
-                                     reason: DiscoveryReason) -> [SessionEffect] {
-        // 旧代际的发现结果不能复活已经过期的状态。
-        guard generation >= state.catalogGeneration else { return [] }
+                                     request: DiscoveryRequest,
+                                     records: [WindowRecord]) -> [SessionEffect] {
+        // 旧会话或旧请求的结果一律丢弃：只看可增长的 generation 不足以判定异步有效性（方案 §5.2）。
+        guard state.isCurrentDiscovery(request) else { return [] }
         switch state.phase {
-        case .hidden, .suspended, .recovering:
+        case .hidden, .recovering:
+            state.pendingDiscovery = nil
             return []
         default:
             break
         }
-        state.isDiscoveryInFlight = false
-        // 记录代次以目录为准：捕获启动/首帧回调要靠它判断是否仍然有效。
-        state.catalogGeneration = max(state.catalogGeneration, generation)
+        state.pendingDiscovery = nil
+        state.consecutiveDiscoveryFailures = 0
+        state.catalogGeneration = max(state.catalogGeneration, request.generation)
 
         let incoming = Set(records.map { $0.identity })
         var newlyCapturable: [WindowIdentity] = []
@@ -521,21 +635,20 @@ public enum SessionReducer {
             state.slots.rebuild(from: records)
             let ordered = state.recordsInSlotOrder
             effects.append(.showOverview(displayID: ordered.first?.displayID))
-            effects.append(.startCapture(ordered.map { $0.identity }, generation: generation))
+            effects.append(.startCapture(ordered.map { $0.identity }, generation: request.generation))
             effects.append(.setKeyboardFocus(.overview))
             state.phase = .overview
             state.keyboardFocus = .overview
         case .overview, .focused, .expanding, .collapsing, .switching:
             // 总览显示期间行列结构冻结，只补充新发现的空 slot。
             if !newlyCapturable.isEmpty {
-                effects.append(.startCapture(newlyCapturable, generation: generation))
+                effects.append(.startCapture(newlyCapturable, generation: request.generation))
             }
             let queued = state.slots.pending.count
             if queued > 0 { effects.append(.presentHint(.newWindowsAvailable(queued))) }
         default:
             break
         }
-        if reason == .reconcile { state.isDiscoveryInFlight = false }
         return effects
     }
 }

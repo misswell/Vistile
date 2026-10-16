@@ -9,6 +9,14 @@ struct PermissionStatus: Equatable {
     var isComplete: Bool { screenRecording && accessibility }
 }
 
+/// 宿主协作方只需要"当前权限事实"，不需要申请动作：
+/// 抽成协议后，目录/过渡/恢复才能在宿主测试里注入固定权限，而不是依赖本机授权状态（方案 §15.1）。
+protocol PermissionChecking {
+    var status: PermissionStatus { get }
+}
+
+extension PermissionManager: PermissionChecking {}
+
 /// 只做公开预检与分步申请，不模拟授权结果。
 final class PermissionManager {
     private(set) var status = PermissionStatus(screenRecording: false, accessibility: false)

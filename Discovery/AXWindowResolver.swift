@@ -4,23 +4,33 @@ import CoreGraphics
 import Foundation
 import VistileCore
 
-/// 单次 AX 读回校验结果。函数返回成功不等于窗口真的到位（方案 §6 末段）。
-struct GeometryVerification: Equatable {
-    let requested: CGRect
+/// 一次几何写入的完整事实：写前 frame、两侧写入的错误码、写后读回、结论。
+/// "函数返回成功"不等于窗口到位，偏差也不能自证成部分成功（方案 §6.1）。
+struct GeometryWriteReport: Equatable {
+    let target: CGRect
+    let frameBeforeWrite: CGRect?
+    let sizeWriteError: Int
+    let positionWriteError: Int
     let readBack: CGRect?
-    let tolerance: CGFloat
+    let outcome: GeometryOutcome
 
-    var deviation: CGFloat {
-        guard let readBack else { return .infinity }
-        return max(abs(readBack.origin.x - requested.origin.x),
-                   abs(readBack.origin.y - requested.origin.y),
-                   abs(readBack.width - requested.width),
-                   abs(readBack.height - requested.height))
-    }
+    var readBackFrame: CGRect? { outcome.readBackFrame }
+    var didChangeGeometry: Bool { outcome.didChangeGeometry }
+}
 
-    var isExact: Bool { deviation <= tolerance }
-    /// 应用自身限制最小尺寸时按实际返回值接受，但必须记录偏差。
-    var isPartial: Bool { readBack != nil && !isExact && deviation.isFinite }
+/// 几何写入通道抽象：宿主测试用替身驱动交错与故障注入，真机走 AXWindowResolver（方案 §15.1）。
+protocol GeometryWriting: AnyObject {
+    func currentFrame(of element: AXUIElement) async -> CGRect?
+    func apply(frame target: CGRect, element: AXUIElement) async -> GeometryWriteReport
+    func raise(element: AXUIElement) async -> Bool
+    func focus(element: AXUIElement) async -> Bool
+}
+
+extension AXWindowResolver: GeometryWriting {}
+
+extension GeometryWriteReport {
+    /// 展开阶段可以用实际读回值继续展示；恢复阶段只有 exact 才算结束事务。
+    var displayFrame: CGRect { readBackFrame ?? target }
 }
 
 /// AX 调用专用串行执行器：所有跨进程属性读写都走这里，主线程不阻塞。
@@ -124,6 +134,88 @@ final class AXWindowResolver: @unchecked Sendable {
 
     // MARK: - 写入（每一步都读回）
 
+    /// 设置几何：先尺寸后位置；跨显示器偏差时最多再做一次 size→position 补偿。
+    /// 写前读不到 frame 就不写：没有基准就无法判断这次写入到底改了什么。
+    func apply(frame target: CGRect, element: AXUIElement) async -> GeometryWriteReport {
+        await executor.submit {
+            let clamped = target.standardized
+            guard let before = self.frame(of: element) else {
+                return GeometryWriteReport(target: clamped, frameBeforeWrite: nil,
+                                           sizeWriteError: Int(AXError.cannotComplete.rawValue),
+                                           positionWriteError: Int(AXError.cannotComplete.rawValue),
+                                           readBack: nil, outcome: .unreadable)
+            }
+            let first = self.writeOnce(clamped, element: element, before: before)
+            guard self.needsCompensation(first, before: before) else { return first }
+            // 跨不同 scaling 的显示器常见"位置被接受但尺寸被应用重算"：补偿一次，最多一次。
+            return self.writeOnce(clamped, element: element, before: before)
+        }
+    }
+
+    func applyPosition(_ origin: CGPoint, element: AXUIElement) async -> GeometryWriteReport {
+        await executor.submit {
+            guard let before = self.frame(of: element) else {
+                return GeometryWriteReport(target: CGRect(origin: origin, size: .zero), frameBeforeWrite: nil,
+                                           sizeWriteError: Int(AXError.cannotComplete.rawValue),
+                                           positionWriteError: Int(AXError.cannotComplete.rawValue),
+                                           readBack: nil, outcome: .unreadable)
+            }
+            let target = CGRect(origin: origin, size: before.size)
+            let positionError = self.writePosition(origin, element: element)
+            let readBack = self.frame(of: element)
+            return Self.classify(target: target, before: before, sizeError: 0, positionError: positionError,
+                                 readBack: readBack, tolerance: self.geometryTolerance)
+        }
+    }
+
+    private func writeOnce(_ target: CGRect, element: AXUIElement, before: CGRect) -> GeometryWriteReport {
+        let sizeError = writeSize(target.size, element: element)
+        let positionError = writePosition(target.origin, element: element)
+        let readBack = self.frame(of: element)
+        return Self.classify(target: target, before: before, sizeError: sizeError, positionError: positionError,
+                             readBack: readBack, tolerance: geometryTolerance)
+    }
+
+    /// 只有"确实发生了变化但没到位"才值得再补偿一次；完全没变化说明被拒绝，重试只会白等。
+    private func needsCompensation(_ report: GeometryWriteReport, before: CGRect) -> Bool {
+        guard case .constrained = report.outcome else { return false }
+        return report.readBackFrame != nil
+    }
+
+    /// 结论判定：exact 只在容差内；被拒绝或读不回都不能宣称成功（方案 §6.1）。
+    static func classify(target: CGRect,
+                         before: CGRect,
+                         sizeError: Int,
+                         positionError: Int,
+                         readBack: CGRect?,
+                         tolerance: CGFloat) -> GeometryWriteReport {
+        let outcome: GeometryOutcome
+        if sizeError != Int(AXError.success.rawValue) || positionError != Int(AXError.success.rawValue) {
+            outcome = .rejected(sizeError != Int(AXError.success.rawValue)
+                                ? .sizeWrite(code: sizeError)
+                                : .positionWrite(code: positionError))
+        } else if let readBack {
+            if Self.deviation(target, readBack) <= tolerance {
+                outcome = .exact(readBack: readBack)
+            } else if readBack != before {
+                // 有明确证据说明应用接受了部分写入（多为自身尺寸约束）：不等于回到目标，也不等于失败。
+                outcome = .constrained(readBack: readBack)
+            } else {
+                outcome = .rejected(.unchangedByWrite(previous: before))
+            }
+        } else {
+            outcome = .unreadable
+        }
+        return GeometryWriteReport(target: target, frameBeforeWrite: before,
+                                   sizeWriteError: sizeError, positionWriteError: positionError,
+                                   readBack: readBack, outcome: outcome)
+    }
+
+    static func deviation(_ a: CGRect, _ b: CGRect) -> CGFloat {
+        max(abs(a.origin.x - b.origin.x), abs(a.origin.y - b.origin.y),
+            abs(a.width - b.width), abs(a.height - b.height))
+    }
+
     /// 解除最小化。写后读回确认，不返回未验证的成功。
     func setMinimized(_ minimized: Bool, element: AXUIElement) async -> Bool {
         await executor.submit {
@@ -134,46 +226,16 @@ final class AXWindowResolver: @unchecked Sendable {
         }
     }
 
-    /// 设置几何：先尺寸后位置；跨显示器偏差时最多再做一次 size→position 补偿。
-    func apply(frame target: CGRect, element: AXUIElement) async -> GeometryVerification {
-        await executor.submit {
-            let clamped = target.standardized
-            self.writeSize(clamped.size, element: element)
-            self.writePosition(clamped.origin, element: element)
-            var verification = GeometryVerification(requested: clamped,
-                                                   readBack: self.frame(of: element),
-                                                   tolerance: self.geometryTolerance)
-            if !verification.isExact, verification.isPartial {
-                // 跨不同 scaling 的显示器时常见"位置被接受但尺寸被应用重算"：补偿一次，最多一次。
-                self.writePosition(clamped.origin, element: element)
-                self.writeSize(clamped.size, element: element)
-                verification = GeometryVerification(requested: clamped,
-                                                   readBack: self.frame(of: element),
-                                                   tolerance: self.geometryTolerance)
-            }
-            return verification
-        }
-    }
-
-    func applyPosition(_ origin: CGPoint, element: AXUIElement) async -> GeometryVerification {
-        await executor.submit {
-            self.writePosition(origin, element: element)
-            let readBack = self.frame(of: element)
-            let requested = CGRect(origin: origin, size: readBack?.size ?? .zero)
-            return GeometryVerification(requested: requested, readBack: readBack, tolerance: self.geometryTolerance)
-        }
-    }
-
-    private func writeSize(_ size: CGSize, element: AXUIElement) {
+    private func writeSize(_ size: CGSize, element: AXUIElement) -> Int {
         var value = size
-        guard let axValue = AXValueCreate(.cgSize, &value) else { return }
-        AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, axValue)
+        guard let axValue = AXValueCreate(.cgSize, &value) else { return Int(AXError.invalidUIElement.rawValue) }
+        return Int(AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, axValue).rawValue)
     }
 
-    private func writePosition(_ origin: CGPoint, element: AXUIElement) {
+    private func writePosition(_ origin: CGPoint, element: AXUIElement) -> Int {
         var value = origin
-        guard let axValue = AXValueCreate(.cgPoint, &value) else { return }
-        AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, axValue)
+        guard let axValue = AXValueCreate(.cgPoint, &value) else { return Int(AXError.invalidUIElement.rawValue) }
+        return Int(AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, axValue).rawValue)
     }
 
     /// 公开 Raise action；是否足以稳定压过其他应用窗口需要 P0 实测。

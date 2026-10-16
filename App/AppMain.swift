@@ -93,11 +93,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     /// 退出路径：先恢复本次临时修改的几何，再让系统真正终止。
+    /// 用 .terminateLater 把恢复做成真正的异步收尾：主线程嵌套 RunLoop 会让事件管线自嵌套（方案 §6.6）。
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let coordinator, !hasBegunTermination else { return .terminateNow }
         hasBegunTermination = true
-        coordinator.prepareForTermination()
-        return .terminateNow
+        var hasReplied = false
+        let reply: @MainActor () -> Void = {
+            guard !hasReplied else { return }
+            hasReplied = true
+            NSApp.reply(toApplicationShouldTerminate: true)
+        }
+        coordinator.beginTermination(settled: reply)
+        // 协调层的期限本身有上限；这里只兜"收尾任务被卡住不返回"，两次回报必须只生效一次。
+        DispatchQueue.main.asyncAfter(deadline: .now() + AppCoordinator.terminationCeiling + 0.5, execute: {
+            MainActor.assumeIsolated { reply() }
+        })
+        return .terminateLater
     }
 
     private func presentBlocker(_ title: String, _ text: String) {

@@ -1,0 +1,425 @@
+import AppKit
+import Foundation
+import VistileCore
+import XCTest
+@testable import Vistile
+
+/// T05/T06/T07：几何事务的可靠性与展开/退出交错（方案 §6.1–§6.6、§10.2、§10.5、§15.2）。
+///
+/// 全部断言落在"外部写入之前与之后的事实"上：
+/// T05 恢复失败（含偏差、含事实不足）的事务必须留在日志里，只有确定结束的那条才单独清除；
+/// T06 写 AX 之前磁盘上必须已经躺着这次修改的意图，日志落盘失败时一个字节都不许写；
+/// T07 展开与退出交错时，最后一次写入必须是原 frame，未处理完的意图不许被清掉。
+/// 窗口几何一律 offscreen（x = −20 000），写入走替身：不动用户桌面，也不碰真实 AX。
+@MainActor
+final class T05T07GeometryTransactionTests: XCTestCase {
+    private let sessionID = UUID()
+    private var permissions: FakePermissions!
+    private var catalogSource: FakeCatalogSource!
+    private var processIdentity: FakeProcessIdentity!
+    private var writer: FakeGeometryWriter!
+    private var catalog: WindowCatalog!
+    private var settings: SettingsModel!
+    private var recovery: RecoveryCoordinator!
+    private var journalDirectory: URL!
+    private var scratchDirectories: [URL] = []
+    private var testDefaultsSuites: [String] = []
+
+    private var displayID: UInt32 { HostFixtures.display.id }
+    /// 展开目标：夹在替身屏幕的可用区内，与 reducer 给 plannedFrame 的方式一致。
+    private var expandedFrame: CGRect {
+        CGRect(x: HostFixtures.offscreenOrigin.x + 40, y: 40, width: 1_200, height: 760)
+    }
+
+    override func setUpWithError() throws {
+        permissions = FakePermissions()
+        catalogSource = FakeCatalogSource()
+        processIdentity = FakeProcessIdentity()
+        writer = FakeGeometryWriter()
+        settings = SettingsModel(defaults: transientDefaults())
+        journalDirectory = try makeScratchDirectory()
+    }
+
+    override func tearDown() {
+        catalog = nil
+        recovery = nil
+        settings = nil
+        for directory in scratchDirectories {
+            try? FileManager.default.removeItem(at: directory)
+        }
+        scratchDirectories = []
+        for suite in testDefaultsSuites {
+            UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
+        }
+        testDefaultsSuites = []
+        super.tearDown()
+    }
+
+    // MARK: - 组装
+
+    /// 建立目录：窗口 0…3 可唯一匹配，句柄与记录同代次，替身写入器 seeded 到原始 frame。
+    private func startCatalog(indices: [Int] = [0, 1, 2, 3]) async {
+        catalogSource.addWindows(indices)
+        catalog = WindowCatalog(permissions: permissions,
+                               axSource: catalogSource,
+                               contentSource: catalogSource,
+                               displaySource: FakeDisplaySource(displays: [HostFixtures.display]))
+        await catalog.refreshAndWait(reason: .reconcile)
+        for index in indices {
+            let identity = HostFixtures.identity(index)
+            XCTAssertEqual(catalog.record(for: identity)?.allowsGeometryControl, true,
+                           "窗口 \(index) 必须被判为可控，否则根本走不到写入路径")
+            if let element = catalogSource.element(for: identity) {
+                writer.setInitialFrame(FakeCatalogSource.frame(for: index), for: element)
+            }
+        }
+    }
+
+    private func makeStore(baseDirectory: URL? = nil) -> WindowJournalStore {
+        WindowJournalStore(fileName: "session-journal.json",
+                           sessionID: sessionID,
+                           baseDirectory: baseDirectory ?? journalDirectory)
+    }
+
+    private func startRecovery(store: WindowJournalStore) {
+        recovery = RecoveryCoordinator(store: store,
+                                       writer: writer,
+                                       catalog: catalog,
+                                       settings: settings,
+                                       permissions: permissions,
+                                       processIdentity: processIdentity)
+    }
+
+    private func startFocus(store: WindowJournalStore) throws -> FocusCoordinator {
+        let metal = try HostFixtures.metalContext()
+        return FocusCoordinator(catalog: catalog,
+                                metal: metal,
+                                writer: writer,
+                                store: store,
+                                settings: settings,
+                                metrics: .shared,
+                                recorder: CompatibilityRecorder(fileName: "host-test-\(UUID().uuidString)"),
+                                recovery: recovery,
+                                permissions: permissions)
+    }
+
+    // MARK: - T05 恢复失败留痕，结束项单独清除
+
+    func testFailedAndDeviantRestoresStayInJournalWhileSettledOneIsRemoved() async throws {
+        await startCatalog()
+        let store = makeStore()
+        startRecovery(store: store)
+
+        let rejected = HostFixtures.identity(0)
+        let deviating = HostFixtures.identity(1)
+        let settled = HostFixtures.identity(2)
+        let rejectedOriginal = FakeCatalogSource.frame(for: 0)
+        let deviatingOriginal = FakeCatalogSource.frame(for: 1)
+
+        // 三条都已经把窗口改成展开尺寸（读回 = 目标），退出时都要回到原 frame。
+        for identity in [rejected, deviating, settled] {
+            store.apply(plannedTransaction(identity)
+                .markingWritten(readBack: expandedFrame, displayID: displayID))
+            if let element = catalogSource.element(for: identity) {
+                writer.setInitialFrame(expandedFrame, for: element)
+            }
+        }
+        writer.setScript(.rejects, for: try XCTUnwrap(catalogSource.element(for: rejected)))
+        writer.setScript(.constrains, for: try XCTUnwrap(catalogSource.element(for: deviating)))
+        // 第三条已经被用户带回原位：不写入，事务按事实结束。
+        writer.setInitialFrame(FakeCatalogSource.frame(for: 2),
+                               for: try XCTUnwrap(catalogSource.element(for: settled)))
+
+        let results = await recovery.restoreOnQuit()
+        let outcome = { (identity: WindowIdentity) in
+            results.first { $0.identity == identity }?.outcome
+        }
+
+        guard case .rejected = outcome(rejected) else {
+            return XCTFail("写入被拒绝要如实回报，实际 \(String(describing: outcome(rejected)))")
+        }
+        guard case .constrained(let deviation) = outcome(deviating), deviation > 0 else {
+            return XCTFail("任意偏差不算恢复成功，实际 \(String(describing: outcome(deviating)))")
+        }
+        XCTAssertEqual(outcome(settled), .alreadyAtOriginal)
+
+        // 失败项与偏差项：记录留着、原 frame 不能被改写、重试计数要能看出来。
+        for (identity, original) in [(rejected, rejectedOriginal), (deviating, deviatingOriginal)] {
+            let kept = store.entry(for: identity)
+            XCTAssertEqual(kept?.state, .failed, "\(identity.windowID) 未恢复成功必须留可重试记录")
+            XCTAssertEqual(kept?.originalFrame, original, "\(identity.windowID) 的原尺寸不能被子写入结果替换")
+            XCTAssertEqual(kept?.restoreAttempts, 1)
+            XCTAssertEqual(kept?.failureReason?.isEmpty == false, true)
+            XCTAssertTrue(kept?.state.requiresRestore ?? false)
+        }
+        XCTAssertNil(store.entry(for: settled), "确定结束的才允许清除")
+
+        // 落盘事实：换 store 从同一目录重读，结论必须一致（内存状态不算数）。
+        let reloaded = makeStore()
+        XCTAssertEqual(Set(reloaded.unfinished.map(\.identity)), Set([rejected, deviating]))
+
+        // 收尾"只清已结束的"：把失败项一起交进去也必须留下。
+        store.clearSettled(sessionID: sessionID, settledIdentities: [rejected, deviating, settled])
+        XCTAssertEqual(Set(store.snapshot().entries.keys), Set([rejected.journalKey, deviating.journalKey]))
+        XCTAssertFalse(store.unfinished.isEmpty, "仍有窗口未恢复时不能报告'已全部处理'")
+
+        // 两次写入都是"试图回到原 frame"，不是把展开尺寸再写一遍。
+        XCTAssertEqual(writer.writtenFrames.map(RecoveryCoordinator.text).sorted(),
+                       [rejectedOriginal, deviatingOriginal].map(RecoveryCoordinator.text).sorted())
+        XCTAssertEqual(writer.totalWrites, 2)
+    }
+
+    func testUnreadableAXHandleDefersWithoutDeletingOrWriting() async throws {
+        await startCatalog(indices: [0])
+        let store = makeStore()
+        startRecovery(store: store)
+        let identity = HostFixtures.identity(0)
+        store.apply(plannedTransaction(identity).markingWritten(readBack: expandedFrame, displayID: displayID))
+        if let element = catalogSource.element(for: identity) {
+            writer.setInitialFrame(expandedFrame, for: element)
+        }
+
+        // 下一轮查询读不到 AX 句柄：这是"事实不足"，不等于窗口消失。
+        catalogSource.publishesAX = false
+        await catalog.refreshAndWait(reason: .reconcile)
+        XCTAssertNil(catalog.axEntry(for: try XCTUnwrap(catalog.record(for: identity))))
+
+        let results = await recovery.restoreOnQuit()
+        XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(results.first?.outcome, .notAttempted("辅助功能句柄暂不可用"),
+                       "句柄读不到属于事实不足：既不写也不删，还要说清原因")
+        XCTAssertEqual(writer.totalWrites, 0, "事实不足不得盲写")
+        XCTAssertEqual(store.entry(for: identity)?.state.requiresRestore, true, "事务必须原样保留")
+        XCTAssertEqual(store.entry(for: identity)?.originalFrame, FakeCatalogSource.frame(for: 0))
+    }
+
+    func testReusedProcessIDSettlesInsteadOfResizingSomebodyElsesWindow() async throws {
+        await startCatalog(indices: [0])
+        let store = makeStore()
+        startRecovery(store: store)
+        let identity = HostFixtures.identity(0)
+        store.apply(plannedTransaction(identity).markingWritten(readBack: expandedFrame, displayID: displayID))
+        if let element = catalogSource.element(for: identity) {
+            writer.setInitialFrame(expandedFrame, for: element)
+        }
+
+        // PID 还在，但已经不是原来那个进程：写回去只会改到别人的窗口。
+        processIdentity.markProcessRestarted(processID: identity.processID)
+        let results = await recovery.restoreOnQuit()
+
+        XCTAssertEqual(results.map(\.outcome), [.windowGone])
+        XCTAssertEqual(writer.totalWrites, 0)
+        XCTAssertNil(store.entry(for: identity), "原窗口已不存在，事务按事实结束")
+    }
+
+    // MARK: - T06 写前必须已有可靠记录；日志失败时不许写 AX
+
+    func testJournalIntentIsOnDiskBeforeTheAXWriteHappens() async throws {
+        await startCatalog(indices: [0])
+        let store = makeStore()
+        startRecovery(store: store)
+        let focus = try startFocus(store: store)
+
+        let identity = HostFixtures.identity(0)
+        let token = TransitionToken(generation: 1)
+        focus.isTokenCurrent = { $0 == token }
+        let journalFile = journalDirectory
+        let journalSession = sessionID
+
+        // 写入真正发生的那一刻去读磁盘：日志里必须已经躺着这次修改的意图。
+        var entryAtWriteTime: WindowTransaction?
+        writer.onWillWrite = { _ in
+            entryAtWriteTime = WindowJournalStore(fileName: "session-journal.json",
+                                                  sessionID: journalSession,
+                                                  baseDirectory: journalFile)
+                .snapshot().entries[identity.journalKey]
+        }
+        var sawWriteResult = false
+        focus.onEvent = { event in
+            if case .geometryWriteFinished = event { sawWriteResult = true }
+        }
+
+        store.apply(plannedTransaction(identity))
+        focus.expand(identity, targetFrame: expandedFrame, token: token, animationMS: 60)
+        await pendingUntil { self.writer.totalWrites > 0 && sawWriteResult }
+
+        let recorded = try XCTUnwrap(entryAtWriteTime, "写 AX 时磁盘上没有对应事务：等于没有可靠记录就改了窗口")
+        XCTAssertEqual(recorded.state, .mutationPlanned, "修改意图必须早于任何 AX 写入落盘")
+        XCTAssertEqual(recorded.plannedFrame, expandedFrame)
+        // 计划值与实际写入值必须是同一个数（方案 §6.2）。
+        XCTAssertEqual(writer.writtenFrames.first, recorded.plannedFrame)
+        focus.cancelAnimation()
+    }
+
+    func testJournalPersistFailureBlocksEveryAXWrite() async throws {
+        await startCatalog(indices: [0])
+        // 让日志目录无法创建：原子写入必然失败。
+        let blocked = try makeScratchDirectory()
+        try Data("不是目录".utf8).write(to: blocked.appendingPathComponent("Vistile"))
+        let store = makeStore(baseDirectory: blocked)
+        startRecovery(store: store)
+        let focus = try startFocus(store: store)
+
+        let identity = HostFixtures.identity(0)
+        let write = store.apply(plannedTransaction(identity))
+        XCTAssertFalse(write.isPersisted, "这种目录结构下日志写不进去：\(String(describing: write.reason))")
+        XCTAssertNotNil(write.reason)
+        // 落盘失败要回滚：内存里也不能假装"已经记下"，否则守卫形同虚设。
+        XCTAssertNil(store.entry(for: identity))
+
+        let token = TransitionToken(generation: 1)
+        focus.isTokenCurrent = { $0 == token }
+        var timedOut = false
+        var statuses: [String] = []
+        focus.onEvent = { event in
+            if case .transitionTimedOut = event { timedOut = true }
+        }
+        focus.onStatus = { statuses.append($0) }
+
+        focus.expand(identity, targetFrame: expandedFrame, token: token, animationMS: 60)
+        await pendingUntil { timedOut }
+
+        XCTAssertEqual(writer.totalWrites, 0, "没有可靠事务时一个几何写入都不许发生")
+        XCTAssertEqual(writer.raiseCount, 0, "连前景化也不该做：这次展开根本没开始")
+        XCTAssertTrue(statuses.contains { $0.contains("事务") }, "拒绝原因要能显示给用户：\(statuses)")
+        focus.cancelAnimation()
+    }
+
+    // MARK: - T07 展开与退出交错
+
+    func testExpiredTokenCompensatesInsteadOfLeavingWindowResized() async throws {
+        await startCatalog(indices: [0])
+        let store = makeStore()
+        startRecovery(store: store)
+        let focus = try startFocus(store: store)
+
+        let identity = HostFixtures.identity(0)
+        let original = FakeCatalogSource.frame(for: 0)
+        let token = TransitionToken(generation: 1)
+        var tokenIsCurrent = true
+        focus.isTokenCurrent = { _ in tokenIsCurrent }
+
+        var events: [SessionEvent] = []
+        focus.onEvent = { events.append($0) }
+        store.apply(plannedTransaction(identity))
+
+        // 写入正在进行时状态机已经走了（退出/会话关闭）。
+        writer.gatesNextWrite = true
+        focus.expand(identity, targetFrame: expandedFrame, token: token, animationMS: 200)
+        await pendingUntil { self.writer.isBlockedInWrite }
+        tokenIsCurrent = false
+        writer.openGate()
+
+        // 补偿必须紧接在过期写入之后，而不是等总超时兜底（超时预算是 200+1 500ms）。
+        await pendingUntil(timeout: 1) { self.writer.totalWrites == 2 }
+        XCTAssertEqual(writer.writtenFrames, [expandedFrame, original],
+                       "过期写入改掉了 frame，就必须补偿回原尺寸")
+        XCTAssertFalse(events.contains { if case .geometryWriteFinished = $0 { return true } else { return false } },
+                       "过期操作的结果不得再进入状态机：\(events)")
+        XCTAssertFalse(events.contains { if case .expandCompleted = $0 { return true } else { return false } },
+                       "过期操作不得宣布展开完成：\(events)")
+        XCTAssertNil(store.entry(for: identity), "补偿成功后事务才算结束")
+        XCTAssertTrue(store.unfinished.isEmpty)
+        focus.cancelAnimation()
+    }
+
+    func testQuitQueuesBehindInFlightExpandAndKeepsUnfinishedIntent() async throws {
+        await startCatalog(indices: [0, 2, 3])
+        let store = makeStore()
+        startRecovery(store: store)
+        let focus = try startFocus(store: store)
+
+        let identity = HostFixtures.identity(0)
+        let original = FakeCatalogSource.frame(for: 0)
+        let expandToken = TransitionToken(generation: 1)
+        let quitToken = TransitionToken(generation: 2)
+        focus.isTokenCurrent = { _ in true }
+
+        var restored: [RestoreItemResult] = []
+        var sawRestoreCompleted = false
+        focus.onEvent = { event in
+            if case .geometryRestoreSettled(let token, let items) = event, token == quitToken {
+                restored.append(contentsOf: items)
+            }
+            if case .restoreCompleted(let token) = event, token == quitToken { sawRestoreCompleted = true }
+        }
+        store.apply(plannedTransaction(identity))
+
+        writer.gatesNextWrite = true
+        focus.expand(identity, targetFrame: expandedFrame, token: expandToken, animationMS: 60)
+        await pendingUntil { self.writer.isBlockedInWrite }
+
+        // 展开还没写完就退出：同一窗口的恢复只能排在通道后面，不能并行走第二条写入路径。
+        focus.restoreAll([identity], token: quitToken)
+        XCTAssertEqual(writer.totalWrites, 0, "进行中的写入不能被越过")
+
+        writer.openGate()
+        await pendingUntil(timeout: 3) { sawRestoreCompleted }
+
+        XCTAssertEqual(writer.writtenFrames, [expandedFrame, original],
+                       "最后一次写入必须是原 frame：迟到的展开不能把窗口留在展开尺寸")
+        XCTAssertEqual(restored.first?.outcome, .restored)
+        XCTAssertNil(store.entry(for: identity))
+        await pendingUntil { focus.isIdle }
+
+        // 未处理完的意图不能被"清理已结束"顺手删掉，别的会话的记录同样要留（方案 §6.4）。
+        let pending = HostFixtures.identity(2)
+        let otherSession = HostFixtures.identity(3)
+        let otherSessionID = UUID()
+        store.apply(plannedTransaction(pending))
+        store.apply(WindowTransaction(sessionID: otherSessionID,
+                                       identity: otherSession,
+                                       bundleID: "com.test.app\(otherSession.windowID)",
+                                       originalFrame: FakeCatalogSource.frame(for: 3),
+                                       originalDisplayID: displayID).markingRestored())
+        store.clearSettled(sessionID: sessionID, settledIdentities: [pending, otherSession])
+        XCTAssertEqual(Set(store.snapshot().entries.keys),
+                       Set([pending.journalKey, otherSession.journalKey]),
+                       "本会话未完成记录与其他会话记录都必须保留")
+        focus.cancelAnimation()
+    }
+
+    // MARK: - 辅助
+
+    /// 与 reducer `ensureTransaction` 同构：意图先落盘，宿主确认写成功后才允许动 AX。
+    private func plannedTransaction(_ identity: WindowIdentity) -> WindowTransaction {
+        let index = Int(identity.windowID) - 9_000
+        return WindowTransaction(sessionID: sessionID,
+                                 identity: identity,
+                                 bundleID: "com.test.app\(identity.windowID)",
+                                 originalFrame: FakeCatalogSource.frame(for: index),
+                                 originalDisplayID: displayID)
+            .markingPlanned(frame: expandedFrame, displayID: displayID)
+    }
+
+    /// 等主 Actor 上的异步工作推进：await 让出主 Actor，替身的续接才有机会跑完。
+    private func pendingUntil(timeout: TimeInterval = 2, _ condition: @MainActor () -> Bool) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !condition() {
+            guard Date() < deadline else {
+                XCTFail("等待条件超时（\(timeout)s）")
+                return
+            }
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+    }
+
+    private func makeScratchDirectory() throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("VistileHostTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        scratchDirectories.append(url)
+        return url
+    }
+
+    /// 测试不碰用户的偏好存储：每次用一次性 suite，结束再把该 domain 清掉。
+    private func transientDefaults() -> UserDefaults {
+        let name = "com.misswell.Vistile.hosttests.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: name) else {
+            XCTFail("无法创建一次性 defaults suite：\(name)")
+            return .standard
+        }
+        testDefaultsSuites.append(name)
+        return defaults
+    }
+}

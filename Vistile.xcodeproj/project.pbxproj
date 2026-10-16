@@ -22,12 +22,14 @@
 		5F6CC44846BDA0C4A2189126 /* MetalContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC87C012B412A9A75EBF463 /* MetalContext.swift */; };
 		5FFE6EE75A0C3DB9A193ECDF /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = E43F151C6A384598DD4807FD /* main.swift */; };
 		73ED90BEED7B1CC01CD6E626 /* WindowJournalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A9DEB542BCFE9632A42431B /* WindowJournalStore.swift */; };
+		85AE44E45926C8A2BC41A5CB /* T05T07GeometryTransactionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A448B92D1F9A36C4552FE80 /* T05T07GeometryTransactionTests.swift */; };
 		8EB78F1BF7959667448D358E /* AXObserverHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13A406160D736525598664BF /* AXObserverHub.swift */; };
 		9E830163D80D04874A4521DD /* PermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CF719590410959C2EA74B9A /* PermissionManager.swift */; };
 		A0AEFF687AD710EE5AAEB70D /* SettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24ACA3AFFAF93FB4D2243C31 /* SettingsModel.swift */; };
 		AF79A5ACC2EE0C0859F94087 /* CaptureCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04D019FC787F5F1113453C96 /* CaptureCoordinator.swift */; };
 		B0B597E40E2B5D8320CF116B /* ShaderSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 094AC6BDD927BE302227D9C5 /* ShaderSource.swift */; };
 		B2D4B50D378761F95139F28B /* OnboardingWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EDE34CF9D3F74B9154A5099 /* OnboardingWindowController.swift */; };
+		B6E5B31EA131C21639A9492B /* _HostGeometryFakes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47EE4603B7D957841ADCD86A /* _HostGeometryFakes.swift */; };
 		C170972E12CDFC5BD041B69A /* T02MetalPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCC62AE118E51125D0D37AAD /* T02MetalPresentationTests.swift */; };
 		C5670A373EF1C7D2F938BC2B /* GlobalHotKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E1CDE8A1E92C87EB97FA75A /* GlobalHotKey.swift */; };
 		D334CE436697ED2B30EE4285 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 33C1B8EF35C3D6FD4AB6F52D /* Assets.xcassets */; };
@@ -76,7 +78,9 @@
 		3A9DEB542BCFE9632A42431B /* WindowJournalStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowJournalStore.swift; sourceTree = "<group>"; };
 		3E1CDE8A1E92C87EB97FA75A /* GlobalHotKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalHotKey.swift; sourceTree = "<group>"; };
 		3E530AFE0CB1DE726F2E5020 /* UITestHarness.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = UITestHarness.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		47EE4603B7D957841ADCD86A /* _HostGeometryFakes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = _HostGeometryFakes.swift; sourceTree = "<group>"; };
 		50E40CDA738024A315D4897E /* TransitionProxyWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitionProxyWindow.swift; sourceTree = "<group>"; };
+		5A448B92D1F9A36C4552FE80 /* T05T07GeometryTransactionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = T05T07GeometryTransactionTests.swift; sourceTree = "<group>"; };
 		6803AFD08D18C59EC43BB922 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
 		706165B8FEFF2F2BEBA18DD7 /* TexturePool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TexturePool.swift; sourceTree = "<group>"; };
 		70D235D93911E381066BCE3A /* VistileHostTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VistileHostTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -172,9 +176,11 @@
 		10A0C0E5988413AD7EF32F9D /* HostTests */ = {
 			isa = PBXGroup;
 			children = (
+				47EE4603B7D957841ADCD86A /* _HostGeometryFakes.swift */,
 				2ABCE49D751144985B381F37 /* _HostTestSupport.swift */,
 				E35B95703E76B3642D977F59 /* T01ActionRoutingTests.swift */,
 				DCC62AE118E51125D0D37AAD /* T02MetalPresentationTests.swift */,
+				5A448B92D1F9A36C4552FE80 /* T05T07GeometryTransactionTests.swift */,
 			);
 			path = HostTests;
 			sourceTree = "<group>";
@@ -397,6 +403,8 @@
 			files = (
 				20A2ACF88FA737CC7EF59529 /* T01ActionRoutingTests.swift in Sources */,
 				C170972E12CDFC5BD041B69A /* T02MetalPresentationTests.swift in Sources */,
+				85AE44E45926C8A2BC41A5CB /* T05T07GeometryTransactionTests.swift in Sources */,
+				B6E5B31EA131C21639A9492B /* _HostGeometryFakes.swift in Sources */,
 				063BD37362B37C21047C7762 /* _HostTestSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

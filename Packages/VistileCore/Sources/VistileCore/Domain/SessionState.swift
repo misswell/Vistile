@@ -24,13 +24,12 @@ public enum KeyboardFocus: String, Hashable, Sendable {
     case targetApplication
 }
 
-public enum SuspendReason: Hashable, Sendable {
-    case permissionLost
-    case displayDisconnected
-    case screenLocked
-    case userSwitched
-    case spaceChanged
-    case systemStopped
+/// 恢复批次结束后要落到哪里。"正在恢复"和"因权限中断"必须分开表达（方案 §5.1）。
+public enum RecoveryDestination: Hashable, Sendable {
+    /// 正常退出、Space 切换、锁屏、显示器变化：批次结束后回隐藏态，用户可再次打开。
+    case hidden
+    /// 权限被收回打断了会话：结束后同样回隐藏态，但落地时说明真实原因，且保留未恢复事务。
+    case hiddenAfterPermissionLost(PermissionKind)
 }
 
 public enum SessionPhase: Hashable, Sendable {
@@ -41,12 +40,13 @@ public enum SessionPhase: Hashable, Sendable {
     case focused(target: WindowIdentity)
     case collapsing(target: WindowIdentity, token: TransitionToken)
     case switching(from: WindowIdentity, to: WindowIdentity, token: TransitionToken)
-    case suspended(reason: SuspendReason)
-    case recovering(token: TransitionToken)
+    /// 只有一个"正在恢复"状态，且带明确目的地；不再有 suspended 这种多义状态。
+    case recovering(destination: RecoveryDestination, token: TransitionToken)
 
+    /// recovering 属于拆台阶段：面板已隐藏、捕获已停，只剩几何恢复。
     public var isVisible: Bool {
         switch self {
-        case .hidden, .suspended: return false
+        case .hidden, .recovering: return false
         default: return true
         }
     }
@@ -62,7 +62,8 @@ public enum SessionPhase: Hashable, Sendable {
 
     public var token: TransitionToken? {
         switch self {
-        case let .expanding(_, token), let .collapsing(_, token), let .switching(_, _, token), let .recovering(token): return token
+        case let .expanding(_, token), let .collapsing(_, token), let .switching(_, _, token),
+             let .recovering(_, token): return token
         default: return nil
         }
     }
@@ -72,6 +73,12 @@ public enum SessionPhase: Hashable, Sendable {
         case .expanding, .collapsing, .switching, .recovering: return true
         default: return false
         }
+    }
+
+    /// 恢复/退出的异步结果只在这个目的地才允许落地。
+    public var recoveryDestination: RecoveryDestination? {
+        if case let .recovering(destination, _) = self { return destination }
+        return nil
     }
 }
 
@@ -124,6 +131,7 @@ public struct SessionState: Sendable {
     public var records: [WindowIdentity: WindowRecord] = [:]
     public var slots = SlotRegistry(capacity: 0)
     public var catalogGeneration: UInt64 = 0
+    public var requestCounter: UInt64 = 0
     public var transitionGeneration: UInt64 = 0
     public var keyboardFocus: KeyboardFocus = .none
     /// latest-wins：过渡期间只保留最后一个目标请求。
@@ -132,8 +140,12 @@ public struct SessionState: Sendable {
     public var transactions: [WindowIdentity: WindowTransaction] = [:]
     /// 恢复/销毁/退出任务不可被 pendingTarget 覆盖。
     public var isExitPending: Bool = false
-    /// 一次查询仍在进行时不再叠加（方案 §6.7）。
-    public var isDiscoveryInFlight: Bool = false
+    /// 一次查询仍在进行时不再叠加；成功与失败都要解锁（方案 §5.2、§6.7）。
+    public var pendingDiscovery: DiscoveryRequest?
+    /// 连续发现失败次数：达到上限后停止自动重试，但保留卡片与最后一帧。
+    public var consecutiveDiscoveryFailures: Int = 0
+    /// 宿主最近一次报告的打开条件，仅用于说明状态，不额外决定行为。
+    public var openConditions: OpenConditions?
     public var searchQuery: String = ""
     public var policy = SessionPolicy()
     public var style: OverviewStyle = .standard
@@ -159,6 +171,35 @@ public struct SessionState: Sendable {
         transitionGeneration += 1
         return TransitionToken(generation: transitionGeneration)
     }
+
+    /// 发现请求同时带会话身份与请求代次；只看 catalogGeneration 不足以判定异步有效性。
+    mutating func nextDiscoveryRequest(reason: DiscoveryReason) -> DiscoveryRequest {
+        catalogGeneration += 1
+        requestCounter += 1
+        let request = DiscoveryRequest(sessionID: sessionID,
+                                       requestID: requestCounter,
+                                       generation: catalogGeneration,
+                                       reason: reason)
+        pendingDiscovery = request
+        return request
+    }
+
+    /// 只有与"当前仍在进行的那一次请求"完全对得上的回调才被接受。
+    public func isCurrentDiscovery(_ request: DiscoveryRequest) -> Bool {
+        guard let pending = pendingDiscovery else { return false }
+        return pending == request && request.sessionID == sessionID
+    }
+
+    public var isDiscoveryInFlight: Bool { pendingDiscovery != nil }
+
+    /// 有界重试：连续失败到达上限后不再自动重查，重新打开会话时清零。
+    public var isDiscoveryBudgetExhausted: Bool {
+        consecutiveDiscoveryFailures >= SessionState.discoveryRetryLimit
+    }
+
+    public var recoveryDestination: RecoveryDestination? { phase.recoveryDestination }
+
+    public static let discoveryRetryLimit = 3
 
     public var hasPendingGeometryRestore: Bool {
         transactions.values.contains { $0.state.requiresRestore }
