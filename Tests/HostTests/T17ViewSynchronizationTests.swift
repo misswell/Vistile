@@ -166,6 +166,22 @@ final class T17ViewSynchronizationTests: XCTestCase {
         XCTAssertTrue(recorder.actions.isEmpty, "格子矩形变了还照旧发点击，等于点开另一个窗口")
     }
 
+    /// P0 探针造真实鼠标事件用的就是这两个入口。它们必须和测试独立换算出的格子中心一致，
+    /// 否则探针是在往错误的格子上点，整份 P0 结论都不成立。
+    func testProbeClickTargetsMatchIndependentGeometry() {
+        for card in layout.cards {
+            let rect = HostFixtures.viewRect(card.cellRect, in: view, cgOrigin: origin)
+            let expected = CGPoint(x: rect.midX, y: rect.midY)
+            guard let identity = view.identityInCell(at: expected) else { continue }
+            XCTAssertEqual(view.cellCenter(for: identity), expected, "窗口 \(identity.windowID) 的探针点击坐标与格子中心对不上")
+        }
+        guard let background = view.unoccupiedViewPoint() else {
+            return XCTFail("整块面板找不到空白点，探针的背景点击无法成立")
+        }
+        XCTAssertTrue(view.bounds.contains(background))
+        XCTAssertNil(view.identityInCell(at: background), "探针认定的空白点其实命中了格子")
+    }
+
     /// 每个格子里现在放的是哪个窗口：矩形取冻结布局，命中结果取视图实际状态。
     private func slotByIndex() -> [Int: UInt32] {
         var map: [Int: UInt32] = [:]

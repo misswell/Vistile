@@ -140,6 +140,10 @@ final class SettingsModel: ObservableObject {
     @Published var verboseLogging: Bool { didSet { defaults.set(verboseLogging, for: .systemLogging) } }
     /// 本次启动从持久化值里迁移掉的未实现策略；nil 表示没有发生过迁移。
     private(set) var migratedOrderingStrategy: OrderingStrategy?
+    /// 持久化里现在到底存着哪个策略：P0 探针用它确认迁移已写回，不会每次启动重演（方案 §12.1）。
+    var persistedOrderingStrategy: OrderingStrategy? {
+        OrderingStrategy(rawValue: defaults.string(for: .orderingStrategy) ?? "")
+    }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults

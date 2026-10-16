@@ -57,6 +57,24 @@ final class OverviewContentView: NSView {
     func chrome(for slot: SlotID) -> CardChrome? { chromeLayers[slot] }
     /// 这一此刻命中的窗口：筛选或重排后用来验证"格子放的是哪个窗口"。
     func identityInCell(at point: CGPoint) -> WindowIdentity? { slot(at: point)?.identity }
+    /// 某窗口当前所在格子的中心（视图坐标）：P0 探针用它造真实鼠标事件。
+    /// 返回 nil 表示这个窗口此刻不在画面上，探针不许改用别的坐标蒙混。
+    func cellCenter(for identity: WindowIdentity) -> CGPoint? {
+        slotRects.first { $0.identity == identity }.map { CGPoint(x: $0.cellRect.midX, y: $0.cellRect.midY) }
+    }
+    /// 一个确定不落在任何格子里的视图坐标（P0 探针制造真实背景点击用）。
+    func unoccupiedViewPoint() -> CGPoint? {
+        guard bounds.width > 4, bounds.height > 4 else { return nil }
+        let columns = 24, rows = 16
+        for row in 0..<rows {
+            for column in 0..<columns {
+                let point = CGPoint(x: bounds.minX + (CGFloat(column) + 0.5) * bounds.width / CGFloat(columns),
+                                    y: bounds.minY + (CGFloat(row) + 0.5) * bounds.height / CGFloat(rows))
+                if slot(at: point) == nil, bounds.contains(point) { return point }
+            }
+        }
+        return nil
+    }
 
     override var isFlipped: Bool { false }
     override var wantsUpdateLayer: Bool { false }

@@ -61,6 +61,9 @@ final class P0Probe {
         await p0_6_identityReuse()
         await p0_7_multiDisplay()
         await p0_8FailureModes()
+        await p0_9_realViewChain()
+        await p0_10_orderingFacts()
+        await p0_11_trustedToken()
         await performanceSample()
         if coordinator.state.phase == .hidden { await showOverview() }
         recorder.record("P0 汇总", subject: "自动 \(autoCount) 项 / 人工 \(checklist.filter(\.isManual).count) 项",
@@ -220,7 +223,23 @@ final class P0Probe {
                    detail: "没有可聚焦的窗口（身份未唯一确定或受限制）", check: "P0-4 原生前台输入")
             return
         }
-        coordinator.dispatch(.cardClicked(candidate.identity))
+        // 放大必须由真实鼠标事件触发：直接 dispatch 的话，事件转接断了也能"通过"（方案 §14）。
+        guard let target = panelPoint(for: candidate.identity) else {
+            record("P0-4", "原生前台输入", passed: nil,
+                   detail: "\(candidate.applicationName) 的格子不在任何总览面板上，无法通过真实视图放大（见 P0-9）",
+                   check: "P0-4 原生前台输入")
+            return
+        }
+        let clicksBefore = coordinator.cardClickCount
+        let dispatched = sendRealMouseDownUp(target)
+        guard dispatched, coordinator.cardClickCount == clicksBefore + 1 else {
+            record("P0-4", "原生前台输入", passed: nil,
+                   detail: dispatched
+                        ? "真实点击已派发，但协调器没有恰好收到一次卡片动作（转接断，见 P0-9）"
+                        : "真实点击无法派发到总览内容视图（面板不存在或该点命中的不是它）",
+                   check: "P0-4 原生前台输入")
+            return
+        }
         _ = await waitUntil(timeout: 3.0) { self.coordinator.state.phase.controlledTarget == candidate.identity }
         try? await Task.sleep(nanoseconds: 400_000_000)
         let panelHoldsKey = coordinator.controllers.values.contains { $0.isKey }
@@ -357,6 +376,171 @@ final class P0Probe {
         manual("P0-8", "应用无响应", "让某个应用卡死（例如 `sleep` 死循环的 Terminal），确认总览仍能显示其它窗口、"
                + "该卡片标注低频或启动中，Vistile 主线程不卡住。")
         manual("P0-8", "窗口中途关闭", "放大窗口后从别处关掉它，确认回到总览且不残留事务记录。")
+    }
+
+    // MARK: - P0-9 真实视图链路与上屏
+
+    /// 方案 §14：探针必须经过真实视图/渲染链路。只调 dispatch 的项证明的是状态机，
+    /// 事件转接（R01）与 Metal 上屏（R02）断了也照样"通过"，这里把这两层一起取证。
+    private func p0_9_realViewChain() async {
+        let blocked = permissionNote(.screenRecording)
+        guard blocked == nil else {
+            record("P0-9", "真实视图链路", passed: nil, detail: blocked!, check: "P0-9 真实视图链路")
+            return
+        }
+        if coordinator.state.phase != .overview { await showOverview() }
+        guard let candidate = coordinator.state.records.values.first(where: { $0.allowsAutoFocus }),
+              let target = panelPoint(for: candidate.identity) else {
+            record("P0-9", "真实视图链路", passed: nil,
+                   detail: "找不到既可放大、又真的落在某块总览面板格子里的窗口，无法造出真实点击坐标",
+                   check: "P0-9 真实视图链路")
+            return
+        }
+        let diagnosticsBefore = coordinator.rendererDiagnostics
+        let framesBefore = totalPublished()
+        let clicksBefore = coordinator.cardClickCount
+        let backgroundsBefore = coordinator.viewBackgroundClickCount
+        let minimizedBefore = coordinator.state.records.values.filter(\.isMinimized).count
+
+        let down = sendRealMouseDownUp(target)
+        let reachedFocus = await waitUntil(timeout: 5.0) { self.coordinator.state.phase.controlledTarget == candidate.identity }
+        let expanded = down
+            && coordinator.cardClickCount == clicksBefore + 1
+            && reachedFocus
+
+        // 回到总览也走真实事件：抬起落在空白格子上，而不是塞给状态机一个假点击。
+        let backgroundSent = coordinator.state.phase.controlledTarget == candidate.identity
+            && sendRealBackgroundClick(on: candidate.identity)
+        let returned = await waitUntil(timeout: 5.0) { self.coordinator.state.phase == .overview }
+        let minimizedAfter = coordinator.state.records.values.filter(\.isMinimized).count
+
+        let diagnosticsAfter = coordinator.rendererDiagnostics
+        let frames = totalPublished() - framesBefore
+        let presented = diagnosticsAfter.presents - diagnosticsBefore.presents
+        let gpuErrors = diagnosticsAfter.gpuErrors - diagnosticsBefore.gpuErrors
+        let submissionFailures = diagnosticsAfter.submissionFailures - diagnosticsBefore.submissionFailures
+        let streams = coordinator.capture.activeStreamCount
+        let rendered = presented > 0
+        let detail = "真实点击 → 放大 \(candidate.applicationName)：视图动作 \(coordinator.cardClickCount - clicksBefore) 次，阶段到达=\(reachedFocus)；"
+            + "真实背景点击 \(coordinator.viewBackgroundClickCount - backgroundsBefore) 次，回到总览=\(returned)；"
+            + "最小化数量 \(minimizedBefore)→\(minimizedAfter)；"
+            + "同期 present +\(presented)、捕获帧 +\(frames)（\(streams) 路流），"
+            + "GPU 错误 +\(gpuErrors)、提交失败 +\(submissionFailures)，缺 drawable 累计 \(diagnosticsAfter.missingDrawables)"
+        let passed = expanded && backgroundSent && returned && rendered
+            && minimizedAfter == minimizedBefore
+            && gpuErrors == 0 && submissionFailures == 0
+        record("P0-9", "真实视图链路", passed: passed, detail: detail, check: "P0-9 事件转接到真实上屏")
+        recorder.updateRow(application: candidate.applicationName, version: "",
+                           ordering: passed ? .passed : .unverified,
+                           knownLimitation: passed ? nil : "真实事件链路或 present 未取得闭环证据")
+        manual("P0-9", "画面确实是这张卡", "录屏确认放大时屏幕上的窗口与刚点的卡片画面一致，不是别的应用的窗口。")
+    }
+
+    // MARK: - P0-10 层级策略与改写频率
+
+    private func p0_10_orderingFacts() async {
+        if coordinator.state.phase != .overview { await showOverview() }
+        // §12.1：未实现的策略不得继续"看起来开着"，且迁移结果必须已经写回持久化。
+        let persisted = settings.persistedOrderingStrategy
+        let migrationOK = !settings.orderingStrategy.isUnimplemented && persisted == settings.orderingStrategy
+        let migratedNote = settings.migratedOrderingStrategy
+            .map { "；本次启动已从 \($0.rawValue) 迁移并写回" } ?? ""
+        record("P0-10", "层级策略已实现且写回", passed: migrationOK,
+               detail: "生效策略=\(settings.orderingStrategy.rawValue)，持久化=\(persisted.map { $0.rawValue } ?? "读不到")"
+                    + migratedNote,
+               check: "P0-10 未实现层级策略迁移")
+        manual("P0-10", "设置里看不到分块", "打开设置窗口，确认层级策略下拉里已经没有「背景分块避让」。")
+
+        // §12.2：层级只在策略/目标变化时改写；捕获回调反复 order(.below) 是在跟 WindowServer 较劲。
+        let appliedBefore = coordinator.orderingApplyCount
+        let framesBefore = totalPublished()
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
+        let applied = coordinator.orderingApplyCount - appliedBefore
+        let frames = totalPublished() - framesBefore
+        let streams = coordinator.capture.activeStreamCount
+        let blocked = permissionNote(.screenRecording)
+        let passed: Bool? = blocked != nil ? nil : (streams > 0 ? applied == 0 : nil)
+        record("P0-10", "层级不随回调重排", passed: passed,
+               detail: blocked ?? (streams > 0
+                    ? "\(streams) 路直播流、2s 内 \(frames) 帧回调期间层级改写 \(applied) 次（期望 0 次）"
+                    : "当前没有活跃捕获流，无回调可对照：2s 内层级改写 \(applied) 次，需在有直播流时重跑"),
+               check: "P0-10 层级不每次回调重排")
+        if passed == false {
+            recorder.updateRow(application: "总览承载窗口", version: "", ordering: .failed,
+                               knownLimitation: "捕获回调期间反复改写窗口层级（\(applied) 次/2s）")
+        }
+    }
+
+    // MARK: - P0-11 背景点击令牌不吞后续激活
+
+    private func p0_11_trustedToken() async {
+        if coordinator.state.phase != .overview { await showOverview() }
+        guard coordinator.state.phase == .overview else {
+            record("P0-11", "背景点击不留令牌", passed: nil,
+                   detail: "总览没能打开，无法在总览态验证令牌", check: "P0-11 令牌不永久抑制外部激活")
+            return
+        }
+        // 总览态下的背景点击不引发任何收起：这次交互不能被存成后续"受信"令牌（方案 §12.2）。
+        let token = InteractionToken()
+        coordinator.dispatch(.backgroundClicked(interaction: token))
+        let retained = coordinator.state.trustedInteraction == token
+        // 用一个确定不是受控目标的 bundleID 模拟外部激活：它必须正常把总览隐藏掉。
+        let bundleID = coordinator.state.records.values.first { $0.bundleID != Bundle.main.bundleIdentifier }?.bundleID
+            ?? "com.apple.finder"
+        coordinator.dispatch(.focusLost(origin: .otherApplication(bundleID: bundleID)))
+        let exited = await waitUntil(timeout: 3.0) { self.coordinator.state.phase == .hidden }
+        record("P0-11", "背景点击不留令牌", passed: !retained && exited,
+               detail: "空转背景点击后令牌残留=\(retained)；随后模拟外部激活（\(bundleID)）"
+                    + (exited ? "正常退出总览" : "被吞掉，总览没有隐藏"),
+               check: "P0-11 令牌不永久抑制外部激活")
+        await showOverview()
+        manual("P0-11", "Cmd-Tab 之后", "放大窗口后按 ⌘Tab 切到别的应用，确认总览自动隐藏；再按快捷键能重新打开，不需要重启 Vistile。")
+        manual("P0-11", "对话框不被强关", "在放大窗口里打开一个 Sheet（如另存为），点背景，确认对话框不被强行关掉。")
+    }
+
+    // MARK: - 真实事件派发
+
+    /// 承载某窗口的面板 + 该格子中心在窗口坐标里的位置。拿不到就返回 nil，探针不许改用猜测坐标。
+    private func panelPoint(for identity: WindowIdentity) -> (window: NSWindow, point: CGPoint)? {
+        guard let record = coordinator.state.records[identity],
+              let controller = coordinator.controllers[record.displayID] else { return nil }
+        let view = controller.contentView
+        guard let window = view.window, let local = view.cellCenter(for: identity) else { return nil }
+        return (window, view.convert(local, to: nil))
+    }
+
+    /// 一整次左键按下 + 抬起，交给 NSWindow 做真实派发（hitTest → 视图手势 → 动作转接）。
+    private func sendRealMouseDownUp(_ target: (window: NSWindow, point: CGPoint)) -> Bool {
+        guard let view = target.window.contentView as? OverviewContentView,
+              view.hitTest(target.point) != nil,
+              let down = Self.mouseEvent(.leftMouseDown, window: target.window, point: target.point),
+              let up = Self.mouseEvent(.leftMouseUp, window: target.window, point: target.point) else { return false }
+        target.window.sendEvent(down)
+        target.window.sendEvent(up)
+        return true
+    }
+
+    /// 点在确定不属于任何格子的空白上：命中测试为 nil 才算真的背景，不能靠"随便挑个角"。
+    private func sendRealBackgroundClick(on identity: WindowIdentity) -> Bool {
+        guard let record = coordinator.state.records[identity],
+              let controller = coordinator.controllers[record.displayID] else { return false }
+        let view = controller.contentView
+        guard let window = view.window, let local = view.unoccupiedViewPoint() else { return false }
+        let point = view.convert(local, to: nil)
+        guard view.hitTest(point) != nil else { return false }
+        return sendRealMouseDownUp((window, point))
+    }
+
+    private static func mouseEvent(_ type: NSEvent.EventType, window: NSWindow, point: CGPoint) -> NSEvent? {
+        NSEvent.mouseEvent(with: type,
+                           location: point,
+                           modifierFlags: [],
+                           timestamp: ProcessInfo.processInfo.systemUptime,
+                           windowNumber: window.windowNumber,
+                           context: nil,
+                           eventNumber: 0,
+                           clickCount: 1,
+                           pressure: 0.5)
     }
 
     // MARK: - 性能记录

@@ -38,6 +38,8 @@ final class AppCoordinator {
     /// 供 P0 记录的事实计数（方案 §4：不能仅凭"返回无错误"通过）。
     private(set) var backgroundClickCount = 0
     private(set) var cardClickCount = 0
+    /// 只统计"由真实视图动作转接进来"的背景点击：P0 探针用它区分事件链路与直接 dispatch。
+    private(set) var viewBackgroundClickCount = 0
 
     private var eventQueue: [SessionEvent] = []
     private var isDraining = false
@@ -47,6 +49,8 @@ final class AppCoordinator {
     private var hintTimer: Timer?
     /// 上一次真正下发给面板的层级事实；nil 表示还没排过。
     private var appliedOrdering: (strategy: OrderingStrategy, relativeToWindowID: UInt32?)?
+    /// P0 探针用它证明"层级不随捕获回调反复改写"（方案 §12.2）。
+    private(set) var orderingApplyCount = 0
     private var pendingHint: String?
     private var structuralRefreshWork: DispatchWorkItem?
     private var hasWarnedTinyThumbnails = false
@@ -433,6 +437,7 @@ final class AppCoordinator {
         if let applied = appliedOrdering, applied.strategy == settings.orderingStrategy,
            applied.relativeToWindowID == relative { return }
         appliedOrdering = (settings.orderingStrategy, relative)
+        orderingApplyCount += 1
         for controller in controllers.values {
             controller.applyOrdering(strategy: settings.orderingStrategy, relativeToWindowID: relative)
         }
@@ -577,6 +582,7 @@ final class AppCoordinator {
             cardClickCount += 1
             dispatch(.cardClicked(identity))
         case .backgroundClicked:
+            viewBackgroundClickCount += 1
             // 面板自留事件：不穿透到后面的应用，也不激活卡片内的任何控件。
             dispatch(.backgroundClicked(interaction: InteractionToken()))
         case let .cardDragged(from, to):
@@ -704,6 +710,8 @@ final class AppCoordinator {
 
     /// 供 P0 探针确认每屏都算出了布局，不允许有窗口的屏幕没有格子。
     func layoutDisplayIDs() -> [UInt32] { Array(layouts.keys) }
+    /// 供 P0 探针读取真实呈现计数：present 没发生就等于画面链路断了（方案 §4.4）。
+    var rendererDiagnostics: RendererDiagnostics { renderer.diagnostics() }
 
     // MARK: - 设置
 
