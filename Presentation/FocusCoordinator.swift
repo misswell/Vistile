@@ -35,6 +35,9 @@ final class FocusCoordinator {
     private var activeToken: TransitionToken?
     private var activeIdentity: WindowIdentity?
     private var activeDirection: Direction = .expand
+    /// 当前这次过渡的预算与起点：超时那条记录要把"到底等了多久、预算是多少"写出来，否则下次复跑无从对比。
+    private var transitionBudgetMS = 0
+    private var transitionStartedAt = Date()
     private var watchdog: Timer?
     /// 每个窗口一条串行通道：展开、收回、恢复、补偿按入队顺序执行，互不重叠（方案 §6.3）。
     private var tails: [WindowIdentity: Task<Void, Never>] = [:]
@@ -127,10 +130,8 @@ final class FocusCoordinator {
             let released = await writer.setMinimized(false, element: element)
             guard isCurrent(token, identity) else { return }
             guard released else {
-                recorder.updateRow(application: current.applicationName,
-                                   version: "",
-                                   ordering: .failed,
-                                   knownLimitation: "写入 kAXMinimized=false 后读回仍是最小化")
+                recorder.record("最小化解除", subject: current.applicationName, result: .failed,
+                                detail: "写入 kAXMinimized=false 后读回仍是最小化")
                 report(token: token, reason: "\(current.applicationName) 未解除最小化")
                 return
             }
@@ -263,10 +264,39 @@ final class FocusCoordinator {
         return await recovery.restore(entry: entry)
     }
 
-    func raiseOnly(_ identity: WindowIdentity) {
-        guard let record = catalog.record(for: identity) else { return }
-        let element = catalog.axEntry(for: record)?.element
-        Task { await self.bringToFront(record: record, element: element) }
+    /// "只把这一个窗口提到前面"到底有没有发出去。
+    /// 发不出去时调用方必须知道：一次静默的 no-op 在探针里会被读成"产品没提升成功"，
+    /// 在真实点击里则是用户点了卡片却什么都没发生。
+    enum RaiseOutcome: Equatable {
+        case issued(axIndex: Int)
+        case recordMissing
+        case handleMissing(String)
+
+        var wasIssued: Bool {
+            if case .issued = self { return true }
+            return false
+        }
+
+        var detail: String {
+            switch self {
+            case let .issued(axIndex): return "已发出 AX Raise（索引 #\(axIndex)）"
+            case .recordMissing: return "目录里没有该窗口身份，Raise 没有发出"
+            case let .handleMissing(reason): return "拿不到 AX 句柄，Raise 没有发出：\(reason)"
+            }
+        }
+    }
+
+    @discardableResult
+    func raiseOnly(_ identity: WindowIdentity) -> RaiseOutcome {
+        guard let record = catalog.record(for: identity) else { return .recordMissing }
+        if let element = catalog.axEntry(for: record)?.element {
+            Task { await self.bringToFront(record: record, element: element) }
+            return .issued(axIndex: record.confidence.resolvedAXIndex ?? -1)
+        }
+        guard let index = record.confidence.resolvedAXIndex else {
+            return .handleMissing("身份未解析出 AX 索引")
+        }
+        return .handleMissing("本代次句柄表里没有索引 #\(index) 的窗口")
     }
 
     /// 外部中断（挂起、退出）时立刻结束代理，避免残留浮层。
@@ -366,10 +396,8 @@ final class FocusCoordinator {
         guard let application = NSRunningApplication(processIdentifier: identity.processID) else {
             onStatus?("激活失败：进程已退出")
             report.frontApplicationMatches = false
-            recorder.updateRow(application: record.applicationName,
-                               version: "",
-                               ordering: .failed,
-                               knownLimitation: "进程已退出，无法前景化")
+            recorder.record("前景化", subject: record.applicationName, result: .failed,
+                            detail: "进程已退出，无法前景化（\(report.evidence)）")
             return report
         }
         // 目标应用激活是"原生前台输入"的前提；失败时只记录，不伪装成功。
@@ -377,11 +405,12 @@ final class FocusCoordinator {
         report.activationRequested = true
         report.activationReturned = application.activate(options: [])
         report.frontApplicationMatches = application.isActive
-        recorder.updateRow(application: record.applicationName,
-                           version: "",
-                           ordering: report.isVerifiedFront ? .passed : .unverified,
-                           knownLimitation: report.isVerifiedFront ? nil
-                               : "公开接口无法确认目标已在前台（\(report.evidence)）；须以实机记录为准")
+        // 这里只证明"目标到了前台"，它没有兄弟窗口可对照，因此不能写矩阵的「层级」格：
+        // 那一列的定义是"展开时目标在总览前且不带动兄弟窗口"，只有 P0-3 能判。
+        // 0.1.1–0.1.5 五份报告里 UGit 与 ChatGPT 的「层级=通过」就是这行代填的，属过度断言。
+        recorder.record("前景化", subject: record.applicationName,
+                        result: report.isProvenBehind ? .failed : (report.isVerifiedFront ? .passed : .unverified),
+                        detail: "前台读回 \(report.evidence)；矩阵「层级」格由 P0-3 判，不由此项代填")
         if !report.activationReturned { onStatus?("激活 \(record.applicationName) 请求未被系统接受：\(report.evidence)") }
         return report
     }
@@ -399,6 +428,8 @@ final class FocusCoordinator {
     private func beginAnimation(_ token: TransitionToken, identity: WindowIdentity, budgetMS: Int) {
         activeToken = token
         activeIdentity = identity
+        transitionBudgetMS = budgetMS
+        transitionStartedAt = Date()
         scheduleWatchdog(token, budgetMS: budgetMS)
     }
 
@@ -502,11 +533,20 @@ final class FocusCoordinator {
     private func handleTimeout(_ token: TransitionToken) {
         guard activeToken == token else { return }
         let identity = activeIdentity
+        let direction = activeDirection
+        let budget = transitionBudgetMS
+        let waited = Int(Date().timeIntervalSince(transitionStartedAt) * 1000)
+        let lastWrite = identity.flatMap { lastWritten[$0] }
+        let application = identity.flatMap { catalog.record(for: $0)?.applicationName } ?? "未知应用"
         stopAnimation()
+        // 只写"超时了"没法定位：方向、预算、几何是否已落、隔了多久才是下一次复跑要对比的事实。
         recorder.record("过渡超时",
                         subject: identity?.journalKey ?? "unknown",
                         result: .failed,
-                        detail: "过渡在限定时间内未确认，已按状态机降级")
+                        detail: "\(direction == .expand ? "展开" : "收回")在 \(budget)ms 内未确认（实际等了 \(waited)ms）；"
+                              + "目标=\(application)，令牌=\(token.generation)，"
+                              + "几何\(lastWrite.map { "已写入 \($0.frame)（\(Int(Date().timeIntervalSince($0.at) * 1000))ms 前）" } ?? "没有写入记录")，"
+                              + "已按状态机降级")
         onStatus?("过渡超时，已降级处理")
         // 超时不能把窗口留在中间尺寸：已经改过几何就补一次恢复（方案 §6.3）。
         if let identity, let entry = store.entry(for: identity), entry.state.requiresRestore {
