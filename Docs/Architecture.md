@@ -104,4 +104,12 @@ Effect：`discover`、`startCapture`、`stopCapture`、`stopAllCapture`、`showO
 
 ## 10. 尚未证明的部分
 
-P0-1…P0-8 需要真机录屏与肉眼确认；本机两次探针运行因为系统权限未授予（`屏幕录制=false，辅助功能=false`）而把大部分自动项记为未测或阻塞。兼容矩阵除"进程能起、探针能跑完、退出恢复事务清零"之外全部是未测。TransitionProxy 的稳定遮挡、全屏 Space 与 Stage Manager 行为、30 窗口下的性能曲线都属于未验证能力。
+本文写的是设计意图，不等于验收结论。**P0 至今未通过。** 探针已经在已授权的正式包
+（`/Applications/Vistile.app`，Developer ID + 公证）上跑了三轮（0.1.1+2 / 0.1.3+4 / 0.1.4+5）：
+13 条自动项最后都是 12 通过 / 1 失败，但失败的那条换了位置，而且两轮之间暴露出的三个问题
+（P0-1 判据范围错、P0-3 目标随机、P0-4/P0-3 取证时机脏）都是探针自己的取证口径，不是产品行为——
+判据与口径已改正并有单测守着，最终定性要靠 0.1.5 的复跑。
+兼容矩阵只有「关联」（12 个真实应用通过）与「层级」（Code 通过、Chrome 两轮相反）有数据，
+其余格子（捕获、移动、resize、Sheet）全部未测；P0-1…P0-8 里需要真机录屏与肉眼确认的人工项一律未测。
+TransitionProxy 的稳定遮挡、全屏 Space 与 Stage Manager 行为、30 窗口下的性能曲线都属于未验证能力。
+数字与原始读数见 [Compatibility.md](Compatibility.md) §1–§2 与 [Performance.md](Performance.md) §3。
