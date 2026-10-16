@@ -213,13 +213,17 @@ final class P0Probe {
         for group in groups {
             let pair = group.sorted { $0.identity.windowID < $1.identity.windowID }
             guard let target = pair.first, let sibling = pair.last, target.identity != sibling.identity else { continue }
-            let before = windowOrder()
+            // 每一轮都先回到总览、并等窗口列表连续两次读数一致，再取基准。
+            // 上一次提升会异步改动整张全局顺序表：不等它就取 before，余波会被算成本次的效果
+            // （0.1.4 那轮 Chrome 报"兄弟 #17→#13 一起被提升"就发生在这种脏基准上，还不能算结论）。
+            await restoreOverview()
+            let before = await waitUntilWindowListStable()
             coordinator.focus.raiseOnly(target.identity)
             _ = await waitUntil(timeout: 2.0) {
                 let after = self.windowOrder()
                 return (after[target.identity.windowID] ?? .max) < (before[target.identity.windowID] ?? .max)
             }
-            let after = windowOrder()
+            let after = await waitUntilWindowListStable()
             let targetIndex = after[target.identity.windowID]
             let siblingIndex = after[sibling.identity.windowID]
             let movedUp = lt(targetIndex, before[target.identity.windowID])
@@ -272,6 +276,30 @@ final class P0Probe {
         return result
     }
 
+    /// 回到总览状态。上一项可能把某个窗口提升成了受控目标，带着脏阶段进下一项就会误判。
+    private func restoreOverview() async {
+        if coordinator.state.phase != .overview {
+            coordinator.dispatch(.returnShortcut)
+            _ = await waitUntil(timeout: 2.0) {
+                self.coordinator.state.phase == .overview || self.coordinator.state.phase == .hidden
+            }
+        }
+        if coordinator.state.phase != .overview { await showOverview() }
+    }
+
+    /// 连续两次 CGWindowList 读数一致才算稳定；到点仍不稳定就返回最后一次读数。
+    private func waitUntilWindowListStable(timeout: TimeInterval = 1.5) async -> [UInt32: Int] {
+        var previous = windowOrder()
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            let current = windowOrder()
+            if current == previous { return current }
+            previous = current
+        }
+        return previous
+    }
+
     // MARK: - P0-4 原生前台输入
 
     private func p0_4_nativeForegroundInput() async {
@@ -281,6 +309,9 @@ final class P0Probe {
             manual("P0-4", "中文输入", "授权后点卡片放大窗口，切换到中文输入法打「测试」，确认候选框出现在真实窗口里。")
             return
         }
+        // 上一项（P0-3）可能刚把某个窗口提升成受控目标。那种状态下格子不在总览布局里，
+        // 点位命中不到卡片；0.1.4 那轮 P0-4 记的"动作次数=0、阶段到达=false"就是脏阶段的读数。
+        await restoreOverview()
         guard let candidate = expandCandidate() else {
             record("P0-4", "原生前台输入", passed: nil,
                    detail: P0Probe.targetFilter().isEmpty
@@ -297,22 +328,20 @@ final class P0Probe {
             return
         }
         let clicksBefore = coordinator.cardClickCount
+        let phaseBefore = coordinator.state.phase
         let dispatched = sendRealMouseDownUp(target)
-        // 手势动作要等主队列回到 run loop 才落地：派发后立刻读计数必然还是旧值
-        // （0.1.3 那轮 P0-4 就是这样判成"未测"的，而更晚的 P0-9 用同样的派发拿到了 1 次动作）。
+        // 手势动作要等主队列回到 run loop 才落地：派发后立刻读计数必然还是旧值。
         // 先等到阶段真的到达目标，再回来核对"恰好一次"。
         let reached = await waitUntil(timeout: 3.0) { self.coordinator.state.phase.controlledTarget == candidate.identity }
         let clicks = coordinator.cardClickCount - clicksBefore
         guard dispatched, clicks == 1 else {
             record("P0-4", "原生前台输入", passed: nil,
                    detail: dispatched
-                        ? "真实点击已派发但动作次数=\(clicks)（阶段到达=\(reached)，转接断则见 P0-9）"
+                        ? "真实点击已派发但动作次数=\(clicks)（点击前阶段=\(phaseBefore)，阶段到达=\(reached)；转接断见 P0-9）"
                         : "真实点击无法派发到总览内容视图（面板不存在或该点命中的不是它）",
                    check: "P0-4 原生前台输入")
             return
         }
-        _ = reached
-        _ = await waitUntil(timeout: 3.0) { self.coordinator.state.phase.controlledTarget == candidate.identity }
         try? await Task.sleep(nanoseconds: 400_000_000)
         let panelHoldsKey = coordinator.controllers.values.contains { $0.isKey }
         let focusState = coordinator.state.keyboardFocus
@@ -330,7 +359,7 @@ final class P0Probe {
     // MARK: - P0-5 背景点击
 
     private func p0_5_backgroundClickSoak() async {
-        if coordinator.state.phase != .overview { await showOverview() }
+        await restoreOverview()
         let minimizedBefore = coordinator.state.records.values.filter(\.isMinimized).count
         let consumed = coordinator.controllers.values.filter { $0.consumesBackgroundClicks() }.count
         let started = Date()
@@ -460,7 +489,7 @@ final class P0Probe {
             record("P0-9", "真实视图链路", passed: nil, detail: blocked!, check: "P0-9 真实视图链路")
             return
         }
-        if coordinator.state.phase != .overview { await showOverview() }
+        await restoreOverview()
         guard let candidate = expandCandidate(),
               let target = panelPoint(for: candidate.identity) else {
             record("P0-9", "真实视图链路", passed: nil,
@@ -513,7 +542,7 @@ final class P0Probe {
     // MARK: - P0-10 层级策略与改写频率
 
     private func p0_10_orderingFacts() async {
-        if coordinator.state.phase != .overview { await showOverview() }
+        await restoreOverview()
         // §12.1：未实现的策略不得继续"看起来开着"，且迁移结果必须已经写回持久化。
         let persisted = settings.persistedOrderingStrategy
         let migrationOK = !settings.orderingStrategy.isUnimplemented && persisted == settings.orderingStrategy
@@ -548,7 +577,7 @@ final class P0Probe {
     // MARK: - P0-11 背景点击令牌不吞后续激活
 
     private func p0_11_trustedToken() async {
-        if coordinator.state.phase != .overview { await showOverview() }
+        await restoreOverview()
         guard coordinator.state.phase == .overview else {
             record("P0-11", "背景点击不留令牌", passed: nil,
                    detail: "总览没能打开，无法在总览态验证令牌", check: "P0-11 令牌不永久抑制外部激活")
