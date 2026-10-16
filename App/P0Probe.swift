@@ -44,6 +44,10 @@ final class P0Probe {
     // MARK: - 序列
 
     private func run() async {
+        // 先把上一轮的报告挪走：探针每轮都写同一个文件名，不归档就等于就地覆盖证据。
+        if let archived = recorder.archivePreviousRun() {
+            recorder.note("上一轮报告已归档：\(archived.path)")
+        }
         recorder.note("P0 探针运行中：自动项记录客观证据，人工项保持未测")
         // 权限是解释后续结论的前提，必须作为事实写进报告，否则"窗口 0 个"会被误读成程序坏了。
         let granted = coordinator.permissions.refresh()
@@ -213,36 +217,42 @@ final class P0Probe {
         for group in groups {
             let pair = group.sorted { $0.identity.windowID < $1.identity.windowID }
             guard let target = pair.first, let sibling = pair.last, target.identity != sibling.identity else { continue }
+            let targetID = target.identity.windowID
+            let siblingID = sibling.identity.windowID
             // 每一轮都先回到总览、并等窗口列表连续两次读数一致，再取基准。
             // 上一次提升会异步改动整张全局顺序表：不等它就取 before，余波会被算成本次的效果
             // （0.1.4 那轮 Chrome 报"兄弟 #17→#13 一起被提升"就发生在这种脏基准上，还不能算结论）。
             await restoreOverview()
             let before = await waitUntilWindowListStable()
-            coordinator.focus.raiseOnly(target.identity)
-            _ = await waitUntil(timeout: 2.0) {
-                let after = self.windowOrder()
-                return (after[target.identity.windowID] ?? .max) < (before[target.identity.windowID] ?? .max)
-            }
+            let raise = coordinator.focus.raiseOnly(target.identity)
+            // 给异步的 Raise 一次落地的机会：等到列表真的变了为止，超时再取稳定读数。
+            _ = await waitUntil(timeout: 2.0) { self.windowOrder() != before }
             let after = await waitUntilWindowListStable()
-            let targetIndex = after[target.identity.windowID]
-            let siblingIndex = after[sibling.identity.windowID]
-            let movedUp = lt(targetIndex, before[target.identity.windowID])
-            let siblingNotRaised = !(lt(siblingIndex, before[sibling.identity.windowID]))
-            let aboveSibling = lt(targetIndex, siblingIndex)
-            let passed = movedUp && siblingNotRaised && aboveSibling
+            // 判据本体在核心包里（TargetRaiseAudit），由单测钉住"余波不算提升、真提升必须红"两侧。
+            let audit = TargetRaiseAudit.evaluate(target: targetID, sibling: siblingID, before: before, after: after)
+            let passed = raise.wasIssued && audit.passed
             let line = "\(target.applicationName)（\(pair.count) 窗口）目标顺序 "
-                + "\(describe(before[target.identity.windowID]))→\(describe(targetIndex))，"
-                + "同应用另一窗口 \(describe(before[sibling.identity.windowID]))→\(describe(siblingIndex))"
+                + "\(describe(before[targetID]))→\(describe(after[targetID]))，"
+                + "同应用另一窗口 \(describe(before[siblingID]))→\(describe(after[siblingID]))，"
+                + "共同参照窗口 \(audit.sharedCount) 个（前 \(audit.beforeCount)／后 \(audit.afterCount)）"
             if passed {
                 lines.append(line)
             } else {
-                let cause = !movedUp ? "目标没被提升" : (!siblingNotRaised ? "兄弟一起被提升" : "目标没在兄弟之上")
+                let cause = raise.wasIssued ? audit.failureCause : "Raise 没有发出（\(raise.detail)）"
                 failures.append(target.applicationName)
                 lines.append("\(line) ⇒ 失败（\(cause)）")
+                recorder.updateRow(application: target.applicationName, version: "",
+                                   ordering: .failed,
+                                   knownLimitation: "只提升被点窗口未成立：\(cause)。"
+                        + "兄弟对仍在场的窗口占了便宜的有 \(audit.siblingGainedOver.count) 个"
+                        + "（窗口编号 \(audit.siblingGainedOver.map(String.init).joined(separator: ","))），"
+                        + "绝对下标为 \(describe(before[siblingID]))→\(describe(after[siblingID]))")
             }
-            recorder.updateRow(application: target.applicationName, version: "",
-                               ordering: passed ? .passed : .failed,
-                               knownLimitation: passed ? nil : "AX Raise 后同应用兄弟窗口被一起提升（\(causeSummary(movedUp: movedUp, siblingNotRaised: siblingNotRaised, aboveSibling: aboveSibling))）")
+            if passed, audit.beforeCount != audit.afterCount {
+                recorder.note("P0-3：\(target.applicationName) 这轮窗口列表在两次读数间变动了 "
+                              + "\(max(audit.beforeCount, audit.afterCount) - audit.sharedCount) 个窗口，"
+                              + "判据只比共同在场的 \(audit.sharedCount) 个")
+            }
         }
         record("P0-3", "只提升被点窗口", passed: failures.isEmpty,
                detail: "\(groups.count) 个多窗口应用：" + lines.joined(separator: "；"),
@@ -250,18 +260,7 @@ final class P0Probe {
         manual("P0-3", "背景总览仍可见", "同上场景，录屏确认放大后背景总览没有被隐藏、其他应用窗口没有被误提到前面。")
     }
 
-    private func causeSummary(movedUp: Bool, siblingNotRaised: Bool, aboveSibling: Bool) -> String {
-        if !movedUp { return "目标顺序没变或读不到" }
-        if !siblingNotRaised { return "兄弟窗口索引变小了，被一起提升" }
-        return "目标仍然排在兄弟之后"
-    }
-
     /// nil 表示窗口已不在屏幕上；不能把"读不到"当成"排名变好"。
-    private func lt(_ lhs: Int?, _ rhs: Int?) -> Bool {
-        guard let lhs, let rhs else { return false }
-        return lhs < rhs
-    }
-
     private func describe(_ index: Int?) -> String { index.map { "#\($0)" } ?? "不在屏" }
 
     /// 前台到后台的窗口编号序列，用于窗口顺序诊断（CGWindowList 的返回顺序就是层级顺序）。
@@ -432,6 +431,11 @@ final class P0Probe {
         }
         let negative = displays.filter { $0.frame.minX < 0 || $0.frame.minY < 0 }
         let scales = Set(displays.map(\.backingScale))
+        // 网格在会话隐藏时会被清空（resetForHiddenSession），刚重开总览时布局可能还没算出来。
+        // 不在"总览确实可见、布局确实算过一轮"的前置条件下读 layouts，就会把取证时机读成产品缺陷：
+        // 0.1.5 那轮的"承载窗口 2、缺布局 2"发生在前一项过渡超时把状态机降级之后，阶段已经不是 overview。
+        await restoreOverview()
+        _ = await waitUntil(timeout: 2.0) { !self.coordinator.layoutDisplayIDs().isEmpty }
         let covered = Set(coordinator.state.records.values.map(\.displayID))
         let controllers = Set(coordinator.controllers.keys)
         let missingControllers = covered.subtracting(controllers)
@@ -440,7 +444,8 @@ final class P0Probe {
         let blocked = permissionNote(.screenRecording)
         record("P0-7", "多显示器", passed: blocked == nil ? passed : nil,
                detail: blocked ?? "显示器 \(displays.count) 块（负坐标 \(negative.count) 块，不同缩放 \(scales.count) 种）；"
-                    + "有窗口的屏幕 \(covered.count)，承载窗口 \(controllers.count)，缺布局 \(layoutsMissing.count)",
+                    + "有窗口的屏幕 \(covered.count)，承载窗口 \(controllers.count)，缺布局 \(layoutsMissing.count)；"
+                    + "测量时阶段=\(phaseDebug(coordinator.state.phase))，已算出布局的屏幕 \(layoutDisplayIDs().count) 块",
                check: "P0-7 多显示器覆盖")
         manual("P0-7", "跨屏放大", "在副屏放大窗口，确认前景比例按副屏可用区计算、收回后回到副屏原格子。")
     }
