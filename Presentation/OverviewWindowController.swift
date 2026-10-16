@@ -55,10 +55,12 @@ final class OverviewWindowController {
             keyboardAccepted = panel.makeFirstResponder(contentView) && panel.firstResponder === contentView
         } else {
             keyboardAccepted = false
-            guard panel.isKeyWindow else { return }
-            // 让出键盘不等于把背景重新前置：交出激活状态即可，面板保持可见、不重新抢 key。
+            let wasKey = panel.isKeyWindow
+            // 交出键盘只做一件事：不管面板有没有真的成为 key，响应者都要回到窗口，
+            // 否则下一个会话会让旧的内容视图继续接键。
             panel.makeFirstResponder(nil)
-            NSApp.deactivate()
+            // 让出键盘不等于把背景重新前置：交出激活状态即可，面板保持可见、不重新抢 key。
+            if wasKey { NSApp.deactivate() }
         }
     }
 
@@ -121,6 +123,9 @@ final class OverviewWindowController {
     }
 
     var isKey: Bool { panel.isKeyWindow }
+    /// 面板是否"愿意"成为 key：这是本仓库自己的门控（acceptsKeyboard），
+    /// 不依赖系统此刻把前台给了谁，因此可以在宿主测试里确定。
+    var canBecomeKey: Bool { panel.canBecomeKey }
     var level: NSWindow.Level { panel.level }
     var ignoresMouseEvents: Bool { panel.ignoresMouseEvents }
 }

@@ -30,7 +30,10 @@ final class T01ActionRoutingTests: XCTestCase {
     }
 
     override func tearDown() {
+        controller?.setKeyboardFocus(false)
         controller?.hide()
+        // 测试临时拿到的前台激活必须还给系统，不能让测试宿主留在用户前面。
+        NSApp.deactivate()
         controller = nil
         renderer = nil
         recorder = nil
@@ -226,16 +229,28 @@ final class T01ActionRoutingTests: XCTestCase {
 
     // MARK: - 焦点
 
-    func testKeyboardFocusReallyLandsOnContentView() {
+    /// 键盘门控的两层含义必须分开验证，否则测试会随本机前台应用变化而飘：
+    /// - 代码控制层：面板是否"愿意"成为 key（acceptsKeyboard），first responder 是否真的落到内容视图。
+    /// - 系统控制层：面板是否"实际"成为 key（要求应用处于前台，宿主测试无法保证）。
+    /// 代码控制层永远断言；系统控制层在能取得前台时断言，取不到时显式 skip，绝不静默降级。
+    func testKeyboardFocusReallyLandsOnContentView() throws {
         controller.setKeyboardFocus(true)
-        XCTAssertTrue(controller.isKey, "面板没成为 key，方向键与 Esc 无处可去")
+        XCTAssertTrue(controller.canBecomeKey, "接受键盘时面板必须愿意成为 key")
         XCTAssertTrue(controller.keyboardAccepted, "makeFirstResponder 必须真的把键盘交给内容视图")
         XCTAssertEqual(view.window?.firstResponder as? OverviewContentView, view)
 
         controller.setKeyboardFocus(false)
+        XCTAssertFalse(controller.canBecomeKey, "让出键盘后面板不能再成为 key")
         XCTAssertFalse(controller.keyboardAccepted)
-        waitUntil { !self.controller.isKey }
-        XCTAssertFalse(controller.isKey)
+        XCTAssertNil(view.window?.firstResponder as? OverviewContentView)
+
+        // 实际 key 只在宿主能取得前台激活时才断言；取不到就显式 skip 交给实机验证。
+        activateHostApp()
+        controller.setKeyboardFocus(true)
+        guard NSApp.isActive else {
+            throw XCTSkip("宿主未取得前台激活：面板实际 isKey 依赖系统前台，需在实机/P0 验证")
+        }
+        XCTAssertTrue(controller.isKey, "面板已愿意成为 key 且应用已激活，却没真的成为 key")
     }
 
     /// 让出键盘只做"交出键盘"这一件事：面板仍在原处，不 orderOut、不重新前置背景。
@@ -245,6 +260,7 @@ final class T01ActionRoutingTests: XCTestCase {
         controller.setKeyboardFocus(true)
         controller.setKeyboardFocus(false)
         XCTAssertTrue(controller.isVisible, "让出键盘不能把总览隐藏掉")
+        XCTAssertFalse(controller.canBecomeKey, "让出键盘后面板必须拒绝成为 key")
         XCTAssertNil(view.window?.firstResponder as? OverviewContentView)
         controller.hide()
         XCTAssertFalse(controller.isVisible)

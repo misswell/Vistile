@@ -162,4 +162,14 @@ extension XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.01))
         }
     }
+
+    /// 面板能否成为 key 取决于应用是否激活：生产路径由菜单栏按钮调用 NSApp.activate，
+    /// 测试必须先建立同一前提，否则断到的是"本机此刻谁在前台"而不是键盘归属。
+    /// 新版系统里 NSApp.activate(ignoringOtherApps:) 已不再强制抢到前台，必须走运行中的应用句柄。
+    func activateHostApp(timeout: TimeInterval = 2) {
+        guard !NSApp.isActive else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
+        waitUntil(timeout: timeout) { NSApp.isActive }
+    }
 }
