@@ -169,6 +169,25 @@ final class P0Probe {
         coordinator.capture.allMailboxes().reduce(0) { $0 + $1.mailbox.publishedCount }
     }
 
+    /// 会话当前是否锁定。`CGSessionCopyCurrentDictionary` 是 CoreGraphics 的公开接口，
+    /// 键名取它返回字典里的 `CGSSessionScreenIsLocked`（SDK 里没有导出对应的常量符号）。
+    private func sessionLocked() -> Bool {
+        guard let dict = CGSessionCopyCurrentDictionary() as? [String: Any] else { return false }
+        return (dict["CGSSessionScreenIsLocked"] as? Int) == 1
+    }
+
+    /// 「没有可放大的窗口」这类未测必须说清是谁不给读。锁屏时任何应用的 AX 窗口列表都是空的，
+    /// 那是环境；没锁屏却一个都解析不出来，才是要当产品问题查的形状。
+    private func environmentSuffix() -> String {
+        if sessionLocked() {
+            return "（会话锁定=是：此时读不到任何应用的 AX 窗口列表，与权限预检无关）"
+        }
+        if !coordinator.state.records.values.contains(where: { $0.confidence.allowsAXWrite }) {
+            return "（会话未锁定，却没有一个窗口解析得出 AX 索引：这条要当产品问题查）"
+        }
+        return ""
+    }
+
     // MARK: - P0-3 只提升被点窗口
 
     private func p0_3_raiseOnlyTarget() async {
@@ -177,6 +196,27 @@ final class P0Probe {
                    detail: "当前层级策略是背景分块，本探针不覆盖",
                    check: "P0-3 只提升被点窗口")
             manual("P0-3", "只提升被点窗口", "打开两个 Safari 窗口，点其中一个卡片，录屏确认另一个窗口没有被提到前面。")
+            return
+        }
+
+        // 前置条件：辅助功能已授予，且目录里至少有一个窗口能解析出 AX 索引。
+        // 会话锁定时预检仍然回 true，但整个会话的 AX 窗口列表是空的——0.1.8 实测：锁屏状态下
+        // 用 osascript 问 Code / Finder / Qoder 的 `count of windows` 一律回 0，而本机
+        // `CGSessionCopyCurrentDictionary` 回 `CGSSessionScreenIsLocked = 1`。
+        // 那种轮次里 Raise 根本发不出去，记「失败」会把环境写成产品结论，所以记未测并写清缺什么。
+        // 判据本体一个字没改：仍是两两比较，"没发出去"与"发了没生效"都算红。
+        if let blocked = permissionNote(.accessibility) {
+            record("P0-3", "只提升被点窗口", passed: nil, detail: blocked,
+                   check: "P0-3 只提升被点窗口")
+            return
+        }
+        let recordsNow = Array(coordinator.state.records.values)
+        guard recordsNow.contains(where: { $0.confidence.allowsAXWrite }) else {
+            record("P0-3", "只提升被点窗口", passed: nil,
+                   detail: "\(recordsNow.count) 个窗口里没有一个能解析出 AX 索引"
+                        + "（辅助功能预检=true，会话锁定=\(sessionLocked() ? "是" : "否")）："
+                        + "这是本轮的取证环境而不是产品结论，请在解锁、唤醒的桌面上重跑同一条命令",
+                   check: "P0-3 只提升被点窗口")
             return
         }
 
@@ -316,9 +356,9 @@ final class P0Probe {
         await restoreOverview()
         guard let candidate = expandCandidate() else {
             record("P0-4", "原生前台输入", passed: nil,
-                   detail: P0Probe.targetFilter().isEmpty
+                   detail: (P0Probe.targetFilter().isEmpty
                         ? "没有可聚焦的窗口（身份未唯一确定或受限制）"
-                        : "指定目标「\(P0Probe.targetFilter())」没有可放大的窗口",
+                        : "指定目标「\(P0Probe.targetFilter())」没有可放大的窗口") + environmentSuffix(),
                    check: "P0-4 原生前台输入")
             return
         }
@@ -509,21 +549,26 @@ final class P0Probe {
         await restoreOverview()
         // 放大与收回会把捕获流停掉再重起。在"0 路流"的瞬间取增量快照，present 与帧数必然读到 0，
         // 那是取证时机而不是链路断了（0.1.6 实测：同一轮 P0-2 有 38 帧，P0-9 却记成 0 路流、present +0）。
-        // 前置条件：总览可见且至少一路流是活的；不满足就记未测并写清缺什么，判据本身（present > 0）不动。
-        let streamsReady = await waitUntil(timeout: 4.0) { self.coordinator.capture.activeStreamCount > 0 }
+        // 0.1.8 又看到另一半形状：10 路活跃流却全程 0 帧。所以前置条件等的是"目录真的又来了一帧"，
+        // 不是"有流"。判据本身（present > 0）一个字没动。
+        let readyFrames = totalPublished()
+        let streamsReady = await waitUntil(timeout: 6.0) { self.totalPublished() > readyFrames }
         guard streamsReady else {
+            let stalled = coordinator.capture.activeStreamCount
             record("P0-9", "真实视图链路", passed: nil,
-                   detail: "总览已可见但 4s 内没有任何活跃捕获流（\(coordinator.capture.activeStreamCount) 路），"
-                        + "此刻的 present/帧增量必然为 0，无法判定真实上屏链路：需在直播流起来时重跑",
+                   detail: "总览已可见，但 6s 内全目录没有一帧新回调（活跃流 \(stalled) 路）——"
+                        + (stalled > 0 ? "有流没帧，画面根本没在更新，" : "连流都没有，")
+                        + "此刻的 present/帧增量必然为 0，无法判定真实上屏链路：需在目录真的产帧时重跑",
                    check: "P0-9 真实视图链路")
             return
         }
         guard let candidate = expandCandidate(),
               let target = panelPoint(for: candidate.identity) else {
             record("P0-9", "真实视图链路", passed: nil,
-                   detail: P0Probe.targetFilter().isEmpty
+                   detail: (P0Probe.targetFilter().isEmpty
                         ? "找不到既可放大、又真的落在某块总览面板格子里的窗口，无法造出真实点击坐标"
-                        : "指定目标「\(P0Probe.targetFilter())」没有既可放大又落在面板格子里的窗口",
+                        : "指定目标「\(P0Probe.targetFilter())」没有既可放大又落在面板格子里的窗口")
+                        + environmentSuffix(),
                    check: "P0-9 真实视图链路")
             return
         }
@@ -545,7 +590,9 @@ final class P0Probe {
         let returned = await waitUntil(timeout: 5.0) { self.coordinator.state.phase == .overview }
         let minimizedAfter = coordinator.state.records.values.filter(\.isMinimized).count
         // 回到总览后要给重起流与首次合成留出时间，否则"之后"的增量取的是收回瞬间的空档。
-        _ = await waitUntil(timeout: 4.0) { self.coordinator.capture.activeStreamCount > 0 }
+        // 等的同样是"真的又来了一帧"，不是"流计数回到非 0"。
+        let resumedFrames = totalPublished()
+        _ = await waitUntil(timeout: 6.0) { self.totalPublished() > resumedFrames }
         try? await Task.sleep(nanoseconds: 1_000_000_000)
 
         let diagnosticsAfter = coordinator.rendererDiagnostics
@@ -586,11 +633,13 @@ final class P0Probe {
         manual("P0-10", "设置里看不到分块", "打开设置窗口，确认层级策略下拉里已经没有「背景分块避让」。")
 
         // §12.2：层级只在策略/目标变化时改写；捕获回调反复 order(.below) 是在跟 WindowServer 较劲。
-        // 取数之前得先有流。0.1.6/0.1.7 两轮这里都在 0 路活跃流的瞬间睡了 2s，只能记"无回调可对照"，
-        // 而同一轮更晚的性能采样却有 12 路流——那是取样时刻，不是产品行为。
-        // 判据一个字没动：仍然是"有直播流的那 2s 内层级改写必须 0 次"。
+        // 取数之前得先看到目录真的在产帧。0.1.6/0.1.7 两轮都在 0 路流的瞬间睡 2s，只能记"无回调可对照"；
+        // 0.1.8 又实测到反过来的形状——10 路流但全程 0 帧，按旧判据就把"改写 0 次"记成了通过，
+        // 可那是**没有任何回调**，不是**有回调而没改写**。现在两头都要等：等到至少来一帧为止。
+        // 判据因此是收紧而不是放宽：仍要求"有回调的那 2s 内层级改写 0 次"。
+        let launchFrames = totalPublished()
         if permissionNote(.screenRecording) == nil {
-            _ = await waitUntil(timeout: 4.0) { self.coordinator.capture.activeStreamCount > 0 }
+            _ = await waitUntil(timeout: 6.0) { self.totalPublished() > launchFrames }
         }
         let appliedBefore = coordinator.orderingApplyCount
         let framesBefore = totalPublished()
@@ -599,11 +648,14 @@ final class P0Probe {
         let frames = totalPublished() - framesBefore
         let streams = coordinator.capture.activeStreamCount
         let blocked = permissionNote(.screenRecording)
-        let passed: Bool? = blocked != nil ? nil : (streams > 0 ? applied == 0 : nil)
+        let passed: Bool? = blocked != nil ? nil : (frames > 0 ? applied == 0 : nil)
         record("P0-10", "层级不随回调重排", passed: passed,
-               detail: blocked ?? (streams > 0
+               detail: blocked ?? (frames > 0
                     ? "\(streams) 路直播流、2s 内 \(frames) 帧回调期间层级改写 \(applied) 次（期望 0 次）"
-                    : "等 4s 起流没等到、再观察 2s 仍没有活跃捕获流，无回调可对照：这 2s 内层级改写 \(applied) 次，需在有直播流时重跑"),
+                    : (streams > 0
+                        ? "有 \(streams) 路流，但等 6s + 观察 2s 期间全目录 0 帧：没有回调可对照，"
+                          + "这 2s 内层级改写 \(applied) 次不算被证明"
+                        : "等 6s 没等到任何新帧、也没有活跃流：这 2s 内层级改写 \(applied) 次不算被证明")),
                check: "P0-10 层级不每次回调重排")
         if passed == false {
             recorder.updateRow(application: "总览承载窗口", version: "", ordering: .failed,
@@ -640,29 +692,36 @@ final class P0Probe {
 
     // MARK: - 本轮取证环境自检
 
-    /// 依赖帧的自动项（P0-2 / P0-9 / P0-10 / 性能采样）只有在"这一轮目录真的产过帧"时才谈得上成立。
-    /// 0.1.6 实测过一整轮 0 帧：全目录帧增量 0、present 0、AX 只解析出 15 个窗口里的 5 个，
-    /// 于是 P0-2/P0-3 同时报"失败"。复跑同一台机器、同一个已授权包、同一个命令，这些数字全回来了
-    /// （38 帧 / 15 个窗口全部可解析），说明那一轮是屏幕锁定或显示休眠造成的环境产物，不是产品结论。
-    /// 这一项把"本轮能不能判"写成事实，不改任何一项的判据。
+    /// 依赖帧的自动项（P0-2 / P0-9 / P0-10 / 性能采样）只有在"这一轮目录真的产过帧"时才谈得上成立；
+    /// 依赖 AX 的项（P0-3 / P0-4 / P0-9）只有在"至少有一个窗口解析得出 AX 索引"时才谈得上成立。
+    /// 0.1.6 实测过一整轮 0 帧；0.1.8 又实测过一整轮"画面有更新但 AX 全空"——那台机器当时锁着屏，
+    /// 权限预检照样回 true，而任何应用的 AX 窗口列表都是空的。两种都会把环境产物记成产品结论，
+    /// 所以这一项把"本轮到底能不能判"写成事实，不改任何一项的判据。
     private func environmentSelfCheck() async -> String {
         let records = Array(coordinator.state.records.values)
         let readable = records.filter { $0.confidence.allowsAXWrite }.count
         let frames = totalPublished()
         let streams = coordinator.capture.activeStreamCount
         let presented = coordinator.rendererDiagnostics.presents
-        let usable = !records.isEmpty && frames > 0
+        let locked = sessionLocked()
         let line = "窗口 \(records.count) 个（AX 可解析 \(readable) 个），活跃流 \(streams) 路，"
-            + "本次启动累计捕获帧 \(frames)、累计 present \(presented)"
+            + "本次启动累计捕获帧 \(frames)、累计 present \(presented)，会话锁定=\(locked ? "是" : "否")"
+        var voids: [String] = []
+        if records.isEmpty || frames == 0 {
+            voids.append("全程 0 帧 → 依赖帧的 P0-2/P0-9/P0-10/性能采样 不能当产品结论")
+        }
+        if readable == 0 {
+            voids.append("没有一个窗口解析得出 AX 索引 → 依赖 AX 的 P0-3/P0-4/P0-9 不能当产品结论")
+        }
         record("环境自检", "本轮是否可判",
-               passed: usable ? true : nil,
-               detail: usable
-                    ? "\(line)：本轮确实观察到画面更新，依赖帧的结论可用"
-                    : "\(line)：本轮全程没有一帧，屏幕锁定或显示休眠时也会这样。"
-                      + "依赖帧的 P0-2/P0-9/P0-10/性能采样 全部不能当产品结论，请在唤醒状态下重跑",
+               passed: voids.isEmpty ? true : nil,
+               detail: voids.isEmpty
+                    ? "\(line)：画面在更新、AX 也解析得到，依赖帧与依赖 AX 的结论都可用"
+                    : "\(line)：\(voids.joined(separator: "；"))。"
+                      + "锁屏或显示休眠就是这个形状（此时权限预检仍回 true），请在解锁、唤醒的桌面上重跑同一条命令",
                check: "运行环境自检")
-        return usable ? "本轮有帧可判（\(line)）"
-                      : "本轮全程 0 帧，依赖帧的结论作废、需唤醒后重跑（\(line)）"
+        return voids.isEmpty ? "本轮可判（\(line)）"
+                             : "本轮不可全判：\(voids.joined(separator: "；"))（\(line)）"
     }
 
     // MARK: - 真实事件派发
