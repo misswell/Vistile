@@ -6,11 +6,18 @@
 
 ## 必须先知道的三件事
 
-1. **P0 能力门禁（P0-1…P0-11）没有通过。** 通过它需要真机录屏与肉眼验收，本仓库只给出进程内的客观证据与逐项人工步骤，见 [Docs/Acceptance.md](Docs/Acceptance.md)。其中任何一项都可能在你第一次实测时失败。
-2. **兼容矩阵全部是「未测」。** [Docs/Compatibility.md](Docs/Compatibility.md) 里没有一格写成「支持」——包括 Chrome、Safari、VS Code、Electron 应用、Office 与全屏应用。未测不等于可用。
-3. **性能数字只有本机一条样本。** [Docs/Performance.md](Docs/Performance.md) 里的预算是设计值，不是实测值；CPU、内存、首帧延迟、掉帧率在授予权限后尚未复测。
+1. **P0 能力门禁（P0-1…P0-11）没有通过，而且已经有两条真实失败。** 在装有权限的机器上跑第一批探针（正式版 0.1.1+2，17 个窗口）：`P0-1` 同进程 AX 索引不唯一（同一应用两个窗口解析到同一个索引），`P0-3` 提升被点窗口时把同应用的兄弟窗口一起提了上来。其余 7 个自动项通过（遮挡窗口继续收帧、键盘归目标应用、身份沿用、双屏承载、退出事务 0 条等）。人工与录屏项一律还是「未测」，见 [Docs/Acceptance.md](Docs/Acceptance.md)。
+2. **兼容矩阵只有「关联」这一列有了数据。** [Docs/Compatibility.md](Docs/Compatibility.md) 里 12 个真实应用的关联=通过，其余格子（捕获、移动、resize、层级、Sheet、恢复）仍然全是「未测」——包括 Safari、Finder、Office 与全屏应用。未测不等于可用。
+3. **性能数字只有本机一条样本，且其中一条明显不可信。** [Docs/Performance.md](Docs/Performance.md) 里的预算是设计值；授权态那一次记录 CPU 0.2（17 路流），这个数当不了结论，必须用 Activity Monitor / Instruments 对照。
 
-## 本版（0.1.2）相对 0.1.1 的行为变化
+## 本版（0.1.3）相对 0.1.2 的变化
+
+只有一条代码改动，但它挡住的是"验收流程本身能不能跑完"：
+
+- **P0 探针跑完会真的退出了。** 0.1.2 及更早的包在未授权态写完报告后进程不退出：主线程停在 `-[NSApplication terminate:]` 里等 `applicationShouldTerminate` 的 reply，而 reply 只能靠主队列排空送达，此时主线程正被那个 drain 占着。退出请求改从 run loop 观察点发出，实测从"挂死"变成 40 秒跑完并自行退出。普通使用路径的退出不受影响（菜单栏退出、Apple 事件 `quit` 都正常）。
+- **验收命令改成跑正式安装的包**：`open -n -g -W --env VISTILE_P0_MODE=1 /Applications/Vistile.app`。屏幕录制与辅助功能记在签名身份上，Developer ID 包和仓库里的 Debug 产物在 TCC 看来是两个不同的 App；文档里所有探针步骤都已经换成前者。
+
+## 0.1.2 相对 0.1.1 的行为变化
 
 来自一次逐文件审查（R01–R11），每条都改的是实际代码路径：
 
@@ -37,14 +44,16 @@
 下载后可以自己复核（不需要任何额外工具）：
 
 ```bash
-shasum -a 256 Vistile_v0.1.2_macos_arm64.dmg   # 期望 f9d1d9786dc7cb0d0867fc3f97f06440e961862737ca778070d6226537a0c201（1380316 字节）
-hdiutil attach Vistile_v0.1.2_macos_arm64.dmg
+hdiutil attach Vistile_v0.1.3_macos_arm64.dmg
 xcrun stapler validate "/Volumes/"*/Vistile.app      # 期望 The validate action worked!
 codesign -dvvv "/Volumes/"*/Vistile.app 2>&1 | grep -E "Authority=Developer ID|flags=0x"
 hdiutil detach "/Volumes/"*
+xcrun stapler validate Vistile_v0.1.3_macos_arm64.dmg   # 镜像外的那个 .dmg 自己也要有票据
 ```
 
-发布产物本身已在两台机器上核对过：CI runner（Gatekeeper 评估开启的干净 arm64 机器）上 `spctl --status` 是 `assessments enabled`，对构建产物和挂载出来的 app 都回 `accepted / source=Notarized Developer ID`；本机从 Release 页重新下载后，dmg 与镜像里的 `Vistile.app` 票据都 `The staple and validate action worked!`，证书链 `Developer ID Application: Guofeng Liu (U8U443D7ZL)` → Apple Root CA，`flags=0x10000(runtime)`，`lipo -archs` 只有 `arm64`，`Info.plist` 是 `0.1.2 / 3`，本地哈希与 GitHub 资产接口回报的 digest 相同；Apple 侧公证成对出现（`.notarization.zip` 在前、`.dmg` 在后，两条 `Accepted`）。**你自己的 Mac 第一次安装体验仍未测**——权限授予流程、是否被系统二次确认，都要真机才知道；开发机这边 `spctl` 评估是关掉的，测不出这一层。
+覆盖安装即可升级：屏幕录制与辅助功能记在签名身份上，同一个 Developer ID 换版本不需要重新授权（**0.1.2→0.1.3 这一步本身还没实测**，见已知限制）。
+
+上一版（0.1.2）的产物已按上面的步骤两台机器核对过：CI runner（Gatekeeper 评估开启的干净 arm64 机器）上 `spctl --status` 是 `assessments enabled`，对构建产物和挂载出来的 app 都回 `accepted / source=Notarized Developer ID`；本机从 Release 页重新下载后，dmg 与镜像里的 `Vistile.app` 票据都 `The staple and validate action worked!`，证书链 `Developer ID Application: Guofeng Liu (U8U443D7ZL)` → Apple Root CA，`flags=0x10000(runtime)`，`lipo -archs` 只有 `arm64`，`Info.plist` 是 `0.1.2 / 3`，本地哈希与 GitHub 资产接口回报的 digest 相同（`sha256 f9d1d9786dc7cb0d…537a0c201`，1380316 字节）；Apple 侧公证成对出现（`.notarization.zip` 在前、`.dmg` 在后，两条 `Accepted`）。**你自己的 Mac 第一次安装体验仍未测**——权限授予流程、是否被系统二次确认，都要真机才知道；开发机这边 `spctl` 评估是关掉的，测不出这一层。
 
 ## 构建与测试
 
