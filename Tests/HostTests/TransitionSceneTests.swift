@@ -5,7 +5,7 @@ import VistileCore
 import XCTest
 @testable import Vistile
 
-/// 过渡动画的纯逻辑（方案 §10.1–§10.6、§18.2 H21）：端点、过滤、淡出、时长与缓动。
+/// 过渡动画的纯逻辑（方案 §10.1–§10.6、§18.2 H21、§20.3–§20.4）：端点、过滤、淡出、时长、缓动、动效等级与帧采样。
 ///
 /// 这里只断言"屏幕上要跑的那一份计划"：工厂读到的每个外部事实都由测试自己给出，
 /// 端点算错、把窗口画到不存在的 slot 上、或把失败当成功，都会在这里先失败。
@@ -577,6 +577,365 @@ final class TransitionSceneTests: XCTestCase {
         coordinator.retireDisplays(keeping: [])
         XCTAssertFalse(coordinator.isPresenting)
         XCTAssertEqual(finished, [intent.token])
+    }
+
+    // MARK: - 动效等级与帧采样（方案 §20.3–§20.4）
+
+    func testAlphaProgressScalesFadeIntoFraction() throws {
+        XCTAssertEqual(TransitionTimeline.alphaProgress(0.25, fadeFraction: 1), 0.25, accuracy: 0.0001)
+        XCTAssertEqual(TransitionTimeline.alphaProgress(0.25, fadeFraction: 0.5), 0.5, accuracy: 0.0001)
+        XCTAssertEqual(TransitionTimeline.alphaProgress(0.75, fadeFraction: 0.5), 1, accuracy: 0.0001, "淡化窗口走完就满透明度，不超调")
+        XCTAssertEqual(TransitionTimeline.alphaProgress(1, fadeFraction: 0.5), 1, accuracy: 0.0001)
+        XCTAssertEqual(TransitionTimeline.alphaProgress(0, fadeFraction: 0.5), 0, accuracy: 0.0001)
+        XCTAssertEqual(TransitionTimeline.alphaProgress(-2, fadeFraction: 0.5), 0, accuracy: 0.0001, "越界输入夹取")
+        XCTAssertEqual(TransitionTimeline.alphaProgress(0.5, fadeFraction: 0), 1, accuracy: 0.0001, "0 分数退化时不做除法")
+    }
+
+    /// 轻量等级（方案 §20.4）：只让选中卡片飞，被换下的那张直接落在终点、用 140ms 完成淡化。
+    func testLightLevelFlightsOnlyFocusAndSnapsOthersInSwapping() throws {
+        let fixture = HostWorkbench.fixture(count: 3)
+        let from = HostFixtures.identity(0)
+        let to = HostFixtures.identity(1)
+        let slot = try XCTUnwrap(fixture.placement.slot(of: to))
+        XCTAssertNotEqual(fixture.snapshot.contentRect(for: slot), fixture.layout.mainRect,
+                          "前提：真实窗口帧（起点）与栏内容区（终点）不同，替换才可观察")
+        let intent = WorkbenchSwitchIntent(token: TransitionToken(generation: 61),
+                                           from: from,
+                                           to: to,
+                                           source: .rail(slot: slot),
+                                           placementRevision: 1,
+                                           targetDisplayID: displayID)
+        let plan = WorkbenchSwitchPlan(intent: intent,
+                                       displayID: displayID,
+                                       mainTargetFrame: fixture.layout.mainRect,
+                                       restingTargetFrame: nil,
+                                       restingSlot: slot,
+                                       snapshot: fixture.snapshot,
+                                       presentation: fixture.presentation)
+
+        var factory = baseFactory(imageRects: [:])
+        factory.motionLevel = { .light }
+        let scene = try XCTUnwrap(factory.swapping(plan))
+
+        XCTAssertEqual(scene.level, .light)
+        XCTAssertFalse(scene.fadeOnly, "轻量仍然飞行，不是淡化模式")
+        XCTAssertEqual(scene.durationMS, fixture.layout.style.switchAnimationMS(reduceMotion: false),
+                       "等级只改怎么画，不改计划给的总时长")
+
+        let promoted = try XCTUnwrap(scene.focusCard)
+        XCTAssertEqual(promoted.identity, to)
+        XCTAssertEqual(promoted.start, fixture.snapshot.contentRect(for: slot), "选中的那张必须真的从栏里飞出去")
+        XCTAssertNotEqual(promoted.start, promoted.end)
+        XCTAssertEqual(promoted.cellStart, fixture.snapshot.rect(for: slot))
+        XCTAssertEqual(promoted.fadeFraction, 1, "主卡片按整段推进，不压缩")
+
+        let demoted = try XCTUnwrap(scene.cards.first { $0.identity == from })
+        let resting = try XCTUnwrap(demoted.end)
+        XCTAssertEqual(resting, promoted.start, "A 去 B 原来待的地方")
+        XCTAssertEqual(demoted.start, resting, "轻量等级不做位移：起点直接换成终点")
+        XCTAssertEqual(demoted.startAlpha, 0, "从透明开始，在终点原地淡入")
+        XCTAssertNil(demoted.cellStart, "没有位移就不画底板飞行")
+        XCTAssertEqual(demoted.fadeFraction,
+                       TransitionSceneFactory.lightCrossfadeMS / CGFloat(scene.durationMS),
+                       accuracy: 0.0001)
+        XCTAssertLessThan(TransitionSceneFactory.lightCrossfadeMS, CGFloat(scene.durationMS),
+                          "前提：140ms 比整段更短，压缩淡化窗口才有意义")
+    }
+
+    /// 轻量等级进入：轨道卡片不飞、直接落在栏里并短淡化；主卡片照常从总览那一格展开。
+    func testLightLevelEnteringSnapsRailCardsToTheirSlots() throws {
+        let grid = HostFixtures.layout(count: 3)
+        let fixture = HostWorkbench.fixture(count: 3)
+        let main = HostFixtures.identity(0)
+        let mainCell = try XCTUnwrap(grid.layout.card(at: SlotID(index: 0))?.cellRect)
+        let imageRects = Dictionary(uniqueKeysWithValues: grid.layout.cards.map {
+            (HostFixtures.identity($0.slot.index), $0.imageRect)
+        })
+        let handoffs = try (1...2).map { index -> RailHandoff in
+            let identity = HostFixtures.identity(index)
+            let slot = try XCTUnwrap(fixture.placement.slot(of: identity))
+            let cell = try XCTUnwrap(grid.layout.card(at: SlotID(index: index))?.cellRect)
+            return RailHandoff(identity: identity, slot: slot, from: cell, to: fixture.snapshot.rect(for: slot))
+        }
+        let plan = WorkbenchTransitionPlan(kind: .enteringWorkbench,
+                                           token: TransitionToken(generation: 62),
+                                           identity: main,
+                                           displayID: displayID,
+                                           snapshot: fixture.snapshot,
+                                           targetFrame: fixture.layout.mainRect,
+                                           animationFrom: mainCell,
+                                           animationTo: fixture.layout.mainRect,
+                                           railHandoffs: handoffs,
+                                           animationMS: 240,
+                                           presentation: fixture.presentation)
+
+        var factory = baseFactory(imageRects: imageRects)
+        factory.motionLevel = { .light }
+        let scene = try XCTUnwrap(factory.entering(plan))
+
+        XCTAssertFalse(scene.fadeOnly)
+        XCTAssertEqual(scene.durationMS, 240, "轻量不改计划给的总时长")
+        let focus = try XCTUnwrap(scene.focusCard)
+        XCTAssertEqual(focus.start, imageRects[main], "主卡片仍从总览画出来的那一格起飞")
+        XCTAssertNotEqual(focus.start, focus.end)
+        XCTAssertEqual(focus.cellStart, mainCell, "主卡片的底板照飞")
+        XCTAssertEqual(focus.fadeFraction, 1)
+
+        let railCard = try XCTUnwrap(scene.cards.first { $0.identity == HostFixtures.identity(1) })
+        let railSlot = try XCTUnwrap(fixture.placement.slot(of: HostFixtures.identity(1)))
+        XCTAssertEqual(railCard.end, fixture.snapshot.contentRect(for: railSlot))
+        XCTAssertEqual(railCard.start, railCard.end, "轻量等级不做位移：起点即终点")
+        XCTAssertEqual(railCard.startAlpha, 0)
+        XCTAssertNil(railCard.cellStart)
+        XCTAssertEqual(railCard.fadeFraction,
+                       TransitionSceneFactory.lightCrossfadeMS / CGFloat(scene.durationMS),
+                       accuracy: 0.0001)
+    }
+
+    /// 淡化等级：即使系统没开「减少动态效果」，也用 80–120ms 短淡化（方案 §20.4）。
+    func testFadeLevelShortensDurationsWithoutSystemReduceMotion() throws {
+        let fixture = HostWorkbench.fixture(count: 2)
+        let main = HostFixtures.identity(0)
+        let cell = CGRect(x: 100, y: 100, width: 300, height: 200)
+        let entering = WorkbenchTransitionPlan(kind: .enteringWorkbench,
+                                               token: TransitionToken(generation: 63),
+                                               identity: main,
+                                               displayID: displayID,
+                                               snapshot: fixture.snapshot,
+                                               targetFrame: fixture.layout.mainRect,
+                                               animationFrom: cell,
+                                               animationTo: fixture.layout.mainRect,
+                                               railHandoffs: [],
+                                               animationMS: 240,
+                                               presentation: fixture.presentation)
+
+        var factory = baseFactory(imageRects: [main: cell])
+        factory.motionLevel = { .fade }
+        let enterScene = try XCTUnwrap(factory.entering(entering))
+        XCTAssertEqual(enterScene.level, .fade)
+        XCTAssertTrue(enterScene.fadeOnly, "淡化等级不飞行")
+        XCTAssertEqual(enterScene.durationMS, fixture.layout.style.entryAnimationMS(reduceMotion: true))
+        XCTAssertEqual(enterScene.durationMS, 100)
+        XCTAssertLessThan(enterScene.durationMS, 240, "比计划里的完整时长更短")
+
+        let slot = try XCTUnwrap(fixture.placement.slot(of: HostFixtures.identity(1)))
+        let intent = WorkbenchSwitchIntent(token: TransitionToken(generation: 64),
+                                           from: main,
+                                           to: HostFixtures.identity(1),
+                                           source: .rail(slot: slot),
+                                           placementRevision: 1,
+                                           targetDisplayID: displayID)
+        let swap = WorkbenchSwitchPlan(intent: intent,
+                                       displayID: displayID,
+                                       mainTargetFrame: fixture.layout.mainRect,
+                                       restingTargetFrame: nil,
+                                       restingSlot: slot,
+                                       snapshot: fixture.snapshot,
+                                       presentation: fixture.presentation)
+        let swapScene = try XCTUnwrap(factory.swapping(swap))
+        XCTAssertTrue(swapScene.fadeOnly)
+        XCTAssertEqual(swapScene.durationMS, fixture.layout.style.switchAnimationMS(reduceMotion: true))
+        XCTAssertEqual(swapScene.durationMS, 80)
+        XCTAssertEqual(swapScene.cards.count, 2, "淡化不改变参与卡片，只改变怎么画")
+    }
+
+    /// 帧采样（方案 §20.3）：飞行结束把这一段的帧间隔统计报给宿主，40ms 的三连必须被抓到。
+    @MainActor
+    func testCarrierReportsStutterRunAtFlightEnd() throws {
+        let metal = try HostFixtures.metalContext()
+        let view = TransitionCarrierView(frame: CGRect(origin: .zero, size: HostFixtures.offscreenSize),
+                                         metal: metal)
+        view.configure(cgOrigin: HostFixtures.offscreenOrigin, scale: 2)
+        view.layout()
+
+        let fixture = HostWorkbench.fixture(count: 2)
+        let main = HostFixtures.identity(0)
+        let scene = try XCTUnwrap(baseFactory(imageRects: [main: fixture.layout.mainRect]).entering(
+            WorkbenchTransitionPlan(kind: .enteringWorkbench,
+                                    token: TransitionToken(generation: 71),
+                                    identity: main,
+                                    displayID: displayID,
+                                    snapshot: fixture.snapshot,
+                                    targetFrame: fixture.layout.mainRect,
+                                    animationFrom: fixture.layout.mainRect,
+                                    animationTo: fixture.layout.mainRect,
+                                    railHandoffs: [],
+                                    animationMS: 240,
+                                    presentation: fixture.presentation)))
+
+        var reported: [(TransitionScene.Kind, FrameIntervalStats)] = []
+        view.onFlightStats = { reported.append(($0, $1)) }
+
+        let base = CACurrentMediaTime()
+        view.play(scene, sources: [:])
+        view.advance(to: base)
+        var now = base
+        let deltasMS: [Double] = [16.7, 16.7, 16.7, 16.7, 16.7, 16.7, 40, 40, 40, 16.7, 16.7, 16.7]
+        for delta in deltasMS {
+            now += delta / 1000
+            view.advance(to: now)
+        }
+        XCTAssertTrue(view.isHolding, "前提：这段合成时间轴必须跑完")
+        XCTAssertEqual(reported.count, 1, "一段飞行只报一次")
+        let (kind, stats) = try XCTUnwrap(reported.first)
+        XCTAssertEqual(kind, .entering)
+        XCTAssertEqual(stats.count, 11, "240ms 在第六个 16.7 与三个 40ms 之后的第 11 个间隔上跑完：tick 1…11 各留一个样本")
+        XCTAssertEqual(stats.longestStutterRun, 3, "40ms 的三连必须被抓到")
+        XCTAssertEqual(stats.p95MS, 40, accuracy: 0.001)
+        XCTAssertGreaterThan(stats.longFrameRatio, FrameIntervalStats.maxLongFrameRatio)
+        XCTAssertFalse(stats.meetsTarget, "连续 3 帧明显卡顿不合格")
+        XCTAssertGreaterThan(stats.p95MS, FrameIntervalStats.maxP95MS)
+        view.stopNow()
+    }
+
+    /// 帧采样：全 16.7ms 的一段必须判为预算内（方案 §20.3：P95 ≤ 20ms、掉帧占比 ≤ 1%、无 3 连卡顿）。
+    @MainActor
+    func testCarrierReportsCleanRunAsWithinBudget() throws {
+        let metal = try HostFixtures.metalContext()
+        let view = TransitionCarrierView(frame: CGRect(origin: .zero, size: HostFixtures.offscreenSize),
+                                         metal: metal)
+        view.configure(cgOrigin: HostFixtures.offscreenOrigin, scale: 2)
+        view.layout()
+
+        let fixture = HostWorkbench.fixture(count: 2)
+        let main = HostFixtures.identity(0)
+        let scene = try XCTUnwrap(baseFactory(imageRects: [main: fixture.layout.mainRect]).entering(
+            WorkbenchTransitionPlan(kind: .enteringWorkbench,
+                                    token: TransitionToken(generation: 72),
+                                    identity: main,
+                                    displayID: displayID,
+                                    snapshot: fixture.snapshot,
+                                    targetFrame: fixture.layout.mainRect,
+                                    animationFrom: fixture.layout.mainRect,
+                                    animationTo: fixture.layout.mainRect,
+                                    railHandoffs: [],
+                                    animationMS: 240,
+                                    presentation: fixture.presentation)))
+
+        var reported: [FrameIntervalStats] = []
+        view.onFlightStats = { _, stats in reported.append(stats) }
+
+        let base = CACurrentMediaTime()
+        view.play(scene, sources: [:])
+        view.advance(to: base)
+        var now = base
+        for _ in 0..<15 {
+            now += 16.7 / 1000
+            view.advance(to: now)
+        }
+        XCTAssertTrue(view.isHolding)
+        let stats = try XCTUnwrap(reported.first)
+        XCTAssertEqual(reported.count, 1)
+        XCTAssertEqual(stats.count, 15)
+        XCTAssertEqual(stats.p95MS, 16.7, accuracy: 0.001)
+        XCTAssertEqual(stats.longFrameRatio, 0, accuracy: 0.0001)
+        XCTAssertEqual(stats.longestStutterRun, 0)
+        XCTAssertTrue(stats.meetsTarget, "全 16.7ms 的一段必须在预算内，不必等到 8 段才敢下结论")
+        view.stopNow()
+    }
+
+    /// 样本不足不下结论：只有两个间隔时宁可不报，也不拿两帧做降级决策（方案 §20.4）。
+    @MainActor
+    func testCarrierSkipsStatsWhenTooFewSamples() throws {
+        let metal = try HostFixtures.metalContext()
+        let view = TransitionCarrierView(frame: CGRect(origin: .zero, size: HostFixtures.offscreenSize),
+                                         metal: metal)
+        view.configure(cgOrigin: HostFixtures.offscreenOrigin, scale: 2)
+        view.layout()
+
+        let fixture = HostWorkbench.fixture(count: 2)
+        let main = HostFixtures.identity(0)
+        let scene = try XCTUnwrap(baseFactory(imageRects: [main: fixture.layout.mainRect]).entering(
+            WorkbenchTransitionPlan(kind: .enteringWorkbench,
+                                    token: TransitionToken(generation: 73),
+                                    identity: main,
+                                    displayID: displayID,
+                                    snapshot: fixture.snapshot,
+                                    targetFrame: fixture.layout.mainRect,
+                                    animationFrom: fixture.layout.mainRect,
+                                    animationTo: fixture.layout.mainRect,
+                                    railHandoffs: [],
+                                    animationMS: 80,
+                                    presentation: fixture.presentation)))
+
+        var reported = 0
+        view.onFlightStats = { _, _ in reported += 1 }
+
+        let base = CACurrentMediaTime()
+        view.play(scene, sources: [:])
+        view.advance(to: base)
+        view.advance(to: base + 0.05)
+        view.advance(to: base + 0.10)
+        XCTAssertTrue(view.isHolding)
+        XCTAssertEqual(reported, 0, "少于 3 个间隔不产生统计")
+        view.stopNow()
+    }
+
+    /// 轻量等级的播放（方案 §20.4）：其余卡片从第一帧就落在终点，140ms 内淡到不透明；主卡片照常连续飞行。
+    @MainActor
+    func testLightPlaybackSnapsOthersAndFadesThemInEarly() throws {
+        let metal = try HostFixtures.metalContext()
+        let view = TransitionCarrierView(frame: CGRect(origin: .zero, size: HostFixtures.offscreenSize),
+                                         metal: metal)
+        view.configure(cgOrigin: HostFixtures.offscreenOrigin, scale: 2)
+        view.layout()
+
+        let grid = HostFixtures.layout(count: 2)
+        let fixture = HostWorkbench.fixture(count: 2)
+        let main = HostFixtures.identity(0)
+        let other = HostFixtures.identity(1)
+        let mainCell = try XCTUnwrap(grid.layout.card(at: SlotID(index: 0))?.imageRect)
+        let otherCell = try XCTUnwrap(grid.layout.card(at: SlotID(index: 1))?.cellRect)
+        XCTAssertNotEqual(mainCell, fixture.layout.mainRect, "前提：总览格与主区矩形不同，飞行才可观察")
+        let otherSlot = try XCTUnwrap(fixture.placement.slot(of: other))
+        let handoff = RailHandoff(identity: other,
+                                  slot: otherSlot,
+                                  from: otherCell,
+                                  to: fixture.snapshot.rect(for: otherSlot))
+
+        var factory = baseFactory(imageRects: [main: mainCell, other: grid.layout.cards[1].imageRect])
+        factory.motionLevel = { .light }
+        let scene = try XCTUnwrap(factory.entering(
+            WorkbenchTransitionPlan(kind: .enteringWorkbench,
+                                    token: TransitionToken(generation: 74),
+                                    identity: main,
+                                    displayID: displayID,
+                                    snapshot: fixture.snapshot,
+                                    targetFrame: fixture.layout.mainRect,
+                                    animationFrom: mainCell,
+                                    animationTo: fixture.layout.mainRect,
+                                    railHandoffs: [handoff],
+                                    animationMS: 240,
+                                    presentation: fixture.presentation)))
+
+        let focus = try XCTUnwrap(scene.focusCard)
+        let railCard = try XCTUnwrap(scene.cards.first { $0.identity == other })
+        XCTAssertNotEqual(focus.start, focus.end, "前提：主卡片真的要飞")
+        XCTAssertEqual(railCard.start, railCard.end, "前提：轻量级的其余卡片声明为原地")
+
+        let base = CACurrentMediaTime()
+        view.play(scene, sources: [:])
+        // 30ms：主卡片在途中，其余卡片已在终点、还在淡入。
+        view.advance(to: base + 0.03)
+        let flying = try XCTUnwrap(view.presentedRect(for: main))
+        XCTAssertNotEqual(flying, focus.start)
+        XCTAssertNotEqual(flying, focus.end)
+        let snapped = try XCTUnwrap(view.presentedRect(for: other))
+        let snappedEnd = try XCTUnwrap(railCard.end)
+        XCTAssertEqual(snapped.minX, snappedEnd.minX, accuracy: 0.001, "其余卡片不做位移")
+        XCTAssertEqual(snapped.minY, snappedEnd.minY, accuracy: 0.001)
+        XCTAssertEqual(snapped.width, snappedEnd.width, accuracy: 0.001)
+        XCTAssertEqual(snapped.height, snappedEnd.height, accuracy: 0.001)
+        let midAlpha = try XCTUnwrap(view.presentedAlpha(for: other))
+        XCTAssertGreaterThan(midAlpha, 0)
+        XCTAssertLessThan(midAlpha, 1, "前半段还在淡入")
+
+        // 150ms（≥ 140ms 的淡化窗口）：其余卡片已经完全不透明，主卡片仍在飞。
+        view.advance(to: base + 0.15)
+        XCTAssertEqual(try XCTUnwrap(view.presentedAlpha(for: other)), 1, accuracy: 0.0001,
+                       "140ms 的交叉淡化必须在这之前走完")
+        XCTAssertTrue(view.isPlaying)
+        view.stopNow()
     }
 
     // MARK: - 组装

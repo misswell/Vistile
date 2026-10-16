@@ -931,6 +931,86 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertEqual(normal.workbench.snapshot?.layout.sideRailRect, reduced.workbench.snapshot?.layout.sideRailRect)
     }
 
+    func testW22FrameStatsMeasureP95RatioAndConsecutiveStutterRuns() throws {
+        XCTAssertNil(FrameIntervalStats.measure([16.7, 16.7]), "两个间隔不足以判断，别拿它下结论")
+
+        let clean = try XCTUnwrap(FrameIntervalStats.measure(Array(repeating: 16.7, count: 20)))
+        XCTAssertEqual(clean.p95MS, 16.7, accuracy: 0.01)
+        XCTAssertEqual(clean.longFrameRatio, 0)
+        XCTAssertEqual(clean.longestStutterRun, 0)
+        XCTAssertTrue(clean.meetsTarget)
+
+        let stuttered = try XCTUnwrap(FrameIntervalStats.measure([16.7, 16.7, 16.7, 40, 40, 40,
+                                                                  16.7, 16.7, 16.7, 40, 16.7]))
+        XCTAssertEqual(stuttered.longestStutterRun, 3, "连续掉帧按时间顺序数，不按排序后的位置")
+        XCTAssertFalse(stuttered.meetsTarget, "连续 3 帧明显卡顿就不合格（方案 §20.3）")
+
+        // 比率边界：100 个间隔里恰好 1 个超 33.3ms = 1%，不超预算；第 2 个才超。
+        var boundary = Array(repeating: 16.7, count: 99)
+        boundary.insert(50, at: 10)
+        let edge = try XCTUnwrap(FrameIntervalStats.measure(boundary))
+        XCTAssertEqual(edge.longFrameRatio, 0.01, accuracy: 0.0001)
+        XCTAssertTrue(edge.meetsTarget)
+        boundary.insert(50, at: 40)
+        XCTAssertFalse(try XCTUnwrap(FrameIntervalStats.measure(boundary)).meetsTarget)
+    }
+
+    func testW22MotionLevelDegradesOnBadStreakAndRecoversSlowlyWithHysteresis() throws {
+        var controller = MotionLevelController()
+        XCTAssertEqual(controller.level, .full, "默认从完整动效开始")
+        let bad = try XCTUnwrap(FrameIntervalStats.measure([16.7, 50, 50, 50, 16.7, 50]))
+        let good = try XCTUnwrap(FrameIntervalStats.measure(Array(repeating: 16.7, count: 20)))
+
+        XCTAssertNil(controller.observe(bad), "单段卡顿只是噪声，降级看的是连续观测（方案 §20.4）")
+        XCTAssertNil(controller.observe(good), "中间一段流畅就清掉坏连击")
+        for _ in 0..<10 {
+            _ = controller.observe(bad)
+            _ = controller.observe(good)
+        }
+        XCTAssertEqual(controller.level, .full, "好一段坏一段的抖动序列永远不该改变等级")
+
+        _ = controller.observe(bad)
+        XCTAssertEqual(controller.observe(bad), .light, "连续两段超预算降一级，并返回新等级")
+        XCTAssertTrue(controller.reason.contains("轻量"), "降级必须留下可读的原因：\(controller.reason)")
+
+        for _ in 0..<7 { XCTAssertNil(controller.observe(good), "一段流畅不足以恢复") }
+        XCTAssertEqual(controller.level, .light)
+        XCTAssertEqual(controller.observe(good), .full, "连续八段流畅才升一级：升得比降慢一个量级")
+
+        for _ in 0..<4 { _ = controller.observe(bad) }
+        XCTAssertEqual(controller.level, .fade, "继续超预算一路降到最简淡化")
+        XCTAssertNil(controller.observe(bad), "已经是最低档，没有更可降的")
+        XCTAssertNil(controller.observe(bad))
+    }
+
+    func testW22ReduceMotionAndPressureSetTheBaseLevelAndResetObservations() throws {
+        let good = try XCTUnwrap(FrameIntervalStats.measure(Array(repeating: 16.7, count: 20)))
+        let bad = try XCTUnwrap(FrameIntervalStats.measure([16.7, 50, 50, 50, 16.7]))
+
+        var reduced = MotionLevelController(reduceMotion: true)
+        XCTAssertEqual(reduced.level, .fade, "系统减少动态效果直接钉在淡化")
+        for _ in 0..<20 {
+            XCTAssertNil(reduced.observe(good), "钉住期间观测不改变等级，也不该误报变化")
+        }
+        reduced.update(reduceMotion: false, pressureTier: .balanced)
+        XCTAssertEqual(reduced.level, .full, "关闭减少动态效果回到基准")
+
+        var saving = MotionLevelController(pressureTier: .powerSaving)
+        XCTAssertEqual(saving.level, .light, "低功耗档位从轻量起步")
+        XCTAssertNil(saving.observe(bad))
+        XCTAssertEqual(saving.observe(bad), .fade, "基准是轻量时，连续超预算照样降到淡化")
+        saving.update(reduceMotion: false, pressureTier: .balanced)
+
+        var balanced = MotionLevelController()
+        _ = balanced.observe(bad)
+        _ = balanced.observe(bad)
+        XCTAssertEqual(balanced.level, .light)
+        balanced.update(reduceMotion: true, pressureTier: .balanced)
+        XCTAssertEqual(balanced.level, .fade)
+        balanced.update(reduceMotion: false, pressureTier: .balanced)
+        XCTAssertEqual(balanced.level, .full, "基准一变就重置旧观测：旧结论只对旧基准有效")
+    }
+
     // MARK: - W23 分隔线调整（方案 §5.2、§11.2、H08）
 
     func testW23DividerHitBandsSitInsideGapsAndClampToStyle() {

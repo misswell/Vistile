@@ -68,6 +68,8 @@ final class AppCoordinator {
     private var observers: [NSObjectProtocol] = []
     /// 分隔线拖动期间的外部写入节流（方案 §11.2）：15–20Hz 且一次在途；每个鼠标事件的预览不受它限制。
     private var railSizeWritePolicy = RailSizeWritePolicy()
+    /// 过渡动效等级决策（方案 §20.4）：基准来自系统减少动态效果与采集档位，连续卡顿观测再降级。
+    private var motionController = MotionLevelController()
 
     /// 返回总览期间被推迟的揭示（方案 §10.1：先让代理画完，再切换总览与两栏，避免一闪）。
     /// 效果按任意顺序到达，三件事齐了且飞行到位才真正落位；任一条件丢失就整组作废。
@@ -190,6 +192,7 @@ final class AppCoordinator {
         modes.textureProvider = { [weak self] identity in self?.renderer.texture(for: identity) }
         modes.onSceneReachedEnd = { [weak self] token in self?.handleSceneReachedEnd(token) }
         modes.onSceneFinished = { [weak self] token in self?.handleSceneFinished(token) }
+        modes.onSceneStats = { [weak self] kind, stats in self?.handleSceneStats(kind: kind, stats: stats) }
         // 交换执行器不自己判断状态：每一步都回来问唯一状态机这次交换还算不算数（方案 §8.2）。
         switchCoordinator.directive = { [weak self] token in
             guard let self else { return .aborted }
@@ -745,8 +748,11 @@ final class AppCoordinator {
 
     /// 预计算源/目标的全套外部事实：播放期间不再回读目录、不重排网格（方案 §10.6）。
     private var sceneFactory: TransitionSceneFactory {
+        // 每次起过渡前对齐一次基准事实：系统设置与采集档位可能刚刚变过（方案 §20.4）。
+        motionController.update(reduceMotion: state.policy.reduceMotion, pressureTier: state.policy.tier)
         var factory = TransitionSceneFactory()
         factory.reduceMotion = { [weak self] in self?.state.policy.reduceMotion ?? false }
+        factory.motionLevel = { [weak self] in self?.motionController.level ?? .full }
         factory.overviewImageRect = { [weak self] identity in self?.imageRects[identity] }
         factory.recordFrame = { [weak self] identity in self?.state.records[identity]?.frame }
         factory.displayFrame = { [weak self] displayID in self?.catalog.mapper.display(id: displayID)?.frame }
@@ -802,6 +808,20 @@ final class AppCoordinator {
             }
         }
         requestSync()
+    }
+
+    /// 过渡飞行的帧事实（方案 §20.3/§20.4）：逐场景记 P95 与掉帧，连续超预算的观测驱动降级（带滞后）。
+    private func handleSceneStats(kind: TransitionScene.Kind, stats: FrameIntervalStats) {
+        metrics.measure("过渡帧间隔p95·\(kind.displayName)",
+                        milliseconds: stats.p95MS,
+                        context: "n=\(stats.count)"
+                            + " 掉帧占比\(String(format: "%.1f%%", stats.longFrameRatio * 100))"
+                            + " 最长连续=\(stats.longestStutterRun)")
+        metrics.increment(stats.meetsTarget ? "过渡帧预算内" : "过渡超帧预算")
+        if let changed = motionController.observe(stats) {
+            log("motion", "动效等级变化：\(motionController.reason)")
+            metrics.increment("动效等级.\(changed.rawValue)")
+        }
     }
 
     /// 三件事齐了（两栏收起、总览上屏、飞行到位）才做一次真正切换；缺一件就继续等（方案 §10.1）。

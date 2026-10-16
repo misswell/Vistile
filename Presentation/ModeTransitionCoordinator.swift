@@ -47,6 +47,7 @@ final class TransitionCarrierView: NSView {
         var startAlpha: CGFloat
         var endAlpha: CGFloat
         var aspect: CGFloat
+        var fadeFraction: CGFloat
         var frame: MetalFrame?
     }
 
@@ -71,6 +72,8 @@ final class TransitionCarrierView: NSView {
     private var displayLink: CADisplayLink?
     private let tickBridge = TickBridge()
     private var lastTickAt: CFTimeInterval = 0
+    /// 本段场景飞行期间的帧间隔样本（ms）；播放结束按场景给出 P95 与掉帧事实（方案 §20.3）。
+    private var frameIntervalsMS: [Double] = []
     private var rearmTimer: Timer?
     private var holdLabelTimer: Timer?
     private var holdDeadlineTimer: Timer?
@@ -80,6 +83,8 @@ final class TransitionCarrierView: NSView {
 
     var onReachedEnd: (() -> Void)?
     var onFinished: (() -> Void)?
+    /// 一段飞行的帧间隔统计（方案 §20.3）：每次过渡结束后给一次，供诊断与降级决策。
+    var onFlightStats: ((TransitionScene.Kind, FrameIntervalStats) -> Void)?
 
     var isPlaying: Bool { phase == .playing }
     var isHolding: Bool { phase == .holding }
@@ -139,6 +144,7 @@ final class TransitionCarrierView: NSView {
                                               startAlpha: startAlpha,
                                               endAlpha: card.endAlpha,
                                               aspect: card.aspect,
+                                              fadeFraction: card.fadeFraction,
                                               frame: sources[card.identity])
             if card.isFocus { focusIdentity = card.identity }
         }
@@ -149,6 +155,7 @@ final class TransitionCarrierView: NSView {
             : TransitionTimeline.backdropAlpha(scene.backdrop, progress: 0)
         duration = max(0.016, TimeInterval(scene.durationMS) / 1000)
         lastProgress = 0
+        frameIntervalsMS.removeAll()
         metalLayer.opacity = 1
         phase = .playing
         startTimestamp = CACurrentMediaTime()
@@ -216,16 +223,24 @@ final class TransitionCarrierView: NSView {
 
     /// 时间轴推进：真实播放由 CADisplayLink 调，测试用给定时间戳驱动同一段代码。
     func advance(to timestamp: CFTimeInterval) {
+        let previousTick = lastTickAt
         lastTickAt = timestamp
         let now = timestamp
         switch phase {
         case .playing:
+            // 第一个 tick 没有参考间隔；其余按真实到帧时间记样本（方案 §20.3）。
+            if previousTick > 0 {
+                frameIntervalsMS.append((timestamp - previousTick) * 1000)
+            }
             let raw = duration > 0 ? (now - startTimestamp) / duration : 1
             let progress = CGFloat(min(1, max(0, raw)))
             render(progress: progress)
             if progress >= 1 {
                 phase = .holding
                 stopClock()
+                if let scene, let stats = FrameIntervalStats.measure(frameIntervalsMS) {
+                    onFlightStats?(scene.kind, stats)
+                }
                 onReachedEnd?()
                 // 宿主可能在这一刻就完成交接（返回总览：总览面板显示后立刻淡出）。
                 if phase == .holding { scheduleHoldChecks() }
@@ -356,7 +371,8 @@ final class TransitionCarrierView: NSView {
                 alpha = (state.endAlpha > 0.01 ? eased : 1 - eased) * state.endAlpha
             } else {
                 container = TransitionTimeline.interpolate(state.start, state.end, progress: eased)
-                alpha = state.startAlpha + (state.endAlpha - state.startAlpha) * eased
+                let alphaT = TransitionTimeline.alphaProgress(eased, fadeFraction: state.fadeFraction)
+                alpha = state.startAlpha + (state.endAlpha - state.startAlpha) * alphaT
             }
             presented[identity] = cgRect(fromView: container)
             presentedAlphas[identity] = alpha
@@ -400,6 +416,11 @@ final class TransitionCarrierView: NSView {
     /// 此刻这一身份在屏幕上的画面矩形（CG 全局）。播放层只读观察点：宿主自检与测试用。
     func presentedRect(for identity: WindowIdentity) -> CGRect? {
         presentedRects[identity]
+    }
+
+    /// 此刻这一身份在屏幕上的透明度。只读观察点：轻量等级的短交叉淡化据此对账（方案 §20.4）。
+    func presentedAlpha(for identity: WindowIdentity) -> CGFloat? {
+        presentedAlphas[identity]
     }
 
     // MARK: - 保持提示
@@ -469,6 +490,8 @@ final class ModeTransitionCoordinator {
     var onSceneReachedEnd: ((TransitionToken) -> Void)?
     /// 承载层完全消失（淡出结束/被丢弃）。
     var onSceneFinished: ((TransitionToken) -> Void)?
+    /// 飞行帧事实（方案 §20.3）：P95 帧间隔与掉帧，每次过渡结束报告一次。
+    var onSceneStats: ((TransitionScene.Kind, FrameIntervalStats) -> Void)?
 
     private let metal: MetalContext
     private var carriers: [UInt32: TransitionCarrierWindow] = [:]
@@ -593,6 +616,9 @@ final class ModeTransitionCoordinator {
                 _ = window
             }
             self.onSceneFinished?(token)
+        }
+        created.carrierView.onFlightStats = { [weak self] kind, stats in
+            self?.onSceneStats?(kind, stats)
         }
         carriers[displayID] = created
         return created

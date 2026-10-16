@@ -23,13 +23,13 @@ struct TransitionScene {
     struct Card {
         let identity: WindowIdentity
         /// 画面容器起点：内容按 aspect 等比适配进这个矩形。
-        let start: CGRect
+        var start: CGRect
         /// 画面容器终点；nil 表示没有可信落点：原地淡出，不伪造位置（方案 §4.2.5）。
         let end: CGRect?
         /// 卡片底板（格子底色）的起止；nil 表示这一端不画底板。end 为 nil 时底板随飞行淡出。
-        let cellStart: CGRect?
+        var cellStart: CGRect?
         let cellEnd: CGRect?
-        let startAlpha: CGFloat
+        var startAlpha: CGFloat
         let endAlpha: CGFloat
         /// 内容等比适配用的宽高比：取有效捕获内容/真实窗口，不用含标题条的格子比例（方案 §4.3）。
         let aspect: CGFloat
@@ -37,6 +37,9 @@ struct TransitionScene {
         let hidesRailCard: Bool
         /// 主区里的那一张：保持提示语与"正在切换"落在它附近，也最后绘制。
         let isFocus: Bool
+        /// 透明度在这个进度的分数处就走到终点（1 = 与整段动画同长）。
+        /// 轻量等级用它把"其余卡片"的淡化压进 100–160ms（方案 §20.4）。
+        var fadeFraction: CGFloat = 1
     }
 
     enum Backdrop {
@@ -56,6 +59,8 @@ struct TransitionScene {
     let durationMS: Int
     /// 减少动态效果：不做几何飞行，卡片固定在终点短淡化（方案 §10.5）。
     let fadeOnly: Bool
+    /// 播放这段场景时生效的动效等级（方案 §20.4），供诊断与测试对账。
+    let level: MotionLevel
 
     var hiddenRailIdentities: Set<WindowIdentity> {
         Set(cards.filter(\.hidesRailCard).map(\.identity))
@@ -101,6 +106,13 @@ enum TransitionTimeline {
         return CGRect(x: container.midX - width / 2, y: container.minY, width: width, height: container.height)
     }
 
+    /// 卡片透明度按各自的淡化窗口推进（方案 §20.4：轻量等级把"其余卡片"的 100–160ms
+    /// 对照整段时长折算成分数；fadeFraction = 1 时就是整段匀速）。
+    static func alphaProgress(_ progress: CGFloat, fadeFraction: CGFloat) -> CGFloat {
+        guard fadeFraction > 0 else { return 1 }
+        return min(1, max(0, progress) / fadeFraction)
+    }
+
     /// 底色在整段飞行里的透明度。opaque 从头就不透明；rising 在前 62% 升满，遮住真实窗口的落定过程。
     static func backdropAlpha(_ backdrop: TransitionScene.Backdrop, progress: CGFloat) -> CGFloat {
         switch backdrop {
@@ -122,6 +134,10 @@ enum TransitionTimeline {
 struct TransitionSceneFactory {
     var background: SIMD4<Float> = SIMD4<Float>(0.078, 0.082, 0.094, 1)
     var reduceMotion: () -> Bool = { false }
+    /// 当前动效等级（方案 §20.4）。降级只改变"怎么画"，不改变计划里的端点与最终画面。
+    var motionLevel: () -> MotionLevel = { .full }
+    /// 轻量等级下"其余卡片"的交叉淡化时长（方案 §20.4：100–160ms）。
+    static let lightCrossfadeMS: CGFloat = 140
     /// 总览里这张卡片画面实际占的矩形（就是总览画的那个 imageRect）。
     var overviewImageRect: (WindowIdentity) -> CGRect? = { _ in nil }
     /// 真实窗口此刻的 frame（交换动画的起点用事实而不是推算）。
@@ -132,6 +148,8 @@ struct TransitionSceneFactory {
     var aspect: (WindowIdentity, CGRect) -> CGFloat = { _, rect in
         max(0.2, rect.width / max(1, rect.height))
     }
+
+    private var level: MotionLevel { motionLevel() }
 
     static func aspect(frame: MetalFrame?, recordFrame: CGRect?, fallback: CGRect?) -> CGFloat {
         if let meta = frame?.meta {
@@ -182,13 +200,18 @@ struct TransitionSceneFactory {
                                       hidesRail: false) else { continue }
             cards.append(card)
         }
+        // 淡化等级即使系统没有开"减少动态效果"，也改用 80–120ms 的短淡化时长（方案 §20.4）。
+        let durationMS = level == .fade
+            ? plan.snapshot.layout.style.entryAnimationMS(reduceMotion: true)
+            : plan.animationMS
         return TransitionScene(kind: .entering,
                                token: plan.token,
                                displayID: plan.displayID,
                                backdrop: .opaque(background),
-                               cards: cards,
-                               durationMS: plan.animationMS,
-                               fadeOnly: reduceMotion())
+                               cards: degradeToLight(cards, durationMS: durationMS),
+                               durationMS: durationMS,
+                               fadeOnly: level == .fade || reduceMotion(),
+                               level: level)
     }
 
     /// L 型 → 总览：主窗口缩回自己的总览位置，其余卡片回各自位置（方案 §10.2）。
@@ -220,13 +243,17 @@ struct TransitionSceneFactory {
                                       hidesRail: true) else { continue }
             cards.append(card)
         }
+        let durationMS = level == .fade
+            ? plan.snapshot.layout.style.returnAnimationMS(reduceMotion: true)
+            : plan.animationMS
         return TransitionScene(kind: .returning,
                                token: plan.token,
                                displayID: plan.displayID,
                                backdrop: .rising(background),
-                               cards: cards,
-                               durationMS: plan.animationMS,
-                               fadeOnly: reduceMotion())
+                               cards: degradeToLight(cards, durationMS: durationMS),
+                               durationMS: durationMS,
+                               fadeOnly: level == .fade || reduceMotion(),
+                               level: level)
     }
 
     /// L 型内交换：B 向主区展开，A 向 B 原 slot 收回，其它一律不动（方案 §10.3）。
@@ -268,16 +295,37 @@ struct TransitionSceneFactory {
                                               hidesRailCard: true,
                                               isFocus: false))
         }
+        let fadeOnly = level == .fade || reduceMotion()
+        let durationMS = snapshot.layout.style.switchAnimationMS(reduceMotion: fadeOnly)
         return TransitionScene(kind: .swapping,
                                token: intent.token,
                                displayID: plan.displayID,
                                backdrop: .transparent,
-                               cards: cards,
-                               durationMS: snapshot.layout.style.switchAnimationMS(reduceMotion: reduceMotion()),
-                               fadeOnly: reduceMotion())
+                               cards: degradeToLight(cards, durationMS: durationMS),
+                               durationMS: durationMS,
+                               fadeOnly: fadeOnly,
+                               level: level)
     }
 
     // MARK: - 组装
+
+    /// 轻量等级（方案 §20.4）：只让选中卡片做几何缩放，其余卡片不做任何位移，
+    /// 直接落在终点并用 100–160ms 完成淡化——每帧要插值的运动卡片数减到一张。
+    private func degradeToLight(_ cards: [TransitionScene.Card], durationMS: Int) -> [TransitionScene.Card] {
+        guard level == .light, durationMS > 0 else { return cards }
+        let fadeFraction = min(1, Self.lightCrossfadeMS / CGFloat(durationMS))
+        return cards.map { card in
+            guard !card.isFocus else { return card }
+            var light = card
+            if let end = card.end {
+                light.start = end
+                light.startAlpha = 0
+            }
+            light.cellStart = nil
+            light.fadeFraction = fadeFraction
+            return light
+        }
+    }
 
     private func makeCard(identity: WindowIdentity,
                           contentStart: CGRect,
