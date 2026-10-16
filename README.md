@@ -12,9 +12,9 @@
 git clone https://github.com/misswell/Vistile.git
 ```
 
-Release 页目前附带本机可用的 `Vistile-0.1.0-arm64-devsigned.zip`。它只有 Apple Development 签名、未做 Developer ID 与公证，换一台机器会被 Gatekeeper 拦下；下一个版本起改为 GitHub Actions 产出的 Developer ID 签名 + 已公证 `.dmg`——那是装到别的 Apple Silicon Mac 上的**必要条件**，见下面「签名与公证」；真机放行还没实测过。
+Release 页当前版本 `v0.1.1` 附带 GitHub Actions 产出的 **Developer ID 签名 + Apple 公证 + 已装订** `.dmg`（`Vistile_v0.1.1_macos_arm64.dmg`，arm64）。从 Release 页重新下载的字节已实测：dmg 与镜像内的 `Vistile.app` 票据都有效，证书链走到 Apple Root CA，`flags=0x10000(runtime)`，单架构 `arm64`；发布那次的 runner 上 Gatekeeper 评估是开启的，`spctl` 两处都回 `accepted / source=Notarized Developer ID`。旧的 `v0.1.0` 那条只有 Apple Development 签名、未公证，只在本机可用。
 
-> 公证只解决「别人能不能装」，不解决「功能对不对」：上面那条 P0 未验收的状态不会因为有票据而改变。
+> 公证解决的是「别人能不能装」。P0 功能验收、跨应用兼容矩阵仍然没通过、仍然未测——见下面两句，别把票据当成质量证明。
 
 ## 环境
 
@@ -163,7 +163,8 @@ open build/Build/Products/Debug/UITestHarness.app   # 可用 HARNESS_WINDOWS=12 
 
 ## 已知限制
 
-- 未做 Developer ID 签名与公证：换机器需要重新构建，且 Gatekeeper 会拦。
+- `v0.1.0` 那条资产只有 Apple Development 签名、未公证，换机器装不上；`v0.1.1` 起才是 Developer ID + 公证 + 装订的 `.dmg`。
+- 公证包只在一台 Gatekeeper 评估开启的干净 runner 上验过放行，**用户自己的 Mac 与 Intel 机器仍未实测**。
 - 过渡动画层（代理窗口能否稳定盖住真实窗口）属于 P0 待验证项，验证前不得视为已完成。
 - 全屏 Space、Stage Manager、窗口组、受保护内容（DRM）、不提供 AX 的进程：结构上允许降级为"标注清楚的低频/静态卡片"，但兼容性一律**未测**。
 - 撤销权限后必须重启应用才能恢复捕获：这是系统限制，界面上会明说。

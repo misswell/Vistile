@@ -16,7 +16,16 @@
 
 安装包由 GitHub Actions 用 Developer ID 签名（hardened runtime + 时间戳）、经 Apple 公证并装订票据。发布前 CI 会硬验两处：`codesign -dvvv` 的证书链里必须有 `Authority=Developer ID Application`，挂载后镜像里那个 `Vistile.app` 必须 `stapler validate` 通过。架构只有 arm64（Apple Silicon），Intel 包不提供。
 
-「装到别人机器上会不会被拦」这一格在兼容矩阵里仍是**未测**：公证票据是 Gatekeeper 放行的必要条件，但本机 `spctl` 的评估是被关掉的，测不出真实放行行为，所以这里不写「一定不拦」。
+下载后可以自己复核（不需要任何额外工具）：
+
+```bash
+hdiutil attach Vistile_v0.1.1_macos_arm64.dmg
+xcrun stapler validate "/Volumes/"*/Vistile.app      # 期望 The validate action worked!
+codesign -dvvv "/Volumes/"*/Vistile.app 2>&1 | grep -E "Authority=Developer ID|flags=0x"
+hdiutil detach "/Volumes/"*
+```
+
+这台包在 CI 里已经过了 Gatekeeper 评估开启的干净 arm64 机器：runner 上 `spctl --status` 是 `assessments enabled`，对构建产物和挂载出来的 app 都回 `accepted / source=Notarized Developer ID`。**你自己的 Mac 第一次安装体验仍未测**——权限授予流程、是否被系统二次确认，都要真机才知道；开发机这边 `spctl` 评估是关掉的，测不出这一层。
 
 ## 构建与测试
 

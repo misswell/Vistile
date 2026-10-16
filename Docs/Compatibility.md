@@ -28,7 +28,10 @@
 | 干跑产物的签名实况 | `flags=0x20002(adhoc,linker-signed)`、无票据、`stapler validate` 报 "does not have a ticket" | 下载 run 38773467420 的 dmg 实测 |
 | 已证明 | 未签名干跑通过：76 项测试在 Swift 6.0.3 下全绿、App 用 SDK 15.2 编过、dmg 能挂载、镜像里的 app 是 arm64 单架构 | 同上 |
 | 已证明（负向） | 零凭据时 `probeCredentials` 红在第一步并报出缺的键名（`缺少 APPLE_DEVELOPER_ID_P12_BASE64`），不静默通过、不发布 | run [`38774694133`](https://github.com/misswell/Vistile/actions/runs/38774694133) |
-| 未证明 | Developer ID 签名链、公证、票据装订、真机 Gatekeeper 放行——缺 secrets，干跑时这些被显式跳过 | — |
+| 已证明（签名与公证） | Developer ID 身份导入并试签通过；`.app` 与 `.dmg` 各自公证后 `stapler` 都回 "The staple and validate action worked!"；挂载后镜像里的 `Vistile.app` 票据仍有效；`flags=0x10000(runtime)`；`lipo -archs` 仍是 `arm64` | run [`38827757461`](https://github.com/misswell/Vistile/actions/runs/38827757461) |
+| 已证明（Gatekeeper） | **runner 上 `spctl --status` 是 `assessments enabled`**，`spctl -a -t exec` 对构建产物和挂载出来的 app 都回 `accepted` / `source=Notarized Developer ID`——这是一台评估开启的干净 arm64 机器给出的放行结论 | 同上，以及发布那次 run [`38828073929`](https://github.com/misswell/Vistile/actions/runs/38828073929) |
+| 已证明（发布字节） | 从 Release 页重新下载的 `Vistile_v0.1.1_macos_arm64.dmg`（1164713 字节，`sha256 01646765…97760`）挂载后：dmg 与镜像内 app 的票据都 `The staple and validate action worked!`，`Authority=Developer ID Application`，`flags=0x10000(runtime)`，`arm64` 单架构 | 本机对下载文件实测 |
+| 未证明 | 用户自己的 Mac 上双击安装的实际体验（权限授予流程、是否被拦）、Intel 机器、以及 P0 的功能行为 | — |
 
 同一套脚本在本机用 `Apple Development` 身份跑过 `SKIP_NOTARIZE=1`：镜像里的 app 确实是
 `flags=0x10000(runtime)`、证书链走到 Apple Root CA，但 `Authority` 不是 Developer ID Application，
@@ -39,6 +42,10 @@
 CI 复核因此先把评估状态打进日志，硬把关放在两处与机器设置无关的地方——
 `codesign -dvvv` 里必须有 `Authority=Developer ID Application`，`stapler validate` 必须有票据
 （包括挂载后对镜像里那个 `Vistile.app` 再验一次）。评估开着时 `spctl` 才作为附加证据。
+
+真公证那一次（run 38827757461 / 发布那次 38828073929）里 runner 的评估状态是 `assessments enabled`，
+两条 `spctl -a -t exec` 都回 `accepted` 且 `source=Notarized Developer ID`——所以这条不是「没测」，
+而是一台评估开启的干净 arm64 机器给出的放行结论；仍然没测的是用户自己那台机器的首次安装体验。
 
 开发机的 Xcode 27 / SDK 27.0 与 runner 的 Xcode 16.2 / SDK 15.2 差别是真实的：`_TestSupport.swift` 里一条把整型除法、
 `CGFloat` 乘法和 `CGRect(origin:size:)` 嵌进同一次调用的表达式，在本机正常、在 16.2 上直接
