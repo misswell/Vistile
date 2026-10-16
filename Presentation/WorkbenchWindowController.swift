@@ -150,10 +150,22 @@ final class WorkbenchWindowController {
     }
 
     func hide() {
-        for view in [topRailView, sideRailView] { view.cancelMouseGesture() }
+        for view in [topRailView, sideRailView] {
+            view.cancelMouseGesture()
+            view.setHiddenRailIdentities([])
+        }
         toolbar.endSearchEditing()
         setSearchKeyboard(false)
         for panel in [topPanel, sidePanel] { panel.orderOut(nil) }
+    }
+
+    /// 过渡承载层接管这些身份：两栏里对应的卡片先不画，避免同屏出现两份（方案 §10.6）。
+    /// 返回 true 表示集合变了、调用方需要推一次新投影让隐藏生效。
+    @discardableResult
+    func setHiddenRailIdentities(_ identities: Set<WindowIdentity>) -> Bool {
+        let topChanged = topRailView.setHiddenRailIdentities(identities)
+        let sideChanged = sideRailView.setHiddenRailIdentities(identities)
+        return topChanged || sideChanged
     }
 
     /// 搜索期间的 key 策略：只有搜索框在编辑时面板才接受键盘（方案 §9.3）。

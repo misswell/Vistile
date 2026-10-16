@@ -35,6 +35,9 @@ final class WorkbenchRailView: NSView {
     private var chromeLayers: [RailSlotID: CardChrome] = [:]
     private var emptyLayers: [RailSlotID: EmptySlotChrome] = [:]
     private(set) var lastCards: [RailSlotID: WorkbenchCard] = [:]
+    /// 过渡承载层正在画这些身份：栏里对应的卡片（含底板与标题）先藏起来，避免出现两份。
+    private var hiddenIdentities: Set<WindowIdentity> = []
+    private var hiddenDirty = false
     /// 最近一次投影里的滚动偏移：scrollWheel 在它基础上提出新值。
     private(set) var scrollOffset: CGFloat = 0
     private var hoveredSlot: RailSlotID?
@@ -102,6 +105,15 @@ final class WorkbenchRailView: NSView {
 
     // MARK: - 同步与绘制
 
+    /// 过渡承载层接管这些卡片：两栏按新集合重绘一次（返回是否有变化）。
+    @discardableResult
+    func setHiddenRailIdentities(_ identities: Set<WindowIdentity>) -> Bool {
+        guard identities != hiddenIdentities else { return false }
+        hiddenIdentities = identities
+        hiddenDirty = true
+        return true
+    }
+
     /// 按冻结投影重建这一条栏的几何与装饰层；画面重绘由新帧或几何变化驱动。
     func update(snapshot: WorkbenchLayoutSnapshot,
                 cards: [WorkbenchCard],
@@ -128,6 +140,12 @@ final class WorkbenchRailView: NSView {
         var keep: Set<RailSlotID> = []
         for entry in slotRects where entry.cellRect.intersects(bounds) {
             keep.insert(entry.slot)
+            if let identity = entry.identity, hiddenIdentities.contains(identity) {
+                // 这张卡片此刻由过渡承载层绘制：栏里的副本（画面、底板、标题）一起藏起来。
+                chromeLayers[entry.slot]?.container.isHidden = true
+                emptyLayers[entry.slot]?.container.isHidden = true
+                continue
+            }
             let record = bySlot[entry.slot]?.record
             if entry.identity == nil, emptySet.contains(entry.slot) {
                 let chrome = emptyLayers[entry.slot] ?? {
@@ -136,6 +154,7 @@ final class WorkbenchRailView: NSView {
                     emptyLayers[entry.slot] = created
                     return created
                 }()
+                chrome.container.isHidden = false
                 chrome.layout(in: entry.cellRect, style: chromeStyle, scale: backingScaleFactor)
                 continue
             }
@@ -145,6 +164,7 @@ final class WorkbenchRailView: NSView {
                 chromeLayers[entry.slot] = created
                 return created
             }()
+            chrome.container.isHidden = false
             applyChrome(chrome, entry: entry, record: record)
         }
         for (slot, chrome) in chromeLayers where !keep.contains(slot) {
@@ -157,7 +177,9 @@ final class WorkbenchRailView: NSView {
         }
 
         let geometryChanged = slotRects != oldGeometry
-        redraw(using: renderer, mailboxes: mailboxes, force: geometryChanged)
+        let forced = geometryChanged || hiddenDirty
+        hiddenDirty = false
+        redraw(using: renderer, mailboxes: mailboxes, force: forced)
     }
 
     private func applyChrome(_ chrome: CardChrome, entry: SlotGeometry, record: WindowRecord?) {
@@ -196,6 +218,8 @@ final class WorkbenchRailView: NSView {
         var cards: [CardDraw] = []
         var placeholders: [(rect: CGRect, tint: SIMD4<Float>)] = []
         for entry in visible {
+            // 由过渡承载层绘制的身份：栏里连底板带画面都不画，交给承载层画一份。
+            if let identity = entry.identity, hiddenIdentities.contains(identity) { continue }
             placeholders.append((rect: entry.cellRect, tint: SIMD4<Float>(0.09, 0.09, 0.10, 1)))
             guard let identity = entry.identity else { continue }
             cards.append(CardDraw(identity: identity, imageRect: entry.contentRect, opacity: 1, frame: nil))

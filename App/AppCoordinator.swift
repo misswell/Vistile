@@ -28,6 +28,8 @@ final class AppCoordinator {
     private let renderer: OverviewRenderer
     /// 启动时创建的共享设备：总览图层与代理图层都必须绑定它（R02）。
     private let metal: MetalContext
+    /// 过渡承载层（方案 §10.6）：总览↔L 型、栏内交换的短时合成层都由它播放。
+    private let modes: ModeTransitionCoordinator
 
     // MARK: - 状态
 
@@ -38,6 +40,8 @@ final class AppCoordinator {
     private(set) var workbenchPresentation: WorkbenchPresentation?
     private(set) var layouts: [UInt32: GridLayout] = [:]
     private(set) var cardRects: [WindowIdentity: CGRect] = [:]
+    /// 总览里每张卡片画面实际占的矩形：进入动画的起点必须就是它画的那一格（方案 §10.1）。
+    private var imageRects: [WindowIdentity: CGRect] = [:]
     var onStatus: ((String) -> Void)?
 
     /// 供 P0 记录的事实计数（方案 §4：不能仅凭"返回无错误"通过）。
@@ -62,6 +66,18 @@ final class AppCoordinator {
     private var lastOpenConditions: OpenConditions?
     private var observers: [NSObjectProtocol] = []
 
+    /// 返回总览期间被推迟的揭示（方案 §10.1：先让代理画完，再切换总览与两栏，避免一闪）。
+    /// 效果按任意顺序到达，三件事齐了且飞行到位才真正落位；任一条件丢失就整组作废。
+    private struct PendingReveal {
+        let token: TransitionToken
+        var hideWorkbench = false
+        var showOverview = false
+        var preferredDisplay: UInt32?
+        var keyboard = false
+        var reachedEnd = false
+    }
+    private var pendingReveal: PendingReveal?
+
     /// 渲染设备与着色器由调用方先建好：启动被阻塞时要分得清是"没有 Metal 设备"还是"着色器没编译过"。
     init(settings: SettingsModel,
          permissions: PermissionManager,
@@ -82,6 +98,7 @@ final class AppCoordinator {
         self.journal = journal
         self.catalog = catalog
         self.capture = CaptureCoordinator(metal: metal, catalog: catalog)
+        self.modes = ModeTransitionCoordinator(metal: metal)
         // 恢复执行器先建：过渡执行器的恢复全部委托给它，避免两套恢复规则（方案 §6.5）。
         let recovery = RecoveryCoordinator(store: journal,
                                            writer: resolver,
@@ -143,8 +160,33 @@ final class AppCoordinator {
         focus.textureProvider = { [weak self] identity in self?.renderer.texture(for: identity) }
         // 过期的过渡不许再改状态：宿主用状态机自己那一次令牌判定。
         focus.isTokenCurrent = { [weak self] token in self?.state.phase.token == token }
-        switchCoordinator.onEvent = { [weak self] event in self?.dispatch(event) }
+        switchCoordinator.onEvent = { [weak self] event in
+            guard let self else { return }
+            // 动画交接的开关只跟"真实结果"走：到位/提交才淡化，失败/取消立刻收（方案 §10.1、§10.4）。
+            switch event {
+            case let .workbenchTransitionFinished(token, _, result):
+                if result.allowsContinue { self.modes.confirm(token) } else { self.modes.retreat(token) }
+            case let .mainSwitchCommitted(token):
+                self.modes.confirm(token)
+            case let .mainSwitchFailed(token, _):
+                self.modes.retreat(token)
+            default:
+                break
+            }
+            self.dispatch(event)
+        }
         switchCoordinator.onStatus = { [weak self] text in self?.log("workbench", text) }
+
+        // 承载层的屏幕事实与画面源都从同一处读：播放期间不重新发现窗口（方案 §10.6）。
+        modes.displayFacts = { [weak self] displayID in
+            guard let self, let display = self.catalog.mapper.display(id: displayID) else { return nil }
+            return ModeTransitionCoordinator.DisplayFacts(cgFrame: display.frame,
+                                                          appKitFrame: self.catalog.mapper.cgToAppKit(display.frame),
+                                                          scale: display.backingScale)
+        }
+        modes.textureProvider = { [weak self] identity in self?.renderer.texture(for: identity) }
+        modes.onSceneReachedEnd = { [weak self] token in self?.handleSceneReachedEnd(token) }
+        modes.onSceneFinished = { [weak self] token in self?.handleSceneFinished(token) }
         // 交换执行器不自己判断状态：每一步都回来问唯一状态机这次交换还算不算数（方案 §8.2）。
         switchCoordinator.directive = { [weak self] token in
             guard let self else { return .aborted }
@@ -364,7 +406,14 @@ final class AppCoordinator {
             if hidden { renderer.releaseAll() }
 
         case let .showOverview(displayID):
-            showOverview(preferredDisplay: displayID)
+            if var reveal = pendingReveal {
+                reveal.showOverview = true
+                reveal.preferredDisplay = displayID
+                pendingReveal = reveal
+                completeRevealIfReady()
+            } else {
+                showOverview(preferredDisplay: displayID)
+            }
 
         case .hideOverview:
             hideOverview()
@@ -412,20 +461,42 @@ final class AppCoordinator {
             // 投影立刻生效：总览面板收起、两栏按冻结几何显示，然后才写主窗口（方案 §4.2）。
             workbenchPresentation = plan.presentation
             ensureWorkbenchControllers()
+            // 承载层先上屏（同一 tick 内同步画第一帧），真实窗口的 resize/聚焦都发生在遮罩之后（方案 §10.1）。
+            playTransition(sceneFactory.entering(plan))
+            refreshFlightTexture(plan.identity, cellWidth: plan.targetFrame.width)
             switchCoordinator.perform(plan)
 
         case let .returnToOverview(plan):
+            pendingReveal = PendingReveal(token: plan.token)
+            playTransition(sceneFactory.returning(plan))
+            refreshFlightTexture(plan.identity, cellWidth: plan.snapshot.layout.mainRect.width)
             switchCoordinator.perform(plan)
 
         case let .beginMainSwitch(plan):
+            playTransition(sceneFactory.swapping(plan))
+            // B 进主区、A 回轨道：两张的画面源都在飞行中刷新一次，交接时不再是旧图（方案 §10.3）。
+            refreshFlightTexture(plan.intent.to, cellWidth: plan.mainTargetFrame.width)
+            if let from = plan.intent.from {
+                let restingWidth = plan.restingSlot.flatMap { plan.snapshot.contentRect(for: $0)?.width }
+                    ?? plan.mainTargetFrame.width
+                refreshFlightTexture(from, cellWidth: restingWidth)
+            }
             switchCoordinator.perform(plan)
 
         case .cancelWorkbenchTransition:
             // 目标消失或超时：停止后续步骤；已写入的窗口由事务日志交回恢复路径（方案 §10.5）。
+            pendingReveal = nil
+            modes.retreatActive()
             switchCoordinator.cancel()
 
         case .hideWorkbench:
-            hideWorkbenchPanels()
+            if var reveal = pendingReveal {
+                reveal.hideWorkbench = true
+                pendingReveal = reveal
+                completeRevealIfReady()
+            } else {
+                hideWorkbenchPanels()
+            }
 
         case let .updateWorkbenchLayout(presentation):
             workbenchPresentation = presentation
@@ -438,7 +509,14 @@ final class AppCoordinator {
             switchCoordinator.settle(identity, targetFrame: targetFrame, displayID: displayID, token: token)
 
         case let .setKeyboardFocus(focus):
-            applyKeyboardFocus(focus)
+            // 返回总览的键盘移交推迟到揭示那一刻：目标面板还没上屏就不该先接管键盘（方案 §10.1）。
+            if case .overview = focus, var reveal = pendingReveal {
+                reveal.keyboard = true
+                pendingReveal = reveal
+                needsSync = true
+            } else {
+                applyKeyboardFocus(focus)
+            }
 
         case let .scheduleReconcile(interval):
             scheduleReconcile(interval)
@@ -463,6 +541,8 @@ final class AppCoordinator {
         isSyncing = true
         defer { isSyncing = false }
         rebuildLayouts()
+        // 被拔掉的屏不再保留承载层：过渡画面只属于还在的屏幕（方案 §9.1）。
+        modes.retireDisplays(keeping: Set(catalog.mapper.displays.map(\.id)))
         guard state.phase.isVisible else { return }
 
         capture.sync(targets: captureTargets(), tier: state.policy.tier, isAnimating: focus.isAnimating)
@@ -490,8 +570,11 @@ final class AppCoordinator {
     }
 
     /// 总览面板只在总览模式显示：进入 L 型后（含过渡中）全屏覆盖层必须先收起（方案 §4.2）。
+    /// 返回总览的飞行还在屏幕上时也不例外：等揭示再显示，避免"一闪关掉再弹新界面"（方案 §10.1）。
     private func syncOverviewPanels() {
-        let shouldShow = state.mode == .overview && !state.workbench.modeTransition.isTransitioning
+        let shouldShow = state.mode == .overview
+            && !state.workbench.modeTransition.isTransitioning
+            && pendingReveal == nil
         for controller in controllers.values {
             if shouldShow {
                 if !controller.isVisible {
@@ -508,8 +591,11 @@ final class AppCoordinator {
     }
 
     /// 两条栏按冻结投影显示；投影退化或没有投影时不留下零尺寸空面板（方案 §9.1）。
+    /// 返回总览的飞行期间两栏必须留在屏幕上（承载层要盖着它们飞），所以揭示前都算"engaged"。
     private func syncWorkbenchPanels() {
-        let engaged = state.workbench.modeTransition.isTransitioning || state.mode == .workbench
+        let engaged = state.workbench.modeTransition.isTransitioning
+            || state.mode == .workbench
+            || pendingReveal != nil
         guard engaged, let presentation = workbenchPresentation else {
             for controller in workbenchControllers.values where controller.isVisible { controller.hide() }
             return
@@ -524,6 +610,8 @@ final class AppCoordinator {
             for id in controller.windowNumbers { catalog.registerOwnWindow(id: id) }
             appliedOrdering = nil
         }
+        // 承载层正在画的卡片先从栏里藏起来，再推投影：藏在重绘前生效，不会出现两份（方案 §10.6）。
+        controller.setHiddenRailIdentities(modes.hiddenRailIdentities)
         controller.update(presentation: presentation,
                           renderer: renderer,
                           mailboxProvider: { [weak self] identity in self?.capture.mailbox(for: identity) },
@@ -544,6 +632,7 @@ final class AppCoordinator {
     private func rebuildLayouts() {
         layouts.removeAll()
         cardRects.removeAll()
+        imageRects.removeAll()
         for (displayID, grid) in state.grids {
             var sizes: [WindowIdentity: CGSize] = [:]
             for identity in grid.occupiedIdentities {
@@ -554,6 +643,7 @@ final class AppCoordinator {
             for card in layout.cards {
                 guard let identity = state.slots.identity(at: card.slot) else { continue }
                 cardRects[identity] = card.cellRect
+                imageRects[identity] = card.imageRect
             }
             if !grid.isReadable, !hasWarnedTinyThumbnails, state.phase.isVisible {
                 hasWarnedTinyThumbnails = true
@@ -628,6 +718,88 @@ final class AppCoordinator {
         observerHub.update(windowElements: catalog.axEntries.mapValues { $0.map(\.element) })
     }
 
+    // MARK: - 过渡动画（方案 §10）
+
+    /// 预计算源/目标的全套外部事实：播放期间不再回读目录、不重排网格（方案 §10.6）。
+    private var sceneFactory: TransitionSceneFactory {
+        var factory = TransitionSceneFactory()
+        factory.reduceMotion = { [weak self] in self?.state.policy.reduceMotion ?? false }
+        factory.overviewImageRect = { [weak self] identity in self?.imageRects[identity] }
+        factory.recordFrame = { [weak self] identity in self?.state.records[identity]?.frame }
+        factory.displayFrame = { [weak self] displayID in self?.catalog.mapper.display(id: displayID)?.frame }
+        factory.aspect = { [weak self] identity, fallback in
+            guard let self else { return max(0.2, fallback.width / max(1, fallback.height)) }
+            return TransitionSceneFactory.aspect(frame: self.renderer.texture(for: identity),
+                                                 recordFrame: self.state.records[identity]?.frame,
+                                                 fallback: self.imageRects[identity] ?? fallback)
+        }
+        return factory
+    }
+
+    private func playTransition(_ scene: TransitionScene?) {
+        guard let scene else { return }
+        modes.play(scene)
+        // 场景一上屏，两栏就要按新的隐藏集合重绘一次。
+        needsSync = true
+    }
+
+    /// 飞行中刷新一张真实画面：到位后换纹理、不改时间轴；失败保留旧图，不把它当新帧外发（方案 §10.6）。
+    private func refreshFlightTexture(_ identity: WindowIdentity, cellWidth: CGFloat) {
+        let scale = state.displayID(of: identity).flatMap { catalog.mapper.display(id: $0)?.backingScale }
+            ?? catalog.mapper.primaryDisplay?.backingScale
+            ?? 2
+        Task { [weak self] in
+            guard let self else { return }
+            guard let frame = await self.capture.refreshSingleFrame(identity,
+                                                                    cellWidth: max(80, cellWidth),
+                                                                    backingScale: scale) else { return }
+            let aspect = TransitionSceneFactory.aspect(frame: frame,
+                                                       recordFrame: self.state.records[identity]?.frame,
+                                                       fallback: self.cardRects[identity])
+            self.modes.updateSource(identity, frame: frame, aspect: aspect)
+        }
+    }
+
+    /// 飞行到位（进入保持态）：返回总览的揭示要等这个时刻才允许落位（方案 §10.1）。
+    private func handleSceneReachedEnd(_ token: TransitionToken) {
+        guard var reveal = pendingReveal, reveal.token == token else { return }
+        reveal.reachedEnd = true
+        pendingReveal = reveal
+        completeRevealIfReady()
+    }
+
+    /// 承载层完全消失：栏里的静止副本恢复绘制；被推迟的揭示在这里兜底完成，不留半套界面。
+    private func handleSceneFinished(_ token: TransitionToken) {
+        if let reveal = pendingReveal, reveal.token == token {
+            pendingReveal = nil
+            if state.mode == .overview {
+                hideWorkbenchPanels()
+                showOverview(preferredDisplay: reveal.preferredDisplay)
+                if reveal.keyboard { applyKeyboardFocus(.overview) }
+            }
+        }
+        requestSync()
+    }
+
+    /// 三件事齐了（两栏收起、总览上屏、飞行到位）才做一次真正切换；缺一件就继续等（方案 §10.1）。
+    private func completeRevealIfReady() {
+        guard let reveal = pendingReveal,
+              reveal.hideWorkbench, reveal.showOverview, reveal.reachedEnd else { return }
+        pendingReveal = nil
+        hideWorkbenchPanels()
+        showOverview(preferredDisplay: reveal.preferredDisplay)
+        if reveal.keyboard { applyKeyboardFocus(.overview) }
+        modes.startHandoff(reveal.token)
+        needsSync = true
+    }
+
+    /// 需要一次收敛但可能不在事件管线内（承载层回调）：不在管线里就立刻同步。
+    private func requestSync() {
+        needsSync = true
+        guard !isDraining, !isSyncing else { return }
+        syncIfRequired()
+    }
+
     private func showOverview(preferredDisplay: UInt32?) {
         ensureControllers()
         applyOrdering()
@@ -643,6 +815,9 @@ final class AppCoordinator {
 
     private func hideOverview() {
         focus.cancelAnimation()
+        // 会话隐藏：承载层与推迟的揭示一起作废，不留任何透明层（方案 §10.4）。
+        pendingReveal = nil
+        modes.cancelAll()
         for controller in controllers.values {
             controller.setKeyboardFocus(false)
             controller.hide()
