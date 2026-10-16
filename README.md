@@ -12,7 +12,7 @@
 git clone https://github.com/misswell/Vistile.git
 ```
 
-Release 页当前版本 `v0.1.4` 附带 GitHub Actions 产出的 **Developer ID 签名 + Apple 公证 + 已装订** `.dmg`（`Vistile_v0.1.4_macos_arm64.dmg`，arm64，1400515 字节，`sha256 196b617a24b088673cdccead54203f6fd75b91b6f675a160d7a80cc6a182a1a9`，与 GitHub 资产接口回报的 digest 逐字节相同）。从 Release 页下载的字节已实测：挂载后 dmg 与镜像里的 `Vistile.app` 都回 `The staple and validate action worked!`，`codesign --verify --deep --strict` 回 `valid on disk` + `satisfies its Designated Requirement`，`Identifier=com.misswell.Vistile`、`Authority=Developer ID Application: Guofeng Liu (U8U443D7ZL)` 一路走到 Apple Root CA，`flags=0x10000(runtime)`，`lipo -archs` 只有 `arm64`，`Info.plist` 是 `0.1.4 / 5`；发布那次的 runner（run [`38869893108`](https://github.com/misswell/Vistile/actions/runs/38869893108)）上 Gatekeeper 评估是开启的，构建产物与挂载出来的 app 两处都回 `accepted / source=Notarized Developer ID`，公证成对：`.app` 07:54:42 `Accepted`、`.dmg` 07:55:18 `Accepted`（这一对取自 run 日志，Apple 侧 `notarytool history` 需要 issuer id，本机没取到）。覆盖安装进 `/Applications/Vistile.app` 后，`Contents/MacOS/Vistile` 的 `sha256`（`c1c64804df2e7f5e385ada9651044ad9ce587c9af224793b40139b9dde7a47d5`）与镜像里那个一字不差，所以 P0 探针跑的就是发布字节。上一版 `v0.1.3`（1380791 字节，`sha256 0bfb9a52712e2fa954700402606468ae19bef9b6cb7cf5ca556900a1fea760de`）与 `v0.1.2`（1380316 字节，`sha256 f9d1d978…c201`）、`v0.1.1` 同样签名并公证过、仍挂在 Release 页；`v0.1.0` 那条只有 Apple Development 签名、未公证，只在本机可用。
+Release 页当前版本 `v0.1.5` 附带 GitHub Actions 产出的 **Developer ID 签名 + Apple 公证 + 已装订** `.dmg`（`Vistile_v0.1.5_macos_arm64.dmg`，arm64，1399736 字节，`sha256 e8d15fa976231f8f7d6f0f20352a36e0b6782ad5f1115d3a2225c7fca44a8417`，与 GitHub 资产接口回报的 digest 逐字节相同）。从 Release 页重新下载的字节已实测（2026-10-16 17:15）：挂载后 dmg 与镜像里的 `Vistile.app` 都回 `The validate action worked!`，`codesign --verify --deep --strict` 回 `valid on disk` + `satisfies its Designated Requirement`，`Identifier=com.misswell.Vistile`、`Authority=Developer ID Application: Guofeng Liu (U8U443D7ZL)` → `Developer ID Certification Authority` → Apple Root CA，`flags=0x10000(runtime)`，`lipo -archs` 只有 `arm64`，`Info.plist` 是 `0.1.5 / 6`；发布那次（run [`38874504769`](https://github.com/misswell/Vistile/actions/runs/38874504769)）runner 上 Gatekeeper 评估是开启的，构建产物与挂载出来的 app 两处都回 `accepted`，公证成对：`.app` 08:35:35 `Accepted`、`.dmg` 08:35:59 `Accepted`（取自 run 日志；Apple 侧 `notarytool history` 需要 issuer id，本机没取到）。覆盖安装进 `/Applications/Vistile.app` 后，`Contents/MacOS/Vistile` 的 `sha256`（`5ec8ca4e4b4858e75005d463e2ed328e003880707e25402bef7a4c0de3483672`）与镜像里那个一字不差，所以 16:37 那轮 P0 探针跑的就是发布字节。更早的 `v0.1.4`（1400515 字节，`sha256 196b617a…82a1a9`，二进制 `c1c64804df2e7f5e…de7a47d5`）、`v0.1.3`（1380791 字节，`sha256 0bfb9a52…a760de`）、`v0.1.2`（1380316 字节，`sha256 f9d1d978…c201`）与 `v0.1.1` 同样签名并公证过、仍挂在 Release 页；`v0.1.0` 那条只有 Apple Development 签名、未公证，只在本机可用。
 
 > 公证解决的是「别人能不能装」。P0 功能验收、跨应用兼容矩阵仍然没通过、仍然未测——见下面两句，别把票据当成质量证明。
 
@@ -49,8 +49,8 @@ xcodebuild -project Vistile.xcodeproj -scheme Vistile \
 # 1) 改版本号。CI 的一致性守卫读的是 Support/Info.plist，标签对不上它就直接红；
 #    测试壳要一起改，否则两处说的不是一件事。NSHumanReadableCopyright 里那句
 #    "Vistile <版本号> — …" 是纯文本，别忘了顺手改（旧值曾写着"未签名公证"）。
-#    线上已发布到 0.1.4 / CFBundleVersion 5，下一版从这里往上加。
-VERSION=0.1.5 BUILD=6
+#    线上已发布到 0.1.5 / CFBundleVersion 6，下一版从这里往上加。
+VERSION=0.1.6 BUILD=7
 for f in Support/Info.plist Support/UITestHarness-Info.plist; do
   /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$f"
   /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$f"
@@ -110,7 +110,7 @@ SIGNING_IDENTITY="Apple Development: <你的身份>" RELEASE_TAG=v9.9.9-selfchec
   bash .github/scripts/build_sign_notarize.sh
 ```
 
-`RELEASE_TAG` 别照抄线上已有的版本号：它直接决定 `release/` 里那个 dmg 的文件名，用 `v0.1.4`（当前线上最新）自检会产出一个和线上发布包同名、字节却不同的文件，隔几天回头看会误当「这版已经发过了」。这条我自己踩过（干跑那次的 `v0.1.1` 与真实发布字节完全不同），现在 `verify` 任务在手动触发却用真实版本时会打警告。
+`RELEASE_TAG` 别照抄线上已有的版本号：它直接决定 `release/` 里那个 dmg 的文件名，用 `v0.1.5`（当前线上最新）自检会产出一个和线上发布包同名、字节却不同的文件，隔几天回头看会误当「这版已经发过了」。这条我自己踩过（干跑那次的 `v0.1.1` 与真实发布字节完全不同），现在 `verify` 任务在手动触发却用真实版本时会打警告。
 
 它明确跳过 `notarytool` 与依赖公证票据的复核，**跑通不等于公证过**；本机用的 `Apple Development` 身份也不会被算作签名链证据——脚本会在日志里直说「签名链不是 Developer ID Application」。
 
@@ -124,13 +124,13 @@ SIGNING_IDENTITY="Apple Development: <你的身份>" RELEASE_TAG=v9.9.9-selfchec
 
 ```bash
 # 纯逻辑：状态机、格子、坐标、捕获模式、事务与预算
-cd Packages/VistileCore && swift test      # 131 项，13 个 suite
+cd Packages/VistileCore && swift test      # 137 项，14 个 suite
 
 # 宿主层：真实控制器 / 内容视图 / CAMetalLayer，目录与几何写入走注入替身
 xcodegen generate
 xcodebuild -project Vistile.xcodeproj -scheme VistileHostTests \
   -destination 'platform=macOS,arch=arm64' -configuration Debug \
-  -derivedDataPath build CODE_SIGNING_ALLOWED=NO test   # 80 项
+  -derivedDataPath build CODE_SIGNING_ALLOWED=NO test   # 84 项（依赖系统前台的那一条会显式 skip）
 ```
 
 覆盖：状态机全部转移与不变量、格子容量与确定性排序、固定槽位不被挤动、坐标翻转往返误差为零、严格等比适配（不裁切不拉伸）、身份匹配（同标题多窗口、PID 复用）、帧信箱只留最新、日志与事务里不含窗口标题与像素；宿主层再加事件转接恰好一次、真实 first responder、present 与 GPU 错误观测、样本附件解析、展开/收回/恢复交错、最小化先解除再写几何、层级与前台只按读回判定。
@@ -165,12 +165,16 @@ open -n -g -W --env VISTILE_P0_MODE=1 /Applications/Vistile.app
 
 **探针要跑在你已经授权过的那个包上。** 屏幕录制与辅助功能记在签名身份上：`/Applications/Vistile.app`（Developer ID + 公证）和仓库里 `build/Build/Products/Debug/Vistile.app`（Apple Development）在 TCC 看来是两个不同的 App，跑后者会再弹一次授权。所以正式验收只用上面这条命令；Debug 产物只在愿意重新授权的机器上用。
 
-同 Developer ID 的覆盖安装**不需要重新授权**（0.1.1→0.1.3 与 0.1.3→0.1.4 两轮实测：装完直接跑探针，没有再弹权限窗，P0-0 仍回「屏幕录制=true，辅助功能=true」），所以升级版本不会逼用户再点一次权限。
+同 Developer ID 的覆盖安装**不需要重新授权**（0.1.1→0.1.3、0.1.3→0.1.4、0.1.4→0.1.5 三轮实测：装完直接跑探针，没有再弹权限窗，P0-0 三轮回「屏幕录制=true，辅助功能=true」），所以升级版本不会逼用户再点一次权限。
 
 探针跑完自动退出（0.1.3 起；0.1.2 及更早的包会写完报告后挂住不退出，见 [Docs/Compatibility.md](Docs/Compatibility.md) §1），产物写在 `~/Desktop/Vistile Diagnostics/`：
 
 - `P0-acceptance-checklist.md` — P0-1…P0-11 结论表（通过 / 失败 / 未测），人工项附复现步骤
 - `capability-report.md` / `.json` — 能力验证条目、兼容矩阵、计时、备注
+- `_archive/<版本-生成时间>/` — 上一轮的这三个文件。探针启动时先归档再写本轮，所以桌面那份永远是最近的，
+  历史轮次不会被就地覆盖（0.1.4 的原始报告就是被覆盖掉的，见 [Docs/Acceptance.md](Docs/Acceptance.md) §6）
+- 宿主测试的诊断产物**不写桌面**：测试进程落 `$TMPDIR/Vistile Diagnostics/host-test-<uuid>.*`。
+  跑完 `xcodebuild test` 后桌面报告的版本与生成时间应当没变，这条由 `T16DiagnosticsOutputTests` 守着
 - 会话事务：`~/Library/Application Support/Vistile/session-journal.json`
 
 客观证据只来自进程内事实：mailbox 发布计数、`CGWindowListCopyWindowInfo` 的窗口顺序下标、身份与槽位沿用、键盘焦点归属、状态机不变量、`RendererDiagnostics` 的 present/GPU 错误计数、层级改写次数与真实视图动作计数。"函数返回没报错"从不作为通过条件。
