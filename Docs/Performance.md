@@ -32,11 +32,26 @@
 
 长期并发流上限与降级阈值**必须由实测校准**：`streamSoftLimit = 12` 与上面三档 fps 都是保守起点，实测后要按真实数据替换。
 
-## 3. 本机自动采样（2026-10-16，macOS 27.0.1，Apple M1，8 逻辑核，16GB）
+## 3. 本机自动采样
 
-运行方式：`open -n -g -W --env VISTILE_P0_MODE=1 build/Build/Products/Debug/Vistile.app` 探针完整跑一遍后自动退出。屏幕录制与辅助功能均未授予，因此目录为空、没有活跃流。
+### 3.1 授权态的第一批真实数字（2026-10-16 15:13，macOS 27.0.1，Apple M5 10 核 / 24GB，正式版 0.1.1+2）
 
-这组数据没有捕获负载，只证明测量口径与代码路径能跑通；含 R01–R11 修复的当前代码必须在授权机上重跑才有可比性。
+运行方式：`open -n -g -W --env VISTILE_P0_MODE=1 /Applications/Vistile.app`。
+权限记在 Developer ID 包上，仓库里的 Debug 产物是另一个身份、要单独授权，所以正式验收只跑这一条命令。
+
+| 指标 | 值 | 怎么读 |
+| --- | --- | --- |
+| 目录窗口 / 活跃流 / 低频卡片 | 17 / 17 路 / 0 个 | 17 个窗口全部进了捕获集合 |
+| 采样窗口内帧数 | 322 张 / 3.0s | 报告的"总览帧率"列因此填了 **107.0**，但那是**所有流合计的帧数/秒**，不是屏幕帧率；按名义 30fps×17 路应该远不止这个数，说明碰顶后大量流被降档 |
+| 捕获预算 | 备注连续记录"降级影响 13→17 个目标（流上限 12，热状态 nominal）" | `streamSoftLimit = 12` 在 17 窗口下必然大面积降档，§2 的阈值校准就是要用它 |
+| Vistile CPU | 0.2（100% = 一个逻辑核满载） | **这组数不能当结论**：17 路流不可能只用 0.2% 一个核。要么采样口径太窄，要么负载在 WindowServer/GPU 侧，必须用 Activity Monitor 与 Instruments 对照 |
+| 几何写入 | 17.9ms，读回偏差 0.0pt；p95 17.9ms（n=2，median 41.8） | 读回一致是硬结论；样本只有 2 次，延迟数字还不够 |
+| 状态机 100 次背景点击 | 4730.0ms（≈47ms/次） | 真实面板路径，和纯 reducer 的 2.0ms 不是一个口径，别混着引用 |
+| 退出恢复 | 未结束事务 0 条 | 恢复路径在授权态也走完 |
+
+### 3.2 未授权的那两组（只证明测量口径与代码路径能跑通）
+
+运行方式同前，但跑的是仓库 Debug 产物（屏幕录制与辅助功能均未授予，目录为空、没有活跃流；0.1.2 那一次写完报告后不退出，是 §3.3 的那个缺陷）。
 
 | 指标 | 值 | 说明 |
 | --- | --- | --- |
@@ -46,6 +61,14 @@
 | 总览帧率 | 0.0 帧/秒 | 同上 |
 | Vistile CPU | 0.0（100% = 一个逻辑核满载） | 同上，无捕获负载 |
 | 启动 → 探针跑完 → 退出恢复 | 全程无崩溃，未结束事务 0 条 | 事务与恢复路径可运行 |
+
+### 3.3 探针自身的退出缺陷（已修，未计入任何性能口径）
+
+未授权 + 空目录时，0.1.2 的探针写完报告后**不退出**（两次复现，主线程停在 `NSApp.terminate` 里等
+`applicationShouldTerminate` 的 reply，而 reply 只能靠主队列排空送达）。改成从 run loop 观察点发出退出请求后，
+同一条命令 40 秒跑完并自行退出。授权态的 0.1.1 当时能自行退出，所以"哪一项是必要条件"还没分离出来，
+但两条路径现在都不再依赖主队列排空。细节见 [Compatibility.md](Compatibility.md) §1。
+
 
 同一台机器还跑过一次失败样例：着色器编译失败时应用会拒绝启动并写明原因，而不是退回静态截图（已修复，见 `ShaderSource.swift` 的函数外 `constant` 数组）。
 
@@ -63,4 +86,4 @@
 10. **层级改写频率**：`orderingApplyCount` 在总览持续打开的 30 分钟内应只有策略/目标变化那几次；持续随帧增长说明在跟 WindowServer 较劲（P0-10 记 2s 窗口）。
 11. **软上限校准**：`streamSoftLimit = 12` 目前只是保守起点，要用第 2、3 项的实测数据决定它是收紧还是放宽。
 
-复现与记录方式：用 `UITestHarness` 造窗口，跑 `open -n -g -W --env VISTILE_P0_MODE=1 build/Build/Products/Debug/Vistile.app`，把 `~/Desktop/Vistile Diagnostics/capability-report.md` 的计时表与 `P0-acceptance-checklist.md` 一起存档；Instruments 用 `com.misswell.Vistile` 子系统的 signpost 区间对齐时间轴。
+复现与记录方式：用 `UITestHarness` 造窗口，跑 `open -n -g -W --env VISTILE_P0_MODE=1 /Applications/Vistile.app`（探针必须跑在已授权的正式版包上），把 `~/Desktop/Vistile Diagnostics/capability-report.md` 的计时表与 `P0-acceptance-checklist.md` 一起存档；Instruments 用 `com.misswell.Vistile` 子系统的 signpost 区间对齐时间轴。

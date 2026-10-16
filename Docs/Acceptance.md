@@ -5,19 +5,31 @@
 
 ## 1. 结论
 
-**P0 未通过。** 本机两次探针运行时系统权限均未授予（`屏幕录制=false，辅助功能=false`），
-所有依赖真实窗口的项目被记为 **未测** 或 **阻塞**，没有任何一项被声明为通过。
+**P0 未通过。** 2026-10-16 第一次在授权态跑通探针（权限给的是 `/Applications/Vistile.app`，0.1.1+2，
+屏幕录制=true、辅助功能=true），9 个自动项里 **7 通过、2 失败**，两条失败都是真缺陷而不是环境不够：
+
+| 失败项 | 实测事实 | 意味着什么 |
+| --- | --- | --- |
+| P0-1 目录与身份 | 17 个窗口、多窗口进程 2 个，窗口编号无重复=true，但**同进程 AX 索引无重复=false** | 同一应用里两个窗口解析到同一个 AX 索引，"画面与窗口一一对应"还没有客观保证 |
+| P0-3 只提升被点窗口 | Code：目标窗口顺序 #8→#9，同应用另一窗口 #13→#15 | 提升目标时把兄弟窗口一起提了上来，正是方案 §12 要防的那件事 |
+
+这组数据来自 **0.1.1，不含 R09–R11**，所以 P0-3 的失败还不能归因：R10 改的是"前景化只按读回事实判定"，
+它可能把这种情况判成失败而不是顺带修好它。下一轮必须在装好新版的正式版上重跑同一场景，
+才知道是修好了、还是只是换了个判法。
 
 已得到的正面事实（这些不等于 P0 通过）：
 
 | 事实 | 证据 |
 | --- | --- |
-| 进程能启动、探针能跑完并自动退出 | `capability-report.md` 时间线，无崩溃 |
-| 退出路径走完事务恢复 | 「退出恢复 · 会话事务 · 通过 · 未结束事务 0 条」 |
-| 全局快捷键注册成功 | 「全局快捷键 · ⌃⌥空格 · 已注册」（触发仍需录屏） |
-| Metal 设备与纹理缓存建立 | 「Metal 渲染 · 设备与纹理缓存已建立」 |
-| 显示器事实与捕获权限无关 | 「P0-7 · 显示器 2 块（负坐标 1 块，不同缩放 2 种）」 |
-| 背景点击状态机 soak 不累积副作用 | 100 次 2.0ms（授权后需连真实面板重跑） |
+| 授权态探针跑完并写出报告 | `capability-report.md`（0.1.1+2，2026-10-16 15:13），无崩溃 |
+| 探针退出挂死已修复 | 未授权 + 空目录时 0.1.2 写完报告后不退出（两次复现，主线程停在 `NSApp.terminate` 等 reply）；退出请求改从 run loop 观察点发出后 40 秒自行退出。授权态的 0.1.1 当时能自行退出；修后两条路径都不依赖主队列排空 |
+| 遮挡窗口继续收帧（"实时"的客观判据） | P0-2 · 被遮挡的 16 个窗口里 9 个在 1.5s 内收到新帧；全目录帧增量 62 ≈ 40.9 帧/秒 |
+| 放大后键盘归目标应用 | P0-4 · 总览面板持有键盘=false，键盘归属=targetApplication（中文输入、Sheet 仍属人工项） |
+| 背景点击状态机 soak 不累积副作用 | P0-5 · 真实面板 100 次耗时 4730.0ms，最小化 0→0，2/2 块屏自留事件；结束时阶段=`collapsing` |
+| 身份与格子沿用 | P0-6 · 17 个身份沿用、格子变动 0、跨进程启动标识冲突 0 |
+| 多显示器覆盖 | P0-7 · 2 块屏，有窗口的屏幕都有承载窗口，缺布局 0 |
+| 退出事务恢复 | 「退出恢复 · 会话事务 · 通过 · 未结束事务 0 条」；几何写入 17.9ms，读回偏差 0.0pt |
+| 全局快捷键注册 | 「全局快捷键 · ⌃⌥空格 · 已注册」（触发仍需录屏） |
 | 纯逻辑层 126 项单元测试通过 | `cd Packages/VistileCore && swift test` |
 | 宿主层 80 项测试通过（真实控制器/视图/纹理/AX 替身） | §4 的 `xcodebuild test -scheme VistileHostTests` |
 | 每次 PR 与 main 推送都跑上述两层 | `.github/workflows/ci.yml`（无签名凭据） |
@@ -86,17 +98,21 @@ xcodebuild -project Vistile.xcodeproj -scheme VistileHostTests \
 xcodebuild -project Vistile.xcodeproj -target UITestHarness -derivedDataPath build -configuration Debug build
 open build/Build/Products/Debug/UITestHarness.app
 
-# 5. 先授予权限（系统设置 → 隐私与安全性 → 屏幕录制 / 辅助功能），再跑探针
-open -n -g -W --env VISTILE_P0_MODE=1 build/Build/Products/Debug/Vistile.app
+# 5. 跑探针：只能跑在已经授权的那个包上。屏幕录制与辅助功能记在签名身份上，
+#    /Applications/Vistile.app（Developer ID）与仓库里的 Debug 产物（Apple Development）
+#    在 TCC 看来是两个不同的 App，跑 Debug 会再弹一次授权。
+open -n -g -W --env VISTILE_P0_MODE=1 /Applications/Vistile.app
 ```
 
 第 3 步与第 5 步分属两层：宿主测试跑在替身与主屏之外的面板上，探针跑的是真实系统权限、
 真实窗口与真实上屏。两者结论不可互相顶替。
-Xcode 里也可以直接用共享 scheme **P0Probe**（它已注入 `VISTILE_P0_MODE=1`）。
+Xcode 里也可以直接用共享 scheme **P0Probe**（它已注入 `VISTILE_P0_MODE=1`），但那跑的是 Debug 产物，
+需要给 Debug 单独授权；正式验收不要用这条路。
 
 产物：`~/Desktop/Vistile Diagnostics/P0-acceptance-checklist.md`（逐项结论）与 `capability-report.md/.json`（事实、兼容矩阵、计时）。
 
 未授权就跑探针是安全的：权限事实会写进 `P0-0`，依赖权限的项目写成未测，不会伪造通过。
+但**授权态才是能出结论的那一组**，未授权产物只能证明代码路径能跑。
 
 ## 5. 勾验收时的顺序建议
 

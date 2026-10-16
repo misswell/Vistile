@@ -1,40 +1,52 @@
 # Vistile 兼容矩阵
 
 方案 §15：**没有测试的格子写"未测"，不要填"支持"。**
-本表当前**全部为未测**：本机两次探针运行时屏幕录制与辅助功能都未授予，没有任何跨应用交互被观察过。
-逐格填写方式见文末；`~/Desktop/Vistile Diagnostics/capability-report.md` 里的同名表格是权威来源，本文只是待填清单与口径说明。
+2026-10-16 第一次在**授权态**跑通了探针（权限记在正式版包上，见 §1 的环境 A），拿到第一批客观事实：
+「关联」在 12 个真实应用上有结论了，同时暴露出两个真实失败（P0-1 同进程 AX 索引不唯一、P0-3 提升目标时连带兄弟窗口）。
+其余格子仍未测；`~/Desktop/Vistile Diagnostics/capability-report.md` 里的同名表格是权威来源，本文只是待填清单与口径说明。
 
-## 1. 测试环境（唯一有记录的一组）
+## 1. 测试环境
 
-| 项 | 值 |
+| 项 | 环境 A：正式版（已授权，唯一有真实数据的一组） | 环境 B：仓库 Debug 产物（未授权） |
+| --- | --- | --- |
+| 包 | `/Applications/Vistile.app`，Vistile 0.1.1+2，Developer ID 签名 + 公证票据有效 | `build/Build/Products/Debug/Vistile.app`，0.1.0+1 / 0.1.2+3，Apple Development 签名 |
+| 系统版本 | macOS 27.0.1 | macOS 27.0.1 |
+| 硬件 | Apple M5（Mac17,2），arm64，10 核（4 Performance + 6 Efficiency），24GB | 同左 |
+| 显示器 | 2 块；本次探针读到 **负坐标 0 块、缩放 1 种**（与更早记录的"1 块负坐标、2 种缩放"不一致，说明这项随当天接线变化，不能当成固定环境） | 2 块（含 1 块负坐标、2 种缩放） |
+| 权限 | 屏幕录制 已授予 / 辅助功能 已授予 | 屏幕录制 未授予 / 辅助功能 未授予 |
+| 结果 | 目录 17 个窗口，自动 9 项里 **7 通过 / 2 失败**，未结束事务 0 条 | 目录为空，探针写出报告，未结束事务 0 条 |
+
+**授权记在签名身份上，不记在 bundle id 上就够了**：环境 A 的授权不会给环境 B 用，Debug 产物跑探针会再弹一次窗。
+用户只给正式安装的包授权，因此**正式验收一律跑 `/Applications/Vistile.app`**（命令见 [Acceptance.md](Acceptance.md) §4）。
+
+| 事实 | 证据 |
 | --- | --- |
-| 系统版本 | macOS 27.0.1 |
-| 硬件 | Apple M1，arm64，8 逻辑核，16GB |
-| 应用版本 | Vistile 0.1.0+1（Debug，Apple Development 签名，未公证） |
-| 显示器 | 2 块（含 1 块负坐标、2 种缩放） |
-| 权限 | 屏幕录制 未授予 / 辅助功能 未授予 |
-| 结果 | 目录为空，探针跑完并正常退出，未结束事务 0 条 |
+| 同签名升级是否保留授权 | **未测**：需要把 0.1.3 的正式版装进 `/Applications` 后直接跑探针，不重新授权就能取到真实窗口目录才算成立 | — |
+| 探针退出（未授权态） | 环境 B 的 0.1.2 探针写完报告后**不退出**，连续两次复现（挂住 5 分钟、90 秒）：主线程停在 `P0Probe.run()`（`App/P0Probe.swift:75`）→ `-[NSApplication terminate:]` → `_shouldTerminate` → `nextEventMatchingMask:`。`NSApp.terminate` 就地等待 `applicationShouldTerminate` 的 reply，而 reply 只能靠主队列排空送达，此时主线程正被 drain 占着。改法：退出请求从 run loop 观察点发出。修后同一条命令 40 秒跑完并自行退出 | 本机 `sample` 输出 + 修复前后各两次运行计时 |
+| 探针退出（授权态） | 环境 A 的 0.1.1 探针**正常自行退出**（`open -W` 返回 0），同一调用点没挂。也就是说挂死需要"未授权 + 空目录"这一组条件配合，哪一项是必要条件还没分离出来；修复让两条路径都不再依赖主队列排空 | 同上 |
+| 用户实际退出路径 | 对普通模式实例发 Apple 事件 `quit`（同一个 `applicationShouldTerminate`）3 秒退出；菜单栏点击那条路径未单独测 | 本机实测 |
 
 ### 1.1 发布产物的构建环境（CI，不是运行环境）
 
 | 项 | 值 | 来源 |
 | --- | --- | --- |
-| Runner 镜像 | `macos-14`，系统 macOS 14.8.9 | run [`38773723973`](https://github.com/misswell/Vistile/actions/runs/38773723973) 日志 |
+| Runner 镜像 | `macos-14`（镜像标签 `macos-14-arm64`，20260831.0302），系统 macOS 14.8.9 | run [`38773723973`](https://github.com/misswell/Vistile/actions/runs/38773723973) 日志；0.1.2 那次 run [`38863514387`](https://github.com/misswell/Vistile/actions/runs/38863514387) 同镜像同系统 |
 | 构建用 Xcode | 16.2（Build 16C5032a，`/Applications/Xcode_16.2.0.app`；取镜像里装得最高的那个，默认 `xcodebuild` 是 15.4） | 同上，脚本内 `==> 工具链：` 一行 |
 | macOS SDK | **15.2** | `xcrun --sdk macosx --show-sdk-version`，与产物 `otool -l` 的 `LC_BUILD_VERSION sdk 15.2` 一致 |
 | 部署目标 | `minos 14.0`（`arm64-apple-macosx14.0`，Swift 6.0.3） | 同上：解出的二进制 `otool -l` |
 | 产物架构 | `arm64` 单架构，从上传的 dmg 里解出 app 实测 `lipo -archs` | 同上 |
 | bundle id | `com.misswell.Vistile`（解包读 `Info.plist` 实测） | 同上 |
 | 干跑产物的签名实况 | `flags=0x20002(adhoc,linker-signed)`、无票据、`stapler validate` 报 "does not have a ticket" | 下载 run 38773467420 的 dmg 实测 |
-| 已证明 | 未签名干跑通过：76 项测试在 Swift 6.0.3 下全绿、App 用 SDK 15.2 编过、dmg 能挂载、镜像里的 app 是 arm64 单架构 | 同上 |
+| 已证明 | 未签名干跑通过：76 项测试在 Swift 6.0.3 下全绿（**那是 0.1.0 的测试面**，当前是核心 126 + 宿主 80，见"已证明（当前测试面）"一行）、App 用 SDK 15.2 编过、dmg 能挂载、镜像里的 app 是 arm64 单架构 | 同上 |
 | 已证明（负向） | 零凭据时 `probeCredentials` 红在第一步并报出缺的键名（`缺少 APPLE_DEVELOPER_ID_P12_BASE64`），不静默通过、不发布 | run [`38774694133`](https://github.com/misswell/Vistile/actions/runs/38774694133) |
 | 已证明（签名与公证） | Developer ID 身份导入并试签通过；`.app` 与 `.dmg` 各自公证后 `stapler` 都回 "The staple and validate action worked!"；挂载后镜像里的 `Vistile.app` 票据仍有效；`flags=0x10000(runtime)`；`lipo -archs` 仍是 `arm64` | run [`38827757461`](https://github.com/misswell/Vistile/actions/runs/38827757461) |
 | 已证明（Gatekeeper） | **runner 上 `spctl --status` 是 `assessments enabled`**，`spctl -a -t exec` 对构建产物和挂载出来的 app 都回 `accepted` / `source=Notarized Developer ID`——这是一台评估开启的干净 arm64 机器给出的放行结论。**但 `accepted` 本身不证明票据在镜像里**：联网时在线查询会替无票据的包补上上下文，分得开的只有挂载后对包内 app 跑 `stapler validate`（下一行） | 同上，以及发布那次 run [`38828073929`](https://github.com/misswell/Vistile/actions/runs/38828073929) |
 | 已证明（发布字节） | 从 Release 页重新下载的 `Vistile_v0.1.1_macos_arm64.dmg`（1164713 字节，`sha256 01646765…97760`）挂载后：dmg 与镜像内 app 的票据都 `The staple and validate action worked!`，`Authority=Developer ID Application`，`flags=0x10000(runtime)`，`arm64` 单架构 | 本机对下载文件实测 |
-| Apple 侧公证记录 | 按名字过滤后共 **4 条，两对**，每对都是一条 `.notarization.zip`（`.app` 本体）早于一条 `.dmg`：00:09:58→00:10:21（干跑）与 00:13:56→00:14:26（发布那次），四条全 `Accepted`。只剩 dmg 就等于 `.app` 从没提交给 Apple，所以「成对且 zip 在前」这一条要看，不能只看 dmg | `xcrun notarytool history` 本机按名字过滤实测 |
-| 修的那处真进了发出去的包 | 标签 `v0.1.1` → `804e24f`，发布任务 `SOURCE_REF: v0.1.1`，而 `.p8` 落盘顺序修复 `64c6635` 是 `804e24f` 的祖先（`git merge-base --is-ancestor` 实测通过）。`main` 只比标签多一个文档提交 `52794fb` | 本机 git 查询 + run [`38828073929`](https://github.com/misswell/Vistile/actions/runs/38828073929) 的 env 行 |
+| 已证明（0.1.2 发布字节） | `Vistile_v0.1.2_macos_arm64.dmg`：**1380316 字节**，`sha256 f9d1d9786dc7cb0d…537a0c201`，与 `GET /repos/misswell/Vistile/releases/tags/v0.1.2` 里该资产的 `digest` 逐字节相同（先下载再比对，不是只信 CI 日志）。挂载后：`Identifier=com.misswell.Vistile`、`flags=0x10000(runtime)`、`Authority=Developer ID Application: Guofeng Liu (U8U443D7ZL)` → `Developer ID Certification Authority` → `Apple Root CA`，dmg 与镜像内 `Vistile.app` 都回 `The staple and validate action worked!`，`lipo -archs` 只有 `arm64`，`Info.plist` 是 `0.1.2 / 3`，包内二进制 `sha256 83884fdc3cffefbd…3b5f5c19`。Apple 侧公证成对：`Vistile_v0.1.2_notarization.zip` 06:52:45Z → `Vistile_v0.1.2_macos_arm64.dmg` 06:53:11Z，两条 `Accepted` | run [`38863514387`](https://github.com/misswell/Vistile/actions/runs/38863514387) 与本机对 Release 页下载文件实测（2026-10-16） |
+| Apple 侧公证记录 | 按名字过滤共 **6 条，三对**，每对都是一条 `.notarization.zip`（`.app` 本体）早于一条 `.dmg`：0.1.1 的 00:09:58→00:10:21（干跑）与 00:13:56→00:14:26（发布那次），0.1.2 的 06:52:45→06:53:11（发布），六条全 `Accepted`。只剩 dmg 就等于 `.app` 从没提交给 Apple，所以「成对且 zip 在前」这一条要看，不能只看 dmg | `xcrun notarytool history` 本机按名字过滤实测（2026-10-16） |
+| 修的那处真进了发出去的包 | 标签 `v0.1.2` → `477e132`，发布任务的 checkout 参数就是 `ref: v0.1.2` / `SOURCE_REF: v0.1.2`；R01–R11 的全部修复提交（`27f8c90`、`901b4a9`、`3b690f4`、`4f49ae3`、`675227f`、`daf35c0`、`23cece2`）连同 CI 与文档提交都在标签里（`git rev-list --count v0.1.1..v0.1.2` = 14），且 `main` 与标签指向同一个提交（`git rev-list --count v0.1.2..main` = 0，这一次不存在「文档比包新」的差）。0.1.1 那次同法核对：标签 → `804e24f`，`.p8` 落盘顺序修复 `64c6635` 是其祖先，`main` 只多一个文档提交 `52794fb` | 本机 git 查询 + run [`38863514387`](https://github.com/misswell/Vistile/actions/runs/38863514387)、[`38828073929`](https://github.com/misswell/Vistile/actions/runs/38828073929) 的 env 行 |
 | 反面教材（已防呆） | 干跑那次手动触发了真实标签 `v0.1.1`，产出的 `Vistile_v0.1.1_macos_arm64.dmg` 与线上发布的同名文件**字节完全不同**（干跑 `1410db98…0a3f3a` / 发布 `01646765…97760`）。workflow 的 `workflow_dispatch.tag` 现在要求填测试标签，`verify` 任务在标签等于 `Info.plist` 版本时打 `::warning::` 并写进 job summary——不硬拦，因为「重发同一版」是合法兜底路线 | 两次 run 的 artifact 各自 `shasum -a 256` |
-| 已证明（当前测试面） | 核心包 126 项纯逻辑测试 + 宿主层 80 项测试（真实控制器/内容视图/CAMetalLayer，目录与写入走注入替身）在本机通过；宿主里「面板实际成为 key 窗口」一条依赖系统前台，取不到时显式 skip（本机两种结果都出现过：跳过、通过）；CI 已在 `pull_request` 与 `push main` 上跑同样两条（`.github/workflows/ci.yml`，不需要任何签名凭据） | 本机 Xcode 27 / SDK 27.0，2026-10-16，命令见 [Acceptance.md](Acceptance.md) §4 |
+| 已证明（当前测试面） | 核心包 126 项纯逻辑测试 + 宿主层 80 项测试（真实控制器/内容视图/CAMetalLayer，目录与写入走注入替身）在本机通过；宿主里「面板实际成为 key 窗口」一条依赖系统前台，取不到时显式 skip（本机两种结果都出现过：跳过、通过）；CI 已在 `pull_request` 与 `push main` 上跑同样两条（`.github/workflows/ci.yml`，不需要任何签名凭据），并在 runner 上给出与本机一致的数字：核心 `Test run with 126 tests passed`，宿主 `Executed 80 tests, with 1 test skipped and 0 failures`（跳过的是同一条 key 窗口断言） | 本机 Xcode 27 / SDK 27.0，2026-10-16，命令见 [Acceptance.md](Acceptance.md) §4；runner 侧 run [`38863500597`](https://github.com/misswell/Vistile/actions/runs/38863500597) 两条任务日志 |
 | 未证明 | 用户自己的 Mac 上双击安装的实际体验（权限授予流程、是否被拦）、Intel 机器、以及 P0 的功能行为 | — |
 
 同一套脚本在本机用 `Apple Development` 身份跑过 `SKIP_NOTARIZE=1`：镜像里的 app 确实是
@@ -59,18 +71,25 @@ CI 复核因此先把评估状态打进日志，硬把关放在两处与机器�
 
 列含义：**捕获**=能否取到实时画面并显示正确状态；**关联**=SC/CG/AX 三路身份唯一对应；**移动/resize**=AX 读写后读回一致；**层级**=展开时目标在总览前且不带动兄弟窗口；**Sheet**=另存为/工作表与弹层不丢焦点、不被总览遮挡；**恢复**=收回与退出后几何回到原状。
 
+"关联=通过"只表示探针取到的身份事实（探针按 SC/CG/AX 三路对得上、窗口编号不重复），**不等于画面没串、也不等于肉眼验收过**；跑的是 0.1.1+2（未含 R09–R11），0.1.3 装好后要按同一场景重跑才能填进"移动/resize/层级"这些列。
+
 | 应用 | 版本 | 捕获 | 关联 | 移动 | resize | 层级 | Sheet | 恢复 | 已知限制 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Finder（桌面 + 浏览器窗） | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
 | Safari | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
-| Terminal | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
+| Terminal（终端） | 未记录 | 未测 | 通过 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
 | 文本编辑 TextEdit | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
 | 备忘录 Notes | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
 | 预览 Preview | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
 | Mail | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
 | 系统设置 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
-| Google Chrome | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
-| Visual Studio Code | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
+| Google Chrome | 未记录 | 未测 | 通过 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
+| Google Chrome Beta | 未记录 | 未测 | 通过 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
+| Visual Studio Code | 未记录 | 未测 | 通过 | 未测 | 未测 | **失败** | 未测 | 通过 | AX Raise 后目标窗口顺序 #8→#9，同应用另一窗口 #13→#15，兄弟窗口被一起提升，探针判失败 |
+| IntelliJ IDEA | 未记录 | 未测 | 通过 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
+| Qoder / Qoder CN | 未记录 | 未测 | 通过 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
+| ChatGPT | 未记录 | 未测 | 通过 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
+| UGit / ZCode / OrbStack / MacPilot | 未记录 | 未测 | 通过 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
 | Xcode | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
 | Electron 类（Slack/微信/钉钉） | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
 | 视频播放（IINA/VLC/AVPlayer） | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
@@ -80,6 +99,21 @@ CI 复核因此先把评估状态打进日志，硬把关放在两处与机器�
 | Catalyst / iOS-on-Mac 应用 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
 | 无 AX 支持的进程 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
 | UITestHarness（脚手架，可控场景） | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 | 未测 |
+
+同一次探针里与这些格子直接相关的自动结论：
+
+| 判据 | 结果 | 记录 |
+| --- | --- | --- |
+| P0-1 目录与身份 | **失败** | 窗口 17 个、多窗口进程 2 个、AX 可写回 17 个、窗口编号无重复=true，但**同进程 AX 索引无重复=false**：同一个应用里两个窗口解析到了同一个 AX 索引 |
+| P0-2 遮挡时仍实时 | 通过 | 被完全遮挡的 16 个窗口里 9 个在 1.5s 内收到新帧；全目录帧增量 62（约 40.9 帧/秒）——这是"实时"的客观判据，第一次拿到 |
+| P0-3 只提升被点窗口 | **失败** | Code：目标 #8→#9，同应用兄弟 #13→#15 一起动 |
+| P0-4 键盘不被总览占用 | 通过 | 放大 Code 后总览面板不持有键盘，键盘归属=targetApplication |
+| P0-5 背景点击 100 次 | 通过（有保留） | 耗时 4730.0ms（约 47ms/次，纯 reducer 的 2.0ms 不能拿来比）；结束时阶段=`collapsing`；最小化数量 0→0；2/2 块屏确认面板自留事件 |
+| P0-6 身份与格子复用 | 通过 | 刷新后沿用 17 个身份、格子变动 0 个、跨进程共用启动标识的重复窗口编号 0 个 |
+| P0-7 多显示器覆盖 | 通过 | 显示器 2 块（本次负坐标 0 块、缩放 1 种）；有窗口的屏幕 2，承载窗口 2，缺布局 0 |
+| 退出恢复 | 通过 | 未结束事务 0 条；几何写入 17.9ms，读回偏差 0.0pt |
+| 捕获预算 | 触发降级 | 17 路流超过 `streamSoftLimit = 12`，备注里连续五次记录"降级影响 13→17 个目标"（热状态 nominal）——阈值该不该是 12，需要按这组数据校准 |
+
 
 ## 3. 代码里已经存在的结构性预期
 
@@ -107,7 +141,7 @@ CI 复核因此先把评估状态打进日志，硬把关放在两处与机器�
 ## 4. 怎么把格子填成事实
 
 1. 授权两项权限并重启应用，用 `UITestHarness` 或真实应用把场景摆出来。
-2. 跑 `open -n -g -W --env VISTILE_P0_MODE=1 build/Build/Products/Debug/Vistile.app`（构建命令与宿主测试见 [Acceptance.md](Acceptance.md) §4）。
+2. 跑 `open -n -g -W --env VISTILE_P0_MODE=1 /Applications/Vistile.app`（权限记在 Developer ID 包上，Debug 产物是另一个身份，正式验收不跑 Debug；构建命令与宿主测试见 [Acceptance.md](Acceptance.md) §4）。
 3. 每个格子要有对应证据：
    - 捕获 / 恢复 → mailbox `publishedCount` 增长、事务清零记录；
    - 关联 → `P0-1` 的身份唯一性与"画面没有串"录屏；

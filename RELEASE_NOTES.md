@@ -37,13 +37,14 @@
 下载后可以自己复核（不需要任何额外工具）：
 
 ```bash
+shasum -a 256 Vistile_v0.1.2_macos_arm64.dmg   # 期望 f9d1d9786dc7cb0d0867fc3f97f06440e961862737ca778070d6226537a0c201（1380316 字节）
 hdiutil attach Vistile_v0.1.2_macos_arm64.dmg
 xcrun stapler validate "/Volumes/"*/Vistile.app      # 期望 The validate action worked!
 codesign -dvvv "/Volumes/"*/Vistile.app 2>&1 | grep -E "Authority=Developer ID|flags=0x"
 hdiutil detach "/Volumes/"*
 ```
 
-这台包在 CI 里已经过了 Gatekeeper 评估开启的干净 arm64 机器：runner 上 `spctl --status` 是 `assessments enabled`，对构建产物和挂载出来的 app 都回 `accepted / source=Notarized Developer ID`。**你自己的 Mac 第一次安装体验仍未测**——权限授予流程、是否被系统二次确认，都要真机才知道；开发机这边 `spctl` 评估是关掉的，测不出这一层。
+发布产物本身已在两台机器上核对过：CI runner（Gatekeeper 评估开启的干净 arm64 机器）上 `spctl --status` 是 `assessments enabled`，对构建产物和挂载出来的 app 都回 `accepted / source=Notarized Developer ID`；本机从 Release 页重新下载后，dmg 与镜像里的 `Vistile.app` 票据都 `The staple and validate action worked!`，证书链 `Developer ID Application: Guofeng Liu (U8U443D7ZL)` → Apple Root CA，`flags=0x10000(runtime)`，`lipo -archs` 只有 `arm64`，`Info.plist` 是 `0.1.2 / 3`，本地哈希与 GitHub 资产接口回报的 digest 相同；Apple 侧公证成对出现（`.notarization.zip` 在前、`.dmg` 在后，两条 `Accepted`）。**你自己的 Mac 第一次安装体验仍未测**——权限授予流程、是否被系统二次确认，都要真机才知道；开发机这边 `spctl` 评估是关掉的，测不出这一层。
 
 ## 构建与测试
 
