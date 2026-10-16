@@ -27,6 +27,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     private func build() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        // 只允许缩小，不允许放大：菜单栏变矮时保持与系统图标同样的视觉大小，而不是撑满。
+        item.button?.imageScaling = .scaleProportionallyDown
         item.button?.image = Self.menuBarIcon()
         item.button?.toolTip = "Vistile 窗口总览"
         statusItem = item
@@ -125,32 +127,39 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func quit() { NSApp.terminate(nil) }
 
     /// 图标方向：2×2 格子，其中一格向外扩成窗口轮廓；单色描边，无 3D 与厚渐变（方案 §13）。
-    static func menuBarIcon(size: CGFloat = 18) -> NSImage {
-        let image = NSImage(size: NSSize(width: size, height: size))
+    /// 视觉大小必须与相邻系统图标一致：18pt 画布里只占 15pt 墨迹（14pt 字形 + 1pt 描边）并居中。
+    /// 边线全部落在 0.5pt 网格上，2x 屏下描边边界正好是整像素，避免发虚。
+    static func menuBarIcon(canvas: CGFloat = 18) -> NSImage {
+        let box: CGFloat = 14
+        let cell: CGFloat = 5
+        let expanded: CGFloat = 7
+        let inset = (canvas - box) / 2
+        let image = NSImage(size: NSSize(width: canvas, height: canvas))
         image.lockFocus()
-        let stroke = NSColor.labelColor
-        stroke.setStroke()
-        let cell = size * 0.38
-        let gap = size * 0.10
-        // 三个小格 + 一个扩出的窗口轮廓。
-        let positions = [
-            CGPoint(x: 0, y: size - cell),
-            CGPoint(x: size - cell, y: size - cell),
-            CGPoint(x: 0, y: 0),
-        ]
-        for origin in positions {
-            let rect = CGRect(x: origin.x, y: origin.y, width: cell, height: cell)
-            let path = NSBezierPath(roundedRect: rect, xRadius: 1.5, yRadius: 1.5)
-            path.lineWidth = 1.2
+        NSColor.black.setStroke()
+
+        func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: inset + x, y: inset + y)
+        }
+
+        // 三个小格：左上、右上、左下。
+        for origin in [point(0, box - cell), point(box - cell, box - cell), point(0, 0)] {
+            let path = NSBezierPath(roundedRect: CGRect(origin: origin, size: CGSize(width: cell, height: cell)),
+                                    xRadius: 1.2, yRadius: 1.2)
+            path.lineWidth = 1
             path.stroke()
         }
-        let expanded = CGRect(x: size - cell - gap * 0.4, y: 0, width: cell + gap * 0.4, height: cell + gap * 0.4)
-        let outline = NSBezierPath(roundedRect: expanded, xRadius: 2, yRadius: 2)
-        outline.lineWidth = 1.6
+
+        // 右下：向外扩成的窗口轮廓，比小格高出一档，顶部一条细线表示标题栏。
+        let window = CGRect(x: inset + box - expanded, y: inset, width: expanded, height: expanded)
+        let outline = NSBezierPath(roundedRect: window, xRadius: 1.5, yRadius: 1.5)
+        outline.lineWidth = 1
         outline.stroke()
-        let bar = NSBezierPath(rect: CGRect(x: expanded.minX, y: expanded.maxY - 3.2,
-                                            width: expanded.width, height: 3.2))
-        bar.fill()
+        let titleBar = NSBezierPath()
+        titleBar.lineWidth = 1
+        titleBar.move(to: CGPoint(x: window.minX + 1.5, y: window.maxY - 2))
+        titleBar.line(to: CGPoint(x: window.maxX - 1.5, y: window.maxY - 2))
+        titleBar.stroke()
         image.unlockFocus()
         image.isTemplate = true
         return image
