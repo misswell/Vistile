@@ -107,6 +107,15 @@ final class AppCoordinator {
         catalog.onStatus = { [weak self] text in self?.log("discover", text) }
 
         capture.onFact = { [weak self] fact in self?.handle(fact) }
+        // 画面更新由新帧驱动并合并到下一个主队列周期：静止时不该再有整屏空转（方案 §7.5）。
+        capture.onFrame = { [weak self] _ in
+            guard let self, self.state.phase.isVisible else { return }
+            self.renderer.scheduleRedraw { [weak self] in self?.redraw() }
+        }
+        // 纹理回收只接这一条：画面层与捕获层各自持有的一份拷贝必须一起丢，否则缓存越界（方案 §7.5）。
+        capture.onWindowReleased = { [weak self] identity in
+            self?.renderer.forget(identity)
+        }
         focus.onEvent = { [weak self] event in self?.dispatch(event) }
         focus.onStatus = { [weak self] text in self?.log("focus", text) }
         focus.cardRectProvider = { [weak self] identity in self?.cardRects[identity] }
@@ -572,8 +581,9 @@ final class AppCoordinator {
 
     private func handle(_ fact: CaptureFact) {
         switch fact {
-        case .started:
+        case let .started(identity, _):
             metrics.increment("capture.started")
+            log("capture", "\(identity.processID)/\(identity.windowID) 启动一轮捕获")
         case let .firstFrame(identity, date):
             dispatch(.captureFirstFrame(identity, date))
         case let .failed(identity, message):

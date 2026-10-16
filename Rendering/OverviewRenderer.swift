@@ -231,11 +231,12 @@ final class OverviewRenderer {
                                                            scale: scale))
     }
 
-    /// contentRect 与像素尺寸同单位；缺元数据时用整幅，禁止把点当像素（方案 §9.2）。
+    /// contentRect 单位是点，纹理尺寸单位是像素：先按 scaleFactor 换成像素再算 UV（方案 §10.2）。
+    /// 元数据缺失或与纹理对不上时退回整幅，绝不把点当像素。
     private func contentUV(of frame: MetalFrame) -> SIMD4<Float> {
         let meta = frame.meta
-        guard meta.contentRect.width > 0, meta.contentRect.height > 0 else { return SIMD4<Float>(0, 0, 1, 1) }
-        return MetalGeometry.uvRect(contentRect: meta.contentRect,
+        guard let rect = meta.contentRectInPixels else { return SIMD4<Float>(0, 0, 1, 1) }
+        return MetalGeometry.uvRect(contentRect: rect,
                                     pixelSize: CGSize(width: meta.pixelWidth, height: meta.pixelHeight))
     }
 }

@@ -55,11 +55,12 @@ final class MetalContext {
                           storage: reference,
                           meta: CapturedFrameMeta(pixelWidth: width,
                                                   pixelHeight: height,
-                                                  contentRect: .zero,
-                                                  scaleFactor: 1,
-                                                  sourceSize: CGSize(width: width, height: height),
+                                                  contentRectInPoints: nil,
+                                                  pointPixelScale: 1,
+                                                  contentScale: 1,
+                                                  sourceSizeInPoints: nil,
+                                                  status: .complete,
                                                   isValid: true,
-                                                  isIdle: false,
                                                   presentTime: 0),
                           publishedAt: Date())
     }
@@ -68,9 +69,12 @@ final class MetalContext {
     /// 再走与视频帧相同的纹理缓存路径，保证降级画面与流画面格式一致。
     func texture(from image: CGImage) -> MetalFrame? {
         var pixelBuffer: CVPixelBuffer?
+        // 必须带 IOSurface 属性：只有 CG 兼容标记时 CVMetalTextureCacheCreateTextureFromImage
+        // 会以 -6660 失败，低频更新的卡片就永远停在旧画面上（本机实测）。
         let attributes: [String: Any] = [
             kCVPixelBufferCGImageCompatibilityKey as String: true,
             kCVPixelBufferCGBitmapContextCompatibilityKey as String: true,
+            kCVPixelBufferIOSurfacePropertiesKey as String: [:] as Any,
         ]
         let status = CVPixelBufferCreate(kCFAllocatorDefault,
                                          image.width,
@@ -89,7 +93,10 @@ final class MetalContext {
                                       bitsPerComponent: 8,
                                       bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer),
                                       space: space,
-                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                                      // 32BGRA 的内存序是 B,G,R,A：只有 premultipliedFirst + 32Little
+                                      // 会写成这个顺序。用 premultipliedLast 得到的是 R,G,B,A，
+                                      // 渲染层按 BGRA 采样就会整张图红蓝互换（本机读回字节实测）。
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
                                         | CGImageByteOrderInfo.order32Little.rawValue) else { return nil }
         context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
         return texture(from: pixelBuffer)

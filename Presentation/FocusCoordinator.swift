@@ -361,8 +361,8 @@ final class FocusCoordinator {
     /// 动画画面比例取有效捕获内容或真实源窗口，不能用"含标题条的格子比例"（方案 §4.3）。
     private func sourceAspect(for identity: WindowIdentity, frame: MetalFrame?, cellRect: CGRect) -> CGFloat {
         if let meta = frame?.meta {
-            if meta.sourceSize.width > 1, meta.sourceSize.height > 1 {
-                return max(0.2, meta.sourceSize.width / meta.sourceSize.height)
+            if let size = meta.sourceSizeInPoints, size.width > 1, size.height > 1 {
+                return max(0.2, size.width / size.height)
             }
             if meta.pixelWidth > 1, meta.pixelHeight > 1 {
                 return max(0.2, CGFloat(meta.pixelWidth) / CGFloat(meta.pixelHeight))

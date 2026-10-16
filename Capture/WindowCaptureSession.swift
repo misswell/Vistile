@@ -4,168 +4,236 @@ import Foundation
 import ScreenCaptureKit
 import VistileCore
 
-/// 单窗口捕获会话：一个窗口最多一个活跃 stream（方案 §7 不变量）。
-/// 停止后晚到帧因 generation 不匹配被 mailbox 丢弃，不会污染新会话。
-final class WindowCaptureSession: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sendable {
+/// 单窗口捕获运行（方案 §7.1–§7.4、§10.1）。
+///
+/// 两条硬约束：一个窗口最多一个活跃 stream；实例只代表一次运行，runID 不复用。
+/// 晚到帧靠信箱代次丢弃，晚到回调靠 runID 丢弃，因此停止之后到达的任何东西都污染不了下一轮。
+final class WindowCaptureSession: NSObject, SCStreamOutput, SCStreamDelegate, CaptureRunning, @unchecked Sendable {
     let identity: WindowIdentity
-    let generation: UInt64
-
-    private(set) var config: StreamConfig
-    private(set) var lastError: String?
-    private(set) var publishedFrames: Int = 0
-    private(set) var idleFrames: Int = 0
-    private(set) var droppedFrames: Int = 0
+    let runID: CaptureRunID
+    /// 本轮的信箱代次：管理者在切换运行时分配，本实例无权推进（方案 §7.4）。
+    private let generation: UInt64
+    /// 源窗口点尺寸：由目录给出，绝不从 contentScale 反推（方案 §10.1）。
+    private let sourceSizeInPoints: CGSize?
 
     private let window: SCWindow
     private let mailbox: FrameMailbox<MetalFrame>
     private let metal: MetalContext
     private let sampleQueue: DispatchQueue
-    private var stream: SCStream?
-    private var didDeliverFirstFrame = false
 
-    /// 首帧、失败、新帧通知；后两者可能在采样队列触发。
-    var onFirstFrame: ((Date) -> Void)?
-    var onFailure: ((String) -> Void)?
-    var onFramePublished: ((MetalFrame) -> Void)?
+    private let lock = NSLock()
+    private var lifecycle = CaptureLifecycle()
+    /// SCStream 一创建就登记：startCapture 仍挂起时也必须能被停掉（方案 §7.2）。
+    private var stream: SCStream?
+    private var didReportFailure = false
+    private var didDeliverFirstFrame = false
+    private var storage: StreamConfig
+    private var error: String?
+    private var counts = CaptureFrameCounts()
+
+    var onFirstFrame: ((CaptureRunID, Date) -> Void)?
+    var onFailure: ((CaptureRunID, String) -> Void)?
+    var onFramePublished: ((CaptureRunID, MetalFrame) -> Void)?
 
     init(identity: WindowIdentity,
+         runID: CaptureRunID,
          generation: UInt64,
          window: SCWindow,
+         sourceSizeInPoints: CGSize?,
          config: StreamConfig,
          mailbox: FrameMailbox<MetalFrame>,
          metal: MetalContext,
          sampleQueue: DispatchQueue) {
         self.identity = identity
+        self.runID = runID
         self.generation = generation
         self.window = window
-        self.config = config
+        self.sourceSizeInPoints = sourceSizeInPoints
         self.mailbox = mailbox
         self.metal = metal
         self.sampleQueue = sampleQueue
+        self.storage = config
         super.init()
     }
 
-    var isRunning: Bool { stream != nil }
+    var phase: CaptureRunPhase { lock.withLock { lifecycle.phase } }
+    var config: StreamConfig { lock.withLock { storage } }
+    var lastError: String? { lock.withLock { error } }
+    var frameCounts: CaptureFrameCounts { lock.withLock { counts } }
 
+    // MARK: - 生命周期
+
+    @discardableResult
     func start() async -> Bool {
         let configuration = SCStreamConfiguration()
         configuration.apply(config)
-        let filter = SCContentFilter(desktopIndependentWindow: window)
-        let stream = SCStream(filter: filter, configuration: configuration, delegate: self)
+        let candidate = SCStream(filter: SCContentFilter(desktopIndependentWindow: window),
+                                 configuration: configuration,
+                                 delegate: self)
         do {
-            try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: sampleQueue)
+            try candidate.addStreamOutput(self, type: .screen, sampleHandlerQueue: sampleQueue)
         } catch {
-            lastError = "addStreamOutput: \(error.localizedDescription)"
-            onFailure?(lastError!)
+            await finish(candidate, failure: "addStreamOutput: \(error.localizedDescription)")
+            return false
+        }
+        // 先登记再 await：否则此刻到达的 stop() 只能对着 nil 空操作（R05 原始缺陷）。
+        let registered = lock.withLock { () -> Bool in
+            guard lifecycle.beginStart() else { return false }
+            stream = candidate
+            return true
+        }
+        guard registered else {
+            await finish(candidate, failure: nil)
             return false
         }
         do {
-            try await stream.startCapture()
+            try await candidate.startCapture()
         } catch {
-            lastError = "startCapture: \(error.localizedDescription)"
-            onFailure?(lastError!)
+            await finish(candidate, failure: "startCapture: \(error.localizedDescription)")
             return false
         }
-        self.stream = stream
-        return true
+        switch lock.withLock({ lifecycle.startReturned() }) {
+        case .enterRunning:
+            return true
+        case .mustStop, .alreadyHandled:
+            // 取消后仍完成启动的局部 stream：停掉它，且不进入 running（方案 §7.2）。
+            await finish(candidate, failure: nil)
+            return false
+        }
+    }
+
+    /// 请求停止。即便 start 还在等待也必须立刻标记取消；真正执行 stopCapture 的只有一条路径。
+    func stop() async {
+        switch lock.withLock({ lifecycle.requestStop() }) {
+        case .thisCall:
+            let target = lock.withLock { () -> SCStream? in
+                let existing = stream
+                stream = nil
+                lifecycle.markStopped()
+                return existing
+            }
+            await shutDown(target)
+        case .pendingStart, .nobody:
+            // pendingStart：start 返回后的那条路径负责停，两边都停或都不停都不行。
+            return
+        }
     }
 
     /// 几何变化只改配置，不重建流（方案 §9）。
+    @discardableResult
     func update(configuration candidate: StreamConfig) async -> Bool {
         guard candidate != config else { return true }
-        guard let stream else {
-            config = candidate
+        guard let target = lock.withLock({ () -> SCStream? in lifecycle.phase == .running ? stream : nil }) else {
+            lock.withLock { storage = candidate }
             return false
         }
-        let configuration = SCStreamConfiguration()
-        configuration.apply(candidate)
+        let streamConfiguration = SCStreamConfiguration()
+        streamConfiguration.apply(candidate)
         do {
-            try await stream.updateConfiguration(configuration)
-            config = candidate
+            try await target.updateConfiguration(streamConfiguration)
+            lock.withLock { storage = candidate }
             return true
         } catch {
-            lastError = "updateConfiguration: \(error.localizedDescription)"
+            lock.withLock { self.error = "updateConfiguration: \(error.localizedDescription)" }
             return false
         }
     }
 
-    func stop() async {
-        guard let stream else { return }
-        self.stream = nil
-        try? await stream.stopCapture()
-        // 代际推进后，采样队列里晚到的帧会被 mailbox 拒绝。
-        mailbox.advanceGeneration()
+    /// 收敛一条已经不再属于本轮的 stream：失败只在这里回报一次（方案 §7.2 最后一条）。
+    private func finish(_ candidate: SCStream, failure: String?) async {
+        let message = lock.withLock { () -> String? in
+            if stream === candidate { stream = nil }
+            lifecycle.markStopped()
+            guard let failure, !didReportFailure, !lifecycle.cancellationRequested else { return nil }
+            error = failure
+            didReportFailure = true
+            return failure
+        }
+        await shutDown(candidate)
+        if let message { onFailure?(runID, message) }
+    }
+
+    private func shutDown(_ candidate: SCStream?) async {
+        guard let candidate else { return }
+        try? await candidate.stopCapture()
+        // 输出也要摘掉：否则这条流的回调会继续投进已经作废的一轮（方案 §7.2）。
+        try? candidate.removeStreamOutput(self, type: .screen)
+    }
+
+    private func bump(_ mutate: (inout CaptureFrameCounts) -> Void) {
+        lock.withLock { mutate(&counts) }
     }
 
     // MARK: - SCStreamOutput
 
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
         guard type == .screen, sampleBuffer.isValid else { return }
-
-        let statusNumber = attachment(sampleBuffer, SCStreamFrameInfo.status.rawValue) as? NSNumber
-        let frameStatus = statusNumber.flatMap { SCFrameStatus(rawValue: $0.intValue) } ?? .complete
-        guard frameStatus != .suspended, frameStatus != .stopped, frameStatus != .blank else {
-            // 系统暂停（例如最小化）：保留最后画面，状态由目录给出，不标成捕获失败。
+        let readout = SampleAttachmentReader.readout(of: sampleBuffer)
+        guard let status = readout.status else {
+            // 没有 status 就不算完整帧：缺元数据时宁可丢掉这一帧，也不伪造画面（方案 §10.1）。
+            bump { $0.rejectedByMetadata += 1 }
             return
         }
-
-        let scaleFactor = (attachment(sampleBuffer, SCStreamFrameInfo.scaleFactor.rawValue) as? NSNumber)?
-            .doubleValue ?? 1
-        let contentRect = (attachment(sampleBuffer, SCStreamFrameInfo.contentRect.rawValue) as? NSValue)?.rectValue ?? .zero
-        let contentScale = (attachment(sampleBuffer, SCStreamFrameInfo.contentScale.rawValue) as? NSValue)?.sizeValue ?? .zero
-
-        guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-        let meta = CapturedFrameMeta(
-            pixelWidth: CVPixelBufferGetWidth(imageBuffer),
-            pixelHeight: CVPixelBufferGetHeight(imageBuffer),
-            contentRect: contentRect,
-            // scaleFactor 是显示分辨率与点的比例；内容留边由 contentRect/contentScale 表达。
-            scaleFactor: CGFloat(scaleFactor),
-            sourceSize: CGSize(width: contentScale.width, height: contentScale.height),
-            isValid: true,
-            isIdle: frameStatus == .idle,
-            presentTime: CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
-        )
-
-        // idle 帧保留最后画面：只计数，不覆盖纹理（方案 §9.8）。
-        guard meta.shouldUpdateTexture else {
-            idleFrames += 1
+        guard status == .complete else {
+            bump { $0.keptLastFrame += 1 }
+            if status == .started { bump { $0.startedFrames += 1 } }
             return
         }
-        guard let texture = metal.texture(from: imageBuffer) else {
-            droppedFrames += 1
+        guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+            bump { $0.rejectedByMetadata += 1 }
             return
         }
-        let payload = MetalFrame(texture: texture.texture,
-                                 storage: texture.storage,
+        let meta = CapturedFrameMeta(pixelWidth: CVPixelBufferGetWidth(imageBuffer),
+                                     pixelHeight: CVPixelBufferGetHeight(imageBuffer),
+                                     contentRectInPoints: readout.contentRectInPoints,
+                                     pointPixelScale: readout.pointPixelScale ?? 1,
+                                     contentScale: readout.contentScale,
+                                     sourceSizeInPoints: sourceSizeInPoints,
+                                     status: status,
+                                     isValid: true,
+                                     presentTime: CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sampleBuffer)))
+        guard let mapped = metal.texture(from: imageBuffer) else {
+            bump { $0.dropped += 1 }
+            return
+        }
+        let payload = MetalFrame(texture: mapped.texture,
+                                 storage: mapped.storage,
                                  meta: meta,
                                  publishedAt: Date())
-        publishedFrames += 1
-        if mailbox.publish(payload, generation: generation, at: payload.publishedAt) {
-            if !didDeliverFirstFrame {
-                didDeliverFirstFrame = true
-                onFirstFrame?(payload.publishedAt)
-            }
-            onFramePublished?(payload)
-        } else {
-            droppedFrames += 1
+        guard mailbox.publish(payload, generation: generation, at: payload.publishedAt) else {
+            // 代次不匹配：属于本轮之外的晚到帧，绝不改写新卡片的画面。
+            bump { $0.stale += 1 }
+            return
         }
+        bump { $0.published += 1 }
+        let delivered = lock.withLock { () -> Bool in
+            guard !didDeliverFirstFrame else { return false }
+            didDeliverFirstFrame = true
+            return true
+        }
+        if delivered { onFirstFrame?(runID, payload.publishedAt) }
+        onFramePublished?(runID, payload)
     }
 
-    private func attachment(_ sampleBuffer: CMSampleBuffer, _ key: String) -> AnyObject? {
-        CMGetAttachment(sampleBuffer, key: key as CFString, attachmentModeOut: nil)
+    func stream(_ stream: SCStream, didDropSampleBuffer sampleBuffer: CMSampleBuffer, for type: SCStreamOutputType) {
+        // 背压丢帧只影响帧率上限，不是会话失败（方案 §9.8）。
+        bump { $0.dropped += 1 }
     }
 
     // MARK: - SCStreamDelegate
 
-    func stream(_ stream: SCStream, didStopWithError error: Error) {
-        lastError = error.localizedDescription
-        self.stream = nil
-        onFailure?(error.localizedDescription)
-    }
-
-    /// 背压丢帧只影响帧率上限，不是会话失败；记录但保持 live。
-    func stream(_ stream: SCStream, didDropSampleBuffer sampleBuffer: CMSampleBuffer, for type: SCStreamOutputType) {
-        droppedFrames += 1
+    func stream(_ stream: SCStream, didStopWithError stopError: Error) {
+        let message = lock.withLock { () -> String? in
+            guard !didReportFailure, !lifecycle.cancellationRequested else {
+                error = stopError.localizedDescription
+                return nil
+            }
+            error = stopError.localizedDescription
+            didReportFailure = true
+            if self.stream === stream { self.stream = nil }
+            lifecycle.markStopped()
+            return error
+        }
+        if let message { onFailure?(runID, message) }
     }
 }

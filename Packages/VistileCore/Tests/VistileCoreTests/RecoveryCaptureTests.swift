@@ -293,12 +293,30 @@ struct CaptureLifecycleTests {
         let mailbox = FrameMailbox<Int>()
         let old = mailbox.currentGeneration
         mailbox.publish(1, generation: old, at: Date())
-        let new = mailbox.advanceGeneration()
+        let new = mailbox.beginRun(clearingFrame: true)
         #expect(!mailbox.publish(2, generation: old, at: Date()))
         #expect(mailbox.pendingCount == 0)
         #expect(mailbox.staleCount == 1)
         #expect(mailbox.publish(3, generation: new, at: Date()))
         #expect(mailbox.latestIfChanged(aboveVersion: 0)?.payload == 3)
+    }
+
+    @Test("重开运行保留最后一帧，销毁窗口才丢弃")
+    func reopenedRunKeepsLastFrameButReleaseDropsIt() {
+        let mailbox = FrameMailbox<Int>()
+        let first = mailbox.currentGeneration
+        mailbox.publish(11, generation: first, at: Date())
+        // 最小化/关闭再打开：新代次旧帧失效，但画面要接着显示，不能凭空变黑。
+        let second = mailbox.beginRun()
+        #expect(mailbox.pendingCount == 1)
+        #expect(!mailbox.publish(12, generation: first, at: Date()))
+        #expect(mailbox.latestIfChanged(aboveVersion: 0)?.payload == 11)
+        #expect(mailbox.publish(13, generation: second, at: Date()))
+        #expect(mailbox.latestIfChanged(aboveVersion: 0)?.payload == 13)
+        // 窗口真销毁：代次推进 + 清空。
+        mailbox.release()
+        #expect(mailbox.pendingCount == 0)
+        #expect(!mailbox.publish(14, generation: second, at: Date()))
     }
 
     @Test("并发写入不会形成队列")
