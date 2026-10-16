@@ -93,7 +93,11 @@ final class P0Probe {
     private func showOverview() async {
         if coordinator.state.phase != .hidden { return }
         coordinator.toggleOverview()
-        _ = await waitUntil { self.coordinator.state.phase.isVisible && !self.coordinator.state.records.isEmpty }
+        // "打开总览"不等于"阶段可见"：`.preparing` 也算可见，而上一轮的 records 还在，
+        // 只等 isVisible + records 非空会在发现落地前就返回——那时网格刚被复位、视图还是旧格子，
+        // 点卡片会被"没有格子位置"静默丢掉（0.1.9+11/+12 两轮 P0-4 的红就是这个形状）。
+        // 判据同 P0-7：必须等总览真的落地（阶段到 overview 意味着这一轮网格已经重建完）。
+        _ = await waitUntil { self.coordinator.state.phase == .overview && !self.coordinator.state.records.isEmpty }
     }
 
     // MARK: - P0-1 目录与身份
@@ -357,6 +361,14 @@ final class P0Probe {
         // 上一项（P0-3）可能刚把某个窗口提升成受控目标。那种状态下格子不在总览布局里，
         // 点位命中不到卡片；0.1.4 那轮 P0-4 记的"动作次数=0、阶段到达=false"就是脏阶段的读数。
         await restoreOverview()
+        // 总览没真正落地时不能点：`.preparing` 下登记表还没重建，点击会被入口守卫静默丢掉，
+        // 那测的是取证时机而不是产品。判据与 P0-11/P0-12 一致：打不开就记未测并说清原因。
+        guard coordinator.state.phase == .overview else {
+            record("P0-4", "原生前台输入", passed: nil,
+                   detail: "总览没能打开（阶段=\(phaseDebug(coordinator.state.phase))），无法在总览态造真实点击",
+                   check: "P0-4 原生前台输入")
+            return
+        }
         guard let candidate = expandCandidate() else {
             record("P0-4", "原生前台输入", passed: nil,
                    detail: (P0Probe.targetFilter().isEmpty
@@ -387,13 +399,34 @@ final class P0Probe {
                    check: "P0-4 原生前台输入")
             return
         }
-        try? await Task.sleep(nanoseconds: 400_000_000)
-        let panelHoldsKey = coordinator.controllers.values.contains { $0.isKey }
+        // 点卡片现在走"进入工作台"：过渡由一步 AX 写入 + 前景激活组成（0.1.9+11 实机样本 120ms 与 704ms），
+        // 键盘按方案 §10.1 在模式落定后才移交——定长 400ms 会在途中读到"总览仍持有键盘"这个设计动作，
+        // 把过渡读成失败。这里改成等过渡自己落定；判据不变：落定后任何 Vistile 面板都不许持有键盘。
+        let settled = await waitUntil(timeout: 5.0) {
+            let state = self.coordinator.state
+            return state.mode == .workbench && !state.workbench.modeTransition.isTransitioning
+        }
+        let overviewHoldsKey = coordinator.controllers.values.contains { $0.isKey }
+        let railHoldsKey = coordinator.workbenchControllers.values.contains { $0.isSearchFocused }
         let focusState = coordinator.state.keyboardFocus
         coordinator.dispatch(.returnShortcut)
-        _ = await waitUntil(timeout: 3.0) { self.coordinator.state.phase == .overview || self.coordinator.state.phase == .hidden }
-        record("P0-4", "原生前台输入", passed: !panelHoldsKey && focusState == .targetApplication,
-               detail: "放大 \(candidate.applicationName) 后：总览面板持有键盘=\(panelHoldsKey)，键盘归属=\(focusState.rawValue)",
+        _ = await waitUntil(timeout: 5.0) { self.coordinator.state.phase == .overview || self.coordinator.state.phase == .hidden }
+        var issues: [String] = []
+        if !settled {
+            // 阶段到达=点击是否真的走到"进入"（.expanding 的受控目标就是候选）：
+            // false = 点击在入口前就被丢掉；true = 过渡开始了但没落定。两种成因必须分开写。
+            let mode = coordinator.state.mode == .workbench ? "workbench" : "overview"
+            let transition = coordinator.state.workbench.modeTransition.isTransitioning ? "在途" : "idle"
+            issues.append("5s 内进入工作台没有落定（阶段=\(phaseDebug(coordinator.state.phase))，"
+                        + "阶段到达=\(reached)，模式=\(mode)，过渡=\(transition)）")
+        }
+        if overviewHoldsKey { issues.append("总览面板持有键盘") }
+        if railHoldsKey { issues.append("工作台面板的搜索框持有键盘") }
+        if focusState != .targetApplication { issues.append("键盘归属=\(focusState.rawValue)") }
+        record("P0-4", "原生前台输入", passed: issues.isEmpty,
+               detail: issues.isEmpty
+                    ? "进入工作台（主区=\(candidate.applicationName)）落定后：没有任何 Vistile 面板持有键盘，键盘归属=\(focusState.rawValue)"
+                    : "问题：" + issues.joined(separator: "；"),
                check: "P0-4 键盘不被总览占用")
         manual("P0-4", "中文输入", "放大 Terminal 或备忘录，用中文输入法打「测试」，录屏确认候选窗跟随真实窗口。")
         manual("P0-4", "右键与菜单", "在放大窗口上右键、打开菜单栏、拖动文本，确认全部落在真实窗口内。")
@@ -578,19 +611,28 @@ final class P0Probe {
         let diagnosticsBefore = coordinator.rendererDiagnostics
         let framesBefore = totalPublished()
         let clicksBefore = coordinator.cardClickCount
-        let backgroundsBefore = coordinator.viewBackgroundClickCount
         let minimizedBefore = coordinator.state.records.values.filter(\.isMinimized).count
 
         let down = sendRealMouseDownUp(target)
         let reachedFocus = await waitUntil(timeout: 5.0) { self.coordinator.state.phase.controlledTarget == candidate.identity }
+        // 进入工作台的过渡要在 AX 写入与前景激活之后才落定：点卡片在途就算数，但"回到总览"必须从落定态出发。
+        let settledEntry = await waitUntil(timeout: 5.0) {
+            let state = self.coordinator.state
+            return state.mode == .workbench && !state.workbench.modeTransition.isTransitioning
+        }
         let expanded = down
             && coordinator.cardClickCount == clicksBefore + 1
-            && reachedFocus
+            && reachedFocus && settledEntry
 
-        // 回到总览也走真实事件：抬起落在空白格子上，而不是塞给状态机一个假点击。
-        let backgroundSent = coordinator.state.phase.controlledTarget == candidate.identity
-            && sendRealBackgroundClick(on: candidate.identity)
-        let returned = await waitUntil(timeout: 5.0) { self.coordinator.state.phase == .overview }
+        // 回到总览同样走真实事件：新模型里总览背景不再是常驻画面，返回入口是工具区的「全部窗口」按钮，
+        // 事件必须真的落在那个按钮上（坐标与命中的校验都在 allWindowsButtonPoint 里，不猜位置）。
+        let returnPoint = allWindowsButtonPoint()
+        let buttonSent = expanded && returnPoint != nil
+            && sendRealMouseDownUp((returnPoint!.window, returnPoint!.point), hitView: returnPoint!.view)
+        let returned = await waitUntil(timeout: 8.0) {
+            let state = self.coordinator.state
+            return state.mode == .overview && !state.workbench.modeTransition.isTransitioning && state.phase == .overview
+        }
         let minimizedAfter = coordinator.state.records.values.filter(\.isMinimized).count
         // 回到总览后要给重起流与首次合成留出时间，否则"之后"的增量取的是收回瞬间的空档。
         // 等的同样是"真的又来了一帧"，不是"流计数回到非 0"。
@@ -605,12 +647,12 @@ final class P0Probe {
         let submissionFailures = diagnosticsAfter.submissionFailures - diagnosticsBefore.submissionFailures
         let streams = coordinator.capture.activeStreamCount
         let rendered = presented > 0
-        let detail = "真实点击 → 放大 \(candidate.applicationName)：视图动作 \(coordinator.cardClickCount - clicksBefore) 次，阶段到达=\(reachedFocus)；"
-            + "真实背景点击 \(coordinator.viewBackgroundClickCount - backgroundsBefore) 次，回到总览=\(returned)；"
+        let detail = "真实点击 → 进入工作台（主区=\(candidate.applicationName)）：视图动作 \(coordinator.cardClickCount - clicksBefore) 次，阶段到达=\(reachedFocus)，进入落定=\(settledEntry)；"
+            + "真实点击「全部窗口」=\(buttonSent)，回到总览=\(returned)；"
             + "最小化数量 \(minimizedBefore)→\(minimizedAfter)；"
             + "同期 present +\(presented)、捕获帧 +\(frames)（\(streams) 路流），"
             + "GPU 错误 +\(gpuErrors)、提交失败 +\(submissionFailures)，缺 drawable 累计 \(diagnosticsAfter.missingDrawables)"
-        let passed = expanded && backgroundSent && returned && rendered
+        let passed = expanded && buttonSent && returned && rendered
             && minimizedAfter == minimizedBefore
             && gpuErrors == 0 && submissionFailures == 0
         record("P0-9", "真实视图链路", passed: passed, detail: detail, check: "P0-9 事件转接到真实上屏")
@@ -1041,17 +1083,6 @@ final class P0Probe {
         let point = toolbar.convert(CGPoint(x: frame.midX, y: frame.midY), to: nil)
         guard let button = window.contentView?.hitTest(point) as? NSButton, button.title == "全部窗口" else { return nil }
         return (window, point, toolbar)
-    }
-
-    /// 点在确定不属于任何格子的空白上：命中测试为 nil 才算真的背景，不能靠"随便挑个角"。
-    private func sendRealBackgroundClick(on identity: WindowIdentity) -> Bool {
-        guard let record = coordinator.state.records[identity],
-              let controller = coordinator.controllers[record.displayID] else { return false }
-        let view = controller.contentView
-        guard let window = view.window, let local = view.unoccupiedViewPoint() else { return false }
-        let point = view.convert(local, to: nil)
-        guard view.hitTest(point) != nil else { return false }
-        return sendRealMouseDownUp((window, point))
     }
 
     private static func mouseEvent(_ type: NSEvent.EventType, window: NSWindow, point: CGPoint) -> NSEvent? {
