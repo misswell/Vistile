@@ -32,6 +32,8 @@ public enum WorkbenchReducer {
             return commitMainSwitch(&state, token: token)
         case let .mainSwitchFailed(token, reason):
             return failMainSwitch(&state, token: token, reason: reason)
+        case let .workbenchRailSizePreview(topHeight, sideWidth):
+            return handleRailSizePreview(&state, topHeight: topHeight, sideWidth: sideWidth)
         case let .workbenchRailSizeChanged(topHeight, sideWidth):
             return handleRailSizeChanged(&state, topHeight: topHeight, sideWidth: sideWidth)
         case let .workbenchSearchFocusChanged(focused):
@@ -446,23 +448,43 @@ public enum WorkbenchReducer {
         return effects
     }
 
+    /// 拖动中的实时预览：只改本机投影（方案 §11.2）。节流后的写入与松手后的最终读回
+    /// 都走 handleRailSizeChanged——只有那条路径会 settleMain 并留下事务记录。
+    private static func handleRailSizePreview(_ state: inout SessionState,
+                                              topHeight: CGFloat?,
+                                              sideWidth: CGFloat?) -> [SessionEffect] {
+        guard state.mode == .workbench, state.workbench.modeTransition == .idle,
+              !state.workbench.mainSwitch.isBusy else { return [] }
+        guard applyRailSize(&state, topHeight: topHeight, sideWidth: sideWidth) != nil else { return [] }
+        return layoutEffects(state)
+    }
+
     private static func handleRailSizeChanged(_ state: inout SessionState,
                                               topHeight: CGFloat?,
                                               sideWidth: CGFloat?) -> [SessionEffect] {
         guard state.mode == .workbench, state.workbench.modeTransition == .idle,
               !state.workbench.mainSwitch.isBusy else { return [] }
-        state.workbench.topHeightPreference = topHeight
-        state.workbench.sideWidthPreference = sideWidth
-        guard let snapshot = state.workbench.snapshot,
-              let display = state.displays.first(where: { $0.id == snapshot.displayID }),
-              let layout = workbenchLayout(for: display, state: state) else { return [] }
-        let updated = snapshot.replacing(layout: layout, revision: state.workbench.layoutRevision + 1)
-        state.workbench.snapshot = updated
-        state.workbench.layoutRevision = updated.revision
+        guard let updated = applyRailSize(&state, topHeight: topHeight, sideWidth: sideWidth) else { return [] }
         var effects: [SessionEffect] = layoutEffects(state)
         // 松手后的最终读回由 settleMain 收口，拖动中的节流写入由宿主做（方案 §11.2）。
         effects.append(contentsOf: settleMain(&state, snapshot: updated))
         return effects
+    }
+
+    /// 两条栏尺寸偏好落进状态并重算冻结投影；算不出新布局（没有 snapshot/屏幕已不在）返回 nil。
+    /// nil = 这一维没有新偏好：两条分隔线是独立拖动的，不能顺手清掉另一维（方案 §11.2）。
+    private static func applyRailSize(_ state: inout SessionState,
+                                      topHeight: CGFloat?,
+                                      sideWidth: CGFloat?) -> WorkbenchLayoutSnapshot? {
+        if let topHeight { state.workbench.topHeightPreference = topHeight }
+        if let sideWidth { state.workbench.sideWidthPreference = sideWidth }
+        guard let snapshot = state.workbench.snapshot,
+              let display = state.displays.first(where: { $0.id == snapshot.displayID }),
+              let layout = workbenchLayout(for: display, state: state) else { return nil }
+        let updated = snapshot.replacing(layout: layout, revision: state.workbench.layoutRevision + 1)
+        state.workbench.snapshot = updated
+        state.workbench.layoutRevision = updated.revision
+        return updated
     }
 
     private static func organizeRail(_ state: inout SessionState) -> [SessionEffect] {

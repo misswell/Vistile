@@ -11,6 +11,12 @@ final class WorkbenchWindowController {
         case railCardClicked(slot: RailSlotID, identity: WindowIdentity)
         case railCardDragged(from: RailSlotID, to: RailSlotID)
         case railScrolled(rail: RailKind, offset: CGFloat)
+        /// 分隔线拖动开始：宿主在这里重置写入节流窗口（方案 §11.2）。
+        case railDividerDragBegan(rail: RailKind)
+        /// 拖动中的尺寸（已 clamp 到 token 范围）：宿主每个事件只推本机预览；外部写入由宿主节流。
+        case railDividerDragged(rail: RailKind, value: CGFloat)
+        /// 松手：宿主做最终结算与写盘。
+        case railDividerDragEnded(rail: RailKind, value: CGFloat)
         case returnToOverview
         case toggleSide
         case searchFocus(Bool)
@@ -24,8 +30,10 @@ final class WorkbenchWindowController {
     private let sidePanel = WorkbenchRailPanel(contentRect: .zero)
     private let topRailView: WorkbenchRailView
     private let sideRailView: WorkbenchRailView
+    private let topDividerView = WorkbenchDividerView(rail: .top, frame: .zero)
+    private let sideDividerView = WorkbenchDividerView(rail: .side, frame: .zero)
     private let toolbar = WorkbenchToolbarView(frame: .zero)
-    /// 面板整块内容：栏视图只占其中的 viewport，角落工具区是它的兄弟。
+    /// 面板整块内容：栏视图只占其中的 viewport，角落工具区与分隔线命中区是它的兄弟。
     /// 若把栏视图直接当 contentView，工具区会落在它的 frame 之外，点击在 hitTest 一级就被丢掉。
     private let topContent = NSView(frame: .zero)
     private let sideContent = NSView(frame: .zero)
@@ -34,6 +42,8 @@ final class WorkbenchWindowController {
     private var mapper: CoordinateMapper
     /// 最近一次投影：命中判定与探针都用它，不重新推导。
     private var lastPresentation: WorkbenchPresentation?
+    /// 分隔线拖动的抓取锚点：以按下点与当时的栏尺寸为基准算增量，面板随预览移动也不漂。
+    private var dividerDrag: (rail: RailKind, startPoint: CGPoint, startValue: CGFloat)?
 
     init(display: DisplayInfo, mapper: CoordinateMapper, metal: MetalContext) {
         self.display = display
@@ -46,11 +56,19 @@ final class WorkbenchWindowController {
         sidePanel.contentView = sideContent
         topContent.addSubview(topRailView)
         topContent.addSubview(toolbar)
+        topContent.addSubview(topDividerView)
         sideContent.addSubview(sideRailView)
+        sideContent.addSubview(sideDividerView)
 
         topRailView.onAction = { [weak self] action in self?.handle(action, from: .top) }
         sideRailView.onAction = { [weak self] action in self?.handle(action, from: .side) }
         toolbar.onAction = { [weak self] action in self?.handle(toolbarAction: action) }
+        topDividerView.onDragBegan = { [weak self] point in self?.beginDividerDrag(rail: .top, screenPoint: point) }
+        topDividerView.onDragged = { [weak self] point in self?.updateDividerDrag(rail: .top, screenPoint: point) }
+        topDividerView.onDragEnded = { [weak self] point in self?.endDividerDrag(rail: .top, screenPoint: point) }
+        sideDividerView.onDragBegan = { [weak self] point in self?.beginDividerDrag(rail: .side, screenPoint: point) }
+        sideDividerView.onDragged = { [weak self] point in self?.updateDividerDrag(rail: .side, screenPoint: point) }
+        sideDividerView.onDragEnded = { [weak self] point in self?.endDividerDrag(rail: .side, screenPoint: point) }
     }
 
     var isVisible: Bool { topPanel.isVisible || sidePanel.isVisible }
@@ -63,6 +81,8 @@ final class WorkbenchWindowController {
     var topRail: WorkbenchRailView { topRailView }
     var sideRail: WorkbenchRailView { sideRailView }
     var toolbarView: WorkbenchToolbarView { toolbar }
+    var topDivider: WorkbenchDividerView { topDividerView }
+    var sideDivider: WorkbenchDividerView { sideDividerView }
     var isSearchFocused: Bool { topPanel.isKeyWindow && toolbar.searchHasKeyboard }
 
     // MARK: - 展示同步
@@ -83,8 +103,9 @@ final class WorkbenchWindowController {
 
         // 投影坐标先取整再设 frame：AppKit 会对面板 frame 舍入（原点下取整、尺寸上取整），
         // 主动对齐让命中判定与投影用同一个矩形，也避免面板边缘亚像素发糊。
-        let topFrame = mapper.cgToAppKit(layout.topRailRect).integral
-        let sideFrame = mapper.cgToAppKit(layout.sideRailRect).integral
+        // 面板窗口覆盖栏与它到主区的整条空带（方案 §11.2）：分隔线命中区必须落在某个窗口里才收得到鼠标。
+        let topFrame = mapper.cgToAppKit(layout.topPanelWindowRect).integral
+        let sideFrame = mapper.cgToAppKit(layout.sidePanelWindowRect).integral
         if topPanel.frame != topFrame { topPanel.setFrame(topFrame, display: isVisible) }
         if sidePanel.frame != sideFrame { sidePanel.setFrame(sideFrame, display: isVisible) }
 
@@ -96,6 +117,12 @@ final class WorkbenchWindowController {
 
         let toolbarRect = topPanel.convertFromScreen(mapper.cgToAppKit(layout.cornerToolRect))
         if toolbar.frame != toolbarRect { toolbar.frame = toolbarRect }
+
+        // 分隔线命中区来自冻结投影：正常态只显示细分隔，拖动时不改这里的几何。
+        let topDivider = topPanel.convertFromScreen(mapper.cgToAppKit(layout.topDividerRect))
+        let sideDivider = sidePanel.convertFromScreen(mapper.cgToAppKit(layout.sideDividerRect))
+        if topDividerView.frame != topDivider { topDividerView.frame = topDivider }
+        if sideDividerView.frame != sideDivider { sideDividerView.frame = sideDivider }
 
         let chromeStyle = OverviewStyle(margin: layout.style.margin,
                                         gap: layout.style.cardGap,
@@ -154,6 +181,9 @@ final class WorkbenchWindowController {
             view.cancelMouseGesture()
             view.setHiddenRailIdentities([])
         }
+        topDividerView.cancelMouseGesture()
+        sideDividerView.cancelMouseGesture()
+        dividerDrag = nil
         toolbar.endSearchEditing()
         setSearchKeyboard(false)
         for panel in [topPanel, sidePanel] { panel.orderOut(nil) }
@@ -214,6 +244,46 @@ final class WorkbenchWindowController {
         case let .searchFocus(focused): onAction?(.searchFocus(focused))
         case let .search(query): onAction?(.search(query))
         }
+    }
+
+    // MARK: - 分隔线拖动（方案 §11.2）
+
+    private func beginDividerDrag(rail: RailKind, screenPoint: CGPoint) {
+        guard let layout = lastPresentation?.snapshot.layout else { return }
+        let startValue = rail == .top ? layout.topRailRect.height : layout.sideRailRect.width
+        dividerDrag = (rail, screenPoint, startValue)
+        onAction?(.railDividerDragBegan(rail: rail))
+    }
+
+    private func updateDividerDrag(rail: RailKind, screenPoint: CGPoint) {
+        guard let value = dividerValue(rail: rail, screenPoint: screenPoint) else { return }
+        onAction?(.railDividerDragged(rail: rail, value: value))
+    }
+
+    private func endDividerDrag(rail: RailKind, screenPoint: CGPoint) {
+        defer { dividerDrag = nil }
+        guard let value = dividerValue(rail: rail, screenPoint: screenPoint) else { return }
+        onAction?(.railDividerDragEnded(rail: rail, value: value))
+    }
+
+    /// 抓取锚点 + 屏幕增量 → 新尺寸，clamp 到 token 范围；nil 表示没有进行中的拖动或投影。
+    /// 增量从按下点算起（不是逐事件累加）：面板自己会随预览移动，逐事件增量会漂。
+    private func dividerValue(rail: RailKind, screenPoint: CGPoint) -> CGFloat? {
+        guard let drag = dividerDrag, drag.rail == rail,
+              let layout = lastPresentation?.snapshot.layout else { return nil }
+        let start = mapper.appKitToCg(CGRect(origin: drag.startPoint, size: .zero)).origin
+        let current = mapper.appKitToCg(CGRect(origin: screenPoint, size: .zero)).origin
+        let delta: CGFloat
+        switch rail {
+        case .top:
+            // AppKit 向上为正，CG 向下为正：向下拖 = CG y 增大 = 栏更高。
+            delta = current.y - start.y
+        case .side:
+            // 右栏向左拖、左栏向右拖都是"加宽"。
+            delta = layout.side == .right ? start.x - current.x : current.x - start.x
+        }
+        let range = rail == .top ? layout.style.topHeightRange : layout.style.sideWidthRange
+        return min(max(drag.startValue + delta, range.lowerBound), range.upperBound)
     }
 
     /// 跨栏拖动的落点判定：屏幕点先转回各自视图本地坐标，再按卡片外框命中。

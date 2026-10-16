@@ -133,6 +133,15 @@ final class WorkbenchTests: XCTestCase {
         }
     }
 
+    private func settlePackets(_ effects: [SessionEffect]) -> [(identity: WindowIdentity, target: CGRect, token: TransitionToken)] {
+        effects.compactMap {
+            if case let .settleMainFrame(identity, targetFrame, token, _) = $0 {
+                return (identity, targetFrame, token)
+            }
+            return nil
+        }
+    }
+
     private func hasWorkbenchEnter(_ effects: [SessionEffect]) -> Bool {
         effects.contains { if case .enterWorkbench = $0 { return true } else { return false } }
     }
@@ -906,6 +915,171 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertEqual(normal.workbench.snapshot?.layout.mainRect, reduced.workbench.snapshot?.layout.mainRect)
         XCTAssertEqual(normal.workbench.snapshot?.layout.topRailRect, reduced.workbench.snapshot?.layout.topRailRect)
         XCTAssertEqual(normal.workbench.snapshot?.layout.sideRailRect, reduced.workbench.snapshot?.layout.sideRailRect)
+    }
+
+    // MARK: - W23 分隔线调整（方案 §5.2、§11.2、H08）
+
+    func testW23DividerHitBandsSitInsideGapsAndClampToStyle() {
+        let style = WorkbenchStyle()
+        let visible = CGRect(x: 0, y: 64, width: 1_512, height: 918)
+        for side in [RailSide.left, RailSide.right] {
+            let layout = WorkbenchLayoutEngine.layout(displayID: 1, visibleFrame: visible, side: side, style: style)
+            XCTAssertFalse(layout.isDegenerate, "\(side.displayName)布局不应退化")
+
+            let topBand = CGRect(x: layout.topRailRect.minX,
+                                 y: layout.topRailRect.maxY,
+                                 width: layout.topRailRect.width,
+                                 height: layout.mainRect.minY - layout.topRailRect.maxY)
+            let top = layout.topDividerRect
+            XCTAssertEqual(top.height, min(topBand.height, style.dividerHitWidth), accuracy: 0.001,
+                           "命中带厚度取空带与 token 的较小者（6–8pt）")
+            XCTAssertEqual(top.midY, topBand.midY, accuracy: 0.001, "居中落在顶栏与主区之间的空带里")
+            XCTAssertFalse(top.intersects(layout.topRailRect), "命中区不得侵入顶栏")
+            XCTAssertFalse(top.intersects(layout.mainRect), "命中区不得侵入主区")
+            XCTAssertEqual(top.width, topBand.width, accuracy: 0.001, "命中区横跨整条空带")
+
+            let sideBand: CGRect
+            switch side {
+            case .right:
+                sideBand = CGRect(x: layout.mainRect.maxX,
+                                  y: layout.sideRailRect.minY,
+                                  width: layout.sideRailRect.minX - layout.mainRect.maxX,
+                                  height: layout.sideRailRect.height)
+            case .left:
+                sideBand = CGRect(x: layout.sideRailRect.maxX,
+                                  y: layout.sideRailRect.minY,
+                                  width: layout.mainRect.minX - layout.sideRailRect.maxX,
+                                  height: layout.sideRailRect.height)
+            }
+            let sideRect = layout.sideDividerRect
+            XCTAssertEqual(sideRect.width, min(sideBand.width, style.dividerHitWidth), accuracy: 0.001)
+            XCTAssertEqual(sideRect.midX, sideBand.midX, accuracy: 0.001, "左右栏各自镜像，居中落带")
+            XCTAssertFalse(sideRect.intersects(layout.mainRect), "命中区不得侵入主区")
+            XCTAssertFalse(sideRect.intersects(layout.sideRailRect), "命中区不得侵入侧栏")
+            XCTAssertEqual(sideRect.height, sideBand.height, accuracy: 0.001)
+
+            // 面板窗口覆盖整条空带：分隔线画在带中央，1pt 桌面缝隙不存在（方案 §11.2）。
+            let topWindow = layout.topPanelWindowRect
+            XCTAssertEqual(topWindow.minY, layout.topRailRect.minY, accuracy: 0.001)
+            XCTAssertEqual(topWindow.maxY, layout.mainRect.minY, accuracy: 0.001, "面板窗口伸到主区上边为止")
+            XCTAssertTrue(topWindow.contains(top), "命中区必须落在面板窗口里，否则收不到鼠标")
+            XCTAssertFalse(topWindow.intersects(layout.mainRect), "伸进空带但不越 mainRect 边缘")
+
+            let sideWindow = layout.sidePanelWindowRect
+            XCTAssertTrue(sideWindow.contains(sideRect), "侧栏命中区必须落在它的面板窗口里")
+            XCTAssertFalse(sideWindow.intersects(layout.mainRect))
+            XCTAssertEqual(sideWindow.minY, layout.sideRailRect.minY, accuracy: 0.001)
+            XCTAssertEqual(sideWindow.maxY, layout.sideRailRect.maxY, accuracy: 0.001)
+            switch side {
+            case .right:
+                XCTAssertEqual(sideWindow.minX, layout.mainRect.maxX, accuracy: 0.001, "右栏面板向左伸到主区右边")
+                XCTAssertEqual(sideWindow.maxX, layout.sideRailRect.maxX, accuracy: 0.001)
+            case .left:
+                XCTAssertEqual(sideWindow.maxX, layout.mainRect.minX, accuracy: 0.001, "左栏面板向右伸到主区左边")
+                XCTAssertEqual(sideWindow.minX, layout.sideRailRect.minX, accuracy: 0.001)
+            }
+        }
+
+        // 空带不足 token 宽度时命中区跟着变窄，不越出空带；1pt 空带不产生命中区。
+        var tight = WorkbenchStyle()
+        tight.gap = 4
+        let tightLayout = WorkbenchLayoutEngine.layout(displayID: 1, visibleFrame: visible, side: .right, style: tight)
+        XCTAssertEqual(tightLayout.topDividerRect.height, 4, accuracy: 0.001, "空带 4pt 时命中区 4pt")
+        XCTAssertEqual(tightLayout.sideDividerRect.width, 4, accuracy: 0.001)
+
+        var hairline = WorkbenchStyle()
+        hairline.gap = 1
+        let hairlineLayout = WorkbenchLayoutEngine.layout(displayID: 1, visibleFrame: visible, side: .right, style: hairline)
+        XCTAssertEqual(hairlineLayout.topDividerRect, .zero, "1pt 空带够不到命中区")
+        XCTAssertEqual(hairlineLayout.sideDividerRect, .zero)
+
+        // 退化布局没有可拖的带。
+        let tiny = WorkbenchLayoutEngine.layout(displayID: 1,
+                                                visibleFrame: CGRect(x: 10, y: 20, width: 40, height: 30),
+                                                side: .right)
+        XCTAssertTrue(tiny.isDegenerate)
+        XCTAssertEqual(tiny.topDividerRect, .zero)
+        XCTAssertEqual(tiny.sideDividerRect, .zero)
+    }
+
+    func testW23DividerPreviewOnlyMovesLocalProjectionAndNeverSettles() throws {
+        var (state, list) = openState(count: 4)
+        enterWorkbench(&state, target: list[0].identity)
+        let before = try XCTUnwrap(state.workbench.snapshot?.layout)
+        XCTAssertNil(state.workbench.mainFrameWrite, "落地态没有在途写入")
+
+        let effects = Fixtures.dispatch(&state, .workbenchRailSizePreview(topHeight: 140, sideWidth: 220))
+        let after = try XCTUnwrap(state.workbench.snapshot?.layout)
+        XCTAssertEqual(after.topRailRect.height, 140, accuracy: 0.001, "预览立刻改本机投影")
+        XCTAssertEqual(after.sideRailRect.width, 220, accuracy: 0.001)
+        XCTAssertNotEqual(after.mainRect, before.mainRect, "主区跟着栏一起重算")
+        XCTAssertEqual(state.workbench.topHeightPreference, 140)
+        XCTAssertEqual(state.workbench.sideWidthPreference, 220)
+        XCTAssertFalse(presentations(effects).isEmpty, "预览必须推出新布局")
+        XCTAssertTrue(settlePackets(effects).isEmpty, "拖动中每个鼠标事件写一次 AX 是方案禁止的实现")
+        XCTAssertNil(state.workbench.mainFrameWrite, "预览不产生在途写入")
+        XCTAssertTrue(journalWrites(effects).isEmpty, "预览不动事务记录")
+
+        // 只拖一条分隔线：另一维的偏好必须原样保留，不能被 nil 顺手清掉（方案 §11.2）。
+        _ = Fixtures.dispatch(&state, .workbenchRailSizePreview(topHeight: 120, sideWidth: nil))
+        XCTAssertEqual(state.workbench.topHeightPreference, 120)
+        XCTAssertEqual(state.workbench.sideWidthPreference, 220, "顶栏拖动不得重置侧栏宽度偏好")
+
+        // 超出可调范围时投影被 clamp，绝不拖出负主区。
+        _ = Fixtures.dispatch(&state, .workbenchRailSizePreview(topHeight: 9_999, sideWidth: 9_999))
+        let clamped = try XCTUnwrap(state.workbench.snapshot?.layout)
+        XCTAssertEqual(clamped.topRailRect.height, WorkbenchStyle().topHeightRange.upperBound, accuracy: 0.001)
+        XCTAssertEqual(clamped.sideRailRect.width, WorkbenchStyle().sideWidthRange.upperBound, accuracy: 0.001)
+        XCTAssertGreaterThan(clamped.mainRect.width, 0)
+        XCTAssertGreaterThan(clamped.mainRect.height, 0)
+    }
+
+    func testW23DividerCommitSettlesOnceAndStaleReadBackCannotOverwriteFinal() throws {
+        var (state, list) = openState(count: 4)
+        enterWorkbench(&state, target: list[0].identity)
+        let main = try XCTUnwrap(state.workbench.placement.main)
+
+        // 拖动过程中的多次预览：只有投影在动。
+        for height in stride(from: CGFloat(110), through: 150, by: 10) {
+            let preview = Fixtures.dispatch(&state, .workbenchRailSizePreview(topHeight: height, sideWidth: nil))
+            XCTAssertTrue(settlePackets(preview).isEmpty)
+        }
+        XCTAssertNil(state.workbench.mainFrameWrite)
+
+        // 松手：一次结算，目标就是新主区几何；事务计划也更新到新目标。
+        let commit = Fixtures.dispatch(&state, .workbenchRailSizeChanged(topHeight: 150, sideWidth: nil))
+        let settles = settlePackets(commit)
+        XCTAssertEqual(settles.count, 1, "松手只结算一次（有界去抖后）")
+        let (identity, target, token) = try XCTUnwrap(settles.first)
+        let layoutAfter = try XCTUnwrap(state.workbench.snapshot?.layout)
+        XCTAssertEqual(identity, main)
+        XCTAssertEqual(target.width, layoutAfter.mainRect.width, accuracy: 0.5, "主窗口目标跟随新主区")
+        XCTAssertEqual(state.workbench.mainFrameWrite?.token, token, "在途写入记下当前令牌")
+        XCTAssertEqual(state.workbench.mainFrameWrite?.identity, main)
+        XCTAssertEqual(state.transactions[main]?.plannedFrame, target, "事务计划同步到最终目标")
+
+        // 迟到的旧令牌读回：不得清掉在途写入，也不得把旧几何写进事务（H08）。
+        let stale = TransitionToken(generation: token.generation &- 1)
+        let staleEffects = Fixtures.dispatch(&state, Fixtures.writeResult(main,
+                                                                          token: stale,
+                                                                          outcome: .exact(readBack: target.offsetBy(dx: 40, dy: 40))))
+        XCTAssertTrue(staleEffects.isEmpty, "旧令牌读回必须被忽略")
+        XCTAssertEqual(state.workbench.mainFrameWrite?.token, token, "最终尺寸的在途写入不被旧读回覆盖")
+        XCTAssertEqual(state.transactions[main]?.plannedFrame, target, "旧读回不得改写事务目标")
+
+        // 同一令牌但换了窗口：同样不认领。
+        let foreign = Fixtures.dispatch(&state, Fixtures.writeResult(list[1].identity,
+                                                                     token: token,
+                                                                     outcome: .exact(readBack: target)))
+        XCTAssertTrue(foreign.isEmpty, "令牌对了但身份不对的读回也不认领")
+        XCTAssertEqual(state.workbench.mainFrameWrite?.token, token)
+
+        // 当前令牌读回：收口，事务标 verified。
+        let final = Fixtures.dispatch(&state, Fixtures.writeResult(main, token: token, outcome: .exact(readBack: target)))
+        XCTAssertNil(state.workbench.mainFrameWrite, "完成后清空在途写入")
+        XCTAssertEqual(state.transactions[main]?.state, .verified)
+        XCTAssertEqual(state.transactions[main]?.plannedFrame, target)
+        XCTAssertEqual(journalWrites(final).count, 1, "读回结果落一次事务记录")
     }
 
     // MARK: - 随机序列不变量

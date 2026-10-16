@@ -1,6 +1,7 @@
 import AppKit
 import CoreGraphics
 import Foundation
+import QuartzCore
 import VistileCore
 
 /// 应用侧唯一的事件入口与 effect 执行者（方案 §7）。
@@ -65,6 +66,8 @@ final class AppCoordinator {
     private var hasWarnedTinyThumbnails = false
     private var lastOpenConditions: OpenConditions?
     private var observers: [NSObjectProtocol] = []
+    /// 分隔线拖动期间的外部写入节流（方案 §11.2）：15–20Hz 且一次在途；每个鼠标事件的预览不受它限制。
+    private var railSizeWritePolicy = RailSizeWritePolicy()
 
     /// 返回总览期间被推迟的揭示（方案 §10.1：先让代理画完，再切换总览与两栏，避免一闪）。
     /// 效果按任意顺序到达，三件事齐了且飞行到位才真正落位；任一条件丢失就整组作废。
@@ -271,10 +274,24 @@ final class AppCoordinator {
     /// 分隔线拖动结束（M3 接拖动 UI）：写盘只在拖动结束，且只有状态真的收下最终值才写（方案 §11.2、§16）。
     func reportWorkbenchRailSize(topHeight: CGFloat?, sideWidth: CGFloat?) {
         dispatch(.workbenchRailSizeChanged(topHeight: topHeight, sideWidth: sideWidth))
-        if state.workbench.topHeightPreference == topHeight, state.workbench.sideWidthPreference == sideWidth {
+        // 分维结算：两条分隔线独立拖动，只写状态真的收下（且非 nil）的那一维。
+        if let topHeight, state.workbench.topHeightPreference == topHeight {
             settings.workbenchTopHeight = topHeight
+        }
+        if let sideWidth, state.workbench.sideWidthPreference == sideWidth {
             settings.workbenchSideWidth = sideWidth
         }
+    }
+
+    /// 拖动中的节流写入（方案 §11.2）：15–20Hz，且同一时刻最多一次在途——不排队堆积 AX 写入。
+    /// 最终尺寸由松手路径收口；迟到的旧读回由 reducer 的令牌守卫丢弃。
+    private func settleRailSizeIfDue(rail: RailKind, value: CGFloat) {
+        let now = CACurrentMediaTime()
+        guard railSizeWritePolicy.allowsWrite(now: now,
+                                              hasInFlightWrite: state.workbench.mainFrameWrite != nil) else { return }
+        railSizeWritePolicy.recordWrite(at: now)
+        dispatch(.workbenchRailSizeChanged(topHeight: rail == .top ? value : nil,
+                                           sideWidth: rail == .side ? value : nil))
     }
 
     /// 设置页切侧栏方向：工作台开着就即时生效，隐藏或空闲时只记设置，下次进入落位（方案 §16）。
@@ -1023,6 +1040,17 @@ final class AppCoordinator {
             dispatch(.railCardDragged(from: from, to: to))
         case let .railScrolled(rail, offset):
             dispatch(.railScrolled(rail: rail, offset: offset))
+        case .railDividerDragBegan:
+            // 新的拖动开始：第一次移动就允许写入，不必等上一个拖动的节流窗口。
+            railSizeWritePolicy.reset()
+        case let .railDividerDragged(rail, value):
+            // 每个鼠标事件都推本机预览；外部 AX 写入由节流策略决定（方案 §11.2）。
+            dispatch(.workbenchRailSizePreview(topHeight: rail == .top ? value : nil,
+                                               sideWidth: rail == .side ? value : nil))
+            settleRailSizeIfDue(rail: rail, value: value)
+        case let .railDividerDragEnded(rail, value):
+            reportWorkbenchRailSize(topHeight: rail == .top ? value : nil,
+                                    sideWidth: rail == .side ? value : nil)
         case .returnToOverview:
             dispatch(.returnToOverviewRequested)
         case .toggleSide:

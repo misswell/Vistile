@@ -99,6 +99,8 @@ public enum SessionEvent: Hashable, Sendable {
     case mainSwitchStepFinished(WorkbenchSwitchStepResult)
     case mainSwitchCommitted(token: TransitionToken)
     case mainSwitchFailed(token: TransitionToken, reason: String)
+    /// 拖动分隔线中的实时预览：只改本机布局投影，不写任何外部窗口（方案 §11.2）。
+    case workbenchRailSizePreview(topHeight: CGFloat?, sideWidth: CGFloat?)
     /// 用户拖动分隔线后的两条栏尺寸偏好；写盘只在拖动结束（方案 §11.2）。
     case workbenchRailSizeChanged(topHeight: CGFloat?, sideWidth: CGFloat?)
     /// 搜索框获得/失去键盘：only 搜索期间 Vistile 持有键盘（方案 §4.5、§9.3）。

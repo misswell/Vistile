@@ -26,6 +26,8 @@ public struct WorkbenchStyle: Hashable, Sendable {
     public var displayAspect: CGFloat
     public var topCardWidthRange: ClosedRange<CGFloat>
     public var sideCardHeightRange: ClosedRange<CGFloat>
+    /// 分隔线命中区 6–8pt：取 8pt，居中落在区域间距里（方案 §5.2）。
+    public var dividerHitWidth: CGFloat
     /// 动画 200ms。
     public var animationMS: Int
     /// 主区最低目标 800×500pt：低于它属于"主区空间不足"，要明确受限。
@@ -46,6 +48,7 @@ public struct WorkbenchStyle: Hashable, Sendable {
                 displayAspect: CGFloat = 1.6,
                 topCardWidthRange: ClosedRange<CGFloat> = 140...240,
                 sideCardHeightRange: ClosedRange<CGFloat> = 110...180,
+                dividerHitWidth: CGFloat = 8,
                 animationMS: Int = 200,
                 minimumMainSize: CGSize = CGSize(width: 800, height: 500)) {
         self.margin = margin
@@ -63,6 +66,7 @@ public struct WorkbenchStyle: Hashable, Sendable {
         self.displayAspect = displayAspect
         self.topCardWidthRange = topCardWidthRange
         self.sideCardHeightRange = sideCardHeightRange
+        self.dividerHitWidth = dividerHitWidth
         self.animationMS = animationMS
         self.minimumMainSize = minimumMainSize
     }
@@ -183,9 +187,74 @@ public struct WorkbenchLayout: Hashable, Sendable {
         }
     }
 
-    /// 面板承载窗口的 frame：顶栏与侧栏各一个，都不覆盖 mainRect。
-    public var topPanelRect: CGRect { topRailRect }
-    public var sidePanelRect: CGRect { sideRailRect }
+    /// 承载面板窗口的 frame（方案 §11.2）：栏本身 ∪ 它与主区之间的整条空带。
+    /// 分隔线画在空带中央；窗口伸进空带但不越过 mainRect 边缘，结构上仍不可能覆盖主区。
+    public var topPanelWindowRect: CGRect {
+        guard !isDegenerate else { return .zero }
+        let bottom = max(topRailRect.maxY, mainRect.minY)
+        return CGRect(x: topRailRect.minX,
+                      y: topRailRect.minY,
+                      width: topRailRect.width,
+                      height: bottom - topRailRect.minY)
+    }
+
+    /// 侧栏面板窗口：右栏向左、左栏向右各伸进自己的空带。
+    public var sidePanelWindowRect: CGRect {
+        guard !isDegenerate else { return .zero }
+        switch side {
+        case .right:
+            let minX = min(sideRailRect.minX, mainRect.maxX)
+            return CGRect(x: minX,
+                          y: sideRailRect.minY,
+                          width: sideRailRect.maxX - minX,
+                          height: sideRailRect.height)
+        case .left:
+            let maxX = max(sideRailRect.maxX, mainRect.minX)
+            return CGRect(x: sideRailRect.minX,
+                          y: sideRailRect.minY,
+                          width: maxX - sideRailRect.minX,
+                          height: sideRailRect.height)
+        }
+    }
+
+    /// 顶部分隔线命中带（方案 §5.2）：顶栏与主区之间的空带中央，拖动改顶栏高度。
+    /// 退化布局没有可拖的带，返回 .zero。
+    public var topDividerRect: CGRect {
+        let band = CGRect(x: topRailRect.minX,
+                          y: topRailRect.maxY,
+                          width: topRailRect.width,
+                          height: mainRect.minY - topRailRect.maxY)
+        return dividerHitRect(in: band, horizontal: true)
+    }
+
+    /// 侧栏分隔线命中带：主区与侧栏之间的空带中央，拖动改侧栏宽度。左右栏各自镜像。
+    public var sideDividerRect: CGRect {
+        let band: CGRect
+        switch side {
+        case .right:
+            band = CGRect(x: mainRect.maxX,
+                          y: sideRailRect.minY,
+                          width: sideRailRect.minX - mainRect.maxX,
+                          height: sideRailRect.height)
+        case .left:
+            band = CGRect(x: sideRailRect.maxX,
+                          y: sideRailRect.minY,
+                          width: mainRect.minX - sideRailRect.maxX,
+                          height: sideRailRect.height)
+        }
+        return dividerHitRect(in: band, horizontal: false)
+    }
+
+    /// 命中带取空带中央的 min(空带, dividerHitWidth)：够不到 1pt 的空带不产生命中区。
+    private func dividerHitRect(in band: CGRect, horizontal: Bool) -> CGRect {
+        guard !isDegenerate, band.width > 1, band.height > 1 else { return .zero }
+        let thickness = min(horizontal ? band.height : band.width, style.dividerHitWidth)
+        guard thickness > 1 else { return .zero }
+        if horizontal {
+            return CGRect(x: band.minX, y: band.midY - thickness / 2, width: band.width, height: thickness)
+        }
+        return CGRect(x: band.midX - thickness / 2, y: band.minY, width: thickness, height: band.height)
+    }
 
     /// 按实际占用延长侧栏内容轨道：只改逻辑 slot 数与可滚动长度，不动任何可见几何（方案 §6.2）。
     public func extending(sideSlots: Int) -> WorkbenchLayout {
