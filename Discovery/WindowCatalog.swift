@@ -102,6 +102,26 @@ final class WindowCatalog {
         return axEntries[record.identity.processID]?.first { $0.snapshot.index == index }
     }
 
+    /// 句柄表是"上一次发布"的快照：窗口正在移动时，两侧 frame 可能还没对齐，
+    /// 一次坏采样会把窗口判成未唯一；实机还观察到捕捉权限查询会成串短暂被拒（0.5–1s），
+    /// 期间每一轮目录都答"未唯一"——单次复核会把环境抖动当成窗口事实。
+    /// 写入方拿不到句柄时在截止时间内反复复核（不消耗点击路径的 8 轮预算，因为它有独立时限）；
+    /// 预算用尽仍拿不到才返回 nil，由调用方按事实拒绝（方案 §6.1、§6.2）。
+    static let axConfirmBudget: TimeInterval = 2.0
+
+    func axEntryAfterReview(for record: WindowRecord, reason: DiscoveryReason = .windowEvent) async -> AXWindowEntry? {
+        if let entry = axEntry(for: record) { return entry }
+        let deadline = Date().addingTimeInterval(Self.axConfirmBudget)
+        while Date() < deadline {
+            await refreshAndWait(reason: reason)
+            if let fresh = self.record(for: record.identity), let entry = axEntry(for: fresh) {
+                return entry
+            }
+            try? await Task.sleep(nanoseconds: 220_000_000)
+        }
+        return nil
+    }
+
     /// AX 通知只给元素，不给窗口编号：用同一代次的句柄表反查身份。
     func record(forAXElement element: AXUIElement, processID pid: pid_t) -> WindowRecord? {
         guard let entries = axEntries[pid] else { return nil }

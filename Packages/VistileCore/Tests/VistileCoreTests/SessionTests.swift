@@ -714,6 +714,39 @@ struct WindowMatcherTests {
         let result = WindowMatcher.match(capture: captureWindows, ax: axWindows)
         #expect(result[WindowIdentity.test(500, 1)] == .unmatched)
     }
+
+    @Test("移动中窗口两侧 frame 不一致时按唯一标题配对")
+    func uniqueTitlePairsWhileFramesDiverge() {
+        // 实测形状：窗口服务器还停在旧 frame（350,360 500x330），AX 已报新 frame（66,184 1505x973）。
+        // 几何打分会掉到接受阈值以下；标题唯一时身份仍是确定的，必须配对成功。
+        let captureWindows = [
+            Fixtures.capture(500, 1, frame: CGRect(x: 350, y: 360, width: 500, height: 330), title: "Harness 窗口 6"),
+            Fixtures.capture(500, 2, frame: CGRect(x: 120, y: 100, width: 620, height: 420), title: "Harness 窗口 1")
+        ]
+        let axWindows = [
+            Fixtures.ax(0, frame: CGRect(x: 66, y: 184, width: 1505, height: 973), title: "Harness 窗口 6"),
+            Fixtures.ax(1, frame: CGRect(x: 120, y: 100, width: 620, height: 420), title: "Harness 窗口 1")
+        ]
+        let result = WindowMatcher.match(capture: captureWindows, ax: axWindows)
+        #expect(result[WindowIdentity.test(500, 1)]?.resolvedAXIndex == 0)
+        #expect(result[WindowIdentity.test(500, 2)]?.resolvedAXIndex == 1)
+    }
+
+    @Test("重名窗口不做标题配对，移动中不臆断")
+    func duplicatedTitlesNeverPairByTitle() {
+        // 两张同名窗口，其中一张正在移动：无法从标题区分，几何又不一致时宁可保持未定。
+        let captureWindows = [
+            Fixtures.capture(500, 1, frame: CGRect(x: 66, y: 184, width: 1505, height: 973), title: "无标题副本"),
+            Fixtures.capture(500, 2, frame: CGRect(x: 212, y: 204, width: 572, height: 384), title: "无标题副本")
+        ]
+        let axWindows = [
+            Fixtures.ax(0, frame: CGRect(x: 258, y: 256, width: 548, height: 366), title: "无标题副本"),
+            Fixtures.ax(1, frame: CGRect(x: 212, y: 204, width: 572, height: 384), title: "无标题副本")
+        ]
+        let result = WindowMatcher.match(capture: captureWindows, ax: axWindows)
+        #expect(result[WindowIdentity.test(500, 2)]?.resolvedAXIndex == 1)
+        #expect(result[WindowIdentity.test(500, 1)]?.resolvedAXIndex == nil)
+    }
 }
 
 @Suite("目录身份判据")

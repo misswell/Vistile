@@ -30,8 +30,13 @@ final class FakeCatalogSource: CatalogContentSource, CatalogAXSource, CatalogShe
     private var windowFrames: [WindowIdentity: CGRect] = [:]
     private var elements: [WindowIdentity: AXUIElement] = [:]
     private var sheets: Set<WindowIdentity> = []
+    private var publishedResizable: [WindowIdentity: Bool] = [:]
     /// 置为 false 复现"这一代 AX 句柄读不到"。
     var publishesAX = true
+    /// 接下来 N 轮查询整轮读不到 AX（复现实机捕捉权限成串短暂被拒），之后自动恢复。
+    /// 以 `load()` 为轮起点：目录一轮查询固定先读内容再读各进程 AX，整轮一起坏才贴近真实形态。
+    var axUnavailableRounds = 0
+    private var axBlockedThisRound = false
     /// AX 侧的最小化事实由写入器持有（应用是唯一真相），目录只是读它。
     var minimizedReader: ((WindowIdentity) -> Bool)?
     private var pendingSwap: [WindowIdentity: AXUIElement] = [:]
@@ -63,6 +68,12 @@ final class FakeCatalogSource: CatalogContentSource, CatalogAXSource, CatalogShe
         return windowFrames[identity]
     }
 
+    /// 让目录把某窗口发布在另一个位置（复现"目录快照落后一整轮"）：
+    /// 只影响目录/`windows(pid:)` 发布的快照事实，窗口真实位置仍由写入替身持有。
+    func setPublishedFrame(_ frame: CGRect, for identity: WindowIdentity) {
+        lock.lock(); windowFrames[identity] = frame; lock.unlock()
+    }
+
     func element(for identity: WindowIdentity) -> AXUIElement? {
         lock.lock(); defer { lock.unlock() }
         return elements[identity]
@@ -75,6 +86,12 @@ final class FakeCatalogSource: CatalogContentSource, CatalogAXSource, CatalogShe
         lock.unlock()
     }
 
+    /// 目录快照里把该窗口标成不可调整尺寸：复现"采样时一次 AX 读超时被折叠成 false"的坏代次。
+    /// 它只影响目录里发布的快照事实；窗口本身是否可写由写入替身的实测决定。
+    func setPublishedResizable(_ value: Bool, for identity: WindowIdentity) {
+        lock.lock(); publishedResizable[identity] = value; lock.unlock()
+    }
+
     func hasAttachedSheet(element: AXUIElement) async -> Bool {
         lock.lock(); defer { lock.unlock() }
         guard let identity = elements.first(where: { CFEqual($0.value, element) })?.key else { return false }
@@ -83,6 +100,8 @@ final class FakeCatalogSource: CatalogContentSource, CatalogAXSource, CatalogShe
 
     func load() async -> CatalogContentResult {
         lock.lock()
+        axBlockedThisRound = axUnavailableRounds > 0
+        if axBlockedThisRound { axUnavailableRounds -= 1 }
         let identities = Array(windowFrames.keys)
         lock.unlock()
         let snapshots = identities.map { identity in
@@ -104,21 +123,26 @@ final class FakeCatalogSource: CatalogContentSource, CatalogAXSource, CatalogShe
     func windows(pid: pid_t) async -> [AXWindowEntry] {
         guard publishesAX else { return [] }
         lock.lock()
+        let blocked = axBlockedThisRound
         let identity = windowFrames.keys.first { $0.processID == pid }
         lock.unlock()
+        guard !blocked else { return [] }
         guard let identity else { return [] }
         // 换代时把句柄换成另一个对象：用来复现"旧索引指向别的窗口"。
         lock.lock()
         if let next = pendingSwap.removeValue(forKey: identity) { elements[identity] = next }
         lock.unlock()
         guard let element = element(for: identity) else { return [] }
+        lock.lock()
+        let resizable = publishedResizable[identity] ?? true
+        lock.unlock()
         return [AXWindowEntry(snapshot: AXWindowSnapshot(index: 0,
                                                          frame: frame(of: identity),
                                                          title: Self.title(for: identity),
                                                          subrole: "AXStandardWindow",
                                                          isMinimized: minimizedReader?(identity) ?? false,
                                                          isMovable: true,
-                                                         isResizable: true),
+                                                         isResizable: resizable),
                               element: element)]
     }
 
@@ -212,6 +236,14 @@ final class FakeGeometryWriter: GeometryWriting, @unchecked Sendable {
     func currentFrame(of element: AXUIElement) async -> CGRect? {
         lock.lock(); defer { lock.unlock() }
         return frames[Self.key(of: element)]
+    }
+
+    /// 写前事实读取的替身结论：可以脚本化成"可写 / 读到不可写 / 读不到"。
+    var writeability: GeometryWriteability = .writeable
+
+    func geometryWriteability(element: AXUIElement) async -> GeometryWriteability {
+        lock.lock(); defer { lock.unlock() }
+        return writeability
     }
 
     func apply(frame target: CGRect, element: AXUIElement) async -> GeometryWriteReport {

@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import Foundation
 import VistileCore
 import XCTest
@@ -210,6 +211,70 @@ final class T05T07GeometryTransactionTests: XCTestCase {
         XCTAssertEqual(results.map(\.outcome), [.windowGone])
         XCTAssertEqual(writer.totalWrites, 0)
         XCTAssertNil(store.entry(for: identity), "原窗口已不存在，事务按事实结束")
+    }
+
+    // MARK: - 读回是事实：错误码不许覆盖读回证据（方案 §6.1）
+
+    /// run10 实况：Chrome 位置写入返回 -25204「无法完成」，读回 66,184 与目标 66,183 只差 1pt。
+    /// 错误码优先会把一个已经落位的窗口宣布为失败，再触发一次多余的"恢复"写入。
+    func testCannotCompleteErrorWithReadBackAtTargetIsExact() {
+        let target = CGRect(x: 66, y: 183, width: 1_505, height: 973)
+        let before = CGRect(x: 54, y: 40, width: 1_746, height: 1_129)
+        let readBack = CGRect(x: 66, y: 184, width: 1_505, height: 973)
+
+        let report = AXWindowResolver.classify(target: target, before: before,
+                                               sizeError: Int(AXError.success.rawValue),
+                                               positionError: Int(AXError.cannotComplete.rawValue),
+                                               readBack: readBack, tolerance: 2)
+
+        XCTAssertEqual(report.outcome, .exact(readBack: readBack),
+                       "读回在容差内就是到位：-25204 不许把已到位的窗口判失败")
+        XCTAssertEqual(report.positionWriteError, Int(AXError.cannotComplete.rawValue),
+                       "错误码仍要留在报告里：证据不许被隐藏")
+        XCTAssertEqual(report.readBack, readBack)
+    }
+
+    func testWriteErrorWithoutReadBackArrivalStillRejects() {
+        let target = CGRect(x: 66, y: 183, width: 1_505, height: 973)
+        let before = CGRect(x: 54, y: 40, width: 1_746, height: 1_129)
+        let error = Int(AXError.cannotComplete.rawValue)
+
+        // 读回还在原位：没有任何"到位"证据，错误码就是结论。
+        let unchanged = AXWindowResolver.classify(target: target, before: before,
+                                                  sizeError: 0, positionError: error,
+                                                  readBack: before, tolerance: 2)
+        XCTAssertEqual(unchanged.outcome, .rejected(.positionWrite(code: error)))
+
+        // 读回动了但没到目标：同样不构成到达证据。
+        let partial = AXWindowResolver.classify(target: target, before: before,
+                                                sizeError: 0, positionError: error,
+                                                readBack: CGRect(x: 100, y: 100, width: 1_505, height: 973),
+                                                tolerance: 2)
+        XCTAssertEqual(partial.outcome, .rejected(.positionWrite(code: error)))
+
+        // 读不回：错误码照旧，且不许宣称成功。
+        let unreadable = AXWindowResolver.classify(target: target, before: before,
+                                                   sizeError: 0, positionError: error,
+                                                   readBack: nil, tolerance: 2)
+        XCTAssertEqual(unreadable.outcome, .rejected(.positionWrite(code: error)))
+    }
+
+    func testSuccessCodesKeepExistingReadBackSemantics() {
+        let target = CGRect(x: 66, y: 183, width: 1_505, height: 973)
+        let before = CGRect(x: 54, y: 40, width: 1_746, height: 1_129)
+        let partial = CGRect(x: 66, y: 40, width: 1_505, height: 1_129)
+
+        func classify(_ readBack: CGRect?) -> GeometryWriteReport {
+            AXWindowResolver.classify(target: target, before: before,
+                                      sizeError: Int(AXError.success.rawValue),
+                                      positionError: Int(AXError.success.rawValue),
+                                      readBack: readBack, tolerance: 2)
+        }
+
+        XCTAssertEqual(classify(target).outcome, .exact(readBack: target))
+        XCTAssertEqual(classify(before).outcome, .rejected(.unchangedByWrite(previous: before)))
+        XCTAssertEqual(classify(partial).outcome, .constrained(readBack: partial))
+        XCTAssertEqual(classify(nil).outcome, .unreadable)
     }
 
     // MARK: - T06 写前必须已有可靠记录；日志失败时不许写 AX

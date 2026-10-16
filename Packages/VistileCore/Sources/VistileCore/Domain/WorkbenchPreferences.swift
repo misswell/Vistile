@@ -104,3 +104,47 @@ public struct WorkbenchPreferences: Hashable, Sendable {
         return (WorkbenchPreferences().sanitized(), notes)
     }
 }
+
+/// 0.1.9 及以前把「应用标识|小写标题」写进了格子顺序（`slotOrder`）与优先刷新清单（`priorityKeys`）。
+/// 0.1.10 起这两个键只准保存应用级标识（bundleID 或 `name:<应用名>`），启动时清洗旧值并写回（方案 §16）。
+public enum LegacyTitleDerivedKeys {
+    /// 只保留应用标识部分：旧键 `bundle|lowercased-title` → `bundle`；没有分隔符的键原样归一后返回。
+    /// 分隔符前的空段（坏键 `|标题`）归一为空串，交给各自的守卫丢弃，不会把标题当应用标识留下。
+    public static func bundleOnly(_ persistedKey: String) -> String {
+        let head = persistedKey.split(separator: "|", maxSplits: 1, omittingEmptySubsequences: false)
+            .first.map(String.init) ?? persistedKey
+        return head.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    /// 清洗顺序偏好：同一应用的多条旧记录合并为一条，取最靠前（最小）的序号。
+    public static func cleanOrder(_ legacy: [String: Int]) -> [String: Int] {
+        var cleaned: [String: Int] = [:]
+        for (key, rank) in legacy {
+            let app = bundleOnly(key)
+            guard !app.isEmpty else { continue }
+            cleaned[app] = min(cleaned[app] ?? Int.max, rank)
+        }
+        return cleaned
+    }
+
+    /// 清洗优先清单：去标题、去重、排序，保证写回的字节不随读入次序抖动。
+    public static func cleanKeys(_ legacy: [String]) -> [String] {
+        var seen = Set<String>()
+        var cleaned: [String] = []
+        for key in legacy {
+            let app = bundleOnly(key)
+            guard !app.isEmpty, seen.insert(app).inserted else { continue }
+            cleaned.append(app)
+        }
+        return cleaned.sorted()
+    }
+
+    /// 旧值里明确带窗口标题的键数量（`应用|标题` 形状）：启动迁移说明用，不是"洗掉了几个应用"。
+    public static func titleDerivedCount(inOrder legacy: [String: Int]) -> Int {
+        legacy.keys.filter { $0.contains("|") }.count
+    }
+
+    public static func titleDerivedCount(inKeys legacy: [String]) -> Int {
+        legacy.filter { $0.contains("|") }.count
+    }
+}

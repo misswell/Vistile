@@ -17,6 +17,10 @@ final class P0Probe {
 
     private var job: Task<Void, Never>?
     private var checklist: [Item] = []
+    /// soak 开始前的真实 frame 基准（P0-16 进入工作台之前取）：收尾用它核对窗口有没有被写漂移。
+    private var soakFrameBaseline: [WindowIdentity: CGRect] = [:]
+    /// 三条路径的「点击→落定」墙钟样本（毫秒）：enter / swap / return。
+    private var soakWallTimes: [String: [Double]] = [:]
 
     /// 一轮探针跑完后的收尾动作：命令行运行时用它把应用退出，保证一次调用得到一份产物。
     var onFinished: (() -> Void)?
@@ -55,6 +59,16 @@ final class P0Probe {
                         detail: "屏幕录制=\(granted.screenRecording)，辅助功能=\(granted.accessibility)；"
                              + "缺任一项时后续自动项只能记为未测或失败")
         await showOverview()
+        // 长跑序列：样本闸门（§19.13 每条路径 ≥100 次）与 §19.11 的 30 分钟资源曲线都走这一轮。
+        if let minutes = P0Probe.longRunMinutes() {
+            await longRun(minutes: minutes)
+            await p0_18_frameBudget()
+            await performanceSample()
+            await finishReport()
+            return
+        }
+        // 首开事实要趁热取：P0-4 起就会真的点卡片进工作台，之后再也拿不到"未点击前"的现场。
+        await p0_15_overviewFirst()
         await p0_1_catalogAndIdentity()
         await p0_2_liveWhileOccluded()
         await p0_3_raiseOnlyTarget()
@@ -69,9 +83,18 @@ final class P0Probe {
         await p0_12_workbenchEntry()
         await p0_13_mainSwitch()
         await p0_14_returnToOverview()
+        await p0_16_swapSoak()
+        await p0_17_roundTrips()
+        await p0_18_frameBudget()
         await performanceSample()
-        let environment = await environmentSelfCheck()
+        await finishReport()
+    }
+
+    /// 报告的收尾。自检必须在"可见态"取样：隐藏态下信箱已被停流释放，累计帧永远读 0——
+    /// 0.1.10+18 那轮把"探针恰好在隐藏态采样"误判成了"全程 0 帧"的环境结论。
+    private func finishReport() async {
         if coordinator.state.phase == .hidden { await showOverview() }
+        let environment = await environmentSelfCheck()
         recorder.record("P0 汇总", subject: "自动 \(autoCount) 项 / 人工 \(checklist.filter(\.isManual).count) 项",
                         result: autoFailures == 0 ? .unverified : .failed,
                         detail: (autoFailures == 0
@@ -91,13 +114,22 @@ final class P0Probe {
     private var autoFailures: Int { checklist.filter { !$0.isManual && $0.verdict.contains("失败") }.count }
 
     private func showOverview() async {
-        if coordinator.state.phase != .hidden { return }
-        coordinator.toggleOverview()
-        // "打开总览"不等于"阶段可见"：`.preparing` 也算可见，而上一轮的 records 还在，
-        // 只等 isVisible + records 非空会在发现落地前就返回——那时网格刚被复位、视图还是旧格子，
-        // 点卡片会被"没有格子位置"静默丢掉（0.1.9+11/+12 两轮 P0-4 的红就是这个形状）。
-        // 判据同 P0-7：必须等总览真的落地（阶段到 overview 意味着这一轮网格已经重建完）。
-        _ = await waitUntil { self.coordinator.state.phase == .overview && !self.coordinator.state.records.isEmpty }
+        guard coordinator.state.phase == .hidden else { return }
+        var retries = 0
+        while true {
+            coordinator.toggleOverview()
+            // "打开总览"不等于"阶段可见"：`.preparing` 也算可见，而上一轮的 records 还在，
+            // 只等 isVisible + records 非空会在发现落地前就返回——那时网格刚被复位、视图还是旧格子，
+            // 点卡片会被"没有格子位置"静默丢掉（0.1.9+11/+12 两轮 P0-4 的红就是这个形状）。
+            // 判据同 P0-7：必须等总览真的落地（阶段到 overview 意味着这一轮网格已经重建完）。
+            _ = await waitUntil { self.coordinator.state.phase == .overview && !self.coordinator.state.records.isEmpty }
+            // 发现的某一轮整轮全灭（实机形态：捕捉 TCC 成串短暂被拒）时 reducer 会按方案 §5.2
+            // 退回收起态——那是环境事实，不是"总览打不开"。有界重试只允许在已经回到 .hidden 时进行：
+            // `.preparing` 在途时再调 toggle 反而会把这次打开取消掉。
+            guard coordinator.state.phase == .hidden, retries < 3 else { return }
+            retries += 1
+            try? await Task.sleep(nanoseconds: 400_000_000)
+        }
     }
 
     // MARK: - P0-1 目录与身份
@@ -438,6 +470,16 @@ final class P0Probe {
 
     private func p0_5_backgroundClickSoak() async {
         await restoreOverview()
+        // 总览没落地时不能记"失败"：隐藏态 soak 测的不是产品（run9 的 阶段=hidden 就是这么来的），
+        // 判据与 P0-4/P0-11/P0-12 一致：打不开就记未测并说清原因。
+        guard coordinator.state.phase == .overview else {
+            record("P0-5", "背景点击 100 次", passed: nil,
+                   detail: "总览没能打开（阶段=\(phaseDebug(coordinator.state.phase))），无法在总览态做背景点击 soak",
+                   check: "P0-5 背景点击状态机 soak")
+            manual("P0-5", "点击不穿透", "总览打开时，在背景空白处连点 100 次，录屏确认后面的按钮没被触发、没有窗口被最小化。")
+            manual("P0-5", "点背景回到总览", "放大某个窗口后点背景空白，确认只回到总览，不发生应用切换或窗口最小化。")
+            return
+        }
         let minimizedBefore = coordinator.state.records.values.filter(\.isMinimized).count
         let consumed = coordinator.controllers.values.filter { $0.consumesBackgroundClicks() }.count
         let started = Date()
@@ -798,10 +840,12 @@ final class P0Probe {
            let record = state.records[candidate.identity] {
             if !controller.isVisible { issues.append("工作台面板未显示") }
             let mapper = coordinator.catalog.mapper
+            // 产品把面板窗口铺到 topPanelWindowRect/sidePanelWindowRect（顶栏含与主区之间的空隙带，§11.2），
+            // 拿可见栏矩形来比会永远差一条空隙带；宿主的对应断言也是拿 PanelWindowRect 比。
             let topDeviation = P0Probe.rectDeviation(controller.topPanelFrame,
-                                                     mapper.cgToAppKit(snapshot.layout.topRailRect))
+                                                     mapper.cgToAppKit(snapshot.layout.topPanelWindowRect).integral)
             let sideDeviation = P0Probe.rectDeviation(controller.sidePanelFrame,
-                                                      mapper.cgToAppKit(snapshot.layout.sideRailRect))
+                                                      mapper.cgToAppKit(snapshot.layout.sidePanelWindowRect).integral)
             if topDeviation > 1 || sideDeviation > 1 {
                 issues.append("面板矩形偏离投影（顶 \(P0Probe.pt(topDeviation))pt / 侧 \(P0Probe.pt(sideDeviation))pt）")
             }
@@ -814,11 +858,12 @@ final class P0Probe {
                 let expected = FocusGeometry.dockedRect(in: snapshot.layout.mainRect,
                                                         currentSize: entryFrame.size,
                                                         isResizable: record.allowsGeometryControl)
-                let deviation = P0Probe.rectDeviation(record.frame, expected)
+                let physical = await waitForPhysicalFrame(candidate.identity, expected: expected) ?? record.frame
+                let deviation = P0Probe.rectDeviation(physical, expected)
                 if deviation > 4 {
                     // §10.1 要求可调整窗口精确占 mainRect；偏差就是偏差，不替应用解释。
                     issues.append("主窗口读回与主区目标偏差 \(P0Probe.pt(deviation))pt"
-                                + "（读回 \(P0Probe.rectText(record.frame))，目标 \(P0Probe.rectText(expected))，"
+                                + "（读回 \(P0Probe.rectText(physical))，目标 \(P0Probe.rectText(expected))，"
                                 + "可调整=\(record.allowsGeometryControl)）")
                 } else {
                     facts.append("主窗口读回偏差 \(P0Probe.pt(deviation))pt（可调整=\(record.allowsGeometryControl)）")
@@ -923,16 +968,18 @@ final class P0Probe {
             let expected = FocusGeometry.dockedRect(in: snapshotNow.layout.mainRect,
                                                     currentSize: bSize,
                                                     isResizable: recordB.allowsGeometryControl)
-            let deviation = P0Probe.rectDeviation(recordB.frame, expected)
+            let physicalB = await waitForPhysicalFrame(cardB.identity, expected: expected) ?? recordB.frame
+            let deviation = P0Probe.rectDeviation(physicalB, expected)
             if deviation > 4 {
                 issues.append("新主窗口读回与主区目标偏差 \(P0Probe.pt(deviation))pt"
-                            + "（读回 \(P0Probe.rectText(recordB.frame))，目标 \(P0Probe.rectText(expected))）")
+                            + "（读回 \(P0Probe.rectText(physicalB))，目标 \(P0Probe.rectText(expected))）")
             } else {
                 facts.append("新主读回偏差 \(P0Probe.pt(deviation))pt")
             }
         }
         if let entryFrame = entryMainFrame, let recordA = after.records[main] {
-            let deviation = P0Probe.rectDeviation(recordA.frame, entryFrame)
+            let physicalA = await waitForPhysicalFrame(main, expected: entryFrame) ?? recordA.frame
+            let deviation = P0Probe.rectDeviation(physicalA, entryFrame)
             if deviation > 4 {
                 issues.append("原主窗口没有回到进入前的位置（偏差 \(P0Probe.pt(deviation))pt）")
             } else {
@@ -970,18 +1017,635 @@ final class P0Probe {
             return state.mode == .overview && !state.workbench.modeTransition.isTransitioning
                 && state.phase == .overview
         }
-        try? await Task.sleep(nanoseconds: 300_000_000)
+        // 阶段先到 overview，面板要等返回飞行落定才上屏（揭示链 §10.1）：固定睡 300ms 采一次
+        // 会把"飞行还没落地"读成"面板没显示"（0.1.10+18 那轮的 P0-14 红就是这个形状）。
+        // 格子事实要有观察窗，与其它项一致。
+        let panelsShown = await waitUntil(timeout: 3.0) {
+            self.coordinator.controllers.values.contains(where: \.isVisible)
+        }
         let panels = coordinator.controllers.values.filter(\.isVisible).count
         var issues: [String] = []
         if !dispatched { issues.append("真实点击无法派发到「全部窗口」按钮") }
         if !returned { issues.append("状态机没有回到总览（阶段=\(phaseDebug(coordinator.state.phase))）") }
-        if panels == 0 { issues.append("总览面板没有重新显示") }
+        if !panelsShown { issues.append("总览面板没有重新显示（3s 观察窗内未见可见面板）") }
         record("P0-14", "返回总览", passed: issues.isEmpty,
                detail: issues.isEmpty
                     ? "真实点击「全部窗口」后回到总览，总览面板 \(panels) 块重新显示"
                     : "问题：" + issues.joined(separator: "；"),
                check: "P0-14 返回总览")
         manual("P0-14", "返回一致", "点「全部窗口」：回到的必须是进入前的那套总览（格子、搜索词、滚动位置都不变），背景不闪。")
+    }
+
+    // MARK: - P0-15 总览先行（方案 §19.1）
+
+    /// 首开事实必须在任何点击之前取：本函数紧跟 run() 里首次 showOverview() 调用，
+    /// 那时探针还没点过任何卡片（P0-4 起才会点）。「未点击前真实 frame 不变」的进程内
+    /// 证据是"没有任何几何事务启动过"：写真实窗口只从事务出发，总览态至今没有任何事务。
+    private func p0_15_overviewFirst() async {
+        let state = coordinator.state
+        let panels = coordinator.controllers.values.filter(\.isVisible).count
+        let workbenchVisible = coordinator.workbenchControllers.values.filter(\.isVisible).count
+        let eligible = state.records.values.filter(\.allowsAutoFocus)
+        let missingCards = eligible.filter { coordinator.cardRects[$0.identity] == nil }
+        var issues: [String] = []
+        if state.mode != .overview { issues.append("首开模式不是总览") }
+        if state.phase != .overview { issues.append("首开阶段=\(phaseDebug(state.phase))") }
+        if state.workbench.placement.main != nil { issues.append("首开就有主区窗口") }
+        if workbenchVisible != 0 { issues.append("首开就有工作台面板可见 \(workbenchVisible) 块") }
+        if !state.transactions.isEmpty { issues.append("首开就有 \(state.transactions.count) 笔在途几何事务") }
+        if coordinator.cardClickCount != 0 { issues.append("取证时已有 \(coordinator.cardClickCount) 次卡片点击") }
+        if panels == 0 { issues.append("总览面板一块都没显示") }
+        if !missingCards.isEmpty {
+            issues.append("有 \(missingCards.count) 个可聚焦窗口没有总览格子（"
+                        + missingCards.prefix(3).map(\.applicationName).joined(separator: "、") + "）")
+        }
+        // 方案 §19.1 的「至少 6 窗」是场景前提不是产品判据：窗口不够记未测，不替产品下结论。
+        let enoughWindows = state.records.count >= 6
+        let facts = "首开：模式=总览，总览面板 \(panels) 块，\(eligible.count) 个可聚焦窗口全部有格子（卡片位 \(coordinator.cardRects.count) 个），"
+            + "主区=空，工作台面板=0，在途几何事务 0 笔，卡片点击 0 次"
+        record("P0-15", "总览先行", passed: enoughWindows ? issues.isEmpty : nil,
+               detail: (enoughWindows ? "" : "本机只有 \(state.records.count) 个窗口，未满足方案 §19.1 的「至少 6 窗」场景，先开够窗口再跑；")
+                    + (issues.isEmpty ? facts : "问题：" + issues.joined(separator: "；")),
+               check: "P0-15 总览先行")
+        manual("P0-15", "首开录屏",
+               "用快捷键与菜单栏各打开一次：首次必须是全屏总览；未点击任何卡片前，录屏确认没有窗口移动、没有出现两栏；点 A 之后才出现主区与两栏。")
+        manual("P0-15", "退出重开不加记忆", "退出 Vistile 再启动，仍从总览开始，不记忆上次的 L 型。")
+    }
+
+    // MARK: - P0-16 固定交换 soak（方案 §19.2、§19.13）
+
+    /// 连续真实点击轨道卡片做固定交换，逐轮核对硬不变量（方案 §6.1）：
+    /// 被点卡片进主区、原主回到被点 slot、其余占用与滚动偏移不动；
+    /// 中途刷新一次目录核对非参与窗口的真实 frame 没被写过（§19.2「其他卡片坐标不变」）。
+    private func p0_16_swapSoak() async {
+        let blocked = permissionNote(.accessibility)
+        guard blocked == nil else {
+            record("P0-16", "固定交换 100 次", passed: nil, detail: blocked!, check: "P0-16 固定交换 soak")
+            manual("P0-16", "连续交换", "点开工作台后连续快速点两栏卡片：主区、卡片位置与滚动都不跳，无输入积压。")
+            return
+        }
+        await restoreOverview()
+        await refreshCatalog()
+        if soakFrameBaseline.isEmpty { soakFrameBaseline = await captureStableFrameBaseline() }
+        if coordinator.state.mode != .workbench {
+            let entry = await enterWorkbenchViaRealClick()
+            guard entry.ok else {
+                record("P0-16", "固定交换 100 次", passed: nil,
+                       detail: "进入工作台失败：\(entry.reason)\(environmentSuffix())", check: "P0-16 固定交换 soak")
+                manual("P0-16", "连续交换", "点开工作台后连续快速点两栏卡片：主区、卡片位置与滚动都不跳，无输入积压。")
+                return
+            }
+        }
+        guard let presentation = coordinator.workbenchPresentation,
+              let initialMain = coordinator.state.workbench.placement.main else {
+            record("P0-16", "固定交换 100 次", passed: nil,
+                   detail: "工作台里没有投影或没有主窗口", check: "P0-16 固定交换 soak")
+            return
+        }
+        // 顶栏、侧栏各挑一张可点的卡交替交换：覆盖 §19.2 的「A↔顶部 B、A↔侧栏 C」两种路径。
+        let topSlot = firstClickableRailSlot(in: presentation.topCards, excluding: initialMain)
+        let sideSlot = firstClickableRailSlot(in: presentation.sideCards, excluding: initialMain)
+        guard topSlot != nil || sideSlot != nil else {
+            record("P0-16", "固定交换 100 次", passed: nil,
+                   detail: "两栏里没有可见且可命中的卡片（只有主窗口，或该屏布局退化），本项不适用",
+                   check: "P0-16 固定交换 soak")
+            return
+        }
+        var participants: Set<WindowIdentity> = [initialMain]
+        for slot in [topSlot, sideSlot].compactMap({ $0 }) {
+            if let occupant = coordinator.state.workbench.placement.occupant(at: slot) { participants.insert(occupant) }
+        }
+        var failures: [String] = []
+        var swaps = 0
+        var topClicks = 0
+        var sideClicks = 0
+        var wallTimes: [Double] = []
+        var consecutiveFailures = 0
+        for index in 0..<100 {
+            let preferTop = index % 2 == 0
+            guard let slot = preferTop ? (topSlot ?? sideSlot) : (sideSlot ?? topSlot),
+                  let identity = coordinator.state.workbench.placement.occupant(at: slot),
+                  let point = workbenchRailPoint(for: slot) else {
+                failures.append("第 \(index + 1) 次：找不到可点的轨道卡片")
+                break
+            }
+            let before = coordinator.state
+            // 座位用身份→slot 的反向表：只比「两次都在场的窗口」的轨道位置，
+            // 期间有别的窗口开合是环境噪声，不是产品把卡片挪了。
+            let beforeSeat = Dictionary(uniqueKeysWithValues: before.workbench.placement.occupants
+                .filter { $0.key != slot }.map { ($0.value, $0.key) })
+            let beforeTopScroll = before.workbench.topScrollOffset
+            let beforeSideScroll = before.workbench.sideScrollOffset
+            let oldMain = before.workbench.placement.main
+            let started = Date()
+            guard sendRealMouseDownUp((point.window, point.point), hitView: point.view) else {
+                failures.append("第 \(index + 1) 次：真实点击无法派发")
+                break
+            }
+            let converged = await waitUntil(timeout: 8.0) {
+                self.isSettled(main: identity) && self.coordinator.workbenchControllers.values.contains(where: \.isVisible)
+            }
+            wallTimes.append(Date().timeIntervalSince(started) * 1000)
+            if !converged {
+                let state = coordinator.state
+                var note = "-"
+                if case let .failed(_, reason) = state.workbench.mainSwitch { note = reason }
+                failures.append("第 \(index + 1) 次没收敛（主区=\(state.workbench.placement.main?.journalKey ?? "空")，"
+                              + "阶段=\(phaseDebug(state.phase))，状态机=\(note)）")
+                break
+            }
+            let after = coordinator.state
+            var issues: [String] = []
+            if after.workbench.placement.occupant(at: slot) != oldMain {
+                issues.append("被点 slot 上没有回到原主（\(after.workbench.placement.occupant(at: slot)?.journalKey ?? "空")）")
+            }
+            let afterSeat = Dictionary(uniqueKeysWithValues: after.workbench.placement.occupants.map { ($0.value, $0.key) })
+            let movedCards = beforeSeat.compactMap { identity, seat -> String? in
+                guard let now = afterSeat[identity], now != seat else { return nil }
+                return "\(identity.journalKey) 从 \(Self.slotLabel(seat)) 挪到 \(Self.slotLabel(now))"
+            }
+            if !movedCards.isEmpty {
+                issues.append("其他卡片挪位：" + movedCards.joined(separator: "、"))
+            }
+            if after.workbench.topScrollOffset != beforeTopScroll || after.workbench.sideScrollOffset != beforeSideScroll {
+                issues.append("滚动偏移被改变")
+            }
+            if issues.isEmpty {
+                consecutiveFailures = 0
+                swaps += 1
+            } else {
+                failures.append("第 \(index + 1) 次：" + issues.joined(separator: "、"))
+                consecutiveFailures += 1
+            }
+            if preferTop { topClicks += 1 } else { sideClicks += 1 }
+            // 中途取一次真实 frame 事实：非参与窗口不该被动过。
+            if index == 49 {
+                await refreshCatalog()
+                let drift = frameDriftReport(baseline: soakFrameBaseline, excluding: participants)
+                if !drift.silent.isEmpty {
+                    failures.append("50 次后非参与窗口几何被动过：" + drift.silent.joined(separator: "、"))
+                }
+            }
+            if consecutiveFailures >= 3 { break }
+        }
+        soakWallTimes["swap"] = wallTimes
+        let p95 = Self.percentile(of: wallTimes, 0.95)
+        record("P0-16", "固定交换 100 次",
+               passed: failures.isEmpty && swaps == 100,
+               detail: failures.isEmpty
+                    ? "真实点击交换 \(swaps) 次（顶栏 \(topClicks)、侧栏 \(sideClicks)）全部收敛：每轮被点卡进主区、"
+                      + "原主回该 slot、其余占用与滚动偏移不变；点击→落定 p95=\(String(format: "%.0f", p95))ms（目标 ≤500ms）；"
+                      + "非参与窗口 frame 对照在 P0-17 收尾统查"
+                    : "已完成 \(swaps)/100 次；问题：" + failures.prefix(3).joined(separator: "；"),
+               check: "P0-16 固定交换 soak")
+        manual("P0-16", "连续交换", "点开工作台后连续快速点两栏卡片：立即反馈、无回跳、无输入积压；栏内滚动位置不乱。")
+    }
+
+    // MARK: - P0-17 往返 soak（方案 §19.10、§19.13）
+
+    /// 「全部窗口」→总览→点卡片→工作台，连续 100 轮（≥§19.10 的 30 次往返，也给 §19.13 攒每条路径的样本）：
+    /// 每轮核对总览冻结格位、轨道占用（往返目标除外）与滚动偏移不变、被点窗口成为主区；
+    /// 收尾回总览刷新目录，统查全部存活窗口的真实 frame 相对基准无漂移（覆盖 §19.2 的坐标不变）。
+    private func p0_17_roundTrips() async {
+        let blocked = permissionNote(.accessibility)
+        guard blocked == nil else {
+            record("P0-17", "往返 100 次", passed: nil, detail: blocked!, check: "P0-17 往返 soak")
+            manual("P0-17", "往返录屏", "点「全部窗口」回总览、再点同一/不同窗口，往返 30 次：总览位置、轨道位置、滚动都不变。")
+            return
+        }
+        // 上一项可能留下隐藏态（例如 P0-16 撞上会话被外部中断）：先落回总览再进，
+        // 不然"进不去"测的是残留现场而不是产品（与 P0-16 的入口约定一致）。
+        await restoreOverview()
+        if coordinator.state.mode != .workbench {
+            let entry = await enterWorkbenchViaRealClick()
+            guard entry.ok else {
+                record("P0-17", "往返 100 次", passed: nil,
+                       detail: "进入工作台失败：\(entry.reason)\(environmentSuffix())", check: "P0-17 往返 soak")
+                manual("P0-17", "往返录屏", "点「全部窗口」回总览、再点同一/不同窗口，往返 30 次：总览位置、轨道位置、滚动都不变。")
+                return
+            }
+        }
+        guard let firstMain = coordinator.state.workbench.placement.main,
+              let presentation = coordinator.workbenchPresentation else {
+            record("P0-17", "往返 100 次", passed: nil,
+                   detail: "工作台里没有主窗口或投影", check: "P0-17 往返 soak")
+            return
+        }
+        // 目标：当前主 + 两栏第一张可见卡（只有一张时全程用同一窗口往返，覆盖"再点同一窗口"）。
+        let second = presentation.cards.first { $0.isVisible && $0.identity != firstMain }?.identity
+        let targets = second.map { [firstMain, $0] } ?? [firstMain]
+        var failures: [String] = []
+        var rounds = 0
+        var cellBaseline: [WindowIdentity: CGPoint] = [:]
+        var maxCellDeviation: CGFloat = 0
+        var seatBaseline: [WindowIdentity: RailSlotID]?
+        var baselineTopScroll: CGFloat?
+        var baselineSideScroll: CGFloat?
+        var consecutiveFailures = 0
+        for index in 0..<100 {
+            guard let button = allWindowsButtonPoint() else {
+                failures.append("第 \(index + 1) 轮找不到「全部窗口」按钮")
+                break
+            }
+            let returnStarted = Date()
+            guard sendRealMouseDownUp((button.window, button.point), hitView: button.view) else {
+                failures.append("第 \(index + 1) 轮「全部窗口」点击无法派发")
+                break
+            }
+            let returned = await waitUntil(timeout: 8.0) { self.isSettled(overviewVisible: true) }
+            soakWallTimes["return", default: []].append(Date().timeIntervalSince(returnStarted) * 1000)
+            if !returned {
+                failures.append("第 \(index + 1) 轮没回到总览（阶段=\(phaseDebug(coordinator.state.phase))）")
+                break
+            }
+            // 总览冻结：同一窗口的格心（面板视图坐标）跨轮次必须一致。
+            let identity = targets[index % targets.count]
+            if let center = overviewCellLocal(for: identity) {
+                if let baseline = cellBaseline[identity] {
+                    let deviation = hypot(center.x - baseline.x, center.y - baseline.y)
+                    maxCellDeviation = max(maxCellDeviation, deviation)
+                    if deviation > 0.5 {
+                        failures.append("第 \(index + 1) 轮总览格心漂移 \(String(format: "%.1f", deviation))pt")
+                        consecutiveFailures += 1
+                    }
+                } else {
+                    cellBaseline[identity] = center
+                }
+            } else {
+                failures.append("第 \(index + 1) 轮 \(identity.journalKey) 的总览格子不在面板上")
+                break
+            }
+            guard let point = panelPoint(for: identity) else {
+                failures.append("第 \(index + 1) 轮 \(identity.journalKey) 格子不在面板上")
+                break
+            }
+            let enterStarted = Date()
+            guard sendRealMouseDownUp(point) else {
+                failures.append("第 \(index + 1) 轮卡片点击无法派发")
+                break
+            }
+            let entered = await waitUntil(timeout: 8.0) {
+                self.isSettled(main: identity) && self.coordinator.workbenchControllers.values.contains(where: \.isVisible)
+            }
+            soakWallTimes["enter", default: []].append(Date().timeIntervalSince(enterStarted) * 1000)
+            if !entered {
+                let state = coordinator.state
+                failures.append("第 \(index + 1) 轮进入没落定到 \(identity.journalKey)"
+                              + "（主区=\(state.workbench.placement.main?.journalKey ?? "空")，阶段=\(phaseDebug(state.phase))）")
+                break
+            }
+            // 轨道占用（往返目标除外）与滚动偏移不变。座位按身份比较：只查两轮都在场的窗口，
+            // 收尾期间有窗口开合是环境噪声；「新窗口补位不挪动别的卡片」是方案 §4.4 的既有规则。
+            let state = coordinator.state
+            let seats = Dictionary(uniqueKeysWithValues: state.workbench.placement.occupants
+                .filter { !targets.contains($0.value) }
+                .map { ($0.value, $0.key) })
+            if let baseline = seatBaseline {
+                let moved = baseline.compactMap { identity, seat -> String? in
+                    guard let now = seats[identity], now != seat else { return nil }
+                    return "\(identity.journalKey) 从 \(Self.slotLabel(seat)) 挪到 \(Self.slotLabel(now))"
+                }
+                if !moved.isEmpty {
+                    failures.append("第 \(index + 1) 轮其他窗口挪位：" + moved.joined(separator: "、"))
+                    consecutiveFailures += 1
+                }
+            } else {
+                seatBaseline = seats
+                baselineTopScroll = state.workbench.topScrollOffset
+                baselineSideScroll = state.workbench.sideScrollOffset
+            }
+            if let top = baselineTopScroll, let side = baselineSideScroll,
+               state.workbench.topScrollOffset != top || state.workbench.sideScrollOffset != side {
+                failures.append("第 \(index + 1) 轮滚动偏移被改变")
+                consecutiveFailures += 1
+            }
+            if consecutiveFailures >= 3 { break }
+            rounds += 1
+        }
+        // 收尾：回总览、刷新目录，统查全部存活窗口的真实 frame 漂移（含 P0-16 的交换参与者回落）。
+        // 窗口服务器的几何提交滞后 AX 约 0.6s，两种误报都来自这个滞后：
+        // 收尾第一次采样可能是旧几何 → 隔一轮再读，连续两次同一结论才判（0.1.10+20 的对策）；
+        // 基准本身也可能是写回后立刻采到的旧几何 → 基准改为连续两次实读一致才记（0.1.10+22 的 241pt 误报即此）。
+        await restoreOverview()
+        if soakFrameBaseline.isEmpty { soakFrameBaseline = await captureStableFrameBaseline() }
+        var drift = frameDriftReport(baseline: soakFrameBaseline, excluding: [])
+        var driftRetries = 0
+        while !(drift.silent.isEmpty && drift.reported.isEmpty), driftRetries < 3 {
+            driftRetries += 1
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            await refreshCatalog()
+            let again = frameDriftReport(baseline: soakFrameBaseline, excluding: [])
+            if again.silent == drift.silent, again.reported == drift.reported { break }
+            drift = again
+        }
+        let enterTimes = soakWallTimes["enter"] ?? []
+        let returnTimes = soakWallTimes["return"] ?? []
+        var issues = failures
+        if rounds != 100 { issues.append("完成 \(rounds)/100 轮") }
+        if !drift.silent.isEmpty { issues.append("真实 frame 静默漂移（产品没有任何记录）：" + drift.silent.prefix(4).joined(separator: "、")) }
+        record("P0-17", "往返 100 次", passed: issues.isEmpty,
+               detail: issues.isEmpty
+                    ? "「全部窗口」↔卡片往返 \(rounds) 轮全部落定；总览格心最大漂移 \(String(format: "%.2f", maxCellDeviation))pt（冻结）；"
+                      + "非往返目标的轨道占用与滚动偏移不变；\(soakFrameBaseline.count) 个窗口真实 frame 相对基准"
+                      + (drift.reported.isEmpty ? "无漂移"
+                                                : "无静默漂移（\(drift.reported.count) 项已由产品回报："
+                                                  + drift.reported.prefix(3).joined(separator: "、") + "）") + "；"
+                      + "进入 p95=\(String(format: "%.0f", Self.percentile(of: enterTimes, 0.95)))ms（目标 ≤600ms）、"
+                      + "返回 p95=\(String(format: "%.0f", Self.percentile(of: returnTimes, 0.95)))ms（目标 ≤500ms）"
+                    : "已完成 \(rounds)/100 轮；问题：" + issues.prefix(3).joined(separator: "；"),
+               check: "P0-17 往返 soak")
+        manual("P0-17", "往返录屏", "点「全部窗口」回总览、再点同一/不同窗口，往返 30 次：总览位置、轨道位置、滚动都不变，退出后再开仍从总览开始。")
+    }
+
+    // MARK: - P0-18 样本与帧预算（方案 §19.13、§20.2）
+
+    private func p0_18_frameBudget() async {
+        let summary = coordinator.metrics.summary()
+        let counters = coordinator.metrics.snapshotCounters()
+        var facts: [String] = []
+        var shortfalls: [String] = []
+        var misses: [String] = []
+        for kind in ["总览→L 型", "L 型内交换", "L 型→总览"] {
+            // Metrics.summary() 会在 measure 名后再拼「 p95」，按前缀匹配，不按全名相等。
+            guard let sample = summary.first(where: { $0.name.hasPrefix("过渡帧间隔p95·\(kind)") }) else {
+                shortfalls.append("\(kind) 没有帧样本")
+                continue
+            }
+            let n = Self.sampleCount(from: sample.context)
+            facts.append("\(kind) n=\(n) 帧 p95=\(String(format: "%.1f", sample.valueMS))ms")
+            if n < 100 { shortfalls.append("\(kind) 帧样本 \(n) < 100") }
+        }
+        let overBudget = counters["过渡超帧预算"] ?? 0
+        facts.append("帧预算：\(counters["过渡帧预算内"] ?? 0) 段在内、\(overBudget) 段超预算（判据 P95≤20ms 且掉帧占比≤1% 且无连续 3 帧卡顿）")
+        if overBudget > 0 { misses.append("有 \(overBudget) 段过渡超出 §20.2 帧预算") }
+        // 墙钟：点击→落定。目标来自 §20.2（慢应用按方案允许超时回滚，数字就是数字，照实写）。
+        let walls: [(key: String, kind: String, targetMS: Double)] = [
+            ("enter", "总览→L 型", 600), ("swap", "L 型内交换", 500), ("return", "L 型→总览", 500)]
+        for wall in walls {
+            let values = soakWallTimes[wall.key] ?? []
+            let p95 = Self.percentile(of: values, 0.95)
+            facts.append("\(wall.kind) 点击→落定 p95=\(String(format: "%.0f", p95))ms（目标 ≤\(Int(wall.targetMS))ms，n=\(values.count)）")
+            if !values.isEmpty {
+                recorder.recordPerformance(PerformanceSample(name: "点击→落定p95·\(wall.kind)",
+                                                             valueMS: p95,
+                                                             context: "n=\(values.count)，目标 ≤\(Int(wall.targetMS))ms"))
+            }
+            if values.count < 100 { shortfalls.append("\(wall.kind) 墙钟样本 \(values.count) < 100") }
+            else if p95 > wall.targetMS { misses.append("\(wall.kind) 点击→落定 p95 超 \(Int(wall.targetMS))ms 目标") }
+        }
+        record("P0-18", "样本与帧预算", passed: shortfalls.isEmpty ? misses.isEmpty : nil,
+               detail: (shortfalls.isEmpty ? "" : "样本不足（不能判）：\(shortfalls.joined(separator: "；"))；")
+                    + (misses.isEmpty ? "" : "超目标：\(misses.joined(separator: "；"))；")
+                    + facts.joined(separator: "；"),
+               check: "P0-18 样本与帧预算")
+        manual("P0-18", "录屏对照", "用 QuickTime 录总览→L型、交换、返回各一段，对照报告里的 p95 与录屏观感（无回跳、无输入积压）。")
+    }
+
+    // MARK: - 长时运行（方案 §19.11、§20.3 P8；样本闸门 §19.13 也走这一轮）
+
+    /// 反复走三条真实点击路径（返回总览 → 点卡片进工作台 → 点轨道卡交换），
+    /// 周期采样本进程 RSS；结束时隐藏并核对活跃流最终为零。
+    /// 墙钟与帧样本累计进 soakWallTimes / Metrics，P0-18 在同一轮里按 n≥100 判定。
+    private func longRun(minutes: Int) async {
+        await restoreOverview()
+        await refreshCatalog()
+        if soakFrameBaseline.isEmpty { soakFrameBaseline = await captureStableFrameBaseline() }
+        let started = Date()
+        let deadline = started.addingTimeInterval(Double(minutes) * 60)
+        let cpuStart = P0Probe.processCPUSeconds()
+        var failures: [String] = []
+        var rounds = 0
+        var consecutiveFailures = 0
+        var rssSamples: [(offset: TimeInterval, mb: Double)] = []
+        var lastSampleAt = Date.distantPast
+        while Date() < deadline {
+            // 1) 返回总览：真实点击「全部窗口」；已经不在工作台就先补一次进入。
+            if coordinator.state.mode == .workbench {
+                guard let button = allWindowsButtonPoint() else {
+                    failures.append("第 \(rounds + 1) 轮找不到「全部窗口」按钮")
+                    break
+                }
+                let returnStarted = Date()
+                guard sendRealMouseDownUp((button.window, button.point), hitView: button.view) else {
+                    failures.append("第 \(rounds + 1) 轮「全部窗口」点击无法派发")
+                    break
+                }
+                let returned = await waitUntil(timeout: 8.0) { self.isSettled(overviewVisible: true) }
+                soakWallTimes["return", default: []].append(Date().timeIntervalSince(returnStarted) * 1000)
+                guard returned else {
+                    failures.append("第 \(rounds + 1) 轮没回到总览（阶段=\(phaseDebug(coordinator.state.phase))）")
+                    break
+                }
+            } else if coordinator.state.phase != .overview {
+                await restoreOverview()
+            }
+            // 2) 点卡片进工作台（同 P0-17 的判定：落定 + 工作台可见）。
+            guard let candidate = expandCandidate(), let point = panelPoint(for: candidate.identity) else {
+                failures.append("第 \(rounds + 1) 轮没有可点的总览卡片")
+                break
+            }
+            let enterStarted = Date()
+            guard sendRealMouseDownUp(point) else {
+                failures.append("第 \(rounds + 1) 轮卡片点击无法派发")
+                break
+            }
+            // 点击可能命中"身份瞬时未唯一"的复核重试：等待窗覆盖复核本身（实测约 0.5s）。
+            let entered = await waitUntil(timeout: 10.0) {
+                self.isSettled(main: candidate.identity) && self.coordinator.workbenchControllers.values.contains(where: \.isVisible)
+            }
+            soakWallTimes["enter", default: []].append(Date().timeIntervalSince(enterStarted) * 1000)
+            guard entered else {
+                failures.append("第 \(rounds + 1) 轮进入没落定到 \(candidate.identity.journalKey)"
+                              + "（阶段=\(phaseDebug(coordinator.state.phase))）")
+                break
+            }
+            // 3) 轨道交换：点一张不是主窗口的可见轨道卡。
+            if let presentation = coordinator.workbenchPresentation,
+               let slot = firstClickableRailSlot(in: presentation.cards, excluding: candidate.identity),
+               let identity = presentation.cards.first(where: { $0.slot == slot })?.identity,
+               let railPoint = workbenchRailPoint(for: slot) {
+                let swapStarted = Date()
+                guard sendRealMouseDownUp((railPoint.window, railPoint.point), hitView: railPoint.view) else {
+                    failures.append("第 \(rounds + 1) 轮轨道点击无法派发")
+                    break
+                }
+                let swapped = await waitUntil(timeout: 8.0) { self.isSettled(main: identity) }
+                soakWallTimes["swap", default: []].append(Date().timeIntervalSince(swapStarted) * 1000)
+                if !swapped {
+                    consecutiveFailures += 1
+                    if consecutiveFailures >= 3 {
+                        failures.append("第 \(rounds + 1) 轮起连续 \(consecutiveFailures) 轮交换没收敛，提前收尾")
+                        break
+                    }
+                } else {
+                    consecutiveFailures = 0
+                }
+            }
+            rounds += 1
+            if Date().timeIntervalSince(lastSampleAt) >= 15 {
+                lastSampleAt = Date()
+                if let mb = P0Probe.residentFootprintMB() {
+                    rssSamples.append((Date().timeIntervalSince(started), mb))
+                }
+            }
+        }
+        // 收尾：回总览 → 隐藏 → 活跃流最终为零（方案 §19.11）。
+        await restoreOverview()
+        coordinator.toggleOverview()
+        _ = await waitUntil(timeout: 5.0) { self.coordinator.state.phase == .hidden }
+        var streamsNow = coordinator.capture.activeStreamCount
+        let streamDeadline = Date().addingTimeInterval(10)
+        while streamsNow > 0, Date() < streamDeadline {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            streamsNow = coordinator.capture.activeStreamCount
+        }
+        let duration = Date().timeIntervalSince(started)
+        let cpuUsed = P0Probe.processCPUSeconds().flatMap { end in cpuStart.map { end - $0 } }
+        let cpuAverage = cpuUsed.map { $0 / duration * 100 }
+        let mb = { (value: Double) in String(format: "%.0f", value) }
+        let rssFirst = rssSamples.prefix(3).map(\.mb)
+        let rssLast = rssSamples.suffix(3).map(\.mb)
+        let firstAvg = rssFirst.isEmpty ? nil : rssFirst.reduce(0, +) / Double(rssFirst.count)
+        let lastAvg = rssLast.isEmpty ? nil : rssLast.reduce(0, +) / Double(rssLast.count)
+        let rssMax = rssSamples.map(\.mb).max()
+        // "无持续单调增长"的可核对判据：末三段均值不超过首三段均值 +50MB。
+        let grew = firstAvg.flatMap { first in lastAvg.map { $0 > first + 50 } } ?? false
+        var issues = failures
+        if rounds == 0 { issues.append("一轮完整往返都没跑成") }
+        if grew { issues.append("RSS 末段均值 \(mb(lastAvg ?? 0))MB 高于首段 \(mb(firstAvg ?? 0))MB 超 50MB") }
+        if streamsNow != 0 { issues.append("隐藏后 10s 内活跃流未归零（现 \(streamsNow) 路）") }
+        let walls = ["enter", "swap", "return"].map { key -> String in
+            let values = soakWallTimes[key] ?? []
+            return "\(key) n=\(values.count) p95=\(String(format: "%.0f", Self.percentile(of: values, 0.95)))ms"
+        }
+        record("P0-长跑", "\(minutes) 分钟长时运行", passed: issues.isEmpty,
+               detail: (issues.isEmpty ? "" : "问题：" + issues.prefix(3).joined(separator: "；") + "；")
+                    + "\(rounds) 轮完整往返、\(walls.joined(separator: "、"))；"
+                    + "RSS 首段均值 \(firstAvg.map(mb) ?? "-")MB → 末段 \(lastAvg.map(mb) ?? "-")MB，峰值 \(rssMax.map(mb) ?? "-")MB；"
+                    + "平均 CPU \(cpuAverage.map { String(format: "%.1f", $0) } ?? "-")%（100% = 一个逻辑核满载）；"
+                    + "隐藏后活跃流 \(streamsNow) 路；窗口 \(coordinator.state.records.count) 个",
+               check: "P0-长跑 30 分钟")
+        manual("P0-长跑", "资源曲线对照", "对照活动监视器：30 分钟内 CPU/GPU/内存无持续单调增长，隐藏后窗口服务器活动回落；录屏抽查最后 1 分钟无卡顿。")
+    }
+
+    // MARK: - soak 辅助
+
+    /// 等一次目录刷新落地：写回几何之后要看真实 frame，都必须先经过它。
+    private func refreshCatalog() async {
+        let generation = coordinator.state.catalogGeneration
+        coordinator.refreshNow()
+        _ = await waitUntil(timeout: 3.0) { self.coordinator.state.catalogGeneration > generation }
+    }
+
+    /// 进入/交换/返回的统一落定判据：模式、过渡、交换队列都落定；给了 main 还要主区身份对上。
+    private func isSettled(main: WindowIdentity? = nil, overviewVisible: Bool = false) -> Bool {
+        let state = coordinator.state
+        guard !state.workbench.modeTransition.isTransitioning, !state.workbench.mainSwitch.isBusy else { return false }
+        if overviewVisible {
+            return state.mode == .overview && state.phase == .overview
+                && coordinator.controllers.values.contains(where: \.isVisible)
+        }
+        guard state.mode == .workbench else { return false }
+        if let main { return state.workbench.placement.main == main }
+        return true
+    }
+
+    /// soak 前的进入：真实点击总览里排序第一张可点的卡片，等进入落定。
+    private func enterWorkbenchViaRealClick() async -> (ok: Bool, reason: String) {
+        guard coordinator.state.phase == .overview else {
+            return (false, "总览没能打开（阶段=\(phaseDebug(coordinator.state.phase))）")
+        }
+        guard let candidate = expandCandidate(), let target = panelPoint(for: candidate.identity) else {
+            return (false, "没有既可聚焦、又落在总览面板格子里的窗口")
+        }
+        guard sendRealMouseDownUp(target) else {
+            return (false, "真实点击无法派发到总览内容视图")
+        }
+        let settled = await waitUntil(timeout: 8.0) {
+            self.isSettled() && self.coordinator.workbenchControllers.values.contains(where: \.isVisible)
+        }
+        guard settled else {
+            let state = coordinator.state
+            return (false, "8s 内进入工作台没有落定（主区=\(state.workbench.placement.main?.journalKey ?? "空")，"
+                    + "阶段=\(phaseDebug(state.phase))）")
+        }
+        return (true, "")
+    }
+
+    /// 可点的轨道卡：投影里可见、身份不是当前主、且那一格中心真的命中栏视图本身（点位不猜）。
+    private func firstClickableRailSlot(in cards: [WorkbenchCard], excluding identity: WindowIdentity?) -> RailSlotID? {
+        cards.first { $0.isVisible && $0.identity != identity && workbenchRailPoint(for: $0.slot) != nil }?.slot
+    }
+
+    /// 总览里某窗口格心在面板内容视图坐标里的位置：跨轮次比较"总览冻结"（视图坐标不受窗口移动影响）。
+    private func overviewCellLocal(for identity: WindowIdentity) -> CGPoint? {
+        guard let record = coordinator.state.records[identity],
+              let controller = coordinator.controllers[record.displayID] else { return nil }
+        return controller.contentView.cellCenter(for: identity)
+    }
+
+    /// 相对基准的真实 frame 偏差（pt）；已不在目录里的窗口跳过（关闭不算漂移）。
+    /// 分为两类：产品在 state / 日志里记着未完成事务或失败原因的算「已回报」——
+    /// 这一项查的是"不许静默挪窗口"，不是"产品不许失败"（0.1.10+22 的 ZCode 自身动画 44pt 误报即此）；
+    /// 没有任何产品记录的偏差才是探针要抓的静默漂移（run9 的几何冻结即此类）。
+    private func frameDriftReport(baseline: [WindowIdentity: CGRect],
+                                  excluding: Set<WindowIdentity>) -> (silent: [String], reported: [String]) {
+        let state = coordinator.state
+        let unfinished = Set(coordinator.journal.unfinished.map(\.identity))
+        var silent: [String] = []
+        var reported: [String] = []
+        for (identity, frame) in baseline where !excluding.contains(identity) {
+            guard let now = state.records[identity]?.frame else { continue }
+            let deviation = Self.rectDeviation(frame, now)
+            guard deviation > 4 else { continue }
+            let line = "\(identity.journalKey) 偏 \(Self.pt(deviation))pt"
+            let acknowledged = state.transactions[identity]?.state.requiresRestore == true || unfinished.contains(identity)
+            if acknowledged {
+                let note = (state.transactions[identity]?.failureReason
+                    ?? coordinator.journal.entry(for: identity)?.failureReason).flatMap { $0.isEmpty ? nil : $0 }
+                    ?? "有未完成几何事务"
+                reported.append("\(line)（已回报：\(note)）")
+            } else {
+                silent.append(line)
+            }
+        }
+        return (silent.sorted(), reported.sorted())
+    }
+
+    /// 基线必须在几何安静之后才记：窗口服务器的提交滞后 AX 约 0.6s，
+    /// 写回后立刻采样会把旧主区几何记成"原位置"，收尾统查时倒打一耙（0.1.10+22 的 241pt 误报）。
+    /// 连续两次读到同一组 frame 才认基线；目录每次重新实读。
+    private func captureStableFrameBaseline() async -> [WindowIdentity: CGRect] {
+        var previous = coordinator.state.records.mapValues(\.frame)
+        for _ in 0..<3 {
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            await refreshCatalog()
+            let current = coordinator.state.records.mapValues(\.frame)
+            let stable = Set(current.keys) == Set(previous.keys)
+                && current.allSatisfy { identity, frame in
+                    guard let before = previous[identity] else { return false }
+                    return WindowTransaction.framesClose(before, frame, tolerance: 2)
+                }
+            if stable { return current }
+            previous = current
+        }
+        return previous
+    }
+
+    private static func percentile(of values: [Double], _ q: Double) -> Double {
+        guard !values.isEmpty else { return .nan }
+        let sorted = values.sorted()
+        return sorted[min(sorted.count - 1, Int(Double(sorted.count - 1) * q))]
+    }
+
+    private static func slotLabel(_ slot: RailSlotID) -> String {
+        "\(slot.rail.displayName)#\(slot.ordinal)"
+    }
+
+    /// Metrics 的 p95 行把样本数写在 context「n=123, median=…」里。
+    private static func sampleCount(from context: String) -> Int {
+        guard let range = context.range(of: "n=") else { return 0 }
+        return Int(context[range.upperBound...].prefix { $0.isNumber }) ?? 0
     }
 
     // MARK: - 本轮取证环境自检
@@ -992,9 +1656,17 @@ final class P0Probe {
     /// 权限预检照样回 true，而任何应用的 AX 窗口列表都是空的。两种都会把环境产物记成产品结论，
     /// 所以这一项把"本轮到底能不能判"写成事实，不改任何一项的判据。
     private func environmentSelfCheck() async -> String {
+        // 帧事实要有观察窗：锁屏/显示休眠与"刚重新打开、流还在起步"是两种形状。
+        // 0.1.10+18 那轮在隐藏态采了一次样（信箱已释放）就写「全程 0 帧」，
+        // 与同一份报告里 P0-2 的 96 帧自相矛盾——单一瞬时读数不能当环境结论。
+        let deadline = Date().addingTimeInterval(2.5)
+        var frames = totalPublished()
+        while frames == 0 && Date() < deadline {
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            frames = totalPublished()
+        }
         let records = Array(coordinator.state.records.values)
         let readable = records.filter { $0.confidence.allowsAXWrite }.count
-        let frames = totalPublished()
         let streams = coordinator.capture.activeStreamCount
         let presented = coordinator.rendererDiagnostics.presents
         let locked = sessionLocked()
@@ -1002,7 +1674,7 @@ final class P0Probe {
             + "本次启动累计捕获帧 \(frames)、累计 present \(presented)，会话锁定=\(locked ? "是" : "否")"
         var voids: [String] = []
         if records.isEmpty || frames == 0 {
-            voids.append("全程 0 帧 → 依赖帧的 P0-2/P0-9/P0-10/性能采样 不能当产品结论")
+            voids.append("可见态 2.5s 观察窗内 0 帧 → 依赖帧的 P0-2/P0-9/P0-10/性能采样 不能当产品结论")
         }
         if readable == 0 {
             voids.append("没有一个窗口解析得出 AX 索引 → 依赖 AX 的 P0-3/P0-4/P0-9 不能当产品结论")
@@ -1150,6 +1822,25 @@ final class P0Probe {
         return (Double(info.ri_user_time) + Double(info.ri_system_time)) / 1_000_000_000
     }
 
+    /// 本进程物理内存占用（MB）：长跑看的就是这条曲线（方案 §19.11、§20.5）。
+    static func residentFootprintMB() -> Double? {
+        var info = rusage_info_current()
+        let result: Int32 = withUnsafeMutablePointer(to: &info) { pointer in
+            pointer.withMemoryRebound(to: (rusage_info_t?).self, capacity: 1) { raw in
+                proc_pid_rusage(getpid(), Int32(truncatingIfNeeded: RUSAGE_INFO_CURRENT), raw)
+            }
+        }
+        guard result == 0 else { return nil }
+        return Double(info.ri_phys_footprint) / 1_048_576
+    }
+
+    /// VISTILE_P0_LONG_MINUTES 设置了分钟数才走长跑序列（0 或未设置 = 标准序列）。
+    static func longRunMinutes() -> Int? {
+        guard let raw = ProcessInfo.processInfo.environment["VISTILE_P0_LONG_MINUTES"] else { return nil }
+        let minutes = Int(raw.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+        return minutes > 0 ? minutes : nil
+    }
+
     // MARK: - 工具
 
     private func record(_ id: String, _ title: String, passed: Bool?, detail: String, check: String) {
@@ -1190,6 +1881,27 @@ final class P0Probe {
             try? await Task.sleep(nanoseconds: 120_000_000)
         }
         return predicate()
+    }
+
+    /// 物理窗口的几何提交可能晚于状态机落定（实测 Chrome 重负载下晚约 0.7s：AX 写已接受、
+    /// 窗口服务器到位在后）。判定"主区换成它"前按有界期限轮询目录，等物理 frame 真正到位；
+    /// 到期仍不到位就返回最后一次读数，由调用方按事实判失败（方案 §6.1：读回为准，不替应用解释）。
+    private func waitForPhysicalFrame(_ identity: WindowIdentity,
+                                      expected: CGRect,
+                                      tolerance: CGFloat = 4,
+                                      timeout: TimeInterval = 2.0) async -> CGRect? {
+        let deadline = Date().addingTimeInterval(timeout)
+        var latest = coordinator.state.records[identity]?.frame
+        while Date() < deadline {
+            if let latest, P0Probe.rectDeviation(latest, expected) <= tolerance { return latest }
+            let generation = coordinator.state.catalogGeneration
+            coordinator.refreshNow()
+            _ = await waitUntil(timeout: 1.5) { self.coordinator.state.catalogGeneration > generation }
+            latest = coordinator.state.records[identity]?.frame
+            if let latest, P0Probe.rectDeviation(latest, expected) <= tolerance { return latest }
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+        return latest
     }
 
     private func writeChecklist() {

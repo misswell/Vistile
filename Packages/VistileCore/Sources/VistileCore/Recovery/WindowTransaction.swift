@@ -29,8 +29,10 @@ public struct WindowTransaction: Hashable, Sendable {
     public let sessionID: UUID
     public let identity: WindowIdentity
     public let bundleID: String?
-    public let originalFrame: CGRect
-    public let originalDisplayID: UInt32
+    /// 原位置。创建时来自目录快照，是**推测值**；首个写入前的实读可以纠一次
+    /// （`withCorrectedOriginal`），此后不再改变（方案 §6.2）。
+    public internal(set) var originalFrame: CGRect
+    public internal(set) var originalDisplayID: UInt32
     /// 准备写入的目标 frame。落盘早于任何 AX 写入，崩溃后才知道"本来要改成什么"。
     public var plannedFrame: CGRect?
     public var plannedDisplayID: UInt32?
@@ -134,6 +136,22 @@ public struct WindowTransaction: Hashable, Sendable {
         return copy
     }
 
+    /// 原位置仍是推测值：事务创建后从未尝试过写入。目录快照在快速往返里可能落后一整轮，
+    /// 把上一轮的位置当成原位置——返回时"已在原位置"直接跳过，窗口被永久留在主区。
+    public var hasSpeculativeOriginal: Bool {
+        state == .mutationPlanned && lastProvisionalFrame == nil
+    }
+
+    /// 首个写入前的实读修正：把推测的原位置换成写前真实读到的位置。
+    /// 只允许对从未写过的事务调用；其它状态原样返回（写过的原位置已经过读回验证，不再改写）。
+    public func withCorrectedOriginal(frame: CGRect, displayID: UInt32) -> WindowTransaction {
+        guard hasSpeculativeOriginal else { return self }
+        var copy = self
+        copy.originalFrame = frame
+        copy.originalDisplayID = displayID
+        return copy
+    }
+
     /// 恢复目标：默认回到进入前尺寸；用户选择保留时回到手动尺寸。
     public func restoreTargetFrame(preserveUserGeometry: Bool) -> CGRect {
         if preserveUserGeometry, let override = userOverrideFrame { return override }
@@ -229,6 +247,13 @@ public struct SessionJournal: Hashable, Sendable, Codable {
         guard var entry = entries[identity.journalKey] else { return }
         entry = entry.markingRestored()
         entries[identity.journalKey] = entry
+    }
+
+    /// 写前实读纠正推测的原位置。这是 apply 合并规则（"绝不覆盖原 frame"）之外
+    /// 唯一允许改写 originalFrame 的入口，只对从未写过的事务生效（方案 §6.2）。
+    public mutating func correctOriginal(_ identity: WindowIdentity, frame: CGRect, displayID: UInt32) {
+        guard let entry = entries[identity.journalKey], entry.hasSpeculativeOriginal else { return }
+        entries[identity.journalKey] = entry.withCorrectedOriginal(frame: frame, displayID: displayID)
     }
 
     public mutating func remove(_ identity: WindowIdentity) {

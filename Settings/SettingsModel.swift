@@ -203,7 +203,18 @@ final class SettingsModel: ObservableObject {
         backgroundClickSwitches = defaults.bool(for: .backgroundClickSwitches)
         preserveUserGeometry = defaults.bool(for: .preserveUserGeometry)
         tier = CaptureTier(rawValue: defaults.string(for: .tier) ?? "") ?? .balanced
-        priorityWindowKeys = defaults.stringArray(for: .priorityKeys) ?? []
+        // 方案 §16：旧值可能是「应用标识|标题」；启动时清洗成应用级键、写回盘上，说明记进迁移备注。
+        var titleKeyNotes: [String] = []
+        let storedPriorityKeys = defaults.stringArray(for: .priorityKeys) ?? []
+        let cleanedPriorityKeys = LegacyTitleDerivedKeys.cleanKeys(storedPriorityKeys)
+        priorityWindowKeys = cleanedPriorityKeys
+        if cleanedPriorityKeys != storedPriorityKeys {
+            defaults.set(cleanedPriorityKeys, for: .priorityKeys)
+            let count = LegacyTitleDerivedKeys.titleDerivedCount(inKeys: storedPriorityKeys)
+            titleKeyNotes.append(count > 0
+                ? "优先刷新清单里有 \(count) 条标题派生键，已清洗为应用级标识（方案 §16）"
+                : "优先刷新清单已归一为小写应用标识")
+        }
         excludedBundleIDs = defaults.stringArray(for: .excludedBundles) ?? []
         let storedStrategy = OrderingStrategy(rawValue: defaults.string(for: .orderingStrategy) ?? "")
             ?? .normalLevelActivateAndRaise
@@ -233,7 +244,17 @@ final class SettingsModel: ObservableObject {
             foregroundHeightRatio: persisted[Key.foregroundHeight.rawValue] as? Double,
             backgroundClickSwitches: persisted[Key.backgroundClickSwitches.rawValue] as? Bool)
         let migrated = WorkbenchPreferences.migrating(from: legacy)
-        workbenchMigrationNotes = migrated.notes
+        // 格子顺序偏好同样清洗并写回：旧盘值里的「bundle|标题」键只留应用标识，同一个应用合并取最靠前的序号。
+        let storedSlotOrder = (defaults.dictionaryValue(for: .slotOrder) as? [String: Int]) ?? [:]
+        let cleanedSlotOrder = LegacyTitleDerivedKeys.cleanOrder(storedSlotOrder)
+        if cleanedSlotOrder != storedSlotOrder {
+            defaults.set(cleanedSlotOrder.mapValues { NSNumber(value: $0) }, for: .slotOrder)
+            let count = LegacyTitleDerivedKeys.titleDerivedCount(inOrder: storedSlotOrder)
+            titleKeyNotes.append(count > 0
+                ? "格子顺序偏好里有 \(count) 条标题派生键，已清洗为应用级标识（方案 §16）"
+                : "格子顺序偏好里的键已归一为小写应用标识")
+        }
+        workbenchMigrationNotes = migrated.notes + titleKeyNotes
         // 迁移结果不是"新的默认设置"：用户已存的键仍以持久化值为准，只对坏值做清洗。
         let stored = WorkbenchPreferences(
             side: RailSide(rawValue: defaults.string(for: .workbenchSide) ?? "") ?? migrated.preferences.side,
@@ -297,9 +318,9 @@ final class SettingsModel: ObservableObject {
         }
     }
 
-    /// 跨会话记住卡片顺序。
+    /// 跨会话记住卡片顺序。键只准是应用级标识（方案 §16）：读时也过一遍清洗，盘上残留的旧键不进入会话。
     var slotOrderPreference: [String: Int] {
-        get { (defaults.dictionaryValue(for: .slotOrder) as? [String: Int]) ?? [:] }
+        get { LegacyTitleDerivedKeys.cleanOrder((defaults.dictionaryValue(for: .slotOrder) as? [String: Int]) ?? [:]) }
         set { defaults.set(newValue.mapValues { NSNumber(value: $0) }, for: .slotOrder) }
     }
 

@@ -162,6 +162,13 @@ final class WorkbenchTests: XCTestCase {
         hints(effects).contains { if case .workbenchTransitionFailed = $0 { return true } else { return false } }
     }
 
+    private func hasDropJournal(_ effects: [SessionEffect], identity: WindowIdentity) -> Bool {
+        effects.contains {
+            if case let .dropJournal(dropped) = $0 { return dropped == identity }
+            return false
+        }
+    }
+
     // MARK: - W01 / W02 几何
 
     func testW01RailGeometryStaysInsideAndNeverOverlaps() {
@@ -722,6 +729,95 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertEqual(state.grids, grids, "原总览快照原样恢复")
         XCTAssertEqual(state.grids.values.reduce(0) { $0 + $1.occupiedCount }, 6, "总数守恒，主窗口也在里面")
         XCTAssertTrue(hasShowOverview(finish))
+        XCTAssertNil(state.transactions[target], "写回结算：事务不得以待恢复状态余留在内存里")
+        XCTAssertTrue(hasDropJournal(finish, identity: target), "日志条目与 state 同步收口")
+    }
+
+    /// 回归：返回总览成功后恢复路径已写回并删掉日志条目，state 若不同步结算，
+    /// 这条事务会以"待恢复"余留在内存里；下一次中断恢复拿不到日志条目，
+    /// 会把已经写回的窗口误报成「尺寸未能恢复」（实机 0.1.10+20 的 Code 误报）。
+    func testW26SettledReturnLeavesNoPhantomForInterruptedHide() throws {
+        var (state, list) = openState(count: 4)
+        let target = list[0].identity
+        enterWorkbench(&state, target: target)
+        try returnToOverview(&state)
+
+        XCTAssertNil(state.transactions[target], "返回成功即结算")
+        let hidden = Fixtures.dispatch(&state, .globalShortcut)
+        XCTAssertEqual(state.phase, .hidden)
+        XCTAssertFalse(hidden.contains { if case .restoreAll = $0 { return true } else { return false } },
+                       "没有未完成事务：不许再发起恢复批次，否则会为幻影事务误报恢复失败")
+    }
+
+    /// 回归：进入失败后宿主补偿成功并回报（run10 实机 0.1.10+22 的 Chrome 误报链）。
+    /// 补偿结果必须先于过渡结果进入状态机，state 与 journal 同步结算；
+    /// 否则退出恢复会去读一条已经被补偿删掉的日志条目，误报「尺寸未能恢复」。
+    func testW27EnteringFailureCompensationSettlesBeforeTransitionEnd() throws {
+        var (state, list) = openState(count: 4)
+        let target = list[0].identity
+        _ = select(&state, fromOverview: target)
+        let token = try XCTUnwrap(state.workbench.modeTransition.token)
+        XCTAssertEqual(state.transactions[target]?.state.requiresRestore, true, "进入前事务待恢复")
+
+        // 宿主补偿成功：窗口就在原处，事务按事实结束。
+        let settled = Fixtures.dispatch(&state, .geometryRestoreSettled(
+            token: token,
+            items: [Fixtures.restoreItem(target, .alreadyAtOriginal)]))
+        XCTAssertFalse(state.transactions[target]?.state.requiresRestore ?? true,
+                       "补偿结算必须同步进 state")
+        XCTAssertTrue(hasDropJournal(settled, identity: target), "日志条目与 state 同步收口")
+
+        let finish = finishEntering(&state, result: .rejected("进入没落定"))
+        XCTAssertEqual(state.phase, .overview, "失败留在总览")
+        XCTAssertTrue(hasTransitionFailedHint(finish))
+
+        let hidden = Fixtures.dispatch(&state, .globalShortcut)
+        XCTAssertEqual(state.phase, .hidden)
+        XCTAssertFalse(hidden.contains { if case .restoreAll = $0 { return true } else { return false } },
+                       "补偿已结算的窗口不得再进恢复批次（幻影误报）")
+        XCTAssertTrue(hidden.contains {
+            if case let .clearJournal(_, settled) = $0 { return settled.contains(target) }
+            return false
+        }, "结算过的条目随会话一起清理")
+    }
+
+    /// 超时后补偿归宿主执行器：state 侧必须同步收口，退出时不许为幻影事务再发起恢复。
+    func testW28EnteringTimeoutLeavesNoPhantomTransaction() throws {
+        var (state, list) = openState(count: 4)
+        let target = list[0].identity
+        _ = select(&state, fromOverview: target)
+        let token = try XCTUnwrap(state.workbench.modeTransition.token)
+
+        let effects = Fixtures.dispatch(&state, .transitionTimedOut(token))
+        XCTAssertEqual(state.phase, .overview, "超时留在总览")
+        XCTAssertEqual(state.workbench.modeTransition, .idle)
+        XCTAssertTrue(hasTransitionFailedHint(effects))
+        XCTAssertNil(state.transactions[target], "补偿归宿主：state 侧同步收口，不留幻影")
+
+        let hidden = Fixtures.dispatch(&state, .globalShortcut)
+        XCTAssertEqual(state.phase, .hidden)
+        XCTAssertFalse(hidden.contains { if case .restoreAll = $0 { return true } else { return false } },
+                       "幻影已收口：退出不许再发起恢复批次")
+    }
+
+    /// from 为空的交换没有 switching 阶段：回滚补偿的结果只能凭 mainSwitch 意图令牌对上，不许被丢弃。
+    func testW29SwitchRollbackSettlementAcceptedWithoutSwitchingPhase() throws {
+        var (state, list) = openState(count: 4)
+        enterWorkbench(&state, target: list[0].identity)
+        let b = list[1].identity
+        // 构造"主区空着"的交换现场：此时点轨道卡片，phase 是 focused，没有令牌。
+        state.workbench.placement.setMain(nil)
+        let effects = selectRail(&state, identity: b)
+        let plan = try XCTUnwrap(switchPlan(effects))
+        XCTAssertNil(plan.intent.from)
+        XCTAssertEqual(state.phase, .focused(target: b), "没有 from 就没有 switching 阶段")
+
+        let settled = Fixtures.dispatch(&state, .geometryRestoreSettled(
+            token: plan.intent.token,
+            items: [Fixtures.restoreItem(b, .alreadyAtOriginal)]))
+        XCTAssertFalse(state.transactions[b]?.state.requiresRestore ?? true,
+                       "补偿结算必须进 state：from 为空时没有阶段令牌可用，凭交换意图令牌对上")
+        XCTAssertTrue(hasDropJournal(settled, identity: b))
     }
 
     func testW18ContextReselectionRestoresOrSwapsCorrectly() throws {
@@ -905,6 +1001,40 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertEqual(clean.pinnedKeys, ["com.apple.Safari"])
         XCTAssertEqual(clean.railOrderPreference, ["com.apple.Safari": 1])
         XCTAssertEqual(clean.schemaVersion, WorkbenchPreferences.currentSchemaVersion)
+    }
+
+    /// 方案 §16：0.1.9 及以前把「应用标识|小写标题」写进了 slotOrder / priorityKeys，迁移只留应用标识。
+    func testW12LegacyTitleDerivedKeysAreCleanedToAppLevel() {
+        XCTAssertEqual(LegacyTitleDerivedKeys.bundleOnly("com.apple.Safari|已保存的文章"), "com.apple.safari")
+        XCTAssertEqual(LegacyTitleDerivedKeys.bundleOnly("com.apple.Safari"), "com.apple.safari")
+        XCTAssertEqual(LegacyTitleDerivedKeys.bundleOnly("name:Notes|待办"), "name:notes")
+        XCTAssertEqual(LegacyTitleDerivedKeys.bundleOnly("|标题"), "", "空应用段不得把标题留下来")
+        XCTAssertEqual(LegacyTitleDerivedKeys.bundleOnly("   "), "")
+
+        let order = ["com.apple.Safari|文章 A": 5, "com.apple.Safari|文章 B": 2, "": 0, "name:Notes|待办": 7]
+        XCTAssertEqual(LegacyTitleDerivedKeys.cleanOrder(order),
+                       ["com.apple.safari": 2, "name:notes": 7],
+                       "同一应用的多条旧记录合并取最靠前序号，空键丢弃")
+
+        let keys = ["com.apple.Safari|文章 A", "com.apple.Safari|文章 B", "", "com.apple.Safari"]
+        XCTAssertEqual(LegacyTitleDerivedKeys.cleanKeys(keys), ["com.apple.safari"], "去标题、去重、排序")
+
+        XCTAssertEqual(LegacyTitleDerivedKeys.titleDerivedCount(inOrder: order), 3)
+        XCTAssertEqual(LegacyTitleDerivedKeys.titleDerivedCount(inKeys: keys), 2)
+        XCTAssertFalse(LegacyTitleDerivedKeys.cleanKeys(keys).contains { $0.contains("|") || $0.contains("文章") })
+    }
+
+    /// memoryKey 与 preferenceKey 同源：标题改动不得改变记忆键，任何持久化键都不得带窗口标题（方案 §16）。
+    func testW12MemoryKeyNeverCarriesWindowTitle() {
+        let first = Fixtures.record(1, 10, title: "机密：季度预算", app: "备忘录", bundle: "com.example.notes")
+        let renamed = Fixtures.record(1, 10, title: "改过的标题", app: "备忘录", bundle: "com.example.notes")
+        XCTAssertEqual(first.memoryKey, first.preferenceKey)
+        XCTAssertEqual(first.memoryKey, "com.example.notes")
+        XCTAssertEqual(first.memoryKey, renamed.memoryKey, "标题改动不得改变跨会话记忆键")
+        XCTAssertFalse(first.memoryKey.contains("机密"))
+        // 没有 bundleID 的进程退回应用名，仍然不含标题。
+        let noBundle = Fixtures.record(2, 11, title: "无 bundle 窗口", app: "UGit", bundle: nil)
+        XCTAssertEqual(noBundle.memoryKey, "name:ugit")
     }
 
     // MARK: - W22 动效等级
@@ -1373,6 +1503,97 @@ final class WorkbenchTests: XCTestCase {
         let bundled = Fixtures.record(600, 3_001, title: "绝密项目草案", app: "Notes", bundle: "com.Example.Notes")
         XCTAssertEqual(bundled.preferenceKey, "com.example.notes")
         XCTAssertFalse(bundled.preferenceKey.contains("绝密"))
+    }
+
+    // MARK: - W25 工作台写入读回必须记回事务（方案 §6.5、§8.2.3）
+
+    /// 回归背景：进入工作台的停靠写入如果只标记 planned、不记读回，
+    /// 返回总览改指原 frame 后恢复判定会看不到"停靠位是产品自己写的"，
+    /// 把窗口判成"用户移动过"（skipUserMoved）而放弃写回 —— 窗口永远留在主区。
+    func testW25EnteringRecordsDockReadBackSoRecoveryRestoresOriginal() throws {
+        var (state, list) = openState(count: 5)
+        let a = list[0].identity
+        let originalA = list[0].frame
+        let entering = select(&state, fromOverview: a)
+        let plan = try XCTUnwrap(enterPlan(entering))
+        XCTAssertEqual(journalWrites(entering).map(\.state), [.mutationPlanned], "写前计划先落盘")
+
+        // 宿主读回与目标一致：事务必须记下「窗口此刻真的在停靠位」。
+        let finish = finishEntering(&state, result: .succeeded(readBack: plan.targetFrame))
+        let docked = try XCTUnwrap(state.transactions[a])
+        XCTAssertEqual(docked.state, .verified)
+        XCTAssertEqual(docked.lastProvisionalFrame, plan.targetFrame,
+                       "读回事实是退出恢复判定「最后落在哪」的唯一依据")
+        XCTAssertEqual(journalWrites(finish).map(\.state), [.verified], "读回事实要落盘，不许只活在内存里")
+
+        // 返回总览把计划改指原 frame：恢复判定必须认得出停靠位是我们自己写的，写回原 frame。
+        let back = Fixtures.dispatch(&state, .returnToOverviewRequested)
+        let backPlan = try XCTUnwrap(returnPlan(back))
+        let planned = try XCTUnwrap(state.transactions[a])
+        XCTAssertEqual(planned.plannedFrame, originalA, "计划改指原 restingFrame")
+        let decision = RecoveryPlanner.decide(entry: planned, currentFrame: plan.targetFrame,
+                                              liveness: .alive, isOriginalDisplayLive: true,
+                                              clampedFrame: originalA, preserveUserGeometry: false)
+        XCTAssertEqual(decision, .restore(to: originalA),
+                       "停在产品自己写的停靠位，不是「用户移动过」：必须恢复原 frame 而不是放弃")
+
+        // 返回落地：写回读回同样记回事务。
+        let landed = Fixtures.dispatch(&state, .workbenchTransitionFinished(token: backPlan.token,
+                                                                            kind: .returningOverview,
+                                                                            result: .succeeded(readBack: originalA)))
+        XCTAssertEqual(journalWrites(landed).map(\.state), [.verified])
+        XCTAssertEqual(state.transactions[a]?.lastProvisionalFrame, originalA)
+    }
+
+    /// 交换同理：B 进主区、A 回轨道的每一步写入都要记读回，
+    /// 交换中途失败时回滚重试与退出恢复才有事实基础把两个窗口都放回去。
+    func testW25SwapStepsRecordReadBacksSoRollbackAndQuitCanRestore() throws {
+        var (state, list) = openState(count: 5)
+        let a = list[0].identity
+        let b = list[1].identity
+        let originalA = list[0].frame
+        let originalB = list[1].frame
+        let entering = select(&state, fromOverview: a)
+        let enterPlan = try XCTUnwrap(enterPlan(entering))
+        _ = finishEntering(&state, result: .succeeded(readBack: enterPlan.targetFrame))
+        let aDock = enterPlan.targetFrame
+
+        let effects = selectRail(&state, identity: b)
+        let plan = try XCTUnwrap(switchPlan(effects))
+        let token = plan.intent.token
+
+        // 准备阶段没有几何事实：不许凭空写日志。
+        let prepared = Fixtures.dispatch(&state, .mainSwitchStepFinished(WorkbenchSwitchStepResult(
+            token: token, step: .prepare, outcome: .succeeded(readBack: nil), identity: b)))
+        XCTAssertTrue(journalWrites(prepared).isEmpty, "没有读回的步骤不制造事务假象")
+
+        // B 进主区：读回记回事务。
+        let moved = Fixtures.dispatch(&state, .mainSwitchStepFinished(WorkbenchSwitchStepResult(
+            token: token, step: .moveToMain, outcome: .succeeded(readBack: plan.mainTargetFrame), identity: b)))
+        XCTAssertEqual(journalWrites(moved).map(\.state), [.verified])
+        XCTAssertEqual(state.transactions[b]?.lastProvisionalFrame, plan.mainTargetFrame)
+
+        // 写给 A 的落点被拒：失败戳由宿主回滚路径按事实结算，这里不抢写。
+        let rejected = Fixtures.dispatch(&state, .mainSwitchStepFinished(WorkbenchSwitchStepResult(
+            token: token, step: .restorePrevious, outcome: .rejected("测试注入拒绝"), identity: a)))
+        XCTAssertTrue(journalWrites(rejected).isEmpty, "被拒的写入不写事务")
+        guard case .rollingBack = state.workbench.mainSwitch else {
+            return XCTFail("失败必须进入回滚态，交由宿主补偿")
+        }
+
+        // 回滚重试与退出恢复的事实基础：B 停在主区、A 停在停靠位，都要认得出并写回各自原几何。
+        let decisionB = RecoveryPlanner.decide(entry: try XCTUnwrap(state.transactions[b]),
+                                               currentFrame: plan.mainTargetFrame, liveness: .alive,
+                                               isOriginalDisplayLive: true, clampedFrame: originalB,
+                                               preserveUserGeometry: false)
+        XCTAssertEqual(decisionB, .restore(to: originalB),
+                       "B 停在我们写的目标位：必须放回 B 的原 frame")
+        let decisionA = RecoveryPlanner.decide(entry: try XCTUnwrap(state.transactions[a]),
+                                               currentFrame: aDock, liveness: .alive,
+                                               isOriginalDisplayLive: true, clampedFrame: originalA,
+                                               preserveUserGeometry: false)
+        XCTAssertEqual(decisionA, .restore(to: originalA),
+                       "A 停在进入时写下的停靠位：回滚重试与退出恢复都必须认出来")
     }
 
     // MARK: - 随机序列不变量

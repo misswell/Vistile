@@ -81,6 +81,12 @@ final class WindowJournalStore {
         mutate { journal.markRestored(identity) }
     }
 
+    /// 首个写入前用实读纠正推测的原位置：只在从未写过的事务上生效（方案 §6.2）。
+    @discardableResult
+    func correctOriginal(_ identity: WindowIdentity, frame: CGRect, displayID: UInt32) -> JournalWrite {
+        mutate { journal.correctOriginal(identity, frame: frame, displayID: displayID) }
+    }
+
     @discardableResult
     func drop(_ identity: WindowIdentity) -> JournalWrite {
         mutate { journal.remove(identity) }

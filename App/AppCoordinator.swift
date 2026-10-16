@@ -180,11 +180,15 @@ final class AppCoordinator {
             guard let self else { return }
             // 动画交接的开关只跟"真实结果"走：到位/提交才淡化，失败/取消立刻收（方案 §10.1、§10.4）。
             switch event {
-            case let .workbenchTransitionFinished(token, _, result):
+            case let .workbenchTransitionFinished(token, kind, result):
+                if !result.allowsContinue {
+                    self.log("workbench", "\(kind.displayName)未完成：\(result.message)")
+                }
                 if result.allowsContinue { self.modes.confirm(token) } else { self.modes.retreat(token) }
             case let .mainSwitchCommitted(token):
                 self.modes.confirm(token)
-            case let .mainSwitchFailed(token, _):
+            case let .mainSwitchFailed(token, reason):
+                self.log("workbench", "主区交换未完成：\(reason)")
                 self.modes.retreat(token)
             default:
                 break
@@ -409,12 +413,111 @@ final class AppCoordinator {
             state.gridsAreStale = true
         }
         metrics.increment("event")
+        let beforePhase = state.phase
+        let beforeMode = state.mode
+        let beforeTransition = state.workbench.modeTransition
         let effects = SessionReducer.reduce(&state, event)
+        // 阶段/模式变化必须留痕：0.1.10+18 那轮的静默整段退出，就是因为隐藏路径一条日志都没有，
+        // 只能靠外部进程采样反推。此处的"由什么事实引起"是事后定责的锚点。
+        if state.phase != beforePhase || state.mode != beforeMode
+            || state.workbench.modeTransition != beforeTransition {
+            log("session", "阶段 \(Self.phaseLabel(beforePhase))→\(Self.phaseLabel(state.phase))，"
+                + "模式 \(beforeMode)→\(state.mode)，"
+                + "过渡 \(Self.transitionLabel(beforeTransition))→\(Self.transitionLabel(state.workbench.modeTransition))，"
+                + "由 \(Self.eventLabel(event))")
+        }
         for effect in effects {
             // 事务落盘失败时必须停止后续效果：先写 AX 会让窗口变成不可恢复的改动（方案 §6.2）。
             guard run(effect) else { break }
         }
         needsSync = true
+    }
+
+    private static func phaseLabel(_ phase: SessionPhase) -> String {
+        switch phase {
+        case .hidden: return "hidden"
+        case .preparing: return "preparing"
+        case .overview: return "overview"
+        case let .expanding(target, _): return "expanding(\(target.journalKey))"
+        case let .focused(target): return "focused(\(target.journalKey))"
+        case let .collapsing(target, _): return "collapsing(\(target.journalKey))"
+        case let .switching(from, to, _): return "switching(\(from.journalKey)→\(to.journalKey))"
+        case .recovering: return "recovering"
+        }
+    }
+
+    private static func transitionLabel(_ transition: ModeTransition) -> String {
+        switch transition {
+        case .idle: return "空闲"
+        case let .enteringWorkbench(_, target): return "进入工作台(\(target.journalKey))"
+        case .returningOverview: return "返回总览"
+        }
+    }
+
+    /// 事件名 + 关键身份：catalogUpdated 这类大载荷只报名字，避免日志被记录列表刷爆。
+    private static func eventLabel(_ event: SessionEvent) -> String {
+        switch event {
+        case .globalShortcut: return "globalShortcut"
+        case .returnShortcut: return "returnShortcut"
+        case .escapePressed: return "escapePressed"
+        case let .cardClicked(identity): return "cardClicked(\(identity.journalKey))"
+        case .backgroundClicked: return "backgroundClicked"
+        case .cardDragged: return "cardDragged"
+        case .organizeRequested: return "organizeRequested"
+        case .searchChanged: return "searchChanged"
+        case .catalogUpdated: return "catalogUpdated"
+        case .catalogDiscoveryFailed: return "catalogDiscoveryFailed"
+        case .openConditionsChanged: return "openConditionsChanged"
+        case let .windowClosed(identity): return "windowClosed(\(identity.journalKey))"
+        case let .windowMinimized(identity, minimized): return "windowMinimized(\(identity.journalKey), \(minimized))"
+        case let .windowGeometryChangedExternally(identity, _, source): return "geometryChangedExternally(\(identity.journalKey), \(source))"
+        case .geometryWriteFinished: return "geometryWriteFinished"
+        case let .journalWriteFailed(identity, _): return "journalWriteFailed(\(identity.journalKey))"
+        case .captureStarted: return "captureStarted"
+        case .captureFirstFrame: return "captureFirstFrame"
+        case .captureStreamFailed: return "captureStreamFailed"
+        case .captureDowngraded: return "captureDowngraded"
+        case let .overviewCardSelected(identity, _, _): return "overviewCardSelected(\(identity.journalKey))"
+        case let .railCardSelected(slot, identity): return "railCardSelected(\(slot.rail.displayName)#\(slot.ordinal), \(identity.journalKey))"
+        case .railPinToggled: return "railPinToggled"
+        case let .railCardDragged(from, to): return "railCardDragged(\(from.ordinal)→\(to.ordinal))"
+        case .railScrolled: return "railScrolled"
+        case .railSideChanged: return "railSideChanged"
+        case .returnToOverviewRequested: return "returnToOverviewRequested"
+        case .workbenchTransitionFinished: return "workbenchTransitionFinished"
+        case .mainSwitchStepFinished: return "mainSwitchStepFinished"
+        case .mainSwitchCommitted: return "mainSwitchCommitted"
+        case let .mainSwitchFailed(_, reason): return "mainSwitchFailed(\(reason))"
+        case .workbenchRailSizePreview: return "workbenchRailSizePreview"
+        case .workbenchRailSizeChanged: return "workbenchRailSizeChanged"
+        case .workbenchSearchFocusChanged: return "workbenchSearchFocusChanged"
+        case let .expandRequested(identity): return "expandRequested(\(identity.journalKey))"
+        case .expandCompleted: return "expandCompleted"
+        case .collapseCompleted: return "collapseCompleted"
+        case .transitionTimedOut: return "transitionTimedOut"
+        case .geometryRestoreSettled: return "geometryRestoreSettled"
+        case .restoreCompleted: return "restoreCompleted"
+        case let .focusLost(origin): return "focusLost(\(focusOriginLabel(origin)))"
+        case .spaceChanged: return "spaceChanged"
+        case .screenLocked: return "screenLocked"
+        case .displaysChanged: return "displaysChanged"
+        case .permissionLost: return "permissionLost"
+        case .permissionRestored: return "permissionRestored"
+        case .quitRequested: return "quitRequested"
+        case .reconcileTick: return "reconcileTick"
+        case .policyChanged: return "policyChanged"
+        case .settingsChanged: return "settingsChanged"
+        }
+    }
+
+    private static func focusOriginLabel(_ origin: FocusLossOrigin) -> String {
+        switch origin {
+        case .internalInteraction: return "内部交互"
+        case .commandTab: return "commandTab"
+        case .dock: return "dock"
+        case let .otherApplication(bundleID): return "别的应用(\(bundleID ?? "未知"))"
+        case .unknown: return "未知（前台核对）"
+        }
     }
 
     /// 返回 false 表示这条 effect 之后不允许继续执行。
@@ -1045,9 +1148,30 @@ final class AppCoordinator {
         switch action {
         case let .cardClicked(identity):
             cardClickCount += 1
+            let modeLabel = state.mode == .overview ? "总览" : "工作台"
+            VistileLog.session.log(level: .debug,
+                                   "[点击] 总览卡片 \(identity.journalKey, privacy: .public) 模式=\(modeLabel, privacy: .public)")
             // 总览里的选择只有一个入口：进入工作台（方案 §4.1）。没有格子位置就不是一次有效选择。
             guard let slot = state.slots.slot(for: identity) else {
                 log("overview", "点击的卡片没有格子位置，未发起聚焦")
+                return
+            }
+            // 身份瞬时未唯一（窗口刚被移动、两侧 frame 还没对齐）：复核目录并重试，
+            // 不拿一次坏采样下"定位不到"的结论（方案 §6.1）。唯一时零额外延迟。
+            if let record = state.records[identity], !record.confidence.allowsAXWrite {
+                Task { @MainActor in
+                    await reviewRecordUniqueness(identity)
+                    guard state.phase.isVisible, state.mode == .overview else { return }
+                    guard let fresh = state.slots.slot(for: identity) else {
+                        // 复核完仍没有格子位置：窗口多半已经走了，别让这次点击无声消失。
+                        log("overview", "点击 \(identity.journalKey) 复核后没有格子位置，未发起聚焦")
+                        present(.cannotLocateWindow)
+                        return
+                    }
+                    dispatch(.overviewCardSelected(identity: identity,
+                                                   slot: fresh,
+                                                   revision: state.workbench.layoutRevision))
+                }
                 return
             }
             dispatch(.overviewCardSelected(identity: identity,
@@ -1074,6 +1198,21 @@ final class AppCoordinator {
     private func handle(_ action: WorkbenchWindowController.Action) {
         switch action {
         case let .railCardClicked(slot, identity):
+            // 点击进诊断日志：实机验收要能还原"点是否到达宿主、当时状态机什么态度"（方案 §14）。
+            let railLabel = slot.rail == .top ? "顶栏" : "侧栏"
+            let mainLabel = state.workbench.placement.main?.journalKey ?? "空"
+            let switchLabel = state.workbench.mainSwitch.isBusy ? "在途" : "空闲"
+            VistileLog.session.log(level: .debug,
+                                   "[点击] 轨道卡片 \(railLabel, privacy: .public)#\(slot.ordinal) \(identity.journalKey, privacy: .public) 主区=\(mainLabel, privacy: .public) 交换=\(switchLabel, privacy: .public)")
+            // 与总览点击同一条原则：身份瞬时未唯一时复核重试，不把一次坏采样当"不能交换"。
+            if state.records[identity]?.confidence.allowsAXWrite != true {
+                Task { @MainActor in
+                    await reviewRecordUniqueness(identity)
+                    guard state.phase.isVisible, state.mode == .workbench else { return }
+                    dispatch(.railCardSelected(slot: slot, identity: identity))
+                }
+                return
+            }
             dispatch(.railCardSelected(slot: slot, identity: identity))
         case let .railCardDragged(from, to):
             dispatch(.railCardDragged(from: from, to: to))
@@ -1110,6 +1249,23 @@ final class AppCoordinator {
 
     // MARK: - 捕获与 AX 事实
 
+    /// 点击到达时身份可能瞬时未唯一：窗口刚被我们移动过，窗口服务器的几何提交
+    /// 明显晚于 AX 一侧（实测约 0.6s），按几何打分就会掉成"无法唯一确定"（方案 §6.1）。
+    /// 复核目录并重试读取，最多约 2s；读回唯一立刻返回，超时也返回——
+    /// 之后一律交给状态机按当时的记录判定（唯一则照常动作，仍不唯一则给出提示）。
+    /// 身份本来就唯一时一次都不复核，零额外延迟。
+    private func reviewRecordUniqueness(_ identity: WindowIdentity) async {
+        guard state.records[identity]?.confidence.allowsAXWrite != true else { return }
+        VistileLog.session.log(level: .debug,
+                               "[点击] \(identity.journalKey, privacy: .public) 身份暂未唯一，复核目录后重试")
+        for _ in 0..<8 {
+            await catalog.refreshAndWait(reason: .windowEvent)
+            if state.records[identity]?.confidence.allowsAXWrite == true { return }
+            guard state.phase.isVisible else { return }
+            try? await Task.sleep(nanoseconds: 220_000_000)
+        }
+    }
+
     private func handle(_ fact: CaptureFact) {
         switch fact {
         case let .started(identity, _):
@@ -1132,7 +1288,8 @@ final class AppCoordinator {
         // 同应用换了前台窗口（菜单栏 / Mission Control / Dock）：受控窗口不再是前台时必须核对（方案 §14）。
         if event.name == kAXFocusedWindowChangedNotification || event.name == kAXMainWindowChangedNotification,
            let target = state.phase.controlledTarget, target.processID == event.processID {
-            verifyControlledWindowIsFrontmost(target)
+            log("focus", "AX 焦点通知 \(event.name) pid=\(event.processID) → 核对受控窗口 \(target.journalKey)")
+            verifyControlledWindowIsFrontmost(target, trigger: "AX \(event.name)")
         }
         guard let record = catalog.record(forAXElement: event.element, processID: event.processID) else {
             // 元素对不上身份时不猜是哪个窗口，直接要一次目录。
@@ -1164,25 +1321,78 @@ final class AppCoordinator {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
     }
 
-    /// 受控应用在前台时的核对：受控窗口不再是前台窗口、或身份无法确认时，安全退出工作台
-    /// （方案 §14：不得只比较 PID 就当没发生变化）。交换与模式过渡在途时不插话——
+    /// 受控应用在前台时的核对：受控窗口不再是前台窗口时才安全退出工作台
+    /// （方案 §14：不得只比较 PID 就当没发生变化）。判定走 FocusVerificationLadder——
+    /// 单次读不到或读数摇摆都不是事实，只有连续两次读到同一个别的身份才算确证失焦
+    /// （0.1.10+18 实测：交换刚提交后我们自己的前景确认产生焦点通知，赶上一次读回失败，
+    /// 被当成用户离开、整段会话静默退出）。交换与模式过渡在途时不插话——
     /// 那时候前台归属由执行器自己的写入读回判定，否则我们自己的唤起会被误读成用户离开。
-    private func verifyControlledWindowIsFrontmost(_ target: WindowIdentity) {
-        guard state.workbench.modeTransition == .idle, !state.workbench.mainSwitch.isBusy else { return }
+    private func verifyControlledWindowIsFrontmost(_ target: WindowIdentity, trigger: String) {
+        guard state.workbench.modeTransition == .idle, !state.workbench.mainSwitch.isBusy else {
+            log("focus", "核对受控窗口 \(target.journalKey) 跳过（过渡/交换在途）：\(trigger)")
+            return
+        }
         Task { [weak self] in
             guard let self else { return }
-            let focused = await self.resolver.focusedWindow(pid: target.processID)
-            // 读回后复核：会话、受控目标与"静止"都可能已经变了。
-            guard self.state.phase.isVisible, self.state.phase.controlledTarget == target,
-                  self.state.workbench.modeTransition == .idle,
-                  !self.state.workbench.mainSwitch.isBusy else { return }
-            if let focused,
-               let record = self.catalog.record(forAXElement: focused.element, processID: target.processID),
-               record.identity == target {
-                // 受控窗口确实在前台：我们自己的唤起，或用户点回了主窗口。
+            var reads: [WindowIdentity?] = []
+            for attempt in 1...3 {
+                if attempt > 1 { try? await Task.sleep(nanoseconds: 220_000_000) }
+                // 每次读回前复核：会话、受控目标与"静止"都可能已经变了。
+                guard self.state.phase.isVisible, self.state.phase.controlledTarget == target,
+                      self.state.workbench.modeTransition == .idle,
+                      !self.state.workbench.mainSwitch.isBusy else { return }
+                let focused = await self.resolver.focusedWindow(pid: target.processID)
+                var read: WindowIdentity?
+                if let focused,
+                   let record = self.catalog.record(forAXElement: focused.element, processID: target.processID) {
+                    read = record.identity
+                }
+                reads.append(read)
+                if read == target { break }
+            }
+            let readText = reads.map { $0?.journalKey ?? "读不到" }.joined(separator: "、")
+            switch FocusVerificationLadder.verdict(target: target, reads: reads) {
+            case .present:
+                log("focus", "核对受控窗口 \(target.journalKey)（\(trigger)）：读回[\(readText)]，仍在前台")
+            case .inconclusive:
+                // 读不到不是事实：不退出会话，等后续通知或下一轮核对再看。
+                log("focus", "核对受控窗口 \(target.journalKey)（\(trigger)）：读回[\(readText)] 不构成失焦证据，保持会话")
+            case let .confirmedLost(lost):
+                log("focus", "核对受控窗口 \(target.journalKey)（\(trigger)）：读回[\(readText)] 确证 \(lost.journalKey) 在前台，安全退出会话")
+                guard self.state.phase.isVisible, self.state.phase.controlledTarget == target else { return }
+                self.dispatch(.focusLost(origin: .unknown))
+            }
+        }
+    }
+
+    /// 外部应用激活的确认：激活通知先于焦点真正落定到达，落点可能是我们自己的唤起、
+    /// 用户切回受控应用的瞬态、或真有一个别的应用接管前台。只认 300ms 后重新读回的前台事实：
+    /// 读不到不算证据；前台是我们自己或受控进程都保持会话，确证是别的应用才退出
+    /// （方案 §14；「读不到 ≠ 不可以」）。过渡/交换在途时交给执行器自己的读回判定。
+    private func confirmExternalDeparture(bundleID: String?, processIdentifier: pid_t?) {
+        let controlledPID = state.phase.controlledTarget?.processID
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard let self, self.state.phase.isVisible else { return }
+            guard self.state.workbench.modeTransition == .idle, !self.state.workbench.mainSwitch.isBusy else {
+                log("focus", "激活确认 \(bundleID ?? "?")：过渡/交换在途，前台归属交由执行器判定，保持会话")
                 return
             }
-            self.dispatch(.focusLost(origin: .unknown))
+            guard let front = NSWorkspace.shared.frontmostApplication else {
+                log("focus", "激活确认 \(bundleID ?? "?")：300ms 后读不到前台应用，不构成离开证据，保持会话")
+                return
+            }
+            if front.bundleIdentifier == Bundle.main.bundleIdentifier {
+                log("focus", "激活确认 \(bundleID ?? "?")：300ms 后前台是我们自己，保持会话")
+                return
+            }
+            if let controlledPID, front.processIdentifier == controlledPID {
+                log("focus", "激活确认 \(bundleID ?? "?")：300ms 后前台是受控进程 pid=\(controlledPID)，按内部唤起处理，保持会话")
+                return
+            }
+            log("focus", "激活确认 \(bundleID ?? "?")：300ms 后前台=\(front.bundleIdentifier ?? "?") pid=\(front.processIdentifier)，确证外部应用在前台，退出会话")
+            guard self.state.phase.isVisible else { return }
+            self.dispatch(.focusLost(origin: .otherApplication(bundleID: front.bundleIdentifier ?? bundleID)))
         }
     }
 
@@ -1203,13 +1413,16 @@ final class AppCoordinator {
             guard let self, self.state.phase.isVisible else { return }
             let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
             if app?.bundleIdentifier == Bundle.main.bundleIdentifier { return }
+            log("focus", "应用激活 \(app?.bundleIdentifier ?? "?") pid=\(app?.processIdentifier ?? -1)"
+                + "（受控目标=\(self.state.phase.controlledTarget.map { "\($0.processID)/\($0.windowID)" } ?? "无")）")
             // 受控应用的激活可能是我们自己的动作，也可能是用户选中了它的兄弟窗口：
             // 必须读回前台窗口的身份再判定，不能只比 PID 就当没发生（方案 §14）。
             if let target = self.state.phase.controlledTarget, target.processID == app?.processIdentifier {
-                self.verifyControlledWindowIsFrontmost(target)
+                self.verifyControlledWindowIsFrontmost(target, trigger: "应用激活")
                 return
             }
-            self.dispatch(.focusLost(origin: .otherApplication(bundleID: app?.bundleIdentifier)))
+            self.confirmExternalDeparture(bundleID: app?.bundleIdentifier,
+                                          processIdentifier: app?.processIdentifier)
         }
         observe(workspace, NSWorkspace.activeSpaceDidChangeNotification) { [weak self] _ in
             self?.dispatch(.spaceChanged)
@@ -1305,6 +1518,8 @@ final class AppCoordinator {
             text = "主窗口尺寸没能调整到位：\(reason)"
         }
         metrics.increment("hint")
+        // 每个提示都要在日志里留痕：实机验收要看得出"产品对这次操作有没有说话"（方案 §14）。
+        VistileLog.session.log(level: .debug, "[hint] \(text, privacy: .public)")
         pendingHint = text
         onStatus?(text)
         hintTimer?.invalidate()

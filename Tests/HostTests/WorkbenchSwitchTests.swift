@@ -254,6 +254,65 @@ final class WorkbenchSwitchTests: XCTestCase {
         XCTAssertNil(store.entry(for: b), "B 一步都没动、也在原几何上，事务按事实结算")
     }
 
+    // MARK: - 写前可调整性：坏采样不拒绝，确凿事实才拒绝
+
+    /// 目录快照里的"不可调整"是采样时刻的折叠值：一次 AX 读超时会被记成 false。
+    /// 身份已唯一、句柄在手时，写前直接问一次窗口本身——实测可写就必须照常交换。
+    func testTransientUnresizableSampleIsRejudgedAgainstLiveWindow() async throws {
+        let plan = try await beginHappyPath()
+        catalogSource.setPublishedResizable(false, for: b)
+        await catalog.refreshAndWait(reason: .reconcile)
+        writer.writeability = .writeable
+
+        coordinator.perform(plan)
+        await pendingUntil { !self.committedTokens().isEmpty }
+        await pendingUntil { !self.coordinator.isBusy }
+
+        XCTAssertEqual(committedTokens(), [plan.intent.token],
+                       "窗口实测可写：坏采样不许把这个交换拦下来")
+        XCTAssertEqual(writer.writtenFrames, [plan.mainTargetFrame, FakeCatalogSource.frame(for: 0)])
+    }
+
+    /// 实测读到确凿的"不接受尺寸调整"才拒绝，而且一个字节都不写。
+    func testConfirmedUnsizableWindowIsRefusedWithoutWrites() async throws {
+        let plan = try await beginHappyPath()
+        catalogSource.setPublishedResizable(false, for: b)
+        await catalog.refreshAndWait(reason: .reconcile)
+        writer.writeability = .sizeNotSettable
+
+        coordinator.perform(plan)
+        await pendingUntil { !self.failureReasons().isEmpty }
+        await pendingUntil { !self.coordinator.isBusy }
+
+        XCTAssertTrue(committedTokens().isEmpty, "窗口不接受尺寸调整，交换不许宣布完成")
+        XCTAssertTrue(failureReasons().contains { $0.contains("AX 确认该窗口不接受尺寸调整") },
+                      "拒绝原因必须来自实测事实：\(failureReasons())")
+        XCTAssertEqual(writer.totalWrites, 0, "确凿不可写就不该发起任何写入")
+        XCTAssertEqual(stepEvents().map(\.step), [.prepare, .moveToMain])
+        let bFrame = await writer.currentFrame(of: try element(of: b))
+        XCTAssertEqual(bFrame, FakeCatalogSource.frame(for: 1), "B 留在原格")
+        XCTAssertEqual(store.entry(for: a)?.state.requiresRestore, true,
+                       "A 仍是主窗口：事务保留，退出时还要还原它的原几何")
+        XCTAssertEqual(Set(store.unfinished.map(\.journalKey)), Set([a.journalKey, b.journalKey]),
+                       "一个窗口都没动过：两边的事务按原样留给恢复路径收尾")
+    }
+
+    /// 可写性都读不到时，不能替产品下"不可写"的结论：交给写入自身的读回判定。
+    func testUnreadableWriteabilityFallsThroughToTheWriteItself() async throws {
+        let plan = try await beginHappyPath()
+        catalogSource.setPublishedResizable(false, for: b)
+        await catalog.refreshAndWait(reason: .reconcile)
+        writer.writeability = .unreadable
+
+        coordinator.perform(plan)
+        await pendingUntil { !self.committedTokens().isEmpty }
+        await pendingUntil { !self.coordinator.isBusy }
+
+        XCTAssertEqual(committedTokens(), [plan.intent.token],
+                       "读不到不是事实：写入能读回一致就按成功走")
+        XCTAssertEqual(writer.writtenFrames, [plan.mainTargetFrame, FakeCatalogSource.frame(for: 0)])
+    }
+
     // MARK: - H05 原主写回失败：留痕、不假成功、目标补偿到位
 
     func testPreviousMainRestoreFailureIsReportedAndKeepsJournal() async throws {
@@ -314,8 +373,9 @@ final class WorkbenchSwitchTests: XCTestCase {
         await catalog.refreshAndWait(reason: .windowEvent)
 
         coordinator.perform(plan)
-        await pendingUntil { !self.failureReasons().isEmpty }
-        await pendingUntil { !self.coordinator.isBusy }
+        // 句柄取不到会先花完约 2s 的复核预算才拒绝：等待窗口要盖住预算本身。
+        await pendingUntil(timeout: 6) { !self.failureReasons().isEmpty }
+        await pendingUntil(timeout: 4) { !self.coordinator.isBusy }
 
         XCTAssertTrue(committedTokens().isEmpty)
         let last = try XCTUnwrap(stepEvents().last)
@@ -330,6 +390,30 @@ final class WorkbenchSwitchTests: XCTestCase {
         XCTAssertEqual(bFrame, FakeCatalogSource.frame(for: 1))
         XCTAssertEqual(Set(store.unfinished.map(\.journalKey)), Set([a.journalKey, b.journalKey]),
                        "补偿做不了就如实留账，交给退出恢复路径收尾")
+    }
+
+    // MARK: - H07b 句柄缺失只持续几轮：预算内复核要桥过去，不能当窗口事实
+
+    func testHandleMissingForAFewGenerationsIsBridged() async throws {
+        let plan = try await beginHappyPath()
+        // 制造"目录已换代但整轮句柄读不到"的坏采样（复现实机捕捉权限成串短暂被拒）。
+        catalogSource.publishesAX = false
+        await catalog.refreshAndWait(reason: .windowEvent)
+        XCTAssertNil(catalog.axEntry(for: try XCTUnwrap(catalog.record(for: b))),
+                     "前置事实：这一代句柄读不到")
+
+        // 之后连续三轮仍有坏样本，第四轮恢复：复核循环必须跨过多轮坏采样。
+        catalogSource.publishesAX = true
+        catalogSource.axUnavailableRounds = 3
+
+        coordinator.perform(plan)
+        await pendingUntil(timeout: 8) { self.committedTokens().contains(plan.intent.token) }
+
+        XCTAssertTrue(failureReasons().isEmpty,
+                      "坏采样只持续几轮，交换不该被拒绝：\(failureReasons())")
+        XCTAssertEqual(writer.recordedActions.filter { $0 == "写" }.count, 2)
+        XCTAssertEqual(catalog.record(for: b)?.confidence.allowsAXWrite, true,
+                       "桥过去之后目录必须已经回到唯一身份")
     }
 
     // MARK: - H10 应用约束返回：记事实、继续、不覆盖预览栏
@@ -448,6 +532,86 @@ final class WorkbenchSwitchTests: XCTestCase {
         let aFrame = await writer.currentFrame(of: try element(of: a))
         XCTAssertEqual(aFrame, FakeCatalogSource.frame(for: 0), "被拒绝的进入不许动窗口几何")
         XCTAssertTrue(store.unfinished.isEmpty, "窗口没动过，事务按事实结清，退出时不做无谓恢复")
+    }
+
+    // MARK: - H23 目录快照滞后一整轮：写前实读把猜测的原位置纠回，返回必须真的写回
+
+    /// 快速往返里目录快照可能落后一整轮（run9 冻结的根因）：
+    /// 事务创建时 A 的"原位置"取的是上一轮主区位置（目录还停在那里），真实设备位置是停靠位置。
+    /// 写前实读必须把猜测的原位置纠回真实值——否则返回时"已在原位置"直接跳过写入，
+    /// 窗口被永久留在主区。断言全部落在设备事实与事务日志上。
+    func testStaleCatalogSnapshotIsCorrectedBeforeFirstWrite() async throws {
+        await startWorkbench(minimized: [])
+        store = makeStore()
+        let rest = FakeCatalogSource.frame(for: 0)
+        let main = dockedRect(for: a)
+        let axA = try element(of: a)
+        writer.setInitialFrame(rest, for: axA)
+
+        // 目录落后一整轮：还停在上一轮写进主区的位置；设备真实位置仍是 rest。
+        catalogSource.setPublishedFrame(main, for: a)
+        await catalog.refreshAndWait(reason: .windowEvent)
+        XCTAssertEqual(catalog.record(for: a)?.frame, main,
+                       "前置事实：目录快照停在上一轮的主区位置")
+
+        // 与 reducer `ensureTransaction` 同构：原位置取目录快照，是猜测值。
+        store.apply(WindowTransaction(sessionID: sessionID,
+                                      identity: a,
+                                      bundleID: "com.test.app\(a.windowID)",
+                                      originalFrame: main,
+                                      originalDisplayID: displayID)
+            .markingPlanned(frame: main, displayID: displayID))
+        startRecovery()
+        try startCoordinator()
+
+        let enter = WorkbenchTransitionPlan(kind: .enteringWorkbench,
+                                            token: TransitionToken(generation: 9),
+                                            identity: a,
+                                            displayID: displayID,
+                                            snapshot: fixture.snapshot,
+                                            targetFrame: main,
+                                            animationFrom: nil,
+                                            animationTo: fixture.layout.mainRect,
+                                            railHandoffs: [],
+                                            animationMS: 240,
+                                            presentation: fixture.presentation)
+        coordinator.perform(enter)
+        await pendingUntil { self.events.contains { event in
+            if case let .workbenchTransitionFinished(_, kind, _) = event, kind == .enteringWorkbench { return true }
+            return false
+        } }
+        await pendingUntil { !self.coordinator.isBusy }
+
+        XCTAssertEqual(writer.writtenFrames, [main], "进入只写一次几何")
+        XCTAssertEqual(store.entry(for: a)?.originalFrame, rest,
+                       "写前实读必须把猜测的原位置纠回真实停靠位置（目录快照曾停在本轮主区）")
+        // 与 reducer `recordObservedWrite` 同构：写成功后事务进入已验证态。
+        if let verified = store.entry(for: a)?.markingVerified(readBack: main, displayID: displayID) {
+            store.apply(verified)
+        }
+
+        let back = WorkbenchTransitionPlan(kind: .returningOverview,
+                                           token: TransitionToken(generation: 10),
+                                           identity: a,
+                                           displayID: displayID,
+                                           snapshot: fixture.snapshot,
+                                           targetFrame: rest,
+                                           animationFrom: fixture.layout.mainRect,
+                                           animationTo: nil,
+                                           railHandoffs: [],
+                                           animationMS: 240,
+                                           presentation: fixture.presentation)
+        coordinator.perform(back)
+        await pendingUntil { self.events.contains { event in
+            if case let .workbenchTransitionFinished(_, kind, _) = event, kind == .returningOverview { return true }
+            return false
+        } }
+        await pendingUntil { !self.coordinator.isBusy }
+
+        XCTAssertEqual(writer.writtenFrames, [main, rest],
+                       "返回必须真的把窗口写回停靠位置：不纠原位置时这一步会因『已在原位置』被跳过")
+        let finalFrame = try await currentFrame(of: a)
+        XCTAssertEqual(finalFrame, rest, "设备上的最终几何 = 真实原位置")
     }
 
     // MARK: - H06/H19 在途卡住与取消：迟到的回调不许改变任何东西

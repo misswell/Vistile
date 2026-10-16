@@ -45,11 +45,33 @@ public enum WindowMatcher {
             return Dictionary(uniqueKeysWithValues: capture.map { ($0.identity, MatchConfidence.unmatched) })
         }
 
+        // 标题唯一先配对：窗口服务器的几何提交可能明显晚于 AX 一侧（实测约 0.6s），
+        // 刚被移动的窗口在提交落地前两侧各报各的 frame，按几何打分会掉到接受阈值以下、
+        // 被误判成"不可唯一确定"。进程内标题精确相等且两边各只有一张时身份是确定的（方案 §6.2）。
+        var pairByTitle: [Int: Int] = [:]
+        var pairedAX: Set<Int> = []
+        var captureByTitle: [String: [Int]] = [:]
+        for (ci, c) in capture.enumerated() {
+            guard let key = normalizedTitle(c.title) else { continue }
+            captureByTitle[key, default: []].append(ci)
+        }
+        var axByTitle: [String: [Int]] = [:]
+        for candidate in ax where !candidate.isSheetLike {
+            guard let key = normalizedTitle(candidate.title) else { continue }
+            axByTitle[key, default: []].append(candidate.index)
+        }
+        for (key, captureIndices) in captureByTitle {
+            guard captureIndices.count == 1, let captureIndex = captureIndices.first,
+                  let axIndices = axByTitle[key], axIndices.count == 1, let axIndex = axIndices.first else { continue }
+            pairByTitle[captureIndex] = axIndex
+            pairedAX.insert(axIndex)
+        }
+
         var pairs: [(captureIndex: Int, axIndex: Int, score: Double)] = []
         pairs.reserveCapacity(capture.count * ax.count)
-        for (ci, c) in capture.enumerated() {
-            for ai in ax.indices {
-                pairs.append((ci, ax[ai].index, score(capture: c, ax: ax[ai], weights: weights, thresholds: thresholds)))
+        for (ci, c) in capture.enumerated() where pairByTitle[ci] == nil {
+            for candidate in ax where !pairedAX.contains(candidate.index) {
+                pairs.append((ci, candidate.index, score(capture: c, ax: candidate, weights: weights, thresholds: thresholds)))
             }
         }
 
@@ -70,9 +92,16 @@ public enum WindowMatcher {
 
         var result: [WindowIdentity: MatchConfidence] = [:]
         for (ci, snapshot) in capture.enumerated() {
+            // 标题配对的窗口直接确定；分数照记（可能因窗口还在移动中而偏低，它是观测事实不是判据）。
+            if let axIndex = pairByTitle[ci], let candidate = ax.first(where: { $0.index == axIndex }) {
+                result[snapshot.identity] = .unique(score: score(capture: snapshot, ax: candidate,
+                                                                 weights: weights, thresholds: thresholds),
+                                                    axIndex: axIndex)
+                continue
+            }
             var scored: [(index: Int, value: Double)] = []
             scored.reserveCapacity(ax.count)
-            for candidate in ax {
+            for candidate in ax where !pairedAX.contains(candidate.index) {
                 scored.append((candidate.index, score(capture: snapshot, ax: candidate,
                                                       weights: weights, thresholds: thresholds)))
             }
@@ -133,6 +162,12 @@ public enum WindowMatcher {
             ? 1
             : max(0, 1 - Double((worstDelta - thresholds.frameTolerance) / reference))
         return 0.6 * centerScore + 0.4 * sizeScore
+    }
+
+    /// 标题为空不参与标题配对（普通无标题窗口靠几何区分）。
+    private static func normalizedTitle(_ title: String) -> String? {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed.lowercased()
     }
 
     /// 标题为空不扣分到 0：普通无标题窗口不能因标题为空而被误排除。

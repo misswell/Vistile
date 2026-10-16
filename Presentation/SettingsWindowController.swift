@@ -110,11 +110,24 @@ final class SettingsWindowController {
         }
     }
 
+    /// 优先刷新按应用聚合：键是应用级 memoryKey（方案 §16，不含窗口标题），同一应用的多个窗口合并为一项。
     private func currentWindowChoices() -> [WindowChoice] {
-        coordinator.catalog.currentRecords
-            .sorted { $0.applicationName < $1.applicationName }
-            .prefix(60)
-            .map { WindowChoice(key: $0.memoryKey, label: "\($0.applicationName) · \($0.title.isEmpty ? "无标题" : $0.title)") }
+        var order: [String] = []
+        var groups: [String: (label: String, count: Int)] = [:]
+        for record in coordinator.catalog.currentRecords.sorted(by: { $0.applicationName < $1.applicationName }) {
+            let key = record.memoryKey
+            if let existing = groups[key] {
+                groups[key] = (existing.label, existing.count + 1)
+            } else {
+                groups[key] = (record.applicationName, 1)
+                order.append(key)
+            }
+        }
+        return order.prefix(60).compactMap { key in
+            guard let group = groups[key] else { return nil }
+            return WindowChoice(key: key,
+                                label: group.count > 1 ? "\(group.label)（\(group.count) 个窗口）" : group.label)
+        }
     }
 
     private func runningBundleIDs() -> [String] {

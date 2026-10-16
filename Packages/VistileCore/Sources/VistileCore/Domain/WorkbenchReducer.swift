@@ -175,10 +175,12 @@ public enum WorkbenchReducer {
             state.mode = .workbench
             state.phase = .focused(target: target)
             state.keyboardFocus = .targetApplication
-            return [.setKeyboardFocus(.targetApplication),
-                    .updateWorkbenchLayout(WorkbenchPresenter.make(state: state,
-                                                                   snapshot: state.workbench.snapshot ?? snapshot,
-                                                                   placement: state.workbench.placement))]
+            var effects = recordObservedWrite(&state, identity: target, outcome: result)
+            effects.append(.setKeyboardFocus(.targetApplication))
+            effects.append(.updateWorkbenchLayout(WorkbenchPresenter.make(state: state,
+                                                                          snapshot: state.workbench.snapshot ?? snapshot,
+                                                                          placement: state.workbench.placement)))
+            return effects
 
         case .returningOverview:
             guard case let .returningOverview(current) = state.workbench.modeTransition,
@@ -197,7 +199,19 @@ public enum WorkbenchReducer {
             state.workbench.placement.setMain(nil)
             state.phase = .overview
             state.keyboardFocus = .overview
-            return [.setKeyboardFocus(.overview), .hideWorkbench, .showOverview(displayID: nil)]
+            var effects: [SessionEffect] = []
+            if let main {
+                effects = recordObservedWrite(&state, identity: main, outcome: result)
+                if case .succeeded(readBack: nil) = result {
+                    // 写回已经由恢复路径完成并结算（日志条目已删）：state 侧同步收口。
+                    // 否则这条事务会以"待恢复"余留在内存里，下一次中断恢复拿不到日志条目，
+                    // 会误报"尺寸未能恢复"（方案 §6.4）。
+                    state.transactions.removeValue(forKey: main)
+                    effects.append(.dropJournal(main))
+                }
+            }
+            effects.append(contentsOf: [.setKeyboardFocus(.overview), .hideWorkbench, .showOverview(displayID: nil)])
+            return effects
         }
     }
 
@@ -335,8 +349,34 @@ public enum WorkbenchReducer {
             state.workbench.mainSwitch = .rollingBack(intent: intent, reason: result.outcome.message)
             return []
         }
+        var effects: [SessionEffect] = []
+        // 动过真实几何的步骤：把读回事实记回事务，退出恢复才知道"最后落在哪"（方案 §8.2.3）。
+        if result.step == .moveToMain || result.step == .restorePrevious, let identity = result.identity {
+            effects = recordObservedWrite(&state, identity: identity, outcome: result.outcome)
+        }
         state.workbench.mainSwitch = .switching(intent: intent, step: nextStep(after: result.step))
-        return []
+        return effects
+    }
+
+    /// 模式过渡/交换的几何写入完成后，把读回事实记回事务（方案 §6.5、§8.2.3）。
+    /// 只记"写入确实发生并有读回"的结果；被拒/目标消失由宿主的补偿与恢复路径按事实结算，
+    /// 这里不写失败戳，避免和宿主回滚抢同一格日志。
+    private static func recordObservedWrite(_ state: inout SessionState,
+                                            identity: WindowIdentity,
+                                            outcome: WorkbenchStepOutcome) -> [SessionEffect] {
+        guard var transaction = state.transactions[identity] else { return [] }
+        let displayID = transaction.plannedDisplayID ?? transaction.originalDisplayID
+        switch outcome {
+        case let .succeeded(readBack):
+            guard let readBack else { return [] }
+            transaction = transaction.markingVerified(readBack: readBack, displayID: displayID)
+        case let .constrained(readBack, note):
+            transaction = transaction.markingWritten(readBack: readBack, displayID: displayID, note: note)
+        case .rejected, .targetGone:
+            return []
+        }
+        state.transactions[identity] = transaction
+        return [.writeJournal(transaction)]
     }
 
     private static func commitMainSwitch(_ state: inout SessionState, token: TransitionToken) -> [SessionEffect] {
@@ -593,10 +633,13 @@ public enum WorkbenchReducer {
         if state.workbench.modeTransition.token == token {
             let kind = state.workbench.modeTransition
             state.workbench.modeTransition = .idle
-            if case .enteringWorkbench = kind {
+            if case let .enteringWorkbench(_, target) = kind {
                 state.workbench.snapshot = nil
                 state.phase = .overview
                 state.keyboardFocus = .overview
+                // 超时后补偿归宿主执行器完成（restoreQuietly）：state 侧同步收口，
+                // 否则内存里会留下一条没有日志条目的"待恢复"，退出时误报"尺寸未能恢复"（方案 §6.4）。
+                state.transactions.removeValue(forKey: target)
                 return [.cancelWorkbenchTransition, .hideWorkbench, .setKeyboardFocus(.overview),
                         .presentHint(.workbenchTransitionFailed("进入工作台超时，已留在总览"))]
             }

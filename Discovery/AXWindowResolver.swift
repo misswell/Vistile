@@ -26,6 +26,18 @@ protocol GeometryWriting: AnyObject {
     func focus(element: AXUIElement) async -> Bool
     func setMinimized(_ minimized: Bool, element: AXUIElement) async -> Bool
     func focusedWindow(pid: pid_t) async -> AXWindowEntry?
+    /// 写前直接问窗口一次"位置/尺寸能不能写"：目录快照里的 isMovable/isResizable
+    /// 会把读取失败折叠成 false，一次读不到不能当成"窗口不可调整"的事实（方案 §6.1）。
+    func geometryWriteability(element: AXUIElement) async -> GeometryWriteability
+}
+
+/// 写前事实读取的三种结论。读不到（超时/无响应）不是事实：既不能宣称"可写"，
+/// 也不能宣称"不可写"——写入自身的读回才是最终判据。
+enum GeometryWriteability: Equatable {
+    case writeable
+    case sizeNotSettable
+    case positionNotSettable
+    case unreadable
 }
 
 extension AXWindowResolver: GeometryWriting {}
@@ -178,7 +190,7 @@ final class AXWindowResolver: @unchecked Sendable {
             }
             let target = CGRect(origin: origin, size: before.size)
             let positionError = self.writePosition(origin, element: element)
-            let readBack = self.frame(of: element)
+            let readBack = self.readBackFrame(element)
             return Self.classify(target: target, before: before, sizeError: 0, positionError: positionError,
                                  readBack: readBack, tolerance: self.geometryTolerance)
         }
@@ -187,9 +199,34 @@ final class AXWindowResolver: @unchecked Sendable {
     private func writeOnce(_ target: CGRect, element: AXUIElement, before: CGRect) -> GeometryWriteReport {
         let sizeError = writeSize(target.size, element: element)
         let positionError = writePosition(target.origin, element: element)
-        let readBack = self.frame(of: element)
+        let readBack = readBackFrame(element)
         return Self.classify(target: target, before: before, sizeError: sizeError, positionError: positionError,
                              readBack: readBack, tolerance: geometryTolerance)
+    }
+
+    /// 写后读回给一个有界重试窗口：写入双侧回报成功（错误码 0）时，单次读失败不能当成终审。
+    /// run11 P0-17 第 62 轮：Chrome 写入错误码全 0、单次读回=nil 被按"不能宣称到位"拒绝并补偿回滚，
+    /// 而 32ms 后的恢复路径读到了 66,184——应用刚被改几何时 AX 会短暂忙。
+    /// 重试仍读不到才按 .unreadable 拒绝：读到才算数（方案 §6.1）。
+    private func readBackFrame(_ element: AXUIElement, attempts: Int = 3,
+                               gap: TimeInterval = 0.07) -> CGRect? {
+        for attempt in 0..<attempts {
+            if let frame = self.frame(of: element) { return frame }
+            if attempt < attempts - 1 { Thread.sleep(forTimeInterval: gap) }
+        }
+        return nil
+    }
+
+    /// 写前事实：分别读 kAXSize / kAXPosition 的可写性。任一读不到就整体按"读不到"回报，
+    /// 因为把半次读取拼成结论同样是把读失败当事实（方案 §6.1）。
+    func geometryWriteability(element: AXUIElement) async -> GeometryWriteability {
+        await executor.submit {
+            guard let size = self.settable(element, kAXSizeAttribute),
+                  let position = self.settable(element, kAXPositionAttribute) else { return .unreadable }
+            if !size { return .sizeNotSettable }
+            if !position { return .positionNotSettable }
+            return .writeable
+        }
     }
 
     /// 只有"确实发生了变化但没到位"才值得再补偿一次；完全没变化说明被拒绝，重试只会白等。
@@ -199,6 +236,9 @@ final class AXWindowResolver: @unchecked Sendable {
     }
 
     /// 结论判定：exact 只在容差内；被拒绝或读不回都不能宣称成功（方案 §6.1）。
+    /// 读回优先于错误码：-25204 这类"无法完成"的报错在实机上窗口可能已经到位
+    /// （run10：Chrome 位置写入报 -25204，读回 66,184 ≈ 目标 66,183）。此时宣布失败
+    /// 会把一个已经在目标位的窗口拉回去——错误码不许覆盖读回证据。
     static func classify(target: CGRect,
                          before: CGRect,
                          sizeError: Int,
@@ -206,14 +246,15 @@ final class AXWindowResolver: @unchecked Sendable {
                          readBack: CGRect?,
                          tolerance: CGFloat) -> GeometryWriteReport {
         let outcome: GeometryOutcome
-        if sizeError != Int(AXError.success.rawValue) || positionError != Int(AXError.success.rawValue) {
-            outcome = .rejected(sizeError != Int(AXError.success.rawValue)
-                                ? .sizeWrite(code: sizeError)
-                                : .positionWrite(code: positionError))
+        let sizeFailed = sizeError != Int(AXError.success.rawValue)
+        let positionFailed = positionError != Int(AXError.success.rawValue)
+        if let readBack, Self.deviation(target, readBack) <= tolerance {
+            // 读回是事实：只要落点在容差内就是 exact，哪怕这次写入报了错。
+            outcome = .exact(readBack: readBack)
+        } else if sizeFailed || positionFailed {
+            outcome = .rejected(sizeFailed ? .sizeWrite(code: sizeError) : .positionWrite(code: positionError))
         } else if let readBack {
-            if Self.deviation(target, readBack) <= tolerance {
-                outcome = .exact(readBack: readBack)
-            } else if readBack != before {
+            if readBack != before {
                 // 有明确证据说明应用接受了部分写入（多为自身尺寸约束）：不等于回到目标，也不等于失败。
                 outcome = .constrained(readBack: readBack)
             } else {

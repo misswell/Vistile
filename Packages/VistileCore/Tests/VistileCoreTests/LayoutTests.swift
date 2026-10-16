@@ -179,7 +179,12 @@ struct SlotRegistryTests {
 
     @Test("拖动交换 slot 并持久化顺序偏好")
     func dragSwapsAndPersistsOrder() {
-        let list = Fixtures.records(3)
+        // 记忆键是应用级（方案 §16）：用三个不同应用，跨会话顺序记忆的语义才完整。
+        let list = [
+            Fixtures.record(400, 1_000, app: "A", bundle: "com.a"),
+            Fixtures.record(400, 1_001, app: "B", bundle: "com.b"),
+            Fixtures.record(400, 1_002, app: "C", bundle: "com.c"),
+        ]
         var registry = SlotRegistry(capacity: 6)
         for item in list { registry.assign(item.identity, memoryKey: item.memoryKey) }
         registry.swap(SlotID(index: 0), SlotID(index: 2))
@@ -188,9 +193,24 @@ struct SlotRegistryTests {
         #expect(registry.orderPreference[list[0].memoryKey] == 2)
     }
 
+    @Test("同一应用多个窗口共享一个记忆键：不落标题，恢复用会话内稳定顺序")
+    func sameAppWindowsShareOneMemoryKey() {
+        let list = Fixtures.records(2)
+        #expect(list[0].memoryKey == list[1].memoryKey, "同一 bundle 的兄弟窗口键相同")
+        var registry = SlotRegistry(capacity: 4)
+        for item in list { registry.assign(item.identity, memoryKey: item.memoryKey) }
+        registry.swap(SlotID(index: 0), SlotID(index: 1))
+        #expect(Set(registry.orderPreference.keys) == [list[0].memoryKey])
+        #expect(registry.orderPreference.values.count == 1)
+    }
+
     @Test("重新进入按记忆顺序")
     func rebuildUsesRememberedOrder() {
-        let list = Fixtures.records(3)
+        let list = [
+            Fixtures.record(400, 1_000, app: "A", bundle: "com.a"),
+            Fixtures.record(400, 1_001, app: "B", bundle: "com.b"),
+            Fixtures.record(400, 1_002, app: "C", bundle: "com.c"),
+        ]
         var registry = SlotRegistry(capacity: 6)
         for item in list { registry.assign(item.identity, memoryKey: item.memoryKey) }
         registry.swap(SlotID(index: 0), SlotID(index: 1))

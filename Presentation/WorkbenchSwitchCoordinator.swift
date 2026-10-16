@@ -93,11 +93,18 @@ final class WorkbenchSwitchCoordinator {
                 self.metrics.measure("工作台:进入主区",
                                      milliseconds: Date().timeIntervalSince(started) * 1000,
                                      context: outcome.message)
+                VistileLog.session.log(level: .debug,
+                                       "[过渡] 进入工作台 对象=\(plan.identity.journalKey, privacy: .public) 结论=\(outcome.message, privacy: .public)")
                 // 令牌被取消（锁屏、Space、退出）后由系统级恢复接管：这里不再自开补偿。
                 guard self.activeToken == plan.token else { return }
                 if outcome.isFailure {
                     // 失败留在原总览，同时把已经改过的几何补偿回原 frame（方案 §4.2.7）。
-                    await self.restoreQuietly(plan.identity, note: "进入工作台未完成")
+                    // 补偿结果必须先回报：journal 已经结算而 state 还留在"待恢复"，
+                    // 退出恢复就会去读一条不存在的日志条目，误报"尺寸未能恢复"（方案 §6.4）。
+                    let item = await self.restoreQuietly(plan.identity, note: "进入工作台未完成")
+                    if let item {
+                        self.onEvent?(.geometryRestoreSettled(token: plan.token, items: [item]))
+                    }
                 }
                 self.onEvent?(.workbenchTransitionFinished(token: plan.token,
                                                            kind: .enteringWorkbench,
@@ -110,6 +117,8 @@ final class WorkbenchSwitchCoordinator {
                 self.metrics.measure("工作台:返回总览",
                                      milliseconds: Date().timeIntervalSince(started) * 1000,
                                      context: outcome.message)
+                VistileLog.session.log(level: .debug,
+                                       "[过渡] 返回总览 对象=\(plan.identity.journalKey, privacy: .public) 结论=\(outcome.message, privacy: .public)")
                 guard self.activeToken == plan.token else { return }
                 self.onEvent?(.workbenchTransitionFinished(token: plan.token,
                                                            kind: .returningOverview,
@@ -291,20 +300,57 @@ final class WorkbenchSwitchCoordinator {
             record = fresh
         }
 
-        guard let ax = catalog.axEntry(for: record) else {
+        // 句柄取不到先复核目录（带截止时间反复复核：窗口移动中的瞬时坏采样，或捕捉权限成串短暂被拒），
+        // 预算用尽仍拿不到才按事实拒绝。
+        guard let ax = await catalog.axEntryAfterReview(for: record) else {
             return .refused("拿不到 AX 句柄（身份未唯一确定）")
         }
-        guard record.allowsGeometryControl else {
-            return .refused("AX 报告该窗口不可调整尺寸")
+        // 目录里的"不可调整"来自上一次采样的快照：跨进程读一次超时就会被折叠成 false，
+        // 把一次读不到当成窗口事实。身份已唯一、句柄在手时，用最新目录再判一次，
+        // 仍说不可控就直接问窗口本身：只有读到确凿的不可写才拒绝；
+        // 读不到同样不是事实，交给写入自身的读回结论（方案 §6.1）。
+        if !record.allowsGeometryControl {
+            let current = catalog.record(for: identity) ?? record
+            record = current
+            if !current.allowsGeometryControl {
+                if !current.allowsAutoFocus {
+                    return .refused("\(current.applicationName) 当前受限（\(current.restriction.map { "\($0)" } ?? "身份未唯一确定")），未写入几何")
+                }
+                switch await writer.geometryWriteability(element: ax.element) {
+                case .sizeNotSettable:
+                    return .refused("AX 确认该窗口不接受尺寸调整")
+                case .positionNotSettable:
+                    return .refused("AX 确认该窗口不接受位置调整")
+                case .writeable, .unreadable:
+                    break
+                }
+            }
         }
 
         let started = Date()
+        // 事务创建时记下的"原位置"来自目录快照：快速往返里快照可能落后一整轮，把上一轮的主区
+        // 位置当成原位置——返回时"已在原位置"直接跳过，窗口被永久留在主区。首个写入前用实读
+        // 纠一次，只限从未写过的事务；写过的原位置已经过读回验证，不再改写（方案 §6.2）。
+        if let entry = store.entry(for: identity), entry.hasSpeculativeOriginal,
+           let before = await writer.currentFrame(of: ax.element),
+           !WindowTransaction.framesClose(before, entry.originalFrame, tolerance: 2) {
+            let persisted = store.correctOriginal(identity, frame: before, displayID: record.displayID)
+            if !persisted.isPersisted {
+                VistileLog.session.log(level: .error,
+                                       "原位置修正落盘失败: \(identity.journalKey, privacy: .public)")
+            }
+            VistileLog.session.log(level: .debug,
+                                   "[原位置] \(identity.journalKey, privacy: .public) 目录快照=\(RecoveryCoordinator.text(entry.originalFrame), privacy: .public) 写前实读=\(RecoveryCoordinator.text(before), privacy: .public) 结论=按实读修正")
+        }
         focus.beginProgrammaticWrite(identity)
         let write = await writer.apply(frame: targetFrame, element: ax.element)
         focus.endProgrammaticWrite(identity, frame: write.displayFrame)
         metrics.measure("工作台:几何写入",
                         milliseconds: Date().timeIntervalSince(started) * 1000,
                         context: write.outcome.message)
+        // 写前、目标与读回三值都进日志：实机验收判定"到位"必须能核对这三个值（方案 §6.1、§14）。
+        VistileLog.session.log(level: .debug,
+                               "[写入] \(identity.journalKey, privacy: .public) 目标=\(RecoveryCoordinator.text(targetFrame), privacy: .public) 写前=\(write.frameBeforeWrite.map(RecoveryCoordinator.text) ?? "-", privacy: .public) 读回=\(write.readBack.map(RecoveryCoordinator.text) ?? "-", privacy: .public) size错误=\(write.sizeWriteError) position错误=\(write.positionWriteError) 结论=\(write.outcome.message, privacy: .public)")
 
         let outcome: WorkbenchStepOutcome
         switch write.outcome {
@@ -348,6 +394,8 @@ final class WorkbenchSwitchCoordinator {
         metrics.measure("工作台:写回原尺寸",
                         milliseconds: Date().timeIntervalSince(started) * 1000,
                         context: item.outcome.message)
+        VistileLog.session.log(level: .debug,
+                               "[写回] \(identity.journalKey, privacy: .public) 结论=\(item.outcome.message, privacy: .public)")
         switch item.outcome {
         case .restored, .alreadyAtOriginal, .keptUserGeometry:
             return .succeeded(readBack: nil)
@@ -371,12 +419,15 @@ final class WorkbenchSwitchCoordinator {
     }
 
     /// 失败补偿：把已经改过的窗口交回既有恢复路径，绝不静默留在半路。
-    private func restoreQuietly(_ identity: WindowIdentity, note: String) async {
-        guard let entry = store.entry(for: identity), entry.state.requiresRestore else { return }
+    /// 返回逐条结果：调用方负责回报 reducer，让 state 侧与 journal 同步收口（方案 §6.4）。
+    @discardableResult
+    private func restoreQuietly(_ identity: WindowIdentity, note: String) async -> RestoreItemResult? {
+        guard let entry = store.entry(for: identity), entry.state.requiresRestore else { return nil }
         let item = await recovery.restore(entry: entry)
         if item.outcome.isFailure {
             recorder.note("\(note)：\(identity.journalKey) 补偿恢复未完成（\(item.outcome.message)）")
         }
+        return item
     }
 
     /// 交换失败：只逆序补偿这次真正动过的窗口，然后报告 mainSwitchFailed（placement 不提交）。
@@ -386,11 +437,18 @@ final class WorkbenchSwitchCoordinator {
         guard !didRollback else { return }
         didRollback = true
         recorder.note("工作台交换回滚：\(reason)")
-        if let from = plan.intent.from, touched.contains(from) {
-            await restoreQuietly(from, note: "交换回滚：原主窗口")
+        var compensated: [RestoreItemResult] = []
+        if let from = plan.intent.from, touched.contains(from),
+           let item = await restoreQuietly(from, note: "交换回滚：原主窗口") {
+            compensated.append(item)
         }
-        if touched.contains(plan.intent.to) {
-            await restoreQuietly(plan.intent.to, note: "交换回滚：目标窗口")
+        if touched.contains(plan.intent.to),
+           let item = await restoreQuietly(plan.intent.to, note: "交换回滚：目标窗口") {
+            compensated.append(item)
+        }
+        // 补偿结果先于 mainSwitchFailed 回报：state 侧必须在收口前看到 journal 的真实结局。
+        if !compensated.isEmpty {
+            onEvent?(.geometryRestoreSettled(token: plan.intent.token, items: compensated))
         }
         onEvent?(.mainSwitchFailed(token: plan.intent.token, reason: reason))
     }
@@ -427,6 +485,9 @@ final class WorkbenchSwitchCoordinator {
                         identity: WindowIdentity?,
                         token: TransitionToken) {
         guard activeToken == token else { return }
+        // 每一步的真实结论进诊断日志：实机验收要靠它还原"哪一步、什么事实"（方案 §14）。
+        VistileLog.session.log(level: .debug,
+                               "[交换] 步骤=\(step.displayName, privacy: .public) 对象=\(identity?.journalKey ?? "-", privacy: .public) 结论=\(outcome.message, privacy: .public)")
         onEvent?(.mainSwitchStepFinished(WorkbenchSwitchStepResult(token: token,
                                                                    step: step,
                                                                    outcome: outcome,

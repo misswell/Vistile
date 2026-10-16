@@ -193,7 +193,9 @@ public enum SessionReducer {
             return effects
 
         case .geometryRestoreSettled(let token, let items):
-            guard state.phase.token == token else { return [] }
+            // 令牌归属：正在走的阶段，或仍挂在 mainSwitch 上的交换。
+            // from 为空的交换没有 switching 阶段，补偿结果只能凭 mainSwitch 的意图令牌对上（方案 §8.3）。
+            guard state.phase.token == token || state.workbench.mainSwitch.intent?.token == token else { return [] }
             var effects: [SessionEffect] = []
             for item in items {
                 guard var transaction = state.transactions[item.identity] else { continue }

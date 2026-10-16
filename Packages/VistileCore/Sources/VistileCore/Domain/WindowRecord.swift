@@ -125,13 +125,10 @@ public struct WindowRecord: Hashable, Sendable {
             || applicationName.localizedCaseInsensitiveContains(searchQuery)
     }
 
-    /// 跨会话顺序记忆用的稳定键；标题改动不应该重排格子，但需要能记住"曾经的位置"。
-    public var memoryKey: String {
-        let normalizedTitle = title
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        return "\((bundleID ?? applicationName).lowercased())|\(normalizedTitle)"
-    }
+    /// 跨会话顺序记忆用的稳定键。0.1.10 起只用应用标识，不含窗口标题（方案 §16）：
+    /// 旧版键是「应用标识|小写标题」，落盘过的旧值由 `LegacyTitleDerivedKeys` 在启动时清洗。
+    /// 同一应用的多个窗口共享键，它们之间的先后由会话内稳定顺序决定。
+    public var memoryKey: String { preferenceKey }
 
     /// 工作台跨会话偏好键（轨道顺序、固定在顶部）：只用应用标识，不含窗口标题（方案 §16）。
     /// 同一应用的多个窗口共享一个键，它们之间的先后由会话内稳定顺序决定，不落盘标题。

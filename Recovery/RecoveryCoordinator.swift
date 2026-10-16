@@ -74,7 +74,9 @@ final class RecoveryCoordinator {
                                         startIdentity: entry.identity.processStartIdentity),
                                       isConfirmedGone: isConfirmedGone)
 
-        guard let ax = catalog.axEntry(for: record) else {
+        // 句柄取不到先复核目录（带截止时间反复复核）：窗口刚被移动时两侧 frame 可能没对齐，
+        // 捕捉权限查询也会成串短暂被拒，一次坏采样不等于事实不足。
+        guard let ax = await catalog.axEntryAfterReview(for: record) else {
             // 句柄读不到属于"事实不足"，不是窗口消失：事务必须保留（方案 §6.4）。
             let outcome: RestoreOutcome = liveness.isConfirmedGone ? .windowGone : .notAttempted("辅助功能句柄暂不可用")
             return item(entry, outcome, name)
@@ -87,6 +89,9 @@ final class RecoveryCoordinator {
                                              isOriginalDisplayLive: display != nil,
                                              clampedFrame: clampTarget(entry.originalFrame, preferred: entry.originalDisplayID),
                                              preserveUserGeometry: settings.preserveUserGeometry)
+        // 判定依据要能复盘：跳过/写入的选择取决于当前实读与原位置两个值（方案 §6.4）。
+        VistileLog.session.log(level: .debug,
+                               "[恢复判定] \(entry.identity.journalKey, privacy: .public) 当前=\(Self.text(current), privacy: .public) 原位置=\(Self.text(entry.originalFrame), privacy: .public) 结论=\(decision.settledOutcome?.message ?? "写入恢复", privacy: .public)")
         guard decision.shouldWriteAX, let target = decision.frame else {
             guard let settled = decision.settledOutcome else { return item(entry, .notAttempted("判定结果缺少目标几何"), name) }
             if settled.isSettled { settle(entry.identity, settled) }

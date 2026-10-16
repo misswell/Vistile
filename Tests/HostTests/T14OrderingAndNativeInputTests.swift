@@ -110,6 +110,31 @@ final class T14OrderingAndNativeInputTests: XCTestCase {
 
     // MARK: - §12.2 前景化按读回判定
 
+    /// 方案 §16：旧版的 slotOrder / priorityKeys 里带过「应用标识|小写标题」，0.1.10 启动时清洗并写回。
+    func testLegacyTitleDerivedPreferenceKeysAreCleanedOnLaunch() {
+        let suite = transientDefaults()
+        suite.set(["com.apple.Safari|文章 A": 5, "com.apple.Safari|文章 B": 2, "": 0,
+                   "com.apple.notes|待办": 7], forKey: "slotOrder")
+        suite.set(["com.apple.Safari|文章 A", "com.apple.Safari|文章 B", ""], forKey: "priorityKeys")
+
+        settings = SettingsModel(defaults: suite)
+        XCTAssertEqual(settings.slotOrderPreference,
+                       ["com.apple.safari": 2, "com.apple.notes": 7],
+                       "同一应用合并取最靠前序号；空键丢弃")
+        XCTAssertEqual(settings.priorityWindowKeys, ["com.apple.safari"], "去标题、去重")
+        XCTAssertEqual(suite.dictionary(forKey: "slotOrder") as? [String: Int],
+                       ["com.apple.safari": 2, "com.apple.notes": 7],
+                       "清洗结果必须写回，盘上不得继续留标题派生键")
+        XCTAssertEqual(suite.stringArray(forKey: "priorityKeys"), ["com.apple.safari"])
+        XCTAssertTrue(settings.workbenchMigrationNotes.contains { $0.contains("标题派生键") },
+                      "迁移必须留下事实说明，不能静默改写用户设置")
+
+        // 重启不再重演：盘上已洗过，第二次启动没有可清洗的旧值。
+        let relaunched = SettingsModel(defaults: suite)
+        XCTAssertEqual(relaunched.slotOrderPreference, settings.slotOrderPreference)
+        XCTAssertFalse(relaunched.workbenchMigrationNotes.contains { $0.contains("标题派生键") })
+    }
+
     func testExpandContinuesOnlyWhenTargetIsReadBackAsFocused() async throws {
         let (focus, identity) = try await startHarness()
         let token = TransitionToken(generation: 1)

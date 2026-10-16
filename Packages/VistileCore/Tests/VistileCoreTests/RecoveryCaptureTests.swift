@@ -45,6 +45,42 @@ struct WindowTransactionTests {
         #expect(planned.writtenFrameCandidates == [provisional])
     }
 
+    @Test("猜测的原位置在首个写入前可按实读纠正一次")
+    func speculativeOriginalIsCorrectedBeforeFirstWrite() {
+        let identity = WindowIdentity.test(700, 42)
+        var journal = SessionJournal(sessionID: UUID())
+        journal.apply(transaction { $0.markingPlanned(frame: provisional, displayID: 1) })
+        #expect(journal.entries[identity.journalKey]?.hasSpeculativeOriginal == true)
+
+        // 目录快照落后一整轮：把 provisional（上一轮的位置）误当成原位置；写前实读把它纠回。
+        journal.correctOriginal(identity, frame: provisional, displayID: 2)
+        #expect(journal.entries[identity.journalKey]?.originalFrame == provisional)
+        #expect(journal.entries[identity.journalKey]?.originalDisplayID == 2)
+
+        // 纠正之后照常写入：后续 apply 的合并规则仍不得再覆盖原 frame。
+        journal.apply(transaction { $0.markingPlanned(frame: provisional, displayID: 1)
+            .markingWritten(readBack: original, displayID: 1) })
+        #expect(journal.entries[identity.journalKey]?.originalFrame == provisional)
+        #expect(journal.entries[identity.journalKey]?.hasSpeculativeOriginal == false)
+    }
+
+    @Test("写过的事务不再接受原位置纠正")
+    func writtenTransactionRejectsCorrection() {
+        let identity = WindowIdentity.test(700, 42)
+        var journal = SessionJournal(sessionID: UUID())
+        journal.apply(transaction { $0.markingPlanned(frame: provisional, displayID: 1)
+            .markingWritten(readBack: provisional, displayID: 1) })
+        journal.correctOriginal(identity, frame: provisional, displayID: 2)
+        #expect(journal.entries[identity.journalKey]?.originalFrame == original,
+                "写过的原位置已经过读回验证：不允许被实读覆盖")
+        #expect(journal.entries[identity.journalKey]?.originalDisplayID == 1)
+
+        // 写入侧同一条守卫：不是推测状态时纠正返回原样。
+        let entry = transaction { $0.markingPlanned(frame: provisional, displayID: 1)
+            .markingWritten(readBack: provisional, displayID: 1) }
+        #expect(entry.withCorrectedOriginal(frame: provisional, displayID: 2) == entry)
+    }
+
     @Test("只有读回一致才记为已验证")
     func verifiedOnlyOnExactReadBack() {
         let written = transaction { $0.markingPlanned(frame: provisional, displayID: 1)
