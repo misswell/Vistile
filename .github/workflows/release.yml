@@ -135,10 +135,14 @@ jobs:
           set -euo pipefail
           # history 证明的是这把凭据能读，submit 才是能提交公证；后者要等第一次真公证才算证明。
           if [ -n "${APPLE_API_KEY_BASE64:-}" ]; then
-            key="$(mktemp -d)/AuthKey.p8"; chmod 600 "$key"
+            # 先落文件再 chmod：mktemp -d 给的是目录，直接 chmod 目录里的文件名会在它存在之前跑。
+            key_dir="$(mktemp -d)"; chmod 700 "$key_dir"
+            key="$key_dir/AuthKey.p8"
             printf '%s' "$APPLE_API_KEY_BASE64" | base64 -D >"$key"
+            chmod 600 "$key"
             xcrun notarytool history --key "$key" --key-id "$APPLE_API_KEY_ID" \
               --issuer "$APPLE_API_ISSUER" --output-format json | jq '.history | length'
+            rm -rf "$key_dir"
             echo "==> 公证可用：App Store Connect API key"
           elif [ -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]; then
             xcrun notarytool history --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \

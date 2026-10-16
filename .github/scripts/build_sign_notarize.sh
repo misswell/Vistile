@@ -22,7 +22,9 @@ fi
 
 work="$(mktemp -d)"
 mnt="$(mktemp -d)"
-trap 'rm -rf "$work" "$mnt"' EXIT
+# 公证要用的 .p8 只在这个目录里存在几秒钟，退出时一并清掉（notarytool 失败也不留残file）。
+key_dir="$(mktemp -d)"; chmod 700 "$key_dir"
+trap 'rm -rf "$work" "$mnt" "$key_dir"' EXIT
 
 # 公证两条路线任取其一，缺哪项报哪项，不静默跳过。
 api_key_ready=1
@@ -117,8 +119,11 @@ fi
 
 notarize() {
   if [ "$api_key_ready" = 1 ]; then
-    key_file="$(mktemp -d)/AuthKey.p8"; chmod 600 "$key_file"
+    # 先落文件再 chmod：key_dir 是 mktemp -d 建的目录，直接 chmod 里面的文件名会在它存在之前跑
+    # （probe 实测就炸在这一行）。目录本身 700，键文件 600，用完立刻删。
+    key_file="$key_dir/AuthKey.p8"
     printf '%s' "$APPLE_API_KEY_BASE64" | base64 -D >"$key_file"
+    chmod 600 "$key_file"
     xcrun notarytool submit "$1" --key "$key_file" \
       --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER" --wait
     rm -f "$key_file"
