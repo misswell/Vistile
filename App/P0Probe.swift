@@ -533,9 +533,9 @@ final class P0Probe {
             && minimizedAfter == minimizedBefore
             && gpuErrors == 0 && submissionFailures == 0
         record("P0-9", "真实视图链路", passed: passed, detail: detail, check: "P0-9 事件转接到真实上屏")
-        recorder.updateRow(application: candidate.applicationName, version: "",
-                           ordering: passed ? .passed : .unverified,
-                           knownLimitation: passed ? nil : "真实事件链路或 present 未取得闭环证据")
+        // 这一项证明的是"真实事件能打通放大与上屏"，它没有兄弟窗口可对照（目标是随机选到的单个窗口），
+        // 所以不能顺手把矩阵里「层级=展开时不带动兄弟」那一格判成通过——那是 P0-3 的判据。
+        // 0.1.1/0.1.3/0.1.4 三轮的报告里 UGit 与 ChatGPT 曾因此被写成"层级通过"，属于过度断言。
         manual("P0-9", "画面确实是这张卡", "录屏确认放大时屏幕上的窗口与刚点的卡片画面一致，不是别的应用的窗口。")
     }
 
