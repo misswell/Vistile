@@ -103,6 +103,8 @@ final class WorkbenchToolbarView: NSView, NSSearchFieldDelegate {
     func update(side: RailSide, visibleCount: Int, totalCount: Int, query: String, hint: String?) {
         countLabel.stringValue = "可见 \(visibleCount) / 共 \(totalCount)"
         hintLabel.stringValue = hint ?? ""
+        // 紧凑档里提示会被截断，完整文字必须还能读到。
+        hintLabel.toolTip = hint
         sideButton.title = side == .right ? "侧栏：右 ‹" : "侧栏：左 ›"
         sideButton.toolTip = side == .right ? "把侧栏移到左边" : "把侧栏移到右边"
         if searchField.stringValue != query { searchField.stringValue = query }
@@ -162,17 +164,36 @@ final class WorkbenchToolbarView: NSView, NSSearchFieldDelegate {
 
     // MARK: - 布局
 
+    /// 角落高度随窗口收缩，最小只有约 96pt（方案 §11.2 的 clamp 下界），
+    /// 固定竖排需要 118pt，所以按实测高度分两档收紧：
+    /// <118pt 把提示并进计数行（需 99pt），<99pt 再收内边距与行距（需 94pt）——任何合法高度都不溢出。
     override func layout() {
         super.layout()
-        let inset: CGFloat = 6
+        let compact = bounds.height < 118
+        let tight = bounds.height < 99
+        let inset: CGFloat = tight ? 4 : 6
+        let spacing: CGFloat = tight ? 3 : 4
         let width = max(60, bounds.width - 2 * inset)
         var y = bounds.height - inset
         func place(_ height: CGFloat) -> NSRect {
             y -= height
             return NSRect(x: inset, y: y, width: width, height: height)
         }
-        countLabel.frame = place(15)
-        y -= 4
+        let countRow = place(15)
+        if compact {
+            // 提示右对齐截断，完整文字留在 tooltip：压排版不压事实。
+            hintLabel.alignment = .right
+            let countWidth = min(countRow.width, ceil(countLabel.intrinsicContentSize.width) + 2)
+            countLabel.frame = NSRect(x: countRow.minX, y: countRow.minY,
+                                      width: countWidth, height: countRow.height)
+            hintLabel.frame = NSRect(x: countRow.minX + countWidth + 6, y: countRow.minY,
+                                     width: max(0, countRow.width - countWidth - 6),
+                                     height: countRow.height)
+        } else {
+            countLabel.frame = countRow
+            hintLabel.alignment = .left
+        }
+        y -= spacing
         // 「全部窗口」与「更多」并排一行：工具区高度已经紧，按钮不加行。
         let buttonsRow = place(22)
         let half = max(28, (buttonsRow.width - 4) / 2)
@@ -184,11 +205,13 @@ final class WorkbenchToolbarView: NSView, NSSearchFieldDelegate {
                                   y: buttonsRow.minY,
                                   width: half,
                                   height: buttonsRow.height)
-        y -= 4
+        y -= spacing
         sideButton.frame = place(22)
-        y -= 4
+        y -= spacing
         searchField.frame = place(22)
-        y -= 4
-        hintLabel.frame = place(15)
+        if !compact {
+            y -= spacing
+            hintLabel.frame = place(15)
+        }
     }
 }

@@ -513,6 +513,12 @@ final class ModeTransitionCoordinator {
         return view.scene?.hiddenRailIdentities ?? []
     }
 
+    /// 只读观察点：当前为哪些屏留着承载窗口（方案 §18.2 H18：层数只跟屏数走，不跟卡片数走）。
+    var carrierDisplayIDs: Set<UInt32> { Set(carriers.keys) }
+
+    /// 只读观察点：某一屏的承载窗口实例（测试据此断言同一屏的连续播放复用同一个窗口）。
+    func carrierWindow(for displayID: UInt32) -> TransitionCarrierWindow? { carriers[displayID] }
+
     func play(_ scene: TransitionScene) {
         guard let facts = displayFacts?(scene.displayID) else { return }
         if let old = activeDisplayID, old != scene.displayID {

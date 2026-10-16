@@ -13,9 +13,16 @@ struct PermissionStatus: Equatable {
 /// 抽成协议后，目录/过渡/恢复才能在宿主测试里注入固定权限，而不是依赖本机授权状态（方案 §15.1）。
 protocol PermissionChecking {
     var status: PermissionStatus { get }
+    /// 重新取得权限事实：真实管理器探测系统，替身没有可探测的新事实（见下方默认实现）。
+    func refresh() -> PermissionStatus
 }
 
 extension PermissionManager: PermissionChecking {}
+
+extension PermissionChecking {
+    /// 替身的固定事实不会在两次读取之间变化：默认原样回报。
+    func refresh() -> PermissionStatus { status }
+}
 
 /// 只做公开预检与分步申请，不模拟授权结果。
 final class PermissionManager {

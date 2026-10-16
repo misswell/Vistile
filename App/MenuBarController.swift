@@ -9,33 +9,39 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let settings: SettingsModel
     private let permissions: PermissionManager
 
-    private var statusItem: NSStatusItem?
+    private(set) var statusItem: NSStatusItem?
     private var settingsWindow: SettingsWindowController?
     private var onboarding: OnboardingWindowController?
 
     private let statusLine = NSMenuItem(title: "准备中", action: nil, keyEquivalent: "")
-    private let openItem = NSMenuItem()
-    private let backItem = NSMenuItem()
-    private let hideItem = NSMenuItem()
+    let openItem = NSMenuItem()
+    let backItem = NSMenuItem()
+    let hideItem = NSMenuItem()
     private let permissionsItem = NSMenuItem(title: "权限与诊断…", action: nil, keyEquivalent: "")
+    /// 菜单本体：宿主测试直接读条目与启用态，不必经系统菜单弹层（方案 §18.2）。
+    let statusMenu = NSMenu()
 
-    init(coordinator: AppCoordinator, settings: SettingsModel, permissions: PermissionManager) {
+    /// 测试宿主传 false：不在用户菜单栏里插图标（方案 §18.2）。
+    init(coordinator: AppCoordinator,
+         settings: SettingsModel,
+         permissions: PermissionManager,
+         installsStatusItem: Bool = true) {
         self.coordinator = coordinator
         self.settings = settings
         self.permissions = permissions
         super.init()
-        build()
+        let item = installsStatusItem ? NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength) : nil
+        build(into: item)
     }
 
-    private func build() {
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+    private func build(into item: NSStatusItem?) {
         // 只允许缩小，不允许放大：菜单栏变矮时保持与系统图标同样的视觉大小，而不是撑满。
-        item.button?.imageScaling = .scaleProportionallyDown
-        item.button?.image = Self.menuBarIcon()
-        item.button?.toolTip = "Vistile 窗口总览"
+        item?.button?.imageScaling = .scaleProportionallyDown
+        item?.button?.image = Self.menuBarIcon()
+        item?.button?.toolTip = "Vistile 窗口总览"
         statusItem = item
 
-        let menu = NSMenu()
+        let menu = statusMenu
         menu.delegate = self
         menu.autoenablesItems = false
 
@@ -82,7 +88,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         quit.target = self
         menu.addItem(quit)
 
-        item.menu = menu
+        item?.menu = menu
     }
 
     func setStatus(_ text: String) {
@@ -114,9 +120,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     // MARK: - 动作
 
     /// 只在隐藏态可用：每次打开都先落在全屏总览，工作台只能由点击卡片进入（方案 §4.1、§16）。
-    @objc private func openOverview() { coordinator.toggleOverview() }
-    @objc private func returnToOverview() { coordinator.returnToAllWindows() }
-    @objc private func hideOverview() { coordinator.hideNow() }
+    @objc func openOverview() { coordinator.toggleOverview() }
+    @objc func returnToOverview() { coordinator.returnToAllWindows() }
+    @objc func hideOverview() { coordinator.hideNow() }
     @objc private func organize() { coordinator.organizeNow() }
     @objc private func refresh() { coordinator.refreshNow() }
 

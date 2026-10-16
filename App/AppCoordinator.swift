@@ -12,7 +12,8 @@ final class AppCoordinator {
     // MARK: - 依赖
 
     let settings: SettingsModel
-    let permissions: PermissionManager
+    /// 权限只按"当前事实"读取：宿主测试注入替身，真实管理器随生产构造进来（方案 §15.1）。
+    let permissions: PermissionChecking
     let metrics: Metrics
     let recorder: CompatibilityRecorder
     let journal: WindowJournalStore
@@ -24,6 +25,8 @@ final class AppCoordinator {
     let switchCoordinator: WorkbenchSwitchCoordinator
     let observerHub = AXObserverHub()
     let hotKey = GlobalHotKey()
+    /// 测试宿主为 false：真实注册会占用用户系统里的组合键（方案 §18.2）。
+    private let registersGlobalHotKey: Bool
 
     private let resolver = AXWindowResolver()
     private let renderer: OverviewRenderer
@@ -84,15 +87,22 @@ final class AppCoordinator {
     private var pendingReveal: PendingReveal?
 
     /// 渲染设备与着色器由调用方先建好：启动被阻塞时要分得清是"没有 Metal 设备"还是"着色器没编译过"。
+    /// 宿主测试注入口（方案 §18.2）：目录、捕获、几何写入与事务日志都可换替身，省略即生产接线。
+    /// 不注册真实全局热键的选项只属于测试宿主：它不该占用用户系统里的组合键。
     init(settings: SettingsModel,
-         permissions: PermissionManager,
+         permissions: PermissionChecking,
          metrics: Metrics,
          recorder: CompatibilityRecorder,
          metal: MetalContext,
-         renderer: OverviewRenderer) {
-        let journal = WindowJournalStore()
+         renderer: OverviewRenderer,
+         catalog: WindowCatalog? = nil,
+         capture: CaptureCoordinator? = nil,
+         journal: WindowJournalStore = WindowJournalStore(),
+         writer: GeometryWriting? = nil,
+         registersGlobalHotKey: Bool = true) {
         let resolver = AXWindowResolver()
-        let catalog = WindowCatalog(permissions: permissions, resolver: resolver)
+        let catalog = catalog ?? WindowCatalog(permissions: permissions, resolver: resolver)
+        let geometryWriter = writer ?? resolver
 
         self.settings = settings
         self.permissions = permissions
@@ -102,18 +112,19 @@ final class AppCoordinator {
         self.renderer = renderer
         self.journal = journal
         self.catalog = catalog
-        self.capture = CaptureCoordinator(metal: metal, catalog: catalog)
+        self.capture = capture ?? CaptureCoordinator(metal: metal, catalog: catalog)
         self.modes = ModeTransitionCoordinator(metal: metal)
+        self.registersGlobalHotKey = registersGlobalHotKey
         // 恢复执行器先建：过渡执行器的恢复全部委托给它，避免两套恢复规则（方案 §6.5）。
         let recovery = RecoveryCoordinator(store: journal,
-                                           writer: resolver,
+                                           writer: geometryWriter,
                                            catalog: catalog,
                                            settings: settings,
                                            permissions: permissions)
         self.recovery = recovery
         let focus = FocusCoordinator(catalog: catalog,
                                      metal: metal,
-                                     writer: resolver,
+                                     writer: geometryWriter,
                                      store: journal,
                                      settings: settings,
                                      metrics: metrics,
@@ -122,7 +133,7 @@ final class AppCoordinator {
                                      permissions: permissions)
         self.focus = focus
         self.switchCoordinator = WorkbenchSwitchCoordinator(catalog: catalog,
-                                                            writer: resolver,
+                                                            writer: geometryWriter,
                                                             store: journal,
                                                             recovery: recovery,
                                                             focus: focus,
@@ -229,12 +240,14 @@ final class AppCoordinator {
         dispatch(.policyChanged(settings.sessionPolicy()))
         dispatch(.settingsChanged(density: settings.density))
 
-        if hotKey.register(settings.hotKey) {
-            recorder.record("全局快捷键", subject: settings.hotKey.displayString, result: .unverified,
-                            detail: "已注册；实机触发需录屏验证")
-        } else {
-            recorder.record("全局快捷键", subject: settings.hotKey.displayString, result: .failed,
-                            detail: "RegisterEventHotKey 未成功，请从菜单栏进入或在设置里更换组合键")
+        if registersGlobalHotKey {
+            if hotKey.register(settings.hotKey) {
+                recorder.record("全局快捷键", subject: settings.hotKey.displayString, result: .unverified,
+                                detail: "已注册；实机触发需录屏验证")
+            } else {
+                recorder.record("全局快捷键", subject: settings.hotKey.displayString, result: .failed,
+                                detail: "RegisterEventHotKey 未成功，请从菜单栏进入或在设置里更换组合键")
+            }
         }
         recorder.record("Metal 渲染", subject: "总览画面合成", result: .unverified,
                         detail: "设备与纹理缓存已建立；帧率、内存与 WindowServer 增量待实测")

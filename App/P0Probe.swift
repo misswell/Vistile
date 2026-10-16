@@ -1173,7 +1173,9 @@ final class P0Probe {
 
     /// 系统门禁没开时不许写"失败"：那会把未授权读成程序缺陷。返回 nil 才代表这一项真的可以判定。
     private func permissionNote(_ kind: PermissionKind) -> String? {
-        guard coordinator.permissions.isGranted(kind) else {
+        let status = coordinator.permissions.refresh()
+        let granted = kind == .screenRecording ? status.screenRecording : status.accessibility
+        guard granted else {
             return kind == .screenRecording
                 ? "未授予屏幕录制：目录与帧数据不存在，本项无法判定（见 P0-0）"
                 : "未授予辅助功能：不能操作真实窗口，本项无法判定（见 P0-0）"

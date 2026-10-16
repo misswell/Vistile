@@ -579,6 +579,88 @@ final class TransitionSceneTests: XCTestCase {
         XCTAssertEqual(finished, [intent.token])
     }
 
+    /// §18.2 H18：整屏过渡只有一层承载窗口——卡片再多也不按卡片数建窗；
+    /// 同一屏连续播放复用同一个实例；结束（淡出完成）后这一层不再上屏、不再占着令牌。
+    @MainActor
+    func testSingleCarrierLayerServesManyCardsAndIsReleasedAtEnd() throws {
+        let metal = try HostFixtures.metalContext()
+        let coordinator = ModeTransitionCoordinator(metal: metal)
+        coordinator.displayFacts = { [displayID] id in
+            guard id == displayID else { return nil }
+            return ModeTransitionCoordinator.DisplayFacts(cgFrame: HostFixtures.visibleFrame,
+                                                          appKitFrame: HostFixtures.visibleFrame,
+                                                          scale: 2)
+        }
+        var finished: [TransitionToken] = []
+        coordinator.onSceneFinished = { finished.append($0) }
+
+        let grid = HostFixtures.layout(count: 6)
+        let fixture = HostWorkbench.fixture(count: 6)
+        let main = HostFixtures.identity(0)
+        let mainCell = try XCTUnwrap(grid.layout.card(at: SlotID(index: 0))?.cellRect)
+        let imageRects = Dictionary(uniqueKeysWithValues: grid.layout.cards.map {
+            (HostFixtures.identity($0.slot.index), $0.imageRect)
+        })
+        let handoffs = (1..<6).compactMap { index -> RailHandoff? in
+            guard let slot = fixture.placement.slot(of: HostFixtures.identity(index)) else { return nil }
+            return RailHandoff(identity: HostFixtures.identity(index),
+                               slot: slot,
+                               from: grid.layout.cards[index].imageRect,
+                               to: fixture.snapshot.rect(for: slot))
+        }
+        XCTAssertGreaterThanOrEqual(handoffs.count, 4, "前提：这一屏至少要容纳四张轨道卡片，'不按卡片数建窗'才有意义")
+
+        let token = TransitionToken(generation: 81)
+        let scene = try XCTUnwrap(baseFactory(imageRects: imageRects).entering(
+            WorkbenchTransitionPlan(kind: .enteringWorkbench,
+                                    token: token,
+                                    identity: main,
+                                    displayID: displayID,
+                                    snapshot: fixture.snapshot,
+                                    targetFrame: fixture.layout.mainRect,
+                                    animationFrom: mainCell,
+                                    animationTo: fixture.layout.mainRect,
+                                    railHandoffs: handoffs,
+                                    animationMS: 240,
+                                    presentation: fixture.presentation)))
+        XCTAssertEqual(scene.cards.count, 1 + handoffs.count, "前提：这一段过渡真的有多张卡片参与合成")
+
+        coordinator.play(scene)
+        XCTAssertEqual(coordinator.carrierDisplayIDs, [displayID],
+                       "\(scene.cards.count) 张卡片共用一整屏一层承载窗口")
+        let window = try XCTUnwrap(coordinator.carrierWindow(for: displayID))
+        XCTAssertTrue(window.isVisible, "播放期间承载层必须真的上屏")
+        XCTAssertEqual(window.carrierView.scene?.cards.count, scene.cards.count, "所有卡片都从这一层的合成器里画出来")
+
+        // 同一屏连着播第二段：不新建窗口，复用同一个实例，场景换成新的一段。
+        let secondToken = TransitionToken(generation: 82)
+        let second = try XCTUnwrap(baseFactory(imageRects: imageRects).entering(
+            WorkbenchTransitionPlan(kind: .enteringWorkbench,
+                                    token: secondToken,
+                                    identity: main,
+                                    displayID: displayID,
+                                    snapshot: fixture.snapshot,
+                                    targetFrame: fixture.layout.mainRect,
+                                    animationFrom: mainCell,
+                                    animationTo: fixture.layout.mainRect,
+                                    railHandoffs: handoffs,
+                                    animationMS: 240,
+                                    presentation: fixture.presentation)))
+        coordinator.play(second)
+        XCTAssertEqual(coordinator.carrierDisplayIDs.count, 1, "第二次播放不新增承载窗口")
+        let reused = try XCTUnwrap(coordinator.carrierWindow(for: displayID))
+        XCTAssertTrue(reused === window, "同一屏的承载窗口是复用的同一个实例，不是每段过渡建一个")
+        XCTAssertEqual(reused.carrierView.scene?.token, secondToken)
+
+        // 结束：淡出跑完，这一层离开屏幕、令牌归零；实例留着给下一次同屏播放复用。
+        coordinator.retreat(secondToken)
+        reused.carrierView.advance(to: CACurrentMediaTime() + 0.2)
+        XCTAssertFalse(coordinator.isPresenting, "结束后不许再占着过渡令牌")
+        XCTAssertFalse(reused.isVisible, "结束后承载层必须离开屏幕")
+        XCTAssertTrue(coordinator.hiddenRailIdentities.isEmpty)
+        XCTAssertEqual(finished, [secondToken])
+    }
+
     // MARK: - 动效等级与帧采样（方案 §20.3–§20.4）
 
     func testAlphaProgressScalesFadeIntoFraction() throws {
@@ -871,6 +953,78 @@ final class TransitionSceneTests: XCTestCase {
         view.stopNow()
     }
 
+    /// §18.2 H21：位移动画由时间轴驱动，与预览帧率解耦——源纹理只有第一帧（低 fps 的极端：
+    /// 飞行期间零新帧），60Hz 的每一拍照样是新位置、且单调逼近终点；中途补一帧新纹理只换画面，
+    /// 不动时间轴；到点必须到位，不许因为"没有新帧"而停住或拖长。
+    @MainActor
+    func testMotionIsDrivenByTimelineNotBySourceFrames() throws {
+        let metal = try HostFixtures.metalContext()
+        let view = TransitionCarrierView(frame: CGRect(origin: .zero, size: HostFixtures.offscreenSize),
+                                         metal: metal)
+        view.configure(cgOrigin: HostFixtures.offscreenOrigin, scale: 2)
+        view.layout()
+
+        let grid = HostFixtures.layout(count: 2)
+        let fixture = HostWorkbench.fixture(count: 2)
+        let main = HostFixtures.identity(0)
+        let mainCell = try XCTUnwrap(grid.layout.card(at: SlotID(index: 0))?.imageRect)
+        let target = fixture.layout.mainRect
+        XCTAssertNotEqual(mainCell, target, "前提：端点不同，位移才可观察")
+
+        let firstFrame = try HostFixtures.metalFrame(metal: metal, width: 640, height: 400)
+        let scene = try XCTUnwrap(baseFactory(imageRects: [main: mainCell]).entering(
+            WorkbenchTransitionPlan(kind: .enteringWorkbench,
+                                    token: TransitionToken(generation: 91),
+                                    identity: main,
+                                    displayID: displayID,
+                                    snapshot: fixture.snapshot,
+                                    targetFrame: target,
+                                    animationFrom: mainCell,
+                                    animationTo: target,
+                                    railHandoffs: [],
+                                    animationMS: 240,
+                                    presentation: fixture.presentation)))
+
+        let base = CACurrentMediaTime()
+        view.play(scene, sources: [main: firstFrame])
+        let start = try XCTUnwrap(view.presentedRect(for: main))
+        XCTAssertEqual(start, mainCell)
+        var previous = start
+        var lastDistance = distance(previous, to: target)
+
+        // 60Hz 八拍：飞行的前半段里源纹理一帧都不更新。
+        for step in 1...8 {
+            view.advance(to: base + Double(step) * 0.0167)
+            let current = try XCTUnwrap(view.presentedRect(for: main))
+            XCTAssertNotEqual(current, previous, "第 \(step) 拍没有新位置：动画在等新帧，帧率没有解耦")
+            let currentDistance = distance(current, to: target)
+            XCTAssertLessThan(currentDistance, lastDistance, "第 \(step) 拍没有更接近终点")
+            previous = current
+            lastDistance = currentDistance
+        }
+        XCTAssertTrue(view.isPlaying)
+
+        // 中途到一帧新纹理：只换画面，时间轴不许回退、不许跳变。
+        let progressBefore = view.lastProgress
+        let secondFrame = try HostFixtures.metalFrame(metal: metal, width: 800, height: 400)
+        view.updateSource(main, frame: secondFrame, aspect: 2)
+        XCTAssertEqual(view.lastProgress, progressBefore, "换纹理不许动时间轴")
+        XCTAssertEqual(try XCTUnwrap(view.presentedRect(for: main)), previous, "换纹理不许改当前呈现矩形")
+
+        // 继续走到时长：后半段依然零新帧，但必须原地按计划到位。
+        for step in 9...15 {
+            view.advance(to: base + Double(step) * 0.0167)
+        }
+        XCTAssertTrue(view.isHolding, "240ms 内必须跑完：没有新帧不代表动画可以拖长")
+        // 视图↔CG 换算有浮点残差（0.0000000001 量级），逐分量按 0.01pt 对账。
+        let landed = try XCTUnwrap(view.presentedRect(for: main))
+        XCTAssertEqual(landed.midX, target.midX, accuracy: 0.01, "到点必须落在主区矩形上")
+        XCTAssertEqual(landed.midY, target.midY, accuracy: 0.01)
+        XCTAssertEqual(landed.width, target.width, accuracy: 0.01)
+        XCTAssertEqual(landed.height, target.height, accuracy: 0.01)
+        view.stopNow()
+    }
+
     /// 轻量等级的播放（方案 §20.4）：其余卡片从第一帧就落在终点，140ms 内淡到不透明；主卡片照常连续飞行。
     @MainActor
     func testLightPlaybackSnapsOthersAndFadesThemInEarly() throws {
@@ -939,6 +1093,10 @@ final class TransitionSceneTests: XCTestCase {
     }
 
     // MARK: - 组装
+
+    private func distance(_ rect: CGRect, to other: CGRect) -> CGFloat {
+        hypot(rect.midX - other.midX, rect.midY - other.midY)
+    }
 
     private func baseFactory(imageRects: [WindowIdentity: CGRect]) -> TransitionSceneFactory {
         var factory = TransitionSceneFactory()
