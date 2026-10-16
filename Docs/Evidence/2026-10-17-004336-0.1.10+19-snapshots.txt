@@ -1,0 +1,600 @@
+===T+0.0 1792168971 front=ZCode[19645]
+  #0 ZCode [ZCode] @503,320 1407x804
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #3 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #4 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 Qoder [Qoder] @637,222 1163x725
+  #7 Qoder CN [Qoder CN] @244,188 1157x726
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+  #9 UITestHarness [无标题副本] @258,256 548x366
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+1.1 1792168972 front=ZCode[19645]
+  #0 ZCode [ZCode] @503,320 1407x804
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #3 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #4 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 Qoder [Qoder] @637,222 1163x725
+  #7 Qoder CN [Qoder CN] @244,188 1157x726
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+  #9 UITestHarness [无标题副本] @258,256 548x366
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+2.1 1792168973 front=ZCode[19645]
+  #0 ZCode [ZCode] @503,320 1407x804
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #3 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #4 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 Qoder [Qoder] @637,222 1163x725
+  #7 Qoder CN [Qoder CN] @244,188 1157x726
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+  #9 UITestHarness [无标题副本] @258,256 548x366
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+3.1 1792168974 front=ZCode[19645]
+  #0 ZCode [ZCode] @503,320 1407x804
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #3 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #4 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 Qoder [Qoder] @637,222 1163x725
+  #7 Qoder CN [Qoder CN] @244,188 1157x726
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+  #9 UITestHarness [无标题副本] @258,256 548x366
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+4.1 1792168975 front=ZCode[19645]
+  #0 ZCode [ZCode] @503,320 1407x804
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #3 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #4 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 Qoder [Qoder] @637,222 1163x725
+  #7 Qoder CN [Qoder CN] @244,188 1157x726
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+  #9 UITestHarness [无标题副本] @258,256 548x366
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+5.1 1792168976 front=ZCode[19645]
+  #0 ZCode [ZCode] @503,320 1407x804
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #3 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #4 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 Qoder [Qoder] @637,222 1163x725
+  #7 Qoder CN [Qoder CN] @244,188 1157x726
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+  #9 UITestHarness [无标题副本] @258,256 548x366
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+6.1 1792168977 front=ZCode[19645]
+  #0 ZCode [ZCode] @503,320 1407x804
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+  #3 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #4 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #5 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+7.1 1792168978 front=ZCode[19645]
+  #0 ZCode [ZCode] @503,320 1407x804
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+  #3 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #4 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #5 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+8.1 1792168979 front=ZCode[19645]
+  #0 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #1 ZCode [ZCode] @503,320 1407x804
+  #2 Vistile [Vistile Overview] @71,51 1712x1107
+  #3 Google Chrome [组织用户中心] @54,40 1746x1129
+  #4 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #5 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+9.1 1792168980 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+  #1 Vistile [Vistile Workbench] @1573,191 213x958
+  #2 Vistile [Vistile Workbench] @81,53 1692x130
+  #3 Vistile [] @15,10 1770x1149
+  #4 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #5 ZCode [ZCode] @503,320 1407x804
+  #6 Google Chrome [组织用户中心] @54,40 1746x1129
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #8 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #9 Qoder [Qoder] @637,222 1163x725
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T16:42:59Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"62B642E4-E216-49B8-8419-E812883F6ED1","state":"verified"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+10.2 1792168981 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+  #2 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #3 ZCode [ZCode] @503,320 1407x804
+  #4 Google Chrome [组织用户中心] @54,40 1746x1129
+  #5 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+11.2 1792168982 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+  #2 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #3 ZCode [ZCode] @503,320 1407x804
+  #4 Google Chrome [组织用户中心] @54,40 1746x1129
+  #5 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+12.2 1792168983 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+  #2 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #3 ZCode [ZCode] @503,320 1407x804
+  #4 Google Chrome [组织用户中心] @54,40 1746x1129
+  #5 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+13.2 1792168984 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+  #2 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #3 ZCode [ZCode] @503,320 1407x804
+  #4 Google Chrome [组织用户中心] @54,40 1746x1129
+  #5 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+14.2 1792168985 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #1 Vistile [Vistile Overview] @71,51 1712x1107
+  #2 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #3 ZCode [ZCode] @503,320 1407x804
+  #4 Google Chrome [组织用户中心] @54,40 1746x1129
+  #5 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T16:43:01Z","failureReason":"未执行恢复：事务日志中没有该窗口的记录","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[300,184],[1481,800]],"provisionalDisplayID":1,"restoreAttempts":1,"sessionID":"001A6873-74AD-4900-B4EF-0667299EB41D","state":"failed"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+15.2 1792168986 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+  #1 Vistile [Vistile Workbench] @1571,183 217x974
+  #2 Vistile [Vistile Workbench] @66,52 1722x132
+  #3 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #4 ZCode [ZCode] @503,320 1407x804
+  #5 Google Chrome [组织用户中心] @54,40 1746x1129
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #8 Qoder [Qoder] @637,222 1163x725
+  #9 Qoder CN [Qoder CN] @244,188 1157x726
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T16:43:01Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"001A6873-74AD-4900-B4EF-0667299EB41D","state":"verified"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+16.2 1792168987 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+  #1 Google Chrome [组织用户中心] @66,184 1505x973
+  #2 Vistile [Vistile Workbench] @1571,183 217x974
+  #3 Vistile [Vistile Workbench] @66,52 1722x132
+  #4 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #5 ZCode [ZCode] @503,320 1407x804
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #8 Qoder [Qoder] @637,222 1163x725
+  #9 Qoder CN [Qoder CN] @244,188 1157x726
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T16:43:01Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[300,184],[1481,800]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"001A6873-74AD-4900-B4EF-0667299EB41D","state":"mutationPlanned"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T16:43:06Z","identity":{"processID
+===T+17.2 1792168988 front=ZCode[19645]
+  #0 Google Chrome [组织用户中心] @66,184 1505x973
+  #1 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #2 Vistile [Vistile Workbench] @1571,183 217x974
+  #3 Vistile [Vistile Workbench] @66,52 1722x132
+  #4 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #5 ZCode [ZCode] @503,320 1407x804
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #8 Qoder [Qoder] @637,222 1163x725
+  #9 Qoder CN [Qoder CN] @244,188 1157x726
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T16:43:01Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[300,184],[1481,800]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[300,184],[1481,800]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"001A6873-74AD-4900-B4EF-0667299EB41D","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T16:43:06Z","identity":{"processID":2263
+===T+18.2 1792168989 front=ZCode[19645]
+  #0 Google Chrome [组织用户中心] @66,184 1505x973
+  #1 Code [Personnel.jsx — tg-frontend-second] @66,184 1481x800
+  #2 Vistile [Vistile Workbench] @1571,183 217x974
+  #3 Vistile [Vistile Workbench] @66,52 1722x132
+  #4 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #5 ZCode [ZCode] @503,320 1407x804
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #8 Qoder [Qoder] @637,222 1163x725
+  #9 Qoder CN [Qoder CN] @244,188 1157x726
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T16:43:01Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[300,184],[1481,800]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[300,184],[1481,800]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"001A6873-74AD-4900-B4EF-0667299EB41D","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T16:43:06Z","identity":{"processID":2263
+===T+19.2 1792168990 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+  #1 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 ZCode [ZCode] @503,320 1407x804
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #8 Qoder [Qoder] @637,222 1163x725
+  #9 Qoder CN [Qoder CN] @244,188 1157x726
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T16:43:01Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"001A6873-74AD-4900-B4EF-0667299EB41D","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T16:43:06Z","identity"
+===T+20.2 1792168991 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+  #1 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 ZCode [ZCode] @503,320 1407x804
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #8 Qoder [Qoder] @637,222 1163x725
+  #9 Qoder CN [Qoder CN] @244,188 1157x726
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T16:43:01Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"001A6873-74AD-4900-B4EF-0667299EB41D","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T16:43:06Z","identity"
+===T+21.2 1792168992 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+  #1 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 ZCode [ZCode] @503,320 1407x804
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #8 Qoder [Qoder] @637,222 1163x725
+  #9 Qoder CN [Qoder CN] @244,188 1157x726
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T16:43:01Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"001A6873-74AD-4900-B4EF-0667299EB41D","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T16:43:06Z","identity"
+===T+22.3 1792168993 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+  #1 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 ZCode [ZCode] @503,320 1407x804
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #8 Qoder [Qoder] @637,222 1163x725
+  #9 Qoder CN [Qoder CN] @244,188 1157x726
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T16:43:01Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"001A6873-74AD-4900-B4EF-0667299EB41D","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T16:43:06Z","identity"
+===T+23.3 1792168994 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+  #1 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 ZCode [ZCode] @503,320 1407x804
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #8 Qoder [Qoder] @637,222 1163x725
+  #9 Qoder CN [Qoder CN] @244,188 1157x726
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T16:43:01Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"001A6873-74AD-4900-B4EF-0667299EB41D","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T16:43:06Z","identity"
+===T+24.3 1792168995 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+  #1 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 ZCode [ZCode] @503,320 1407x804
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #8 Qoder [Qoder] @637,222 1163x725
+  #9 Qoder CN [Qoder CN] @244,188 1157x726
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T16:43:01Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"001A6873-74AD-4900-B4EF-0667299EB41D","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T16:43:06Z","identity"
+===T+25.3 1792168996 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+  #1 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 ZCode [ZCode] @503,320 1407x804
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #8 Qoder [Qoder] @637,222 1163x725
+  #9 Qoder CN [Qoder CN] @244,188 1157x726
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T16:43:01Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"001A6873-74AD-4900-B4EF-0667299EB41D","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T16:43:06Z","identity"
+===T+26.3 1792168997 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+  #1 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 ZCode [ZCode] @503,320 1407x804
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #8 Qoder [Qoder] @637,222 1163x725
+  #9 Qoder CN [Qoder CN] @244,188 1157x726
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T16:43:01Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"001A6873-74AD-4900-B4EF-0667299EB41D","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T16:43:06Z","identity"
+===T+27.3 1792168998 front=ZCode[19645]
+  #0 Vistile [Vistile Workbench] @1573,191 213x958
+  #1 Vistile [Vistile Workbench] @81,53 1692x130
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 Vistile [Vistile Overview] @57,42 1740x1125
+  #4 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #5 Google Chrome [组织用户中心] @54,40 1746x1129
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #7 ZCode [ZCode] @503,320 1407x804
+  #8 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #9 Qoder [Qoder] @637,222 1163x725
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T16:43:18Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"restoreAttempts":0,"sessionID":"5E6BF447-C8E8-4F48-8EA8-DFDADCB86809","state":"mutationPlanned"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+28.3 1792168999 front=ZCode[19645]
+  #0 Google Chrome [组织用户中心] @66,184 1505x973
+  #1 Vistile [Vistile Workbench] @1571,183 217x974
+  #2 Vistile [Vistile Workbench] @65,52 1724x132
+  #3 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #4 Vistile [Vistile Overview] @71,51 1712x1107
+  #5 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #7 ZCode [ZCode] @503,320 1407x804
+  #8 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #9 Qoder [Qoder] @637,222 1163x725
+  JOURNAL {"entries":{"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T16:43:18Z","identity":{"processID":2263,"processStartIdentity":1792024453428670,"windowID":351},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[54,40],[1746,1129]],"plannedDisplayID":1,"plannedFrame":[[54,40],[1746,1129]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"5E6BF447-C8E8-4F48-8EA8-DFDADCB86809","state":"mutationPlanned"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+29.3 1792169000 front=ZCode[19645]
+  #0 Google Chrome [组织用户中心] @66,184 1505x973
+  #1 Vistile [Vistile Workbench] @1571,183 217x974
+  #2 Vistile [Vistile Workbench] @66,52 1722x132
+  #3 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #4 Vistile [Vistile Overview] @71,51 1712x1107
+  #5 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #7 ZCode [ZCode] @503,320 1407x804
+  #8 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #9 Qoder [Qoder] @637,222 1163x725
+  JOURNAL {"entries":{"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T16:43:18Z","identity":{"processID":2263,"processStartIdentity":1792024453428670,"windowID":351},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[54,40],[1746,1129]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"5E6BF447-C8E8-4F48-8EA8-DFDADCB86809","state":"verified"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+30.3 1792169001 front=ZCode[19645]
+  #0 Vistile [Vistile Workbench] @1571,183 217x974
+  #1 Vistile [Vistile Workbench] @65,52 1724x132
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 Google Chrome [组织用户中心] @66,184 1505x973
+  #4 Vistile [Vistile Overview] @71,51 1712x1107
+  #5 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #7 ZCode [ZCode] @503,320 1407x804
+  #8 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #9 Qoder [Qoder] @637,222 1163x725
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+31.6 1792169003 front=ZCode[19645]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+  #1 Vistile [Vistile Workbench] @1571,183 217x974
+  #2 Vistile [Vistile Workbench] @66,52 1722x132
+  #3 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #4 Google Chrome [组织用户中心] @66,184 1505x973
+  #5 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #7 ZCode [ZCode] @503,320 1407x804
+  #8 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #9 Qoder [Qoder] @637,222 1163x725
+  JOURNAL {"entries":{"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T16:43:18Z","identity":{"processID":2263,"processStartIdentity":1792024453428670,"windowID":351},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[54,40],[1746,1129]],"plannedDisplayID":1,"plannedFrame":[[54,40],[1746,1129]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"5E6BF447-C8E8-4F48-8EA8-DFDADCB86809","state":"mutationPlanned"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+32.7 1792169004 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+  #3 universalAccessAuthWarn [录屏] @696,277 461x181
+  #4 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 ZCode [ZCode] @503,320 1407x804
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #8 Qoder [Qoder] @637,222 1163x725
+  #9 Qoder CN [Qoder CN] @244,188 1157x726
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+33.7 1792169005 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+  #3 universalAccessAuthWarn [录屏] @696,277 461x181
+  #4 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 ZCode [ZCode] @503,320 1407x804
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #8 Qoder [Qoder] @637,222 1163x725
+  #9 Qoder CN [Qoder CN] @244,188 1157x726
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+34.7 1792169006 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+  #3 universalAccessAuthWarn [录屏] @696,277 461x181
+  #4 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 ZCode [ZCode] @503,320 1407x804
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #8 Qoder [Qoder] @637,222 1163x725
+  #9 Qoder CN [Qoder CN] @244,188 1157x726
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+35.7 1792169007 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+  #3 universalAccessAuthWarn [录屏] @696,277 461x181
+  #4 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 ZCode [ZCode] @503,320 1407x804
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #8 Qoder [Qoder] @637,222 1163x725
+  #9 Qoder CN [Qoder CN] @244,188 1157x726
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+36.7 1792169008 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+  #3 universalAccessAuthWarn [录屏] @696,277 461x181
+  #4 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 ZCode [ZCode] @503,320 1407x804
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #8 Qoder [Qoder] @637,222 1163x725
+  #9 Qoder CN [Qoder CN] @244,188 1157x726
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+37.7 1792169009 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+  #3 universalAccessAuthWarn [录屏] @696,277 461x181
+  #4 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 ZCode [ZCode] @503,320 1407x804
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #8 Qoder [Qoder] @637,222 1163x725
+  #9 Qoder CN [Qoder CN] @244,188 1157x726
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+38.7 1792169010 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+  #3 universalAccessAuthWarn [录屏] @696,277 461x181
+  #4 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 ZCode [ZCode] @503,320 1407x804
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #8 Qoder [Qoder] @637,222 1163x725
+  #9 Qoder CN [Qoder CN] @244,188 1157x726
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+39.7 1792169011 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+  #3 universalAccessAuthWarn [录屏] @696,277 461x181
+  #4 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 ZCode [ZCode] @503,320 1407x804
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #8 Qoder [Qoder] @637,222 1163x725
+  #9 Qoder CN [Qoder CN] @244,188 1157x726
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+40.7 1792169012 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+  #3 universalAccessAuthWarn [录屏] @696,277 461x181
+  #4 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 ZCode [ZCode] @503,320 1407x804
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #8 Qoder [Qoder] @637,222 1163x725
+  #9 Qoder CN [Qoder CN] @244,188 1157x726
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+41.7 1792169013 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+  #3 universalAccessAuthWarn [录屏] @696,277 461x181
+  #4 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 ZCode [ZCode] @503,320 1407x804
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #8 Qoder [Qoder] @637,222 1163x725
+  #9 Qoder CN [Qoder CN] @244,188 1157x726
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+42.7 1792169014 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+  #3 universalAccessAuthWarn [录屏] @696,277 461x181
+  #4 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 ZCode [ZCode] @503,320 1407x804
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #8 Qoder [Qoder] @637,222 1163x725
+  #9 Qoder CN [Qoder CN] @244,188 1157x726
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+43.7 1792169015 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 universalAccessAuthWarn [录屏] @696,277 461x181
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #5 ZCode [ZCode] @503,320 1407x804
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T16:43:18Z","failureReason":"未执行恢复：事务日志中没有该窗口的记录","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[300,184],[1481,800]],"provisionalDisplayID":1,"restoreAttempts":1,"sessionID":"5E6BF447-C8E8-4F48-8EA8-DFDADCB86809","state":"failed"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T16:4
+===T+44.7 1792169016 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 universalAccessAuthWarn [录屏] @696,277 461x181
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #5 ZCode [ZCode] @503,320 1407x804
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T16:43:18Z","failureReason":"未执行恢复：事务日志中没有该窗口的记录","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[300,184],[1481,800]],"provisionalDisplayID":1,"restoreAttempts":1,"sessionID":"5E6BF447-C8E8-4F48-8EA8-DFDADCB86809","state":"failed"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T16:4
+===T+45.7 1792169017 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 universalAccessAuthWarn [录屏] @696,277 461x181
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #5 ZCode [ZCode] @503,320 1407x804
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+46.7 1792169018 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 universalAccessAuthWarn [录屏] @696,277 461x181
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #5 ZCode [ZCode] @503,320 1407x804
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+47.7 1792169019 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 universalAccessAuthWarn [录屏] @696,277 461x181
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #5 ZCode [ZCode] @503,320 1407x804
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+48.7 1792169020 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 universalAccessAuthWarn [录屏] @696,277 461x181
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #5 ZCode [ZCode] @503,320 1407x804
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+49.7 1792169021 front=ZCode[19645]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 universalAccessAuthWarn [录屏] @696,277 461x181
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #5 ZCode [ZCode] @503,320 1407x804
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}

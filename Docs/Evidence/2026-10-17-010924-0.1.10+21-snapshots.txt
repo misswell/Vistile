@@ -1,0 +1,1408 @@
+===T+2.1 1792170499 front=Qoder[82289]
+  #0 Qoder [Qoder] @637,222 1163x725
+===T+2.1 1792170499 front=Qoder[82289]
+  #1 ZCode [ZCode] @503,439 1407x685
+===T+2.1 1792170499 front=Qoder[82289]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+2.1 1792170499 front=Qoder[82289]
+  #3 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+2.1 1792170499 front=Qoder[82289]
+  #4 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+2.1 1792170499 front=Qoder[82289]
+  #5 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+2.1 1792170499 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+2.1 1792170499 front=Qoder[82289]
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+2.1 1792170499 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+2.1 1792170499 front=Qoder[82289]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+2.1 1792170499 front=Qoder[82289]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+3.1 1792170500 front=Qoder[82289]
+  #0 Qoder [Qoder] @637,222 1163x725
+===T+3.1 1792170500 front=Qoder[82289]
+  #1 ZCode [ZCode] @503,439 1407x685
+===T+3.1 1792170500 front=Qoder[82289]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+3.1 1792170500 front=Qoder[82289]
+  #3 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+3.1 1792170500 front=Qoder[82289]
+  #4 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+3.1 1792170500 front=Qoder[82289]
+  #5 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+3.1 1792170500 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+3.1 1792170500 front=Qoder[82289]
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+3.1 1792170500 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+3.1 1792170500 front=Qoder[82289]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+3.1 1792170500 front=Qoder[82289]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+4.1 1792170501 front=Qoder[82289]
+  #0 Qoder [Qoder] @637,222 1163x725
+===T+4.1 1792170501 front=Qoder[82289]
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+===T+4.1 1792170501 front=Qoder[82289]
+  #2 ZCode [ZCode] @503,439 1407x685
+===T+4.1 1792170501 front=Qoder[82289]
+  #3 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+4.1 1792170501 front=Qoder[82289]
+  #4 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+4.1 1792170501 front=Qoder[82289]
+  #5 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+4.1 1792170501 front=Qoder[82289]
+  #6 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+4.1 1792170501 front=Qoder[82289]
+  #7 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+4.1 1792170501 front=Qoder[82289]
+  #8 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+4.1 1792170501 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+4.1 1792170501 front=Qoder[82289]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+5.1 1792170502 front=Qoder[82289]
+  #0 Qoder [Qoder] @637,222 1163x725
+===T+5.1 1792170502 front=Qoder[82289]
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+===T+5.1 1792170502 front=Qoder[82289]
+  #2 ZCode [ZCode] @503,439 1407x685
+===T+5.1 1792170502 front=Qoder[82289]
+  #3 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+5.1 1792170502 front=Qoder[82289]
+  #4 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+5.1 1792170502 front=Qoder[82289]
+  #5 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+5.1 1792170502 front=Qoder[82289]
+  #6 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+5.1 1792170502 front=Qoder[82289]
+  #7 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+5.1 1792170502 front=Qoder[82289]
+  #8 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+5.1 1792170502 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+5.1 1792170502 front=Qoder[82289]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+6.1 1792170503 front=Qoder[82289]
+  #0 Qoder [Qoder] @637,222 1163x725
+===T+6.1 1792170503 front=Qoder[82289]
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+===T+6.1 1792170503 front=Qoder[82289]
+  #2 ZCode [ZCode] @503,439 1407x685
+===T+6.1 1792170503 front=Qoder[82289]
+  #3 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+6.1 1792170503 front=Qoder[82289]
+  #4 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+6.1 1792170503 front=Qoder[82289]
+  #5 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+6.1 1792170503 front=Qoder[82289]
+  #6 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+6.1 1792170503 front=Qoder[82289]
+  #7 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+6.1 1792170503 front=Qoder[82289]
+  #8 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+6.1 1792170503 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+6.1 1792170503 front=Qoder[82289]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+7.1 1792170504 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+7.1 1792170504 front=Qoder[82289]
+  #1 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+7.1 1792170504 front=Qoder[82289]
+  #2 Qoder [Qoder] @637,222 1163x725
+===T+7.1 1792170504 front=Qoder[82289]
+  #3 Vistile [Vistile Overview] @58,42 1738x1125
+===T+7.1 1792170504 front=Qoder[82289]
+  #4 ZCode [ZCode] @503,439 1407x685
+===T+7.1 1792170504 front=Qoder[82289]
+  #5 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+7.1 1792170504 front=Qoder[82289]
+  #6 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+7.1 1792170504 front=Qoder[82289]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+7.1 1792170504 front=Qoder[82289]
+  #8 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+7.1 1792170504 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+7.1 1792170504 front=Qoder[82289]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+8.2 1792170506 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+8.2 1792170506 front=Qoder[82289]
+  #1 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+8.2 1792170506 front=Qoder[82289]
+  #2 Vistile [Vistile Overview] @54,40 1746x1129
+===T+8.2 1792170506 front=Qoder[82289]
+  #3 Qoder [Qoder] @637,222 1163x725
+===T+8.2 1792170506 front=Qoder[82289]
+  #4 ZCode [ZCode] @503,439 1407x685
+===T+8.2 1792170506 front=Qoder[82289]
+  #5 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+8.2 1792170506 front=Qoder[82289]
+  #6 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+8.2 1792170506 front=Qoder[82289]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+8.2 1792170506 front=Qoder[82289]
+  #8 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+8.2 1792170506 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+8.2 1792170506 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:08:25Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"restoreAttempts":0,"sessionID":"389217BD-42B0-42B5-B154-FC12787FF2DA","state":"mutationPlanned"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+9.2 1792170507 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+9.2 1792170507 front=Qoder[82289]
+  #1 Vistile [Vistile Workbench] @1571,183 217x974
+===T+9.2 1792170507 front=Qoder[82289]
+  #2 Vistile [Vistile Workbench] @66,52 1722x132
+===T+9.2 1792170507 front=Qoder[82289]
+  #3 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+9.2 1792170507 front=Qoder[82289]
+  #4 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+9.2 1792170507 front=Qoder[82289]
+  #5 Qoder [Qoder] @637,222 1163x725
+===T+9.2 1792170507 front=Qoder[82289]
+  #6 ZCode [ZCode] @503,439 1407x685
+===T+9.2 1792170507 front=Qoder[82289]
+  #7 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+9.2 1792170507 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+9.2 1792170507 front=Qoder[82289]
+  #9 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+9.2 1792170507 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:08:25Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"389217BD-42B0-42B5-B154-FC12787FF2DA","state":"verified"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+10.2 1792170508 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+10.2 1792170508 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+10.2 1792170508 front=Qoder[82289]
+  #2 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+10.2 1792170508 front=Qoder[82289]
+  #3 Qoder [Qoder] @637,222 1163x725
+===T+10.2 1792170508 front=Qoder[82289]
+  #4 ZCode [ZCode] @503,439 1407x685
+===T+10.2 1792170508 front=Qoder[82289]
+  #5 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+10.2 1792170508 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+10.2 1792170508 front=Qoder[82289]
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+10.2 1792170508 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+10.2 1792170508 front=Qoder[82289]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+10.2 1792170508 front=Qoder[82289]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+11.3 1792170509 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+11.3 1792170509 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+11.3 1792170509 front=Qoder[82289]
+  #2 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+11.3 1792170509 front=Qoder[82289]
+  #3 Qoder [Qoder] @637,222 1163x725
+===T+11.3 1792170509 front=Qoder[82289]
+  #4 ZCode [ZCode] @503,439 1407x685
+===T+11.3 1792170509 front=Qoder[82289]
+  #5 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+11.3 1792170509 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+11.3 1792170509 front=Qoder[82289]
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+11.3 1792170509 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+11.3 1792170509 front=Qoder[82289]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+11.3 1792170509 front=Qoder[82289]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+12.3 1792170510 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+12.3 1792170510 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+12.3 1792170510 front=Qoder[82289]
+  #2 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+12.3 1792170510 front=Qoder[82289]
+  #3 Qoder [Qoder] @637,222 1163x725
+===T+12.3 1792170510 front=Qoder[82289]
+  #4 ZCode [ZCode] @503,439 1407x685
+===T+12.3 1792170510 front=Qoder[82289]
+  #5 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+12.3 1792170510 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+12.3 1792170510 front=Qoder[82289]
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+12.3 1792170510 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+12.3 1792170510 front=Qoder[82289]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+12.3 1792170510 front=Qoder[82289]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+13.3 1792170511 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+13.3 1792170511 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+13.3 1792170511 front=Qoder[82289]
+  #2 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+13.3 1792170511 front=Qoder[82289]
+  #3 Qoder [Qoder] @637,222 1163x725
+===T+13.3 1792170511 front=Qoder[82289]
+  #4 ZCode [ZCode] @503,439 1407x685
+===T+13.3 1792170511 front=Qoder[82289]
+  #5 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+13.3 1792170511 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+13.3 1792170511 front=Qoder[82289]
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+13.3 1792170511 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+13.3 1792170511 front=Qoder[82289]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+13.3 1792170511 front=Qoder[82289]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+14.3 1792170512 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+14.3 1792170512 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+14.3 1792170512 front=Qoder[82289]
+  #2 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+14.3 1792170512 front=Qoder[82289]
+  #3 Qoder [Qoder] @637,222 1163x725
+===T+14.3 1792170512 front=Qoder[82289]
+  #4 ZCode [ZCode] @503,439 1407x685
+===T+14.3 1792170512 front=Qoder[82289]
+  #5 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+14.3 1792170512 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+14.3 1792170512 front=Qoder[82289]
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+14.3 1792170512 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+14.3 1792170512 front=Qoder[82289]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+14.3 1792170512 front=Qoder[82289]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+15.3 1792170513 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+15.3 1792170513 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+15.3 1792170513 front=Qoder[82289]
+  #2 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+15.3 1792170513 front=Qoder[82289]
+  #3 Qoder [Qoder] @637,222 1163x725
+===T+15.3 1792170513 front=Qoder[82289]
+  #4 ZCode [ZCode] @503,439 1407x685
+===T+15.3 1792170513 front=Qoder[82289]
+  #5 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+15.3 1792170513 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+15.3 1792170513 front=Qoder[82289]
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+15.3 1792170513 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+15.3 1792170513 front=Qoder[82289]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+15.3 1792170513 front=Qoder[82289]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+16.3 1792170514 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+16.3 1792170514 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+16.3 1792170514 front=Qoder[82289]
+  #2 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+16.3 1792170514 front=Qoder[82289]
+  #3 Qoder [Qoder] @637,222 1163x725
+===T+16.3 1792170514 front=Qoder[82289]
+  #4 ZCode [ZCode] @503,439 1407x685
+===T+16.3 1792170514 front=Qoder[82289]
+  #5 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+16.3 1792170514 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+16.3 1792170514 front=Qoder[82289]
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+16.3 1792170514 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+16.3 1792170514 front=Qoder[82289]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+16.3 1792170514 front=Qoder[82289]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+17.3 1792170515 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+17.3 1792170515 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+17.3 1792170515 front=Qoder[82289]
+  #2 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+17.3 1792170515 front=Qoder[82289]
+  #3 Qoder [Qoder] @637,222 1163x725
+===T+17.3 1792170515 front=Qoder[82289]
+  #4 ZCode [ZCode] @503,439 1407x685
+===T+17.3 1792170515 front=Qoder[82289]
+  #5 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+17.3 1792170515 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+17.3 1792170515 front=Qoder[82289]
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+17.3 1792170515 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+17.3 1792170515 front=Qoder[82289]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+17.3 1792170515 front=Qoder[82289]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+18.3 1792170516 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+18.3 1792170516 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+18.3 1792170516 front=Qoder[82289]
+  #2 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+18.3 1792170516 front=Qoder[82289]
+  #3 Qoder [Qoder] @637,222 1163x725
+===T+18.3 1792170516 front=Qoder[82289]
+  #4 ZCode [ZCode] @503,439 1407x685
+===T+18.3 1792170516 front=Qoder[82289]
+  #5 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+18.3 1792170516 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+18.3 1792170516 front=Qoder[82289]
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+18.3 1792170516 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+18.3 1792170516 front=Qoder[82289]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+18.3 1792170516 front=Qoder[82289]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+19.3 1792170517 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+19.3 1792170517 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+19.3 1792170517 front=Qoder[82289]
+  #2 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+19.3 1792170517 front=Qoder[82289]
+  #3 Qoder [Qoder] @637,222 1163x725
+===T+19.3 1792170517 front=Qoder[82289]
+  #4 ZCode [ZCode] @503,439 1407x685
+===T+19.3 1792170517 front=Qoder[82289]
+  #5 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+19.3 1792170517 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+19.3 1792170517 front=Qoder[82289]
+  #7 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+19.3 1792170517 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+19.3 1792170517 front=Qoder[82289]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+19.3 1792170517 front=Qoder[82289]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+20.4 1792170518 front=Qoder[82289]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+20.4 1792170518 front=Qoder[82289]
+  #1 Vistile [Vistile Workbench] @1571,182 217x976
+===T+20.4 1792170518 front=Qoder[82289]
+  #2 Vistile [Vistile Workbench] @65,52 1724x132
+===T+20.4 1792170518 front=Qoder[82289]
+  #3 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+20.4 1792170518 front=Qoder[82289]
+  #4 Vistile [Vistile Overview] @71,51 1712x1107
+===T+20.4 1792170518 front=Qoder[82289]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+20.4 1792170518 front=Qoder[82289]
+  #6 Qoder [Qoder] @637,222 1163x725
+===T+20.4 1792170518 front=Qoder[82289]
+  #7 ZCode [ZCode] @503,439 1407x685
+===T+20.4 1792170518 front=Qoder[82289]
+  #8 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+20.4 1792170518 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+20.4 1792170518 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:08:37Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"restoreAttempts":0,"sessionID":"9291903D-30B3-4452-9E79-F0CF57774C75","state":"mutationPlanned"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+21.4 1792170519 front=Qoder[82289]
+  #0 Vistile [] @18,11 1764x1147
+===T+21.4 1792170519 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+21.4 1792170519 front=Qoder[82289]
+  #2 Vistile [Vistile Overview] @54,40 1746x1129
+===T+21.4 1792170519 front=Qoder[82289]
+  #3 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+21.4 1792170519 front=Qoder[82289]
+  #4 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+21.4 1792170519 front=Qoder[82289]
+  #5 Qoder [Qoder] @637,222 1163x725
+===T+21.4 1792170519 front=Qoder[82289]
+  #6 ZCode [ZCode] @503,439 1407x685
+===T+21.4 1792170519 front=Qoder[82289]
+  #7 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+21.4 1792170519 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+21.4 1792170519 front=Qoder[82289]
+  #9 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+21.4 1792170519 front=Qoder[82289]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+22.4 1792170520 front=Qoder[82289]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+22.4 1792170520 front=Qoder[82289]
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+===T+22.4 1792170520 front=Qoder[82289]
+  #2 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+22.4 1792170520 front=Qoder[82289]
+  #3 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+22.4 1792170520 front=Qoder[82289]
+  #4 Qoder [Qoder] @637,222 1163x725
+===T+22.4 1792170520 front=Qoder[82289]
+  #5 ZCode [ZCode] @503,439 1407x685
+===T+22.4 1792170520 front=Qoder[82289]
+  #6 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+22.4 1792170520 front=Qoder[82289]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+22.4 1792170520 front=Qoder[82289]
+  #8 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+22.4 1792170520 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+22.4 1792170520 front=Qoder[82289]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+23.4 1792170521 front=Qoder[82289]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+23.4 1792170521 front=Qoder[82289]
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+===T+23.4 1792170521 front=Qoder[82289]
+  #2 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+23.4 1792170521 front=Qoder[82289]
+  #3 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+23.4 1792170521 front=Qoder[82289]
+  #4 Qoder [Qoder] @637,222 1163x725
+===T+23.4 1792170521 front=Qoder[82289]
+  #5 ZCode [ZCode] @503,439 1407x685
+===T+23.4 1792170521 front=Qoder[82289]
+  #6 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+23.4 1792170521 front=Qoder[82289]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+23.4 1792170521 front=Qoder[82289]
+  #8 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+23.4 1792170521 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+23.4 1792170521 front=Qoder[82289]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+24.4 1792170522 front=Qoder[82289]
+  #0 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+24.4 1792170522 front=Qoder[82289]
+  #1 Vistile [Vistile Overview] @59,43 1736x1123
+===T+24.4 1792170522 front=Qoder[82289]
+  #2 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+24.4 1792170522 front=Qoder[82289]
+  #3 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+24.4 1792170522 front=Qoder[82289]
+  #4 Qoder [Qoder] @637,222 1163x725
+===T+24.4 1792170522 front=Qoder[82289]
+  #5 ZCode [ZCode] @503,439 1407x685
+===T+24.4 1792170522 front=Qoder[82289]
+  #6 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+24.4 1792170522 front=Qoder[82289]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+24.4 1792170522 front=Qoder[82289]
+  #8 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+24.4 1792170522 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+24.4 1792170522 front=Qoder[82289]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+25.5 1792170523 front=Qoder[82289]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+25.5 1792170523 front=Qoder[82289]
+  #1 Vistile [Vistile Workbench] @1571,183 217x974
+===T+25.5 1792170523 front=Qoder[82289]
+  #2 Vistile [Vistile Workbench] @66,52 1722x132
+===T+25.5 1792170523 front=Qoder[82289]
+  #3 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+25.5 1792170523 front=Qoder[82289]
+  #4 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+25.5 1792170523 front=Qoder[82289]
+  #5 Qoder [Qoder] @637,222 1163x725
+===T+25.5 1792170523 front=Qoder[82289]
+  #6 ZCode [ZCode] @503,439 1407x685
+===T+25.5 1792170523 front=Qoder[82289]
+  #7 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+25.5 1792170523 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+25.5 1792170523 front=Qoder[82289]
+  #9 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+25.5 1792170523 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:08:42Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[300,184],[1481,800]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"09C52E2D-0DD9-4261-8E9E-9D6976729E92","state":"mutationPlanned"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:08:42Z","identity":{"processID
+===T+26.7 1792170524 front=Qoder[82289]
+  #0 Vistile [] @3,2 1794x1165
+===T+26.7 1792170524 front=Qoder[82289]
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+26.7 1792170524 front=Qoder[82289]
+  #2 Vistile [Vistile Overview] @54,40 1746x1129
+===T+26.7 1792170524 front=Qoder[82289]
+  #3 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+26.7 1792170524 front=Qoder[82289]
+  #4 Vistile [Vistile Workbench] @1573,192 213x956
+===T+26.7 1792170524 front=Qoder[82289]
+  #5 Vistile [Vistile Workbench] @83,53 1688x130
+===T+26.7 1792170524 front=Qoder[82289]
+  #6 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+26.7 1792170524 front=Qoder[82289]
+  #7 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+26.7 1792170524 front=Qoder[82289]
+  #8 Qoder [Qoder] @637,222 1163x725
+===T+26.7 1792170524 front=Qoder[82289]
+  #9 ZCode [ZCode] @503,439 1407x685
+===T+26.7 1792170524 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:08:42Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[300,184],[1481,800]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[300,184],[1481,800]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"09C52E2D-0DD9-4261-8E9E-9D6976729E92","state":"verified"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+27.8 1792170525 front=Qoder[82289]
+  #0 Google Chrome [组织用户中心] @66,184 1505x973
+===T+27.8 1792170525 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+27.8 1792170525 front=Qoder[82289]
+  #2 Vistile [Vistile Workbench] @1571,183 217x974
+===T+27.8 1792170525 front=Qoder[82289]
+  #3 Vistile [Vistile Workbench] @66,52 1722x132
+===T+27.8 1792170525 front=Qoder[82289]
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+27.8 1792170525 front=Qoder[82289]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+27.8 1792170525 front=Qoder[82289]
+  #6 Qoder [Qoder] @637,222 1163x725
+===T+27.8 1792170525 front=Qoder[82289]
+  #7 ZCode [ZCode] @503,439 1407x685
+===T+27.8 1792170525 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+27.8 1792170525 front=Qoder[82289]
+  #9 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+27.8 1792170525 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:08:42Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[300,184],[1481,800]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[300,184],[1481,800]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"09C52E2D-0DD9-4261-8E9E-9D6976729E92","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:08:44Z","identity":{"processID":2263
+===T+28.9 1792170526 front=Qoder[82289]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+28.9 1792170526 front=Qoder[82289]
+  #1 终端 [_ — -zsh — 212×63] @66,184 1504x967
+===T+28.9 1792170526 front=Qoder[82289]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+28.9 1792170526 front=Qoder[82289]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+28.9 1792170526 front=Qoder[82289]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+28.9 1792170526 front=Qoder[82289]
+  #5 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+28.9 1792170526 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+28.9 1792170526 front=Qoder[82289]
+  #7 Qoder [Qoder] @637,222 1163x725
+===T+28.9 1792170526 front=Qoder[82289]
+  #8 ZCode [ZCode] @503,439 1407x685
+===T+28.9 1792170526 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+28.9 1792170526 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:08:42Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"09C52E2D-0DD9-4261-8E9E-9D6976729E92","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:08:44Z","identity"
+===T+29.9 1792170527 front=Qoder[82289]
+  #0 终端 [_ — -zsh — 212×63] @66,184 1504x967
+===T+29.9 1792170527 front=Qoder[82289]
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+29.9 1792170527 front=Qoder[82289]
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+29.9 1792170527 front=Qoder[82289]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+29.9 1792170527 front=Qoder[82289]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+29.9 1792170527 front=Qoder[82289]
+  #5 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+29.9 1792170527 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+29.9 1792170527 front=Qoder[82289]
+  #7 Qoder [Qoder] @637,222 1163x725
+===T+29.9 1792170527 front=Qoder[82289]
+  #8 ZCode [ZCode] @503,439 1407x685
+===T+29.9 1792170527 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+29.9 1792170527 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:08:42Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[300,184],[1481,800]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[300,184],[1481,800]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"09C52E2D-0DD9-4261-8E9E-9D6976729E92","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:08:44Z","identity":{"processID":2263
+===T+31.0 1792170528 front=Qoder[82289]
+  #0 Google Chrome [组织用户中心] @66,184 1505x973
+===T+31.0 1792170528 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+31.0 1792170528 front=Qoder[82289]
+  #2 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+31.0 1792170528 front=Qoder[82289]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+31.0 1792170528 front=Qoder[82289]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+31.0 1792170528 front=Qoder[82289]
+  #5 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+31.0 1792170528 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+31.0 1792170528 front=Qoder[82289]
+  #7 Qoder [Qoder] @637,222 1163x725
+===T+31.0 1792170528 front=Qoder[82289]
+  #8 ZCode [ZCode] @503,439 1407x685
+===T+31.0 1792170528 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+31.0 1792170528 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:08:42Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[300,184],[1481,800]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"09C52E2D-0DD9-4261-8E9E-9D6976729E92","state":"mutationPlanned"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:08:44Z","identity":{"processID
+===T+32.1 1792170530 front=Qoder[82289]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+32.1 1792170530 front=Qoder[82289]
+  #1 Vistile [] @16,10 1768x1149
+===T+32.1 1792170530 front=Qoder[82289]
+  #2 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+32.1 1792170530 front=Qoder[82289]
+  #3 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+32.1 1792170530 front=Qoder[82289]
+  #4 Vistile [Vistile Workbench] @1571,183 217x974
+===T+32.1 1792170530 front=Qoder[82289]
+  #5 Vistile [Vistile Workbench] @66,52 1722x132
+===T+32.1 1792170530 front=Qoder[82289]
+  #6 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+32.1 1792170530 front=Qoder[82289]
+  #7 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+32.1 1792170530 front=Qoder[82289]
+  #8 Qoder [Qoder] @637,222 1163x725
+===T+32.1 1792170530 front=Qoder[82289]
+  #9 ZCode [ZCode] @503,439 1407x685
+===T+32.1 1792170530 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:08:42Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"09C52E2D-0DD9-4261-8E9E-9D6976729E92","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:08:44Z","identity"
+===T+33.2 1792170531 front=Qoder[82289]
+  #0 Google Chrome [组织用户中心] @66,184 1505x973
+===T+33.2 1792170531 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+33.2 1792170531 front=Qoder[82289]
+  #2 终端 [_ — -zsh — 172×54] @577,332 580x421
+===T+33.2 1792170531 front=Qoder[82289]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+33.2 1792170531 front=Qoder[82289]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+33.2 1792170531 front=Qoder[82289]
+  #5 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+33.2 1792170531 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+33.2 1792170531 front=Qoder[82289]
+  #7 Qoder [Qoder] @637,222 1163x725
+===T+33.2 1792170531 front=Qoder[82289]
+  #8 ZCode [ZCode] @503,439 1407x685
+===T+33.2 1792170531 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+33.2 1792170531 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:08:42Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[300,184],[1481,800]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[300,184],[1481,800]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"09C52E2D-0DD9-4261-8E9E-9D6976729E92","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:08:44Z","identity":{"processID":2263
+===T+34.3 1792170532 front=Qoder[82289]
+  #0 Google Chrome [组织用户中心] @66,184 1505x973
+===T+34.3 1792170532 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+34.3 1792170532 front=Qoder[82289]
+  #2 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+34.3 1792170532 front=Qoder[82289]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+34.3 1792170532 front=Qoder[82289]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+34.3 1792170532 front=Qoder[82289]
+  #5 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+34.3 1792170532 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+34.3 1792170532 front=Qoder[82289]
+  #7 Qoder [Qoder] @637,222 1163x725
+===T+34.3 1792170532 front=Qoder[82289]
+  #8 ZCode [ZCode] @503,439 1407x685
+===T+34.3 1792170532 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+34.3 1792170532 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:08:42Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[300,184],[1481,800]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"09C52E2D-0DD9-4261-8E9E-9D6976729E92","state":"mutationPlanned"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:08:44Z","identity":{"processID
+===T+35.4 1792170533 front=Qoder[82289]
+  #0 Google Chrome [组织用户中心] @66,184 1505x973
+===T+35.4 1792170533 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+35.4 1792170533 front=Qoder[82289]
+  #2 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+35.4 1792170533 front=Qoder[82289]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+35.4 1792170533 front=Qoder[82289]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+35.4 1792170533 front=Qoder[82289]
+  #5 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+35.4 1792170533 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+35.4 1792170533 front=Qoder[82289]
+  #7 Qoder [Qoder] @637,222 1163x725
+===T+35.4 1792170533 front=Qoder[82289]
+  #8 ZCode [ZCode] @503,439 1407x685
+===T+35.4 1792170533 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+35.4 1792170533 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:08:42Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[300,184],[1481,800]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[300,184],[1481,800]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"09C52E2D-0DD9-4261-8E9E-9D6976729E92","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:08:44Z","identity":{"processID":2263
+===T+36.5 1792170534 front=Qoder[82289]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+36.5 1792170534 front=Qoder[82289]
+  #1 Vistile [] @17,11 1766x1147
+===T+36.5 1792170534 front=Qoder[82289]
+  #2 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+36.5 1792170534 front=Qoder[82289]
+  #3 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+36.5 1792170534 front=Qoder[82289]
+  #4 Vistile [Vistile Workbench] @1571,183 217x974
+===T+36.5 1792170534 front=Qoder[82289]
+  #5 Vistile [Vistile Workbench] @66,52 1722x132
+===T+36.5 1792170534 front=Qoder[82289]
+  #6 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+36.5 1792170534 front=Qoder[82289]
+  #7 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+36.5 1792170534 front=Qoder[82289]
+  #8 Qoder [Qoder] @637,222 1163x725
+===T+36.5 1792170534 front=Qoder[82289]
+  #9 ZCode [ZCode] @503,439 1407x685
+===T+36.5 1792170534 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:08:42Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"09C52E2D-0DD9-4261-8E9E-9D6976729E92","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:08:44Z","identity"
+===T+37.5 1792170535 front=Qoder[82289]
+  #0 终端 [_ — -zsh — 212×63] @66,184 1504x967
+===T+37.5 1792170535 front=Qoder[82289]
+  #1 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+37.5 1792170535 front=Qoder[82289]
+  #2 Google Chrome [组织用户中心] @66,184 1505x973
+===T+37.5 1792170535 front=Qoder[82289]
+  #3 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+37.5 1792170535 front=Qoder[82289]
+  #4 Vistile [Vistile Workbench] @1571,183 217x974
+===T+37.5 1792170535 front=Qoder[82289]
+  #5 Vistile [Vistile Workbench] @66,52 1722x132
+===T+37.5 1792170535 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+37.5 1792170535 front=Qoder[82289]
+  #7 Qoder [Qoder] @637,222 1163x725
+===T+37.5 1792170535 front=Qoder[82289]
+  #8 ZCode [ZCode] @503,439 1407x685
+===T+37.5 1792170535 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+37.5 1792170535 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:08:42Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[300,184],[1481,800]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[300,184],[1481,800]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"09C52E2D-0DD9-4261-8E9E-9D6976729E92","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:08:44Z","identity":{"processID":2263
+===T+38.5 1792170536 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+38.5 1792170536 front=Qoder[82289]
+  #1 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+38.5 1792170536 front=Qoder[82289]
+  #2 Google Chrome [组织用户中心] @66,184 1505x973
+===T+38.5 1792170536 front=Qoder[82289]
+  #3 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+38.5 1792170536 front=Qoder[82289]
+  #4 Vistile [Vistile Workbench] @1571,183 217x974
+===T+38.5 1792170536 front=Qoder[82289]
+  #5 Vistile [Vistile Workbench] @66,52 1722x132
+===T+38.5 1792170536 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+38.5 1792170536 front=Qoder[82289]
+  #7 Qoder [Qoder] @637,222 1163x725
+===T+38.5 1792170536 front=Qoder[82289]
+  #8 ZCode [ZCode] @503,439 1407x685
+===T+38.5 1792170536 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+38.5 1792170536 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:08:42Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[300,184],[1481,800]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[300,184],[1481,800]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"09C52E2D-0DD9-4261-8E9E-9D6976729E92","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:08:44Z","identity":{"processID":2263
+===T+39.5 1792170537 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+39.5 1792170537 front=Qoder[82289]
+  #1 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+39.5 1792170537 front=Qoder[82289]
+  #2 Google Chrome [组织用户中心] @66,184 1505x973
+===T+39.5 1792170537 front=Qoder[82289]
+  #3 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+39.5 1792170537 front=Qoder[82289]
+  #4 Vistile [Vistile Workbench] @1571,183 217x974
+===T+39.5 1792170537 front=Qoder[82289]
+  #5 Vistile [Vistile Workbench] @66,52 1722x132
+===T+39.5 1792170537 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+39.5 1792170537 front=Qoder[82289]
+  #7 Qoder [Qoder] @637,222 1163x725
+===T+39.5 1792170537 front=Qoder[82289]
+  #8 ZCode [ZCode] @503,439 1407x685
+===T+39.5 1792170537 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+39.5 1792170537 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:08:42Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[300,184],[1481,800]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[300,184],[1481,800]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"09C52E2D-0DD9-4261-8E9E-9D6976729E92","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:08:44Z","identity":{"processID":2263
+===T+40.5 1792170538 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+40.5 1792170538 front=Qoder[82289]
+  #1 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+40.5 1792170538 front=Qoder[82289]
+  #2 Google Chrome [组织用户中心] @66,184 1505x973
+===T+40.5 1792170538 front=Qoder[82289]
+  #3 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+40.5 1792170538 front=Qoder[82289]
+  #4 Vistile [Vistile Workbench] @1571,183 217x974
+===T+40.5 1792170538 front=Qoder[82289]
+  #5 Vistile [Vistile Workbench] @66,52 1722x132
+===T+40.5 1792170538 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+40.5 1792170538 front=Qoder[82289]
+  #7 Qoder [Qoder] @637,222 1163x725
+===T+40.5 1792170538 front=Qoder[82289]
+  #8 ZCode [ZCode] @503,439 1407x685
+===T+40.5 1792170538 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+40.5 1792170538 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:08:42Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[300,184],[1481,800]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[300,184],[1481,800]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"09C52E2D-0DD9-4261-8E9E-9D6976729E92","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:08:44Z","identity":{"processID":2263
+===T+41.5 1792170539 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+41.5 1792170539 front=Qoder[82289]
+  #1 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+41.5 1792170539 front=Qoder[82289]
+  #2 Google Chrome [组织用户中心] @66,184 1505x973
+===T+41.5 1792170539 front=Qoder[82289]
+  #3 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+41.5 1792170539 front=Qoder[82289]
+  #4 Vistile [Vistile Workbench] @1571,183 217x974
+===T+41.5 1792170539 front=Qoder[82289]
+  #5 Vistile [Vistile Workbench] @66,52 1722x132
+===T+41.5 1792170539 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+41.5 1792170539 front=Qoder[82289]
+  #7 Qoder [Qoder] @637,222 1163x725
+===T+41.5 1792170539 front=Qoder[82289]
+  #8 ZCode [ZCode] @503,439 1407x685
+===T+41.5 1792170539 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+41.5 1792170539 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:08:42Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[300,184],[1481,800]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[300,184],[1481,800]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"09C52E2D-0DD9-4261-8E9E-9D6976729E92","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:08:44Z","identity":{"processID":2263
+===T+42.5 1792170540 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+42.5 1792170540 front=Qoder[82289]
+  #1 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+42.5 1792170540 front=Qoder[82289]
+  #2 Google Chrome [组织用户中心] @66,184 1505x973
+===T+42.5 1792170540 front=Qoder[82289]
+  #3 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+42.5 1792170540 front=Qoder[82289]
+  #4 Vistile [Vistile Workbench] @1571,183 217x974
+===T+42.5 1792170540 front=Qoder[82289]
+  #5 Vistile [Vistile Workbench] @66,52 1722x132
+===T+42.5 1792170540 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+42.5 1792170540 front=Qoder[82289]
+  #7 Qoder [Qoder] @637,222 1163x725
+===T+42.5 1792170540 front=Qoder[82289]
+  #8 ZCode [ZCode] @503,439 1407x685
+===T+42.5 1792170540 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+42.5 1792170540 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:08:42Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[300,184],[1481,800]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[300,184],[1481,800]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"09C52E2D-0DD9-4261-8E9E-9D6976729E92","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:08:44Z","identity":{"processID":2263
+===T+43.6 1792170541 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+43.6 1792170541 front=Qoder[82289]
+  #1 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+43.6 1792170541 front=Qoder[82289]
+  #2 Google Chrome [组织用户中心] @66,184 1505x973
+===T+43.6 1792170541 front=Qoder[82289]
+  #3 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+43.6 1792170541 front=Qoder[82289]
+  #4 Vistile [Vistile Workbench] @1571,183 217x974
+===T+43.6 1792170541 front=Qoder[82289]
+  #5 Vistile [Vistile Workbench] @66,52 1722x132
+===T+43.6 1792170541 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+43.6 1792170541 front=Qoder[82289]
+  #7 Qoder [Qoder] @637,222 1163x725
+===T+43.6 1792170541 front=Qoder[82289]
+  #8 ZCode [ZCode] @503,439 1407x685
+===T+43.6 1792170541 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+43.6 1792170541 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:08:42Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[300,184],[1481,800]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[300,184],[1481,800]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"09C52E2D-0DD9-4261-8E9E-9D6976729E92","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:08:44Z","identity":{"processID":2263
+===T+44.6 1792170542 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+44.6 1792170542 front=Qoder[82289]
+  #1 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+44.6 1792170542 front=Qoder[82289]
+  #2 Google Chrome [组织用户中心] @66,184 1505x973
+===T+44.6 1792170542 front=Qoder[82289]
+  #3 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+44.6 1792170542 front=Qoder[82289]
+  #4 Vistile [Vistile Workbench] @1571,183 217x974
+===T+44.6 1792170542 front=Qoder[82289]
+  #5 Vistile [Vistile Workbench] @66,52 1722x132
+===T+44.6 1792170542 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+44.6 1792170542 front=Qoder[82289]
+  #7 Qoder [Qoder] @637,222 1163x725
+===T+44.6 1792170542 front=Qoder[82289]
+  #8 ZCode [ZCode] @503,439 1407x685
+===T+44.6 1792170542 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+44.6 1792170542 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:08:42Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[300,184],[1481,800]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[300,184],[1481,800]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"09C52E2D-0DD9-4261-8E9E-9D6976729E92","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:08:44Z","identity":{"processID":2263
+===T+45.6 1792170543 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+45.6 1792170543 front=Qoder[82289]
+  #1 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+45.6 1792170543 front=Qoder[82289]
+  #2 Vistile [Vistile Overview] @54,40 1746x1129
+===T+45.6 1792170543 front=Qoder[82289]
+  #3 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+45.6 1792170543 front=Qoder[82289]
+  #4 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+===T+45.6 1792170543 front=Qoder[82289]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+45.6 1792170543 front=Qoder[82289]
+  #6 Qoder [Qoder] @637,222 1163x725
+===T+45.6 1792170543 front=Qoder[82289]
+  #7 ZCode [ZCode] @503,439 1407x685
+===T+45.6 1792170543 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+45.6 1792170543 front=Qoder[82289]
+  #9 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+45.6 1792170543 front=Qoder[82289]
+  JOURNAL {"entries":{"862:1792024324080073:12998":{"bundleID":"com.apple.Terminal","created":"2026-10-16T17:08:45Z","failureReason":"未执行恢复：事务日志中没有该窗口的记录","identity":{"processID":862,"processStartIdentity":1792024324080073,"windowID":12998},"lastProvisionalFrame":[[66,184],[1504,967]],"originalDisplayID":1,"originalFrame":[[577,332],[580,421]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":1,"sessionID":"09C52E2D-0DD9-4261-8E9E-9D6976729E92","state":"failed"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+46.6 1792170544 front=Qoder[82289]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+46.6 1792170544 front=Qoder[82289]
+  #1 Vistile [Vistile Workbench] @1571,182 217x976
+===T+46.6 1792170544 front=Qoder[82289]
+  #2 Vistile [Vistile Workbench] @65,52 1724x132
+===T+46.6 1792170544 front=Qoder[82289]
+  #3 Vistile [Vistile Overview] @71,51 1712x1107
+===T+46.6 1792170544 front=Qoder[82289]
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+46.6 1792170544 front=Qoder[82289]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+46.6 1792170544 front=Qoder[82289]
+  #6 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+46.6 1792170544 front=Qoder[82289]
+  #7 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+46.6 1792170544 front=Qoder[82289]
+  #8 Qoder [Qoder] @637,222 1163x725
+===T+46.6 1792170544 front=Qoder[82289]
+  #9 ZCode [ZCode] @503,439 1407x685
+===T+46.6 1792170544 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:09:03Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"89B6DF34-1E8A-455F-9E2E-58A64127BE1C","state":"verified"},"862:1792024324080073:12998":{"bundleID":"com.apple.Terminal","created":"2026-10-16T17:08:45Z","failure
+===T+47.6 1792170545 front=Qoder[82289]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+47.6 1792170545 front=Qoder[82289]
+  #1 Vistile [Vistile Workbench] @1571,183 217x974
+===T+47.6 1792170545 front=Qoder[82289]
+  #2 Vistile [Vistile Workbench] @66,52 1722x132
+===T+47.6 1792170545 front=Qoder[82289]
+  #3 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+47.6 1792170545 front=Qoder[82289]
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+47.6 1792170545 front=Qoder[82289]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+47.6 1792170545 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+47.6 1792170545 front=Qoder[82289]
+  #7 Qoder [Qoder] @637,222 1163x725
+===T+47.6 1792170545 front=Qoder[82289]
+  #8 ZCode [ZCode] @503,439 1407x685
+===T+47.6 1792170545 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+47.6 1792170545 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:09:04Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[300,184],[1481,800]],"plannedDisplayID":1,"plannedFrame":[[300,184],[1481,800]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"89B6DF34-1E8A-455F-9E2E-58A64127BE1C","state":"mutationPlanned"},"862:1792024324080073:12998":{"bundleID":"com.apple.Terminal","created":"2026-10-16T17:08:45Z","failureReason":"未执行
+===T+48.8 1792170546 front=Qoder[82289]
+  #0 Vistile [Vistile Workbench] @1572,187 215x966
+===T+48.8 1792170546 front=Qoder[82289]
+  #1 Vistile [Vistile Workbench] @74,52 1706x132
+===T+48.8 1792170546 front=Qoder[82289]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+48.8 1792170546 front=Qoder[82289]
+  #3 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+48.8 1792170546 front=Qoder[82289]
+  #4 Vistile [Vistile Overview] @65,47 1724x1115
+===T+48.8 1792170546 front=Qoder[82289]
+  #5 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+48.8 1792170546 front=Qoder[82289]
+  #6 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+48.8 1792170546 front=Qoder[82289]
+  #7 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+48.8 1792170546 front=Qoder[82289]
+  #8 Qoder [Qoder] @637,222 1163x725
+===T+48.8 1792170546 front=Qoder[82289]
+  #9 ZCode [ZCode] @503,439 1407x685
+===T+48.8 1792170546 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:09:06Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"89B6DF34-1E8A-455F-9E2E-58A64127BE1C","state":"verified"},"862:1792024324080073:12998":{"bundleID":"com.apple.Terminal","created":"2026-10-16T17:08:45Z","failureR
+===T+49.9 1792170547 front=Qoder[82289]
+  #0 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+49.9 1792170547 front=Qoder[82289]
+  #1 Vistile [Vistile Overview] @68,49 1718x1111
+===T+49.9 1792170547 front=Qoder[82289]
+  #2 Vistile [Vistile Workbench] @1571,185 217x970
+===T+49.9 1792170547 front=Qoder[82289]
+  #3 Vistile [Vistile Workbench] @70,52 1714x132
+===T+49.9 1792170547 front=Qoder[82289]
+  #4 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+49.9 1792170547 front=Qoder[82289]
+  #5 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+49.9 1792170547 front=Qoder[82289]
+  #6 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+49.9 1792170547 front=Qoder[82289]
+  #7 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+49.9 1792170547 front=Qoder[82289]
+  #8 Qoder [Qoder] @637,222 1163x725
+===T+49.9 1792170547 front=Qoder[82289]
+  #9 ZCode [ZCode] @503,439 1407x685
+===T+49.9 1792170547 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:09:07Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"restoreAttempts":0,"sessionID":"89B6DF34-1E8A-455F-9E2E-58A64127BE1C","state":"mutationPlanned"},"862:1792024324080073:12998":{"bundleID":"com.apple.Terminal","created":"2026-10-16T17:08:45Z","failureReason":"未执行恢复：事务日志中没有该窗口的记录","identity":{"processID":862,"proce
+===T+51.1 1792170548 front=Qoder[82289]
+  #0 Vistile [Vistile Workbench] @1571,186 217x968
+===T+51.1 1792170548 front=Qoder[82289]
+  #1 Vistile [Vistile Workbench] @71,52 1712x132
+===T+51.1 1792170548 front=Qoder[82289]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+51.1 1792170548 front=Qoder[82289]
+  #3 Vistile [Vistile Overview] @61,45 1732x1119
+===T+51.1 1792170548 front=Qoder[82289]
+  #4 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+51.1 1792170548 front=Qoder[82289]
+  #5 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+51.1 1792170548 front=Qoder[82289]
+  #6 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+51.1 1792170548 front=Qoder[82289]
+  #7 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+51.1 1792170548 front=Qoder[82289]
+  #8 Qoder [Qoder] @637,222 1163x725
+===T+51.1 1792170548 front=Qoder[82289]
+  #9 ZCode [ZCode] @503,439 1407x685
+===T+51.1 1792170548 front=Qoder[82289]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:09:08Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"89B6DF34-1E8A-455F-9E2E-58A64127BE1C","state":"verified"},"862:1792024324080073:12998":{"bundleID":"com.apple.Terminal","created":"2026-10-16T17:08:45Z","failureR
+===T+52.3 1792170550 front=Qoder[82289]
+  #0 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+52.3 1792170550 front=Qoder[82289]
+  #1 Vistile [Vistile Workbench] @1571,183 217x974
+===T+52.3 1792170550 front=Qoder[82289]
+  #2 Vistile [Vistile Workbench] @66,52 1722x132
+===T+52.3 1792170550 front=Qoder[82289]
+  #3 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+52.3 1792170550 front=Qoder[82289]
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+52.3 1792170550 front=Qoder[82289]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+52.3 1792170550 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+52.3 1792170550 front=Qoder[82289]
+  #7 Qoder [Qoder] @637,222 1163x725
+===T+52.3 1792170550 front=Qoder[82289]
+  #8 ZCode [ZCode] @503,439 1407x685
+===T+52.3 1792170550 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+52.3 1792170550 front=Qoder[82289]
+  JOURNAL {"entries":{"862:1792024324080073:12998":{"bundleID":"com.apple.Terminal","created":"2026-10-16T17:08:45Z","failureReason":"未执行恢复：事务日志中没有该窗口的记录","identity":{"processID":862,"processStartIdentity":1792024324080073,"windowID":12998},"lastProvisionalFrame":[[66,184],[1504,967]],"originalDisplayID":1,"originalFrame":[[577,332],[580,421]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":1,"sessionID":"09C52E2D-0DD9-4261-8E9E-9D6976729E92","state":"failed"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+53.4 1792170551 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+53.4 1792170551 front=Qoder[82289]
+  #1 Vistile [] @18,11 1764x1147
+===T+53.4 1792170551 front=Qoder[82289]
+  #2 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+53.4 1792170551 front=Qoder[82289]
+  #3 Vistile [Vistile Overview] @54,40 1746x1129
+===T+53.4 1792170551 front=Qoder[82289]
+  #4 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+53.4 1792170551 front=Qoder[82289]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+53.4 1792170551 front=Qoder[82289]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+53.4 1792170551 front=Qoder[82289]
+  #7 Qoder [Qoder] @637,222 1163x725
+===T+53.4 1792170551 front=Qoder[82289]
+  #8 ZCode [ZCode] @503,439 1407x685
+===T+53.4 1792170551 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+53.4 1792170551 front=Qoder[82289]
+  JOURNAL {"entries":{"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:09:10Z","identity":{"processID":2263,"processStartIdentity":1792024453428670,"windowID":351},"originalDisplayID":1,"originalFrame":[[54,40],[1746,1129]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"restoreAttempts":0,"sessionID":"89B6DF34-1E8A-455F-9E2E-58A64127BE1C","state":"mutationPlanned"},"862:1792024324080073:12998":{"bundleID":"com.apple.Terminal","created":"2026-10-16T17:08:45Z","failureReason":"未执行恢复：事务日志中没有该窗口的记录","identity":{"processID":862,"processStart
+===T+54.4 1792170552 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+54.4 1792170552 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+54.4 1792170552 front=Qoder[82289]
+  #2 Vistile [Vistile Overview] @54,40 1746x1129
+===T+54.4 1792170552 front=Qoder[82289]
+  #3 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+54.4 1792170552 front=Qoder[82289]
+  #4 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+54.4 1792170552 front=Qoder[82289]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+54.4 1792170552 front=Qoder[82289]
+  #6 Qoder [Qoder] @637,222 1163x725
+===T+54.4 1792170552 front=Qoder[82289]
+  #7 ZCode [ZCode] @503,439 1407x685
+===T+54.4 1792170552 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+54.4 1792170552 front=Qoder[82289]
+  #9 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+54.4 1792170552 front=Qoder[82289]
+  JOURNAL {"entries":{"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:09:10Z","identity":{"processID":2263,"processStartIdentity":1792024453428670,"windowID":351},"originalDisplayID":1,"originalFrame":[[54,40],[1746,1129]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"restoreAttempts":0,"sessionID":"89B6DF34-1E8A-455F-9E2E-58A64127BE1C","state":"mutationPlanned"},"862:1792024324080073:12998":{"bundleID":"com.apple.Terminal","created":"2026-10-16T17:08:45Z","failureReason":"未执行恢复：事务日志中没有该窗口的记录","identity":{"processID":862,"processStart
+===T+55.4 1792170553 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+55.4 1792170553 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+55.4 1792170553 front=Qoder[82289]
+  #2 Vistile [Vistile Overview] @54,40 1746x1129
+===T+55.4 1792170553 front=Qoder[82289]
+  #3 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+55.4 1792170553 front=Qoder[82289]
+  #4 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+55.4 1792170553 front=Qoder[82289]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+55.4 1792170553 front=Qoder[82289]
+  #6 Qoder [Qoder] @637,222 1163x725
+===T+55.4 1792170553 front=Qoder[82289]
+  #7 ZCode [ZCode] @503,439 1407x685
+===T+55.4 1792170553 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+55.4 1792170553 front=Qoder[82289]
+  #9 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+55.4 1792170553 front=Qoder[82289]
+  JOURNAL {"entries":{"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:09:10Z","identity":{"processID":2263,"processStartIdentity":1792024453428670,"windowID":351},"originalDisplayID":1,"originalFrame":[[54,40],[1746,1129]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"restoreAttempts":0,"sessionID":"89B6DF34-1E8A-455F-9E2E-58A64127BE1C","state":"mutationPlanned"},"862:1792024324080073:12998":{"bundleID":"com.apple.Terminal","created":"2026-10-16T17:08:45Z","failureReason":"未执行恢复：事务日志中没有该窗口的记录","identity":{"processID":862,"processStart
+===T+56.4 1792170554 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+56.4 1792170554 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+56.4 1792170554 front=Qoder[82289]
+  #2 Vistile [Vistile Overview] @54,40 1746x1129
+===T+56.4 1792170554 front=Qoder[82289]
+  #3 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+56.4 1792170554 front=Qoder[82289]
+  #4 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+56.4 1792170554 front=Qoder[82289]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+56.4 1792170554 front=Qoder[82289]
+  #6 Qoder [Qoder] @637,222 1163x725
+===T+56.4 1792170554 front=Qoder[82289]
+  #7 ZCode [ZCode] @503,439 1407x685
+===T+56.4 1792170554 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+56.4 1792170554 front=Qoder[82289]
+  #9 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+56.4 1792170554 front=Qoder[82289]
+  JOURNAL {"entries":{"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:09:10Z","identity":{"processID":2263,"processStartIdentity":1792024453428670,"windowID":351},"originalDisplayID":1,"originalFrame":[[54,40],[1746,1129]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"restoreAttempts":0,"sessionID":"89B6DF34-1E8A-455F-9E2E-58A64127BE1C","state":"mutationPlanned"},"862:1792024324080073:12998":{"bundleID":"com.apple.Terminal","created":"2026-10-16T17:08:45Z","failureReason":"未执行恢复：事务日志中没有该窗口的记录","identity":{"processID":862,"processStart
+===T+57.4 1792170555 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+57.4 1792170555 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+57.4 1792170555 front=Qoder[82289]
+  #2 Vistile [Vistile Overview] @54,40 1746x1129
+===T+57.4 1792170555 front=Qoder[82289]
+  #3 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+57.4 1792170555 front=Qoder[82289]
+  #4 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+57.4 1792170555 front=Qoder[82289]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+57.4 1792170555 front=Qoder[82289]
+  #6 Qoder [Qoder] @637,222 1163x725
+===T+57.4 1792170555 front=Qoder[82289]
+  #7 ZCode [ZCode] @503,439 1407x685
+===T+57.4 1792170555 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+57.4 1792170555 front=Qoder[82289]
+  #9 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+57.4 1792170555 front=Qoder[82289]
+  JOURNAL {"entries":{"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:09:10Z","identity":{"processID":2263,"processStartIdentity":1792024453428670,"windowID":351},"originalDisplayID":1,"originalFrame":[[54,40],[1746,1129]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"restoreAttempts":0,"sessionID":"89B6DF34-1E8A-455F-9E2E-58A64127BE1C","state":"mutationPlanned"},"862:1792024324080073:12998":{"bundleID":"com.apple.Terminal","created":"2026-10-16T17:08:45Z","failureReason":"未执行恢复：事务日志中没有该窗口的记录","identity":{"processID":862,"processStart
+===T+58.4 1792170556 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+58.4 1792170556 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+58.4 1792170556 front=Qoder[82289]
+  #2 Vistile [Vistile Overview] @54,40 1746x1129
+===T+58.4 1792170556 front=Qoder[82289]
+  #3 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+58.4 1792170556 front=Qoder[82289]
+  #4 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+58.4 1792170556 front=Qoder[82289]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+58.4 1792170556 front=Qoder[82289]
+  #6 Qoder [Qoder] @637,222 1163x725
+===T+58.4 1792170556 front=Qoder[82289]
+  #7 ZCode [ZCode] @503,439 1407x685
+===T+58.4 1792170556 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+58.4 1792170556 front=Qoder[82289]
+  #9 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+58.4 1792170556 front=Qoder[82289]
+  JOURNAL {"entries":{"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:09:10Z","identity":{"processID":2263,"processStartIdentity":1792024453428670,"windowID":351},"originalDisplayID":1,"originalFrame":[[54,40],[1746,1129]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"restoreAttempts":0,"sessionID":"89B6DF34-1E8A-455F-9E2E-58A64127BE1C","state":"mutationPlanned"},"862:1792024324080073:12998":{"bundleID":"com.apple.Terminal","created":"2026-10-16T17:08:45Z","failureReason":"未执行恢复：事务日志中没有该窗口的记录","identity":{"processID":862,"processStart
+===T+59.4 1792170557 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+59.4 1792170557 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+59.4 1792170557 front=Qoder[82289]
+  #2 Vistile [Vistile Overview] @54,40 1746x1129
+===T+59.4 1792170557 front=Qoder[82289]
+  #3 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+59.4 1792170557 front=Qoder[82289]
+  #4 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+59.4 1792170557 front=Qoder[82289]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+59.4 1792170557 front=Qoder[82289]
+  #6 Qoder [Qoder] @637,222 1163x725
+===T+59.4 1792170557 front=Qoder[82289]
+  #7 ZCode [ZCode] @503,439 1407x685
+===T+59.4 1792170557 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+59.4 1792170557 front=Qoder[82289]
+  #9 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+59.4 1792170557 front=Qoder[82289]
+  JOURNAL {"entries":{"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:09:10Z","identity":{"processID":2263,"processStartIdentity":1792024453428670,"windowID":351},"originalDisplayID":1,"originalFrame":[[54,40],[1746,1129]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"restoreAttempts":0,"sessionID":"89B6DF34-1E8A-455F-9E2E-58A64127BE1C","state":"mutationPlanned"},"862:1792024324080073:12998":{"bundleID":"com.apple.Terminal","created":"2026-10-16T17:08:45Z","failureReason":"未执行恢复：事务日志中没有该窗口的记录","identity":{"processID":862,"processStart
+===T+60.4 1792170558 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+60.4 1792170558 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+60.4 1792170558 front=Qoder[82289]
+  #2 Vistile [Vistile Overview] @54,40 1746x1129
+===T+60.4 1792170558 front=Qoder[82289]
+  #3 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+60.4 1792170558 front=Qoder[82289]
+  #4 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+60.4 1792170558 front=Qoder[82289]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+60.4 1792170558 front=Qoder[82289]
+  #6 Qoder [Qoder] @637,222 1163x725
+===T+60.4 1792170558 front=Qoder[82289]
+  #7 ZCode [ZCode] @503,439 1407x685
+===T+60.4 1792170558 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+60.4 1792170558 front=Qoder[82289]
+  #9 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+60.4 1792170558 front=Qoder[82289]
+  JOURNAL {"entries":{"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:09:10Z","identity":{"processID":2263,"processStartIdentity":1792024453428670,"windowID":351},"originalDisplayID":1,"originalFrame":[[54,40],[1746,1129]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"restoreAttempts":0,"sessionID":"89B6DF34-1E8A-455F-9E2E-58A64127BE1C","state":"mutationPlanned"},"862:1792024324080073:12998":{"bundleID":"com.apple.Terminal","created":"2026-10-16T17:08:45Z","failureReason":"未执行恢复：事务日志中没有该窗口的记录","identity":{"processID":862,"processStart
+===T+61.4 1792170559 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+61.4 1792170559 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+61.4 1792170559 front=Qoder[82289]
+  #2 Vistile [Vistile Overview] @54,40 1746x1129
+===T+61.4 1792170559 front=Qoder[82289]
+  #3 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+61.4 1792170559 front=Qoder[82289]
+  #4 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+61.4 1792170559 front=Qoder[82289]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+61.4 1792170559 front=Qoder[82289]
+  #6 Qoder [Qoder] @637,222 1163x725
+===T+61.4 1792170559 front=Qoder[82289]
+  #7 ZCode [ZCode] @503,439 1407x685
+===T+61.4 1792170559 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+61.4 1792170559 front=Qoder[82289]
+  #9 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+61.4 1792170559 front=Qoder[82289]
+  JOURNAL {"entries":{"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:09:10Z","identity":{"processID":2263,"processStartIdentity":1792024453428670,"windowID":351},"originalDisplayID":1,"originalFrame":[[54,40],[1746,1129]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"restoreAttempts":0,"sessionID":"89B6DF34-1E8A-455F-9E2E-58A64127BE1C","state":"mutationPlanned"},"862:1792024324080073:12998":{"bundleID":"com.apple.Terminal","created":"2026-10-16T17:08:45Z","failureReason":"未执行恢复：事务日志中没有该窗口的记录","identity":{"processID":862,"processStart
+===T+62.4 1792170560 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+62.4 1792170560 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+62.4 1792170560 front=Qoder[82289]
+  #2 Vistile [Vistile Overview] @54,40 1746x1129
+===T+62.4 1792170560 front=Qoder[82289]
+  #3 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+62.4 1792170560 front=Qoder[82289]
+  #4 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+62.4 1792170560 front=Qoder[82289]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+62.4 1792170560 front=Qoder[82289]
+  #6 Qoder [Qoder] @637,222 1163x725
+===T+62.4 1792170560 front=Qoder[82289]
+  #7 ZCode [ZCode] @503,439 1407x685
+===T+62.4 1792170560 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+62.4 1792170560 front=Qoder[82289]
+  #9 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+62.4 1792170560 front=Qoder[82289]
+  JOURNAL {"entries":{"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:09:10Z","identity":{"processID":2263,"processStartIdentity":1792024453428670,"windowID":351},"originalDisplayID":1,"originalFrame":[[54,40],[1746,1129]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"restoreAttempts":0,"sessionID":"89B6DF34-1E8A-455F-9E2E-58A64127BE1C","state":"mutationPlanned"},"862:1792024324080073:12998":{"bundleID":"com.apple.Terminal","created":"2026-10-16T17:08:45Z","failureReason":"未执行恢复：事务日志中没有该窗口的记录","identity":{"processID":862,"processStart
+===T+63.4 1792170561 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+63.4 1792170561 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+63.4 1792170561 front=Qoder[82289]
+  #2 Vistile [Vistile Overview] @54,40 1746x1129
+===T+63.4 1792170561 front=Qoder[82289]
+  #3 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+63.4 1792170561 front=Qoder[82289]
+  #4 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+63.4 1792170561 front=Qoder[82289]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+63.4 1792170561 front=Qoder[82289]
+  #6 Qoder [Qoder] @637,222 1163x725
+===T+63.4 1792170561 front=Qoder[82289]
+  #7 ZCode [ZCode] @503,439 1407x685
+===T+63.4 1792170561 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+63.4 1792170561 front=Qoder[82289]
+  #9 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+63.4 1792170561 front=Qoder[82289]
+  JOURNAL {"entries":{"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:09:10Z","identity":{"processID":2263,"processStartIdentity":1792024453428670,"windowID":351},"originalDisplayID":1,"originalFrame":[[54,40],[1746,1129]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"restoreAttempts":0,"sessionID":"89B6DF34-1E8A-455F-9E2E-58A64127BE1C","state":"mutationPlanned"},"862:1792024324080073:12998":{"bundleID":"com.apple.Terminal","created":"2026-10-16T17:08:45Z","failureReason":"未执行恢复：事务日志中没有该窗口的记录","identity":{"processID":862,"processStart
+===T+64.4 1792170562 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+64.4 1792170562 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+64.4 1792170562 front=Qoder[82289]
+  #2 Vistile [Vistile Overview] @54,40 1746x1129
+===T+64.4 1792170562 front=Qoder[82289]
+  #3 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+64.4 1792170562 front=Qoder[82289]
+  #4 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+64.4 1792170562 front=Qoder[82289]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+64.4 1792170562 front=Qoder[82289]
+  #6 Qoder [Qoder] @637,222 1163x725
+===T+64.4 1792170562 front=Qoder[82289]
+  #7 ZCode [ZCode] @503,439 1407x685
+===T+64.4 1792170562 front=Qoder[82289]
+  #8 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+64.4 1792170562 front=Qoder[82289]
+  #9 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+64.4 1792170562 front=Qoder[82289]
+  JOURNAL {"entries":{"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:09:10Z","identity":{"processID":2263,"processStartIdentity":1792024453428670,"windowID":351},"originalDisplayID":1,"originalFrame":[[54,40],[1746,1129]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"restoreAttempts":0,"sessionID":"89B6DF34-1E8A-455F-9E2E-58A64127BE1C","state":"mutationPlanned"},"862:1792024324080073:12998":{"bundleID":"com.apple.Terminal","created":"2026-10-16T17:08:45Z","failureReason":"未执行恢复：事务日志中没有该窗口的记录","identity":{"processID":862,"processStart
+===T+65.4 1792170563 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+65.4 1792170563 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+65.4 1792170563 front=Qoder[82289]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+65.4 1792170563 front=Qoder[82289]
+  #3 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+65.4 1792170563 front=Qoder[82289]
+  #4 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+65.4 1792170563 front=Qoder[82289]
+  #5 Qoder [Qoder] @637,222 1163x725
+===T+65.4 1792170563 front=Qoder[82289]
+  #6 ZCode [ZCode] @503,439 1407x685
+===T+65.4 1792170563 front=Qoder[82289]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+65.4 1792170563 front=Qoder[82289]
+  #8 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+65.4 1792170563 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+65.4 1792170563 front=Qoder[82289]
+  JOURNAL {"entries":{"862:1792024324080073:12998":{"bundleID":"com.apple.Terminal","created":"2026-10-16T17:08:45Z","failureReason":"未执行恢复：事务日志中没有该窗口的记录","identity":{"processID":862,"processStartIdentity":1792024324080073,"windowID":12998},"lastProvisionalFrame":[[66,184],[1504,967]],"originalDisplayID":1,"originalFrame":[[577,332],[580,421]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":1,"sessionID":"09C52E2D-0DD9-4261-8E9E-9D6976729E92","state":"failed"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+66.4 1792170564 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+66.4 1792170564 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+66.4 1792170564 front=Qoder[82289]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+66.4 1792170564 front=Qoder[82289]
+  #3 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+66.4 1792170564 front=Qoder[82289]
+  #4 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+66.4 1792170564 front=Qoder[82289]
+  #5 Qoder [Qoder] @637,222 1163x725
+===T+66.4 1792170564 front=Qoder[82289]
+  #6 ZCode [ZCode] @503,439 1407x685
+===T+66.4 1792170564 front=Qoder[82289]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+66.4 1792170564 front=Qoder[82289]
+  #8 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+66.4 1792170564 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+66.4 1792170564 front=Qoder[82289]
+  JOURNAL {"entries":{"862:1792024324080073:12998":{"bundleID":"com.apple.Terminal","created":"2026-10-16T17:08:45Z","failureReason":"未执行恢复：事务日志中没有该窗口的记录","identity":{"processID":862,"processStartIdentity":1792024324080073,"windowID":12998},"lastProvisionalFrame":[[66,184],[1504,967]],"originalDisplayID":1,"originalFrame":[[577,332],[580,421]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":1,"sessionID":"09C52E2D-0DD9-4261-8E9E-9D6976729E92","state":"failed"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+67.4 1792170565 front=Qoder[82289]
+  #0 universalAccessAuthWarn [录屏] @696,277 461x181
+===T+67.4 1792170565 front=Qoder[82289]
+  #1 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+67.4 1792170565 front=Qoder[82289]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+67.4 1792170565 front=Qoder[82289]
+  #3 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+67.4 1792170565 front=Qoder[82289]
+  #4 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+67.4 1792170565 front=Qoder[82289]
+  #5 Qoder [Qoder] @637,222 1163x725
+===T+67.4 1792170565 front=Qoder[82289]
+  #6 ZCode [ZCode] @503,439 1407x685
+===T+67.4 1792170565 front=Qoder[82289]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+67.4 1792170565 front=Qoder[82289]
+  #8 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+===T+67.4 1792170565 front=Qoder[82289]
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+67.4 1792170565 front=Qoder[82289]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}

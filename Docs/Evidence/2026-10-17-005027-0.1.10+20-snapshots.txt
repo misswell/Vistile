@@ -1,0 +1,1680 @@
+===T+330.8 1792169636 front=微信[79172]
+  #0 Google Chrome [组织用户中心] @54,40 1746x1129
+  #1 ZCode [ZCode] @503,439 1407x685
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+331.8 1792169637 front=微信[79172]
+  #0 Google Chrome [组织用户中心] @54,40 1746x1129
+  #1 ZCode [ZCode] @503,439 1407x685
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+332.8 1792169638 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+333.8 1792169639 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+334.8 1792169640 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+335.8 1792169641 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+336.9 1792169642 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+337.9 1792169643 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+338.9 1792169644 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+339.9 1792169645 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+340.9 1792169646 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+341.9 1792169647 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+342.9 1792169648 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+343.9 1792169649 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+344.9 1792169650 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+345.9 1792169651 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+346.9 1792169652 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+347.9 1792169653 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+348.9 1792169654 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+349.9 1792169655 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+350.9 1792169656 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+351.9 1792169657 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+352.9 1792169658 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+354.0 1792169659 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+355.0 1792169660 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+356.0 1792169661 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+357.0 1792169662 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+358.0 1792169663 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+359.0 1792169664 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+360.0 1792169665 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+361.0 1792169666 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+362.0 1792169667 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+363.0 1792169668 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+364.0 1792169669 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+365.0 1792169670 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+366.0 1792169671 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+367.0 1792169672 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+368.0 1792169673 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+369.0 1792169674 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+370.0 1792169675 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+371.0 1792169676 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+372.1 1792169677 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+373.1 1792169678 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+374.1 1792169679 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+375.1 1792169680 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+376.1 1792169681 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+377.1 1792169682 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+378.1 1792169683 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+379.1 1792169684 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+380.1 1792169685 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+381.1 1792169686 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+382.1 1792169687 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+383.1 1792169688 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+384.1 1792169689 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+385.1 1792169690 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+386.1 1792169691 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+387.1 1792169692 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+388.1 1792169693 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+389.1 1792169694 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+390.2 1792169695 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+391.2 1792169696 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+392.2 1792169697 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+393.2 1792169698 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+394.2 1792169699 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+395.2 1792169700 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+396.2 1792169701 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+397.2 1792169702 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+398.2 1792169703 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+399.2 1792169704 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+400.2 1792169705 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+401.2 1792169706 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+402.2 1792169708 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+403.2 1792169709 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+404.2 1792169710 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+405.2 1792169711 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+406.2 1792169712 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+407.2 1792169713 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+408.2 1792169714 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+409.3 1792169715 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+410.3 1792169716 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+411.3 1792169717 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+412.3 1792169718 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+413.3 1792169719 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+414.3 1792169720 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+415.3 1792169721 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+416.3 1792169722 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+417.3 1792169723 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+418.3 1792169724 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+419.3 1792169725 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+420.3 1792169726 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+421.3 1792169727 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+422.3 1792169728 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+423.3 1792169729 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+424.3 1792169730 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+425.3 1792169731 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+426.3 1792169732 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+427.3 1792169733 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+428.3 1792169734 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+429.4 1792169735 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+430.4 1792169736 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+431.4 1792169737 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+432.4 1792169738 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+433.4 1792169739 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+434.4 1792169740 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+435.4 1792169741 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+436.4 1792169742 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+437.4 1792169743 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+438.4 1792169744 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+439.4 1792169745 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+440.4 1792169746 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+441.4 1792169747 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+442.4 1792169748 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+443.4 1792169749 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+444.4 1792169750 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+445.4 1792169751 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+446.4 1792169752 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+447.4 1792169753 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+448.4 1792169754 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+449.4 1792169755 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+450.4 1792169756 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+451.4 1792169757 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+452.5 1792169758 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+453.5 1792169759 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+454.5 1792169760 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+455.5 1792169761 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+456.5 1792169762 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+457.5 1792169763 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+458.5 1792169764 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+459.5 1792169765 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+460.5 1792169766 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+461.5 1792169767 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+462.5 1792169768 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+463.5 1792169769 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+464.5 1792169770 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+465.5 1792169771 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+466.5 1792169772 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+467.5 1792169773 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+468.5 1792169774 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+469.5 1792169775 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+470.6 1792169776 front=微信[79172]
+  #0 ZCode [ZCode] @503,439 1407x685
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+  #2 Code [Personnel.jsx — tg-frontend-second] @300,184 1481x800
+  #3 UITestHarness [Harness 窗口 6] @350,360 500x330
+  #4 universalAccessAuthWarn [录屏] @696,277 461x181
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+  #6 IntelliJ IDEA [tg-tenant-fork – MenuSortAppController.java [tg-tenant-server]] @54,40 1746x1129
+  #7 Qoder [Qoder] @637,222 1163x725
+  #8 Qoder CN [Qoder CN] @244,188 1157x726
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}

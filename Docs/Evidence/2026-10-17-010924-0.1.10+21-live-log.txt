@@ -1,0 +1,944 @@
+2026-10-17 01:08:19.890 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x2, process, begin] Vistile区间: begin 启动
+2026-10-17 01:08:19.922 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [app] 协调层就绪：层级策略 普通层级 + 激活 + AX Raise，密度 standard
+2026-10-17 01:08:20.084 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x2, process,   end] Vistile区间: end 启动
+2026-10-17 01:08:20.094 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 hidden→preparing，模式 overview→overview，过渡 空闲→空闲，由 globalShortcut
+2026-10-17 01:08:20.094 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [keyboard] 总览需要键盘，但当前没有可用面板
+2026-10-17 01:08:20.366 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 preparing→overview，模式 overview→overview，过渡 空闲→空闲，由 catalogUpdated
+2026-10-17 01:08:20.405 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 2263/351 启动一轮捕获
+2026-10-17 01:08:20.405 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 19645/4262 启动一轮捕获
+2026-10-17 01:08:20.405 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:20.837 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:20.865 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:20.888 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:21.134 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:21.386 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:21.394 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:08:21.394 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:21.401 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 8561/11444 启动一轮捕获
+2026-10-17 01:08:21.607 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:21.757 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 862/12998 启动一轮捕获
+2026-10-17 01:08:21.760 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:21.882 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:21.892 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:21.899 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 82289/20082 启动一轮捕获
+2026-10-17 01:08:21.901 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:21.915 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:21.979 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:22.095 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:22.111 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:22.140 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 46686/22787 启动一轮捕获
+2026-10-17 01:08:22.265 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:22.582 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 96408/23948 启动一轮捕获
+2026-10-17 01:08:22.582 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:22.893 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:23.430 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 40994/23960 启动一轮捕获
+2026-10-17 01:08:23.483 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:23.593 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:23.721 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:23.797 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:23.820 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:23.836 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 50200/24285 启动一轮捕获
+2026-10-17 01:08:23.836 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:23.845 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 50200/24287 启动一轮捕获
+2026-10-17 01:08:23.854 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:24.017 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.misswell.Vistile.UITestHarness pid=50200（受控目标=无）
+2026-10-17 01:08:24.094 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:24.151 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:24.215 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 50200/24288 启动一轮捕获
+2026-10-17 01:08:24.253 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:24.331 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 激活确认 com.misswell.Vistile.UITestHarness：300ms 后前台=com.misswell.Vistile.UITestHarness pid=50200，确证外部应用在前台，退出会话
+2026-10-17 01:08:24.331 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 overview→hidden，模式 overview→overview，过渡 空闲→空闲，由 focusLost(别的应用(com.misswell.Vistile.UITestHarness))
+2026-10-17 01:08:24.969 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 hidden→preparing，模式 overview→overview，过渡 空闲→空闲，由 globalShortcut
+2026-10-17 01:08:25.444 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 preparing→overview，模式 overview→overview，过渡 空闲→空闲，由 catalogUpdated
+2026-10-17 01:08:25.445 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 2263/351 启动一轮捕获
+2026-10-17 01:08:25.445 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 19645/4262 启动一轮捕获
+2026-10-17 01:08:25.445 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 15 个目标
+2026-10-17 01:08:25.459 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 总览卡片 14114:1792024984274429:4967 模式=总览
+2026-10-17 01:08:25.459 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 overview→expanding(14114:1792024984274429:4967)，模式 overview→overview，过渡 空闲→进入工作台(14114:1792024984274429:4967)，由 overviewCardSelected(14114:1792024984274429:4967)
+2026-10-17 01:08:25.529 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 总览→L 型：15 张卡片，240ms
+2026-10-17 01:08:25.529 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 14 个目标
+2026-10-17 01:08:25.875 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 14 个目标
+2026-10-17 01:08:25.907 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 14 个目标
+2026-10-17 01:08:25.913 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 14 个目标
+2026-10-17 01:08:25.917 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 14 个目标
+2026-10-17 01:08:25.921 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 19645/4262 启动一轮捕获
+2026-10-17 01:08:25.921 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 14 个目标
+2026-10-17 01:08:25.926 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 2263/351 启动一轮捕获
+2026-10-17 01:08:26.072 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 14 个目标
+2026-10-17 01:08:26.339 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 2263/351 启动一轮捕获
+2026-10-17 01:08:26.339 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 14 个目标
+2026-10-17 01:08:26.359 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 19645/4262 启动一轮捕获
+2026-10-17 01:08:26.360 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x7, process, event] Vistile事件: measure 工作台:几何写入 342.5ms 写入读回一致
+2026-10-17 01:08:26.360 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=66,183 1505x973 写前=300,184 1481x800 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:26.367 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:08:26.367 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:08:26.367 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:08:26.367 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:08:26.370 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 14 个目标
+2026-10-17 01:08:26.438 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 14 个目标
+2026-10-17 01:08:26.504 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 14 个目标
+2026-10-17 01:08:26.511 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 19645/4262 启动一轮捕获
+2026-10-17 01:08:26.511 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 14 个目标
+2026-10-17 01:08:26.516 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 2263/351 启动一轮捕获
+2026-10-17 01:08:26.516 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 预算降级影响 14 个目标
+2026-10-17 01:08:26.533 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x8, process, event] Vistile事件: measure 工作台:进入主区 657.8ms 成功
+2026-10-17 01:08:26.533 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 进入工作台 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:26.533 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 expanding(14114:1792024984274429:4967)→focused(14114:1792024984274429:4967)，模式 overview→workbench，过渡 进入工作台(14114:1792024984274429:4967)→空闲，由 workbenchTransitionFinished
+2026-10-17 01:08:26.749 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.microsoft.VSCode pid=14114（受控目标=14114/4967）
+2026-10-17 01:08:26.815 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(14114:1792024984274429:4967)→recovering，模式 workbench→workbench，过渡 空闲→空闲，由 returnShortcut
+2026-10-17 01:08:26.834 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 recovering→hidden，模式 workbench→overview，过渡 空闲→空闲，由 restoreCompleted
+2026-10-17 01:08:26.938 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [discover] discover failed: 窗口列表查询失败：用户拒绝了应用程序、窗口、显示器捕捉的TCC
+2026-10-17 01:08:26.954 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 hidden→preparing，模式 overview→overview，过渡 空闲→空闲，由 globalShortcut
+2026-10-17 01:08:27.000 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [discover] discover failed: 窗口列表查询失败：用户拒绝了应用程序、窗口、显示器捕捉的TCC
+2026-10-17 01:08:27.000 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 preparing→hidden，模式 overview→overview，过渡 空闲→空闲，由 catalogDiscoveryFailed
+2026-10-17 01:08:27.005 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [hint] 窗口列表没查到：窗口列表查询失败：用户拒绝了应用程序、窗口、显示器捕捉的TCC
+2026-10-17 01:08:37.100 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 hidden→preparing，模式 overview→overview，过渡 空闲→空闲，由 globalShortcut
+2026-10-17 01:08:37.269 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 preparing→overview，模式 overview→overview，过渡 空闲→空闲，由 catalogUpdated
+2026-10-17 01:08:37.270 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:08:37.270 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 8561/11444 启动一轮捕获
+2026-10-17 01:08:37.344 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 862/12998 启动一轮捕获
+2026-10-17 01:08:37.399 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 82289/20082 启动一轮捕获
+2026-10-17 01:08:37.485 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 总览卡片 14114:1792024984274429:4967 模式=总览
+2026-10-17 01:08:37.485 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 overview→expanding(14114:1792024984274429:4967)，模式 overview→overview，过渡 空闲→进入工作台(14114:1792024984274429:4967)，由 overviewCardSelected(14114:1792024984274429:4967)
+2026-10-17 01:08:37.491 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 总览→L 型：15 张卡片，240ms
+2026-10-17 01:08:37.635 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 46686/22787 启动一轮捕获
+2026-10-17 01:08:37.642 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x9, process, event] Vistile事件: measure 工作台:几何写入 100.1ms 写入读回一致
+2026-10-17 01:08:37.642 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=66,183 1505x973 写前=300,184 1481x800 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:37.845 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0xa, process, event] Vistile事件: measure 工作台:进入主区 303.6ms 成功
+2026-10-17 01:08:37.845 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 进入工作台 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:37.845 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 expanding(14114:1792024984274429:4967)→focused(14114:1792024984274429:4967)，模式 overview→workbench，过渡 进入工作台(14114:1792024984274429:4967)→空闲，由 workbenchTransitionFinished
+2026-10-17 01:08:38.132 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(14114:1792024984274429:4967)→collapsing(14114:1792024984274429:4967)，模式 workbench→workbench，过渡 空闲→返回总览，由 returnToOverviewRequested
+2026-10-17 01:08:38.134 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型→总览：15 张卡片，200ms
+2026-10-17 01:08:38.143 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 96408/23948 启动一轮捕获
+2026-10-17 01:08:38.198 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0xb, process, event] Vistile事件: measure 工作台:写回原尺寸 43.7ms 已恢复原尺寸
+2026-10-17 01:08:38.198 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写回] 14114:1792024984274429:4967 结论=已恢复原尺寸
+2026-10-17 01:08:38.198 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0xc, process, event] Vistile事件: measure 工作台:返回总览 43.8ms 成功
+2026-10-17 01:08:38.198 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 返回总览 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:38.198 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 collapsing(14114:1792024984274429:4967)→overview，模式 workbench→overview，过渡 返回总览→空闲，由 workbenchTransitionFinished
+2026-10-17 01:08:38.297 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:08:38.341 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0xd, process, event] Vistile事件: measure 过渡帧间隔p95·L 型→总览 65.6ms n=14 掉帧占比14.3% 最长连续=1
+2026-10-17 01:08:38.458 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 40994/23960 启动一轮捕获
+2026-10-17 01:08:38.587 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 50200/24285 启动一轮捕获
+2026-10-17 01:08:38.687 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 50200/24287 启动一轮捕获
+2026-10-17 01:08:38.748 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 50200/24288 启动一轮捕获
+2026-10-17 01:08:41.683 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 overview→hidden，模式 overview→overview，过渡 空闲→空闲，由 focusLost(别的应用(com.misswell.Vistile.UITestHarness))
+2026-10-17 01:08:41.700 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 hidden→preparing，模式 overview→overview，过渡 空闲→空闲，由 globalShortcut
+2026-10-17 01:08:42.105 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 preparing→overview，模式 overview→overview，过渡 空闲→空闲，由 catalogUpdated
+2026-10-17 01:08:42.105 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:08:42.105 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 8561/11444 启动一轮捕获
+2026-10-17 01:08:42.115 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 总览卡片 14114:1792024984274429:4967 模式=总览
+2026-10-17 01:08:42.116 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 overview→expanding(14114:1792024984274429:4967)，模式 overview→overview，过渡 空闲→进入工作台(14114:1792024984274429:4967)，由 overviewCardSelected(14114:1792024984274429:4967)
+2026-10-17 01:08:42.121 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 总览→L 型：15 张卡片，240ms
+2026-10-17 01:08:42.266 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0xe, process, event] Vistile事件: measure 工作台:几何写入 118.6ms 写入读回一致
+2026-10-17 01:08:42.266 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=66,183 1505x973 写前=300,184 1481x800 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:42.339 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0xf, process, event] Vistile事件: measure 工作台:进入主区 192.9ms 成功
+2026-10-17 01:08:42.339 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 进入工作台 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:42.339 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 expanding(14114:1792024984274429:4967)→focused(14114:1792024984274429:4967)，模式 overview→workbench，过渡 进入工作台(14114:1792024984274429:4967)→空闲，由 workbenchTransitionFinished
+2026-10-17 01:08:42.375 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x10, process, event] Vistile事件: measure 过渡帧间隔p95·总览→L 型 47.2ms n=9 掉帧占比33.3% 最长连续=2
+2026-10-17 01:08:42.375 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [motion] 动效等级变化：连续2段过渡超出帧预算（p95 47.2ms、掉帧 33.3%）：完整→轻量
+2026-10-17 01:08:42.425 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 862/12998 启动一轮捕获
+2026-10-17 01:08:42.638 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 82289/20082 启动一轮捕获
+2026-10-17 01:08:42.774 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 轨道卡片 顶栏#0 2263:1792024453428670:351 主区=14114:1792024984274429:4967 交换=空闲
+2026-10-17 01:08:42.775 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(14114:1792024984274429:4967)→switching(14114:1792024984274429:4967→2263:1792024453428670:351)，模式 workbench→workbench，过渡 空闲→空闲，由 railCardSelected(顶栏#0, 2263:1792024453428670:351)
+2026-10-17 01:08:42.777 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型内交换：2 张卡片，180ms
+2026-10-17 01:08:42.786 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=准备 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:42.975 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x11, process, event] Vistile事件: measure 工作台:几何写入 184.6ms 写入读回一致
+2026-10-17 01:08:42.975 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 2263:1792024453428670:351 目标=66,183 1505x973 写前=54,40 1746x1129 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:42.975 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=目标进主区 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:42.981 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x12, process, event] Vistile事件: measure 过渡帧间隔p95·L 型内交换 8.3ms n=8 掉帧占比12.5% 最长连续=1
+2026-10-17 01:08:42.981 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:08:42.981 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:08:42.982 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:08:42.982 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:08:43.007 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=前景确认 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:43.223 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.google.Chrome pid=2263（受控目标=2263/351）
+2026-10-17 01:08:43.223 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：应用激活
+2026-10-17 01:08:43.249 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x13, process, event] Vistile事件: measure 工作台:几何写入 25.7ms 写入读回一致
+2026-10-17 01:08:43.249 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=300,184 1481x800 写前=66,184 1505x973 读回=300,184 1481x800 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:43.249 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=原主窗口回轨 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:43.256 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=提交 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:43.260 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 switching(14114:1792024984274429:4967→2263:1792024453428670:351)→focused(2263:1792024453428670:351)，模式 workbench→workbench，过渡 空闲→空闲，由 mainSwitchCommitted
+2026-10-17 01:08:43.265 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x14, process, event] Vistile事件: measure 工作台:主区交换 480.6ms 轨道
+2026-10-17 01:08:43.391 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:08:43.503 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 46686/22787 启动一轮捕获
+2026-10-17 01:08:43.620 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 96408/23948 启动一轮捕获
+2026-10-17 01:08:43.677 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(2263:1792024453428670:351)→collapsing(2263:1792024453428670:351)，模式 workbench→workbench，过渡 空闲→返回总览，由 returnToOverviewRequested
+2026-10-17 01:08:43.678 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型→总览：15 张卡片，200ms
+2026-10-17 01:08:43.793 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 40994/23960 启动一轮捕获
+2026-10-17 01:08:43.796 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x15, process, event] Vistile事件: measure 工作台:写回原尺寸 94.6ms 已恢复原尺寸
+2026-10-17 01:08:43.796 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写回] 2263:1792024453428670:351 结论=已恢复原尺寸
+2026-10-17 01:08:43.796 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x16, process, event] Vistile事件: measure 工作台:返回总览 94.6ms 成功
+2026-10-17 01:08:43.796 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 返回总览 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:43.796 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 collapsing(2263:1792024453428670:351)→overview，模式 workbench→overview，过渡 返回总览→空闲，由 workbenchTransitionFinished
+2026-10-17 01:08:43.882 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x17, process, event] Vistile事件: measure 过渡帧间隔p95·L 型→总览 24.9ms n=9 掉帧占比11.1% 最长连续=1
+2026-10-17 01:08:43.882 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [motion] 动效等级变化：连续2段过渡超出帧预算（p95 24.9ms、掉帧 11.1%）：轻量→淡化
+2026-10-17 01:08:43.919 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 50200/24285 启动一轮捕获
+2026-10-17 01:08:44.126 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 50200/24287 启动一轮捕获
+2026-10-17 01:08:44.214 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 总览卡片 14114:1792024984274429:4967 模式=总览
+2026-10-17 01:08:44.214 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 overview→expanding(14114:1792024984274429:4967)，模式 overview→overview，过渡 空闲→进入工作台(14114:1792024984274429:4967)，由 overviewCardSelected(14114:1792024984274429:4967)
+2026-10-17 01:08:44.215 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 总览→L 型：15 张卡片，100ms
+2026-10-17 01:08:44.261 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x18, process, event] Vistile事件: measure 工作台:几何写入 26.1ms 写入读回一致
+2026-10-17 01:08:44.261 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=66,183 1505x973 写前=300,184 1481x800 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:44.360 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 50200/24288 启动一轮捕获
+2026-10-17 01:08:44.370 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x19, process, event] Vistile事件: measure 工作台:进入主区 136.0ms 成功
+2026-10-17 01:08:44.370 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 进入工作台 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:44.372 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 expanding(14114:1792024984274429:4967)→focused(14114:1792024984274429:4967)，模式 overview→workbench，过渡 进入工作台(14114:1792024984274429:4967)→空闲，由 workbenchTransitionFinished
+2026-10-17 01:08:44.436 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 轨道卡片 顶栏#0 2263:1792024453428670:351 主区=14114:1792024984274429:4967 交换=空闲
+2026-10-17 01:08:44.437 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.microsoft.VSCode pid=14114（受控目标=14114/4967）
+2026-10-17 01:08:44.437 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x1a, process, event] Vistile事件: measure 过渡帧间隔p95·总览→L 型 24.5ms n=5 掉帧占比20.0% 最长连续=1
+2026-10-17 01:08:44.474 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 2263:1792024453428670:351 身份暂未唯一，复核目录后重试
+2026-10-17 01:08:44.510 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:08:44.510 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967（应用激活）：读回[14114:1792024984274429:4967]，仍在前台
+2026-10-17 01:08:44.513 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:08:44.517 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967（AX AXFocusedWindowChanged）：读回[14114:1792024984274429:4967]，仍在前台
+2026-10-17 01:08:44.517 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967（AX AXMainWindowChanged）：读回[14114:1792024984274429:4967]，仍在前台
+2026-10-17 01:08:44.952 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(14114:1792024984274429:4967)→switching(14114:1792024984274429:4967→2263:1792024453428670:351)，模式 workbench→workbench，过渡 空闲→空闲，由 railCardSelected(顶栏#0, 2263:1792024453428670:351)
+2026-10-17 01:08:44.954 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型内交换：2 张卡片，80ms
+2026-10-17 01:08:44.964 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=准备 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:44.984 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x1b, process, event] Vistile事件: measure 工作台:几何写入 13.8ms 写入读回一致
+2026-10-17 01:08:44.984 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 2263:1792024453428670:351 目标=66,183 1505x973 写前=54,40 1746x1129 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:44.984 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=目标进主区 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:45.044 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=前景确认 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:45.194 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.google.Chrome pid=2263（受控目标=2263/351）
+2026-10-17 01:08:45.194 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：应用激活
+2026-10-17 01:08:45.195 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:08:45.195 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:08:45.196 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:08:45.196 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:08:45.246 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x1c, process, event] Vistile事件: measure 工作台:几何写入 52.1ms 写入读回一致
+2026-10-17 01:08:45.246 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=300,184 1481x800 写前=66,184 1505x973 读回=300,184 1481x800 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:45.246 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=原主窗口回轨 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:45.265 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=提交 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:45.272 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 switching(14114:1792024984274429:4967→2263:1792024453428670:351)→focused(2263:1792024453428670:351)，模式 workbench→workbench，过渡 空闲→空闲，由 mainSwitchCommitted
+2026-10-17 01:08:45.273 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:08:45.281 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x1d, process, event] Vistile事件: measure 工作台:主区交换 318.1ms 轨道
+2026-10-17 01:08:45.319 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 轨道卡片 侧栏#0 862:1792024324080073:12998 主区=2263:1792024453428670:351 交换=空闲
+2026-10-17 01:08:45.320 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(2263:1792024453428670:351)→switching(2263:1792024453428670:351→862:1792024324080073:12998)，模式 workbench→workbench，过渡 空闲→空闲，由 railCardSelected(侧栏#0, 862:1792024324080073:12998)
+2026-10-17 01:08:45.321 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型内交换：2 张卡片，80ms
+2026-10-17 01:08:45.339 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=准备 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:45.621 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x1e, process, event] Vistile事件: measure 工作台:几何写入 264.0ms 应用按自身尺寸约束返回 66,184 1504x967
+2026-10-17 01:08:45.622 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 862:1792024324080073:12998 目标=66,183 1505x973 写前=577,332 580x421 读回=66,184 1504x967 size错误=0 position错误=0 结论=应用按自身尺寸约束返回 66,184 1504x967
+2026-10-17 01:08:45.622 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=目标进主区 对象=862:1792024324080073:12998 结论=受限：应用按自身尺寸约束返回 66,184 1504x967
+2026-10-17 01:08:45.629 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=862 → 核对受控窗口 862:1792024324080073:12998
+2026-10-17 01:08:45.629 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 862:1792024324080073:12998 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:08:45.629 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=862 → 核对受控窗口 862:1792024324080073:12998
+2026-10-17 01:08:45.629 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 862:1792024324080073:12998 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:08:45.653 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=前景确认 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:45.661 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.apple.Terminal pid=862（受控目标=862/12998）
+2026-10-17 01:08:45.661 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 862:1792024324080073:12998 跳过（过渡/交换在途）：应用激活
+2026-10-17 01:08:45.808 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x1f, process, event] Vistile事件: measure 工作台:几何写入 146.8ms 写入读回一致
+2026-10-17 01:08:45.808 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 2263:1792024453428670:351 目标=54,40 1746x1129 写前=66,184 1505x973 读回=54,40 1746x1129 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:45.808 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=原主窗口回轨 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:45.818 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=提交 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:45.823 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 switching(2263:1792024453428670:351→862:1792024324080073:12998)→focused(862:1792024324080073:12998)，模式 workbench→workbench，过渡 空闲→空闲，由 mainSwitchCommitted
+2026-10-17 01:08:45.829 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x20, process, event] Vistile事件: measure 工作台:主区交换 493.1ms 轨道
+2026-10-17 01:08:45.921 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 轨道卡片 顶栏#0 14114:1792024984274429:4967 主区=862:1792024324080073:12998 交换=空闲
+2026-10-17 01:08:45.921 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(862:1792024324080073:12998)→switching(862:1792024324080073:12998→14114:1792024984274429:4967)，模式 workbench→workbench，过渡 空闲→空闲，由 railCardSelected(顶栏#0, 14114:1792024984274429:4967)
+2026-10-17 01:08:45.922 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型内交换：2 张卡片，80ms
+2026-10-17 01:08:45.949 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=准备 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:46.016 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x21, process, event] Vistile事件: measure 过渡帧间隔p95·L 型内交换 29.8ms n=5 掉帧占比20.0% 最长连续=1
+2026-10-17 01:08:46.029 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x22, process, event] Vistile事件: measure 工作台:几何写入 39.3ms 写入读回一致
+2026-10-17 01:08:46.029 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=66,183 1505x973 写前=300,184 1481x800 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:46.029 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=目标进主区 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:46.089 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=前景确认 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:46.169 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.microsoft.VSCode pid=14114（受控目标=14114/4967）
+2026-10-17 01:08:46.169 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：应用激活
+2026-10-17 01:08:46.169 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:08:46.169 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:08:46.170 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:08:46.170 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:08:46.336 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x23, process, event] Vistile事件: measure 工作台:几何写入 23.9ms 写入读回一致
+2026-10-17 01:08:46.336 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 862:1792024324080073:12998 目标=577,332 580x421 写前=66,184 1504x967 读回=577,332 580x421 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:46.336 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=原主窗口回轨 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:46.345 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=提交 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:46.350 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 switching(862:1792024324080073:12998→14114:1792024984274429:4967)→focused(14114:1792024984274429:4967)，模式 workbench→workbench，过渡 空闲→空闲，由 mainSwitchCommitted
+2026-10-17 01:08:46.350 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 862/12998 启动一轮捕获
+2026-10-17 01:08:46.356 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x24, process, event] Vistile事件: measure 工作台:主区交换 422.8ms 轨道
+2026-10-17 01:08:46.465 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 轨道卡片 侧栏#0 2263:1792024453428670:351 主区=14114:1792024984274429:4967 交换=空闲
+2026-10-17 01:08:46.465 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(14114:1792024984274429:4967)→switching(14114:1792024984274429:4967→2263:1792024453428670:351)，模式 workbench→workbench，过渡 空闲→空闲，由 railCardSelected(侧栏#0, 2263:1792024453428670:351)
+2026-10-17 01:08:46.466 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型内交换：2 张卡片，80ms
+2026-10-17 01:08:46.479 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=准备 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:46.542 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x25, process, event] Vistile事件: measure 工作台:几何写入 56.5ms 写入读回一致
+2026-10-17 01:08:46.542 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 2263:1792024453428670:351 目标=66,183 1505x973 写前=54,40 1746x1129 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:46.542 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=目标进主区 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:46.555 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:08:46.556 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:08:46.556 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:08:46.556 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:08:46.558 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x26, process, event] Vistile事件: measure 过渡帧间隔p95·L 型内交换 14.3ms n=4 掉帧占比25.0% 最长连续=1
+2026-10-17 01:08:46.668 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=前景确认 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:46.682 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.google.Chrome pid=2263（受控目标=2263/351）
+2026-10-17 01:08:46.682 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：应用激活
+2026-10-17 01:08:46.800 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x27, process, event] Vistile事件: measure 工作台:几何写入 119.2ms 写入读回一致
+2026-10-17 01:08:46.800 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=300,184 1481x800 写前=66,184 1505x973 读回=300,184 1481x800 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:46.800 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=原主窗口回轨 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:46.818 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=提交 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:46.826 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 switching(14114:1792024984274429:4967→2263:1792024453428670:351)→focused(2263:1792024453428670:351)，模式 workbench→workbench，过渡 空闲→空闲，由 mainSwitchCommitted
+2026-10-17 01:08:46.826 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:08:46.839 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x28, process, event] Vistile事件: measure 工作台:主区交换 361.5ms 轨道
+2026-10-17 01:08:46.886 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 轨道卡片 顶栏#0 862:1792024324080073:12998 主区=2263:1792024453428670:351 交换=空闲
+2026-10-17 01:08:46.887 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 862:1792024324080073:12998 身份暂未唯一，复核目录后重试
+2026-10-17 01:08:47.088 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [discover] discover queued: reconcile
+2026-10-17 01:08:47.121 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(2263:1792024453428670:351)→switching(2263:1792024453428670:351→862:1792024324080073:12998)，模式 workbench→workbench，过渡 空闲→空闲，由 railCardSelected(顶栏#0, 862:1792024324080073:12998)
+2026-10-17 01:08:47.122 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型内交换：2 张卡片，80ms
+2026-10-17 01:08:47.134 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=准备 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:47.186 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x29, process, event] Vistile事件: measure 工作台:几何写入 46.7ms 应用按自身尺寸约束返回 66,184 1504x967
+2026-10-17 01:08:47.186 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 862:1792024324080073:12998 目标=66,183 1505x973 写前=577,332 580x421 读回=66,184 1504x967 size错误=0 position错误=0 结论=应用按自身尺寸约束返回 66,184 1504x967
+2026-10-17 01:08:47.186 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=目标进主区 对象=862:1792024324080073:12998 结论=受限：应用按自身尺寸约束返回 66,184 1504x967
+2026-10-17 01:08:47.218 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=前景确认 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:47.269 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.apple.Terminal pid=862（受控目标=862/12998）
+2026-10-17 01:08:47.269 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 862:1792024324080073:12998 跳过（过渡/交换在途）：应用激活
+2026-10-17 01:08:47.269 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x2a, process, event] Vistile事件: measure 过渡帧间隔p95·L 型内交换 8.3ms n=7 掉帧占比0.0% 最长连续=0
+2026-10-17 01:08:47.269 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=862 → 核对受控窗口 862:1792024324080073:12998
+2026-10-17 01:08:47.269 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 862:1792024324080073:12998 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:08:47.271 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=862 → 核对受控窗口 862:1792024324080073:12998
+2026-10-17 01:08:47.271 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 862:1792024324080073:12998 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:08:47.326 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x2b, process, event] Vistile事件: measure 工作台:几何写入 57.5ms 写入读回一致
+2026-10-17 01:08:47.326 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 2263:1792024453428670:351 目标=54,40 1746x1129 写前=66,184 1505x973 读回=54,40 1746x1129 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:47.326 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=原主窗口回轨 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:47.334 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=提交 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:47.345 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 switching(2263:1792024453428670:351→862:1792024324080073:12998)→focused(862:1792024324080073:12998)，模式 workbench→workbench，过渡 空闲→空闲，由 mainSwitchCommitted
+2026-10-17 01:08:47.351 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x2c, process, event] Vistile事件: measure 工作台:主区交换 218.0ms 轨道
+2026-10-17 01:08:47.396 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 轨道卡片 侧栏#0 14114:1792024984274429:4967 主区=862:1792024324080073:12998 交换=空闲
+2026-10-17 01:08:47.396 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(862:1792024324080073:12998)→switching(862:1792024324080073:12998→14114:1792024984274429:4967)，模式 workbench→workbench，过渡 空闲→空闲，由 railCardSelected(侧栏#0, 14114:1792024984274429:4967)
+2026-10-17 01:08:47.398 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型内交换：2 张卡片，80ms
+2026-10-17 01:08:47.408 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=准备 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:47.440 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x2d, process, event] Vistile事件: measure 工作台:几何写入 19.7ms 写入读回一致
+2026-10-17 01:08:47.440 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=66,183 1505x973 写前=300,184 1481x800 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:47.440 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=目标进主区 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:47.483 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x2e, process, event] Vistile事件: measure 过渡帧间隔p95·L 型内交换 8.3ms n=8 掉帧占比0.0% 最长连续=0
+2026-10-17 01:08:47.534 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:08:47.534 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:08:47.534 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:08:47.534 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:08:47.593 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=前景确认 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:47.600 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.microsoft.VSCode pid=14114（受控目标=14114/4967）
+2026-10-17 01:08:47.600 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：应用激活
+2026-10-17 01:08:47.704 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [discover] discover queued: reconcile
+2026-10-17 01:08:47.857 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x2f, process, event] Vistile事件: measure 工作台:几何写入 12.3ms 写入读回一致
+2026-10-17 01:08:47.857 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 862:1792024324080073:12998 目标=577,332 580x421 写前=66,184 1504x967 读回=577,332 580x421 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:47.857 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=原主窗口回轨 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:47.868 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=提交 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:47.872 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 switching(862:1792024324080073:12998→14114:1792024984274429:4967)→focused(14114:1792024984274429:4967)，模式 workbench→workbench，过渡 空闲→空闲，由 mainSwitchCommitted
+2026-10-17 01:08:47.872 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 862/12998 启动一轮捕获
+2026-10-17 01:08:47.877 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x30, process, event] Vistile事件: measure 工作台:主区交换 470.5ms 轨道
+2026-10-17 01:08:47.921 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 轨道卡片 顶栏#0 2263:1792024453428670:351 主区=14114:1792024984274429:4967 交换=空闲
+2026-10-17 01:08:47.921 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 2263:1792024453428670:351 身份暂未唯一，复核目录后重试
+2026-10-17 01:08:48.089 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [discover] discover queued: reconcile
+2026-10-17 01:08:48.129 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(14114:1792024984274429:4967)→switching(14114:1792024984274429:4967→2263:1792024453428670:351)，模式 workbench→workbench，过渡 空闲→空闲，由 railCardSelected(顶栏#0, 2263:1792024453428670:351)
+2026-10-17 01:08:48.135 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型内交换：2 张卡片，80ms
+2026-10-17 01:08:48.145 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=准备 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:48.168 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x31, process, event] Vistile事件: measure 工作台:几何写入 18.6ms 写入读回一致
+2026-10-17 01:08:48.168 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 2263:1792024453428670:351 目标=66,183 1505x973 写前=54,40 1746x1129 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:48.168 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=目标进主区 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:48.193 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:08:48.193 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:08:48.198 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=前景确认 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:48.326 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.google.Chrome pid=2263（受控目标=2263/351）
+2026-10-17 01:08:48.326 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：应用激活
+2026-10-17 01:08:48.327 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:08:48.327 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:08:48.589 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x32, process, event] Vistile事件: measure 工作台:几何写入 263.5ms 写入读回一致
+2026-10-17 01:08:48.589 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=300,184 1481x800 写前=66,184 1505x973 读回=300,184 1481x800 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:48.589 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=原主窗口回轨 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:48.597 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=提交 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:48.606 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 switching(14114:1792024984274429:4967→2263:1792024453428670:351)→focused(2263:1792024453428670:351)，模式 workbench→workbench，过渡 空闲→空闲，由 mainSwitchCommitted
+2026-10-17 01:08:48.606 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:08:48.614 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x33, process, event] Vistile事件: measure 工作台:主区交换 469.7ms 轨道
+2026-10-17 01:08:48.713 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 轨道卡片 侧栏#0 862:1792024324080073:12998 主区=2263:1792024453428670:351 交换=空闲
+2026-10-17 01:08:48.713 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(2263:1792024453428670:351)→switching(2263:1792024453428670:351→862:1792024324080073:12998)，模式 workbench→workbench，过渡 空闲→空闲，由 railCardSelected(侧栏#0, 862:1792024324080073:12998)
+2026-10-17 01:08:48.715 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型内交换：2 张卡片，80ms
+2026-10-17 01:08:48.729 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=准备 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:48.794 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x34, process, event] Vistile事件: measure 工作台:几何写入 52.9ms 应用按自身尺寸约束返回 66,184 1504x967
+2026-10-17 01:08:48.794 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 862:1792024324080073:12998 目标=66,183 1505x973 写前=577,332 580x421 读回=66,184 1504x967 size错误=0 position错误=0 结论=应用按自身尺寸约束返回 66,184 1504x967
+2026-10-17 01:08:48.794 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=目标进主区 对象=862:1792024324080073:12998 结论=受限：应用按自身尺寸约束返回 66,184 1504x967
+2026-10-17 01:08:48.821 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x35, process, event] Vistile事件: measure 过渡帧间隔p95·L 型内交换 15.9ms n=7 掉帧占比0.0% 最长连续=0
+2026-10-17 01:08:48.821 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=862 → 核对受控窗口 862:1792024324080073:12998
+2026-10-17 01:08:48.821 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 862:1792024324080073:12998 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:08:48.839 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=前景确认 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:48.934 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.apple.Terminal pid=862（受控目标=862/12998）
+2026-10-17 01:08:48.934 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 862:1792024324080073:12998 跳过（过渡/交换在途）：应用激活
+2026-10-17 01:08:48.935 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=862 → 核对受控窗口 862:1792024324080073:12998
+2026-10-17 01:08:48.935 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 862:1792024324080073:12998 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:08:49.037 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x36, process, event] Vistile事件: measure 工作台:几何写入 189.4ms 写入读回一致
+2026-10-17 01:08:49.037 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 2263:1792024453428670:351 目标=54,40 1746x1129 写前=66,184 1505x973 读回=54,40 1746x1129 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:49.037 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=原主窗口回轨 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:49.048 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=提交 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:49.054 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 switching(2263:1792024453428670:351→862:1792024324080073:12998)→focused(862:1792024324080073:12998)，模式 workbench→workbench，过渡 空闲→空闲，由 mainSwitchCommitted
+2026-10-17 01:08:49.060 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x37, process, event] Vistile事件: measure 工作台:主区交换 331.6ms 轨道
+2026-10-17 01:08:49.067 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 轨道卡片 顶栏#0 14114:1792024984274429:4967 主区=862:1792024324080073:12998 交换=空闲
+2026-10-17 01:08:49.067 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(862:1792024324080073:12998)→switching(862:1792024324080073:12998→14114:1792024984274429:4967)，模式 workbench→workbench，过渡 空闲→空闲，由 railCardSelected(顶栏#0, 14114:1792024984274429:4967)
+2026-10-17 01:08:49.069 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型内交换：2 张卡片，80ms
+2026-10-17 01:08:49.087 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=准备 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:49.119 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x38, process, event] Vistile事件: measure 工作台:几何写入 24.3ms 写入读回一致
+2026-10-17 01:08:49.119 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=66,183 1505x973 写前=300,184 1481x800 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:49.119 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=目标进主区 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:49.183 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=前景确认 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:49.244 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x39, process, event] Vistile事件: measure 过渡帧间隔p95·L 型内交换 10.2ms n=5 掉帧占比20.0% 最长连续=1
+2026-10-17 01:08:49.244 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:08:49.244 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:08:49.244 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.microsoft.VSCode pid=14114（受控目标=14114/4967）
+2026-10-17 01:08:49.244 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：应用激活
+2026-10-17 01:08:49.245 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:08:49.245 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:08:49.279 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x3a, process, event] Vistile事件: measure 工作台:几何写入 35.7ms 写入读回一致
+2026-10-17 01:08:49.279 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 862:1792024324080073:12998 目标=577,332 580x421 写前=66,184 1504x967 读回=577,332 580x421 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:49.279 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=原主窗口回轨 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:49.309 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=提交 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:49.320 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 switching(862:1792024324080073:12998→14114:1792024984274429:4967)→focused(14114:1792024984274429:4967)，模式 workbench→workbench，过渡 空闲→空闲，由 mainSwitchCommitted
+2026-10-17 01:08:49.320 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 862/12998 启动一轮捕获
+2026-10-17 01:08:49.325 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x3b, process, event] Vistile事件: measure 工作台:主区交换 238.8ms 轨道
+2026-10-17 01:08:49.386 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 轨道卡片 侧栏#0 2263:1792024453428670:351 主区=14114:1792024984274429:4967 交换=空闲
+2026-10-17 01:08:49.386 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 2263:1792024453428670:351 身份暂未唯一，复核目录后重试
+2026-10-17 01:08:49.542 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [discover] discover queued: reconcile
+2026-10-17 01:08:50.144 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(14114:1792024984274429:4967)→switching(14114:1792024984274429:4967→2263:1792024453428670:351)，模式 workbench→workbench，过渡 空闲→空闲，由 railCardSelected(侧栏#0, 2263:1792024453428670:351)
+2026-10-17 01:08:50.146 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型内交换：2 张卡片，80ms
+2026-10-17 01:08:50.157 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=准备 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:50.207 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x3c, process, event] Vistile事件: measure 工作台:几何写入 44.7ms 写入读回一致
+2026-10-17 01:08:50.207 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 2263:1792024453428670:351 目标=66,183 1505x973 写前=54,40 1746x1129 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:50.207 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=目标进主区 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:50.268 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=前景确认 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:50.369 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.google.Chrome pid=2263（受控目标=2263/351）
+2026-10-17 01:08:50.369 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：应用激活
+2026-10-17 01:08:50.370 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:08:50.370 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:08:50.370 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:08:50.370 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:08:50.374 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x3d, process, event] Vistile事件: measure 过渡帧间隔p95·L 型内交换 8.3ms n=7 掉帧占比14.3% 最长连续=1
+2026-10-17 01:08:50.452 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x3e, process, event] Vistile事件: measure 工作台:几何写入 83.6ms 写入读回一致
+2026-10-17 01:08:50.452 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=300,184 1481x800 写前=66,184 1505x973 读回=300,184 1481x800 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:50.452 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=原主窗口回轨 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:50.460 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=提交 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:50.466 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 switching(14114:1792024984274429:4967→2263:1792024453428670:351)→focused(2263:1792024453428670:351)，模式 workbench→workbench，过渡 空闲→空闲，由 mainSwitchCommitted
+2026-10-17 01:08:50.466 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:08:50.475 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x3f, process, event] Vistile事件: measure 工作台:主区交换 318.0ms 轨道
+2026-10-17 01:08:50.493 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 轨道卡片 顶栏#0 862:1792024324080073:12998 主区=2263:1792024453428670:351 交换=空闲
+2026-10-17 01:08:50.493 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(2263:1792024453428670:351)→switching(2263:1792024453428670:351→862:1792024324080073:12998)，模式 workbench→workbench，过渡 空闲→空闲，由 railCardSelected(顶栏#0, 862:1792024324080073:12998)
+2026-10-17 01:08:50.496 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型内交换：2 张卡片，80ms
+2026-10-17 01:08:50.518 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=准备 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:50.584 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x40, process, event] Vistile事件: measure 过渡帧间隔p95·L 型内交换 16.7ms n=6 掉帧占比0.0% 最长连续=0
+2026-10-17 01:08:50.641 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x41, process, event] Vistile事件: measure 工作台:几何写入 102.3ms 应用按自身尺寸约束返回 66,184 1504x967
+2026-10-17 01:08:50.641 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 862:1792024324080073:12998 目标=66,183 1505x973 写前=577,332 580x421 读回=66,184 1504x967 size错误=0 position错误=0 结论=应用按自身尺寸约束返回 66,184 1504x967
+2026-10-17 01:08:50.641 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=目标进主区 对象=862:1792024324080073:12998 结论=受限：应用按自身尺寸约束返回 66,184 1504x967
+2026-10-17 01:08:50.669 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=前景确认 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:50.676 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.apple.Terminal pid=862（受控目标=862/12998）
+2026-10-17 01:08:50.676 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 862:1792024324080073:12998 跳过（过渡/交换在途）：应用激活
+2026-10-17 01:08:50.676 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=862 → 核对受控窗口 862:1792024324080073:12998
+2026-10-17 01:08:50.676 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 862:1792024324080073:12998 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:08:50.678 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=862 → 核对受控窗口 862:1792024324080073:12998
+2026-10-17 01:08:50.678 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 862:1792024324080073:12998 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:08:50.821 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x42, process, event] Vistile事件: measure 工作台:几何写入 145.3ms 写入读回一致
+2026-10-17 01:08:50.821 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 2263:1792024453428670:351 目标=54,40 1746x1129 写前=66,184 1505x973 读回=54,40 1746x1129 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:50.821 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=原主窗口回轨 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:50.831 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=提交 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:50.836 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 switching(2263:1792024453428670:351→862:1792024324080073:12998)→focused(862:1792024324080073:12998)，模式 workbench→workbench，过渡 空闲→空闲，由 mainSwitchCommitted
+2026-10-17 01:08:50.842 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x43, process, event] Vistile事件: measure 工作台:主区交换 332.3ms 轨道
+2026-10-17 01:08:50.918 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 轨道卡片 侧栏#0 14114:1792024984274429:4967 主区=862:1792024324080073:12998 交换=空闲
+2026-10-17 01:08:50.918 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(862:1792024324080073:12998)→switching(862:1792024324080073:12998→14114:1792024984274429:4967)，模式 workbench→workbench，过渡 空闲→空闲，由 railCardSelected(侧栏#0, 14114:1792024984274429:4967)
+2026-10-17 01:08:50.924 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型内交换：2 张卡片，80ms
+2026-10-17 01:08:50.933 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=准备 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:51.042 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x44, process, event] Vistile事件: measure 过渡帧间隔p95·L 型内交换 44.3ms n=3 掉帧占比66.7% 最长连续=2
+2026-10-17 01:08:51.061 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x45, process, event] Vistile事件: measure 工作台:几何写入 122.0ms 写入读回一致
+2026-10-17 01:08:51.061 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=66,183 1505x973 写前=300,184 1481x800 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:51.061 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=目标进主区 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:51.080 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:08:51.080 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:08:51.086 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=前景确认 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:51.186 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.microsoft.VSCode pid=14114（受控目标=14114/4967）
+2026-10-17 01:08:51.186 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：应用激活
+2026-10-17 01:08:51.186 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:08:51.186 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:08:51.186 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x46, process, event] Vistile事件: measure 工作台:几何写入 37.9ms 写入读回一致
+2026-10-17 01:08:51.186 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 862:1792024324080073:12998 目标=577,332 580x421 写前=66,184 1504x967 读回=577,332 580x421 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:51.186 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=原主窗口回轨 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:51.194 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=提交 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:51.199 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 switching(862:1792024324080073:12998→14114:1792024984274429:4967)→focused(14114:1792024984274429:4967)，模式 workbench→workbench，过渡 空闲→空闲，由 mainSwitchCommitted
+2026-10-17 01:08:51.200 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 862/12998 启动一轮捕获
+2026-10-17 01:08:51.214 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x47, process, event] Vistile事件: measure 工作台:主区交换 282.0ms 轨道
+2026-10-17 01:08:51.309 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 轨道卡片 顶栏#0 2263:1792024453428670:351 主区=14114:1792024984274429:4967 交换=空闲
+2026-10-17 01:08:51.310 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(14114:1792024984274429:4967)→switching(14114:1792024984274429:4967→2263:1792024453428670:351)，模式 workbench→workbench，过渡 空闲→空闲，由 railCardSelected(顶栏#0, 2263:1792024453428670:351)
+2026-10-17 01:08:51.312 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型内交换：2 张卡片，80ms
+2026-10-17 01:08:51.326 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=准备 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:51.357 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x48, process, event] Vistile事件: measure 工作台:几何写入 26.6ms 写入读回一致
+2026-10-17 01:08:51.357 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 2263:1792024453428670:351 目标=66,183 1505x973 写前=54,40 1746x1129 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:51.357 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=目标进主区 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:51.394 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:08:51.394 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:08:51.394 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:08:51.394 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:08:51.399 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x49, process, event] Vistile事件: measure 过渡帧间隔p95·L 型内交换 13.8ms n=6 掉帧占比0.0% 最长连续=0
+2026-10-17 01:08:51.511 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=前景确认 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:51.521 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.google.Chrome pid=2263（受控目标=2263/351）
+2026-10-17 01:08:51.521 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：应用激活
+2026-10-17 01:08:51.667 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x4a, process, event] Vistile事件: measure 工作台:几何写入 146.3ms 写入读回一致
+2026-10-17 01:08:51.667 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=300,184 1481x800 写前=66,184 1505x973 读回=300,184 1481x800 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:51.667 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=原主窗口回轨 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:51.683 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=提交 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:51.688 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 switching(14114:1792024984274429:4967→2263:1792024453428670:351)→focused(2263:1792024453428670:351)，模式 workbench→workbench，过渡 空闲→空闲，由 mainSwitchCommitted
+2026-10-17 01:08:51.688 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:08:51.693 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x4b, process, event] Vistile事件: measure 工作台:主区交换 376.0ms 轨道
+2026-10-17 01:08:51.734 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 轨道卡片 侧栏#0 862:1792024324080073:12998 主区=2263:1792024453428670:351 交换=空闲
+2026-10-17 01:08:51.734 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(2263:1792024453428670:351)→switching(2263:1792024453428670:351→862:1792024324080073:12998)，模式 workbench→workbench，过渡 空闲→空闲，由 railCardSelected(侧栏#0, 862:1792024324080073:12998)
+2026-10-17 01:08:51.736 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型内交换：2 张卡片，80ms
+2026-10-17 01:08:51.751 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=准备 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:51.817 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x4c, process, event] Vistile事件: measure 工作台:几何写入 57.7ms 应用按自身尺寸约束返回 66,184 1504x967
+2026-10-17 01:08:51.817 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 862:1792024324080073:12998 目标=66,183 1505x973 写前=577,332 580x421 读回=66,184 1504x967 size错误=0 position错误=0 结论=应用按自身尺寸约束返回 66,184 1504x967
+2026-10-17 01:08:51.817 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=目标进主区 对象=862:1792024324080073:12998 结论=受限：应用按自身尺寸约束返回 66,184 1504x967
+2026-10-17 01:08:51.832 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x4d, process, event] Vistile事件: measure 过渡帧间隔p95·L 型内交换 18.8ms n=6 掉帧占比0.0% 最长连续=0
+2026-10-17 01:08:51.865 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=862 → 核对受控窗口 862:1792024324080073:12998
+2026-10-17 01:08:51.865 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 862:1792024324080073:12998 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:08:51.868 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=前景确认 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:51.873 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=862 → 核对受控窗口 862:1792024324080073:12998
+2026-10-17 01:08:51.873 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 862:1792024324080073:12998 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:08:51.878 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.apple.Terminal pid=862（受控目标=862/12998）
+2026-10-17 01:08:51.878 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 862:1792024324080073:12998 跳过（过渡/交换在途）：应用激活
+2026-10-17 01:08:52.033 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x4e, process, event] Vistile事件: measure 工作台:几何写入 160.3ms 写入读回一致
+2026-10-17 01:08:52.033 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 2263:1792024453428670:351 目标=54,40 1746x1129 写前=66,184 1505x973 读回=54,40 1746x1129 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:52.033 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=原主窗口回轨 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:52.043 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=提交 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:52.053 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 switching(2263:1792024453428670:351→862:1792024324080073:12998)→focused(862:1792024324080073:12998)，模式 workbench→workbench，过渡 空闲→空闲，由 mainSwitchCommitted
+2026-10-17 01:08:52.058 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x4f, process, event] Vistile事件: measure 工作台:主区交换 314.5ms 轨道
+2026-10-17 01:08:52.152 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 轨道卡片 顶栏#0 14114:1792024984274429:4967 主区=862:1792024324080073:12998 交换=空闲
+2026-10-17 01:08:52.152 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(862:1792024324080073:12998)→switching(862:1792024324080073:12998→14114:1792024984274429:4967)，模式 workbench→workbench，过渡 空闲→空闲，由 railCardSelected(顶栏#0, 14114:1792024984274429:4967)
+2026-10-17 01:08:52.154 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型内交换：2 张卡片，80ms
+2026-10-17 01:08:52.165 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=准备 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:52.243 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x50, process, event] Vistile事件: measure 过渡帧间隔p95·L 型内交换 8.3ms n=9 掉帧占比0.0% 最长连续=0
+2026-10-17 01:08:52.258 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x51, process, event] Vistile事件: measure 工作台:几何写入 85.7ms 写入读回一致
+2026-10-17 01:08:52.258 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=66,183 1505x973 写前=300,184 1481x800 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:52.258 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=目标进主区 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:52.305 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:08:52.305 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:08:52.312 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=前景确认 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:52.322 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:08:52.322 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:08:52.326 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.microsoft.VSCode pid=14114（受控目标=14114/4967）
+2026-10-17 01:08:52.326 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：应用激活
+2026-10-17 01:08:52.486 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [discover] discover queued: reconcile
+2026-10-17 01:08:52.536 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x52, process, event] Vistile事件: measure 工作台:几何写入 15.3ms 写入读回一致
+2026-10-17 01:08:52.536 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 862:1792024324080073:12998 目标=577,332 580x421 写前=66,184 1504x967 读回=577,332 580x421 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:52.536 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=原主窗口回轨 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:52.545 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=提交 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:52.550 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 switching(862:1792024324080073:12998→14114:1792024984274429:4967)→focused(14114:1792024984274429:4967)，模式 workbench→workbench，过渡 空闲→空闲，由 mainSwitchCommitted
+2026-10-17 01:08:52.550 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 862/12998 启动一轮捕获
+2026-10-17 01:08:52.554 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x53, process, event] Vistile事件: measure 工作台:主区交换 389.7ms 轨道
+2026-10-17 01:08:52.566 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 轨道卡片 侧栏#0 2263:1792024453428670:351 主区=14114:1792024984274429:4967 交换=空闲
+2026-10-17 01:08:52.566 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(14114:1792024984274429:4967)→switching(14114:1792024984274429:4967→2263:1792024453428670:351)，模式 workbench→workbench，过渡 空闲→空闲，由 railCardSelected(侧栏#0, 2263:1792024453428670:351)
+2026-10-17 01:08:52.568 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型内交换：2 张卡片，80ms
+2026-10-17 01:08:52.578 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=准备 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:52.605 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x54, process, event] Vistile事件: measure 工作台:几何写入 22.8ms 写入读回一致
+2026-10-17 01:08:52.605 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 2263:1792024453428670:351 目标=66,183 1505x973 写前=54,40 1746x1129 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:52.605 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=目标进主区 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:52.637 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:08:52.637 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:08:52.637 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:08:52.637 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:08:52.649 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x55, process, event] Vistile事件: measure 过渡帧间隔p95·L 型内交换 17.0ms n=4 掉帧占比25.0% 最长连续=1
+2026-10-17 01:08:52.692 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=前景确认 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:52.784 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.google.Chrome pid=2263（受控目标=2263/351）
+2026-10-17 01:08:52.784 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：应用激活
+2026-10-17 01:08:52.794 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x56, process, event] Vistile事件: measure 工作台:几何写入 97.1ms 写入读回一致
+2026-10-17 01:08:52.794 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=300,184 1481x800 写前=66,184 1505x973 读回=300,184 1481x800 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:52.794 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=原主窗口回轨 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:52.801 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=提交 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:52.850 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 switching(14114:1792024984274429:4967→2263:1792024453428670:351)→focused(2263:1792024453428670:351)，模式 workbench→workbench，过渡 空闲→空闲，由 mainSwitchCommitted
+2026-10-17 01:08:52.850 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:08:52.865 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x57, process, event] Vistile事件: measure 工作台:主区交换 290.9ms 轨道
+2026-10-17 01:08:52.911 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 轨道卡片 顶栏#0 862:1792024324080073:12998 主区=2263:1792024453428670:351 交换=空闲
+2026-10-17 01:08:52.911 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(2263:1792024453428670:351)→switching(2263:1792024453428670:351→862:1792024324080073:12998)，模式 workbench→workbench，过渡 空闲→空闲，由 railCardSelected(顶栏#0, 862:1792024324080073:12998)
+2026-10-17 01:08:52.915 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型内交换：2 张卡片，80ms
+2026-10-17 01:08:52.950 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=准备 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:52.999 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x58, process, event] Vistile事件: measure 过渡帧间隔p95·L 型内交换 13.7ms n=6 掉帧占比0.0% 最长连续=0
+2026-10-17 01:08:53.058 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x59, process, event] Vistile事件: measure 工作台:几何写入 97.9ms 应用按自身尺寸约束返回 66,184 1504x967
+2026-10-17 01:08:53.058 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 862:1792024324080073:12998 目标=66,183 1505x973 写前=577,332 580x421 读回=66,184 1504x967 size错误=0 position错误=0 结论=应用按自身尺寸约束返回 66,184 1504x967
+2026-10-17 01:08:53.058 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=目标进主区 对象=862:1792024324080073:12998 结论=受限：应用按自身尺寸约束返回 66,184 1504x967
+2026-10-17 01:08:53.084 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=862 → 核对受控窗口 862:1792024324080073:12998
+2026-10-17 01:08:53.084 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 862:1792024324080073:12998 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:08:53.099 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=862 → 核对受控窗口 862:1792024324080073:12998
+2026-10-17 01:08:53.099 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 862:1792024324080073:12998 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:08:53.108 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=前景确认 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:53.115 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.apple.Terminal pid=862（受控目标=862/12998）
+2026-10-17 01:08:53.115 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 862:1792024324080073:12998 跳过（过渡/交换在途）：应用激活
+2026-10-17 01:08:53.242 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x5a, process, event] Vistile事件: measure 工作台:几何写入 128.2ms 写入读回一致
+2026-10-17 01:08:53.242 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 2263:1792024453428670:351 目标=54,40 1746x1129 写前=66,184 1505x973 读回=54,40 1746x1129 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:53.243 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=原主窗口回轨 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:53.252 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=提交 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:53.259 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 switching(2263:1792024453428670:351→862:1792024324080073:12998)→focused(862:1792024324080073:12998)，模式 workbench→workbench，过渡 空闲→空闲，由 mainSwitchCommitted
+2026-10-17 01:08:53.264 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x5b, process, event] Vistile事件: measure 工作台:主区交换 334.5ms 轨道
+2026-10-17 01:08:53.326 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 轨道卡片 侧栏#0 14114:1792024984274429:4967 主区=862:1792024324080073:12998 交换=空闲
+2026-10-17 01:08:53.326 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(862:1792024324080073:12998)→switching(862:1792024324080073:12998→14114:1792024984274429:4967)，模式 workbench→workbench，过渡 空闲→空闲，由 railCardSelected(侧栏#0, 14114:1792024984274429:4967)
+2026-10-17 01:08:53.328 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型内交换：2 张卡片，80ms
+2026-10-17 01:08:53.336 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=准备 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:53.376 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x5c, process, event] Vistile事件: measure 工作台:几何写入 33.9ms 写入读回一致
+2026-10-17 01:08:53.376 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=66,183 1505x973 写前=300,184 1481x800 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:53.376 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=目标进主区 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:53.413 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:08:53.413 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:08:53.413 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x5d, process, event] Vistile事件: measure 过渡帧间隔p95·L 型内交换 16.7ms n=6 掉帧占比0.0% 最长连续=0
+2026-10-17 01:08:53.413 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:08:53.413 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:08:53.423 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=前景确认 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:53.459 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.microsoft.VSCode pid=14114（受控目标=14114/4967）
+2026-10-17 01:08:53.459 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：应用激活
+2026-10-17 01:08:53.525 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x5e, process, event] Vistile事件: measure 工作台:几何写入 93.2ms 写入读回一致
+2026-10-17 01:08:53.525 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 862:1792024324080073:12998 目标=577,332 580x421 写前=66,184 1504x967 读回=577,332 580x421 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:53.525 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=原主窗口回轨 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:53.592 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=提交 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:53.600 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 switching(862:1792024324080073:12998→14114:1792024984274429:4967)→focused(14114:1792024984274429:4967)，模式 workbench→workbench，过渡 空闲→空闲，由 mainSwitchCommitted
+2026-10-17 01:08:53.601 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 862/12998 启动一轮捕获
+2026-10-17 01:08:53.608 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x5f, process, event] Vistile事件: measure 工作台:主区交换 272.5ms 轨道
+2026-10-17 01:08:53.623 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 轨道卡片 顶栏#0 2263:1792024453428670:351 主区=14114:1792024984274429:4967 交换=空闲
+2026-10-17 01:08:53.628 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 2263:1792024453428670:351 身份暂未唯一，复核目录后重试
+2026-10-17 01:08:53.704 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [discover] discover queued: reconcile
+2026-10-17 01:08:53.868 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(14114:1792024984274429:4967)→switching(14114:1792024984274429:4967→2263:1792024453428670:351)，模式 workbench→workbench，过渡 空闲→空闲，由 railCardSelected(顶栏#0, 2263:1792024453428670:351)
+2026-10-17 01:08:53.870 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型内交换：2 张卡片，80ms
+2026-10-17 01:08:53.883 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=准备 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:53.905 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x60, process, event] Vistile事件: measure 工作台:几何写入 16.4ms 写入读回一致
+2026-10-17 01:08:53.905 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 2263:1792024453428670:351 目标=66,183 1505x973 写前=54,40 1746x1129 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:53.905 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=目标进主区 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:53.942 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:08:53.942 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:08:53.949 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:08:53.949 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:08:53.960 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x61, process, event] Vistile事件: measure 过渡帧间隔p95·L 型内交换 13.8ms n=5 掉帧占比20.0% 最长连续=1
+2026-10-17 01:08:54.059 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=前景确认 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:54.068 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.google.Chrome pid=2263（受控目标=2263/351）
+2026-10-17 01:08:54.068 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：应用激活
+2026-10-17 01:08:54.403 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x62, process, event] Vistile事件: measure 工作台:几何写入 335.1ms 写入读回一致
+2026-10-17 01:08:54.403 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=300,184 1481x800 写前=66,184 1505x973 读回=300,184 1481x800 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:08:54.403 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=原主窗口回轨 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:08:54.426 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=提交 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:08:54.432 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 switching(14114:1792024984274429:4967→2263:1792024453428670:351)→focused(2263:1792024453428670:351)，模式 workbench→workbench，过渡 空闲→空闲，由 mainSwitchCommitted
+2026-10-17 01:08:54.433 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:08:54.440 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x63, process, event] Vistile事件: measure 工作台:主区交换 558.0ms 轨道
+2026-10-17 01:08:54.452 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 轨道卡片 侧栏#0 862:1792024324080073:12998 主区=2263:1792024453428670:351 交换=空闲
+2026-10-17 01:08:54.453 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 862:1792024324080073:12998 身份暂未唯一，复核目录后重试
+2026-10-17 01:08:54.530 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:08:54.564 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:08:54.603 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:08:54.671 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:08:54.693 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:08:54.714 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:08:54.730 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [discover] discover failed: 窗口列表查询失败：用户拒绝了应用程序、窗口、显示器捕捉的TCC
+2026-10-17 01:08:54.730 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(2263:1792024453428670:351)→switching(2263:1792024453428670:351→862:1792024324080073:12998)，模式 workbench→workbench，过渡 空闲→空闲，由 railCardSelected(侧栏#0, 862:1792024324080073:12998)
+2026-10-17 01:08:54.731 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型内交换：2 张卡片，80ms
+2026-10-17 01:08:54.739 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=准备 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:54.746 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:08:54.796 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x64, process, event] Vistile事件: measure 工作台:几何写入 52.3ms 应用按自身尺寸约束返回 66,184 1504x967
+2026-10-17 01:08:54.796 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 862:1792024324080073:12998 目标=66,183 1505x973 写前=577,332 580x421 读回=66,184 1504x967 size错误=0 position错误=0 结论=应用按自身尺寸约束返回 66,184 1504x967
+2026-10-17 01:08:54.796 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=目标进主区 对象=862:1792024324080073:12998 结论=受限：应用按自身尺寸约束返回 66,184 1504x967
+2026-10-17 01:08:54.804 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=862 → 核对受控窗口 862:1792024324080073:12998
+2026-10-17 01:08:54.805 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 862:1792024324080073:12998 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:08:54.805 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=862 → 核对受控窗口 862:1792024324080073:12998
+2026-10-17 01:08:54.805 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 862:1792024324080073:12998 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:08:54.831 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=前景确认 对象=862:1792024324080073:12998 结论=成功
+2026-10-17 01:08:54.870 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:08:54.883 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.apple.Terminal pid=862（受控目标=862/12998）
+2026-10-17 01:08:54.883 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 862:1792024324080073:12998 跳过（过渡/交换在途）：应用激活
+2026-10-17 01:08:54.892 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x65, process, event] Vistile事件: measure 过渡帧间隔p95·L 型内交换 63.0ms n=3 掉帧占比66.7% 最长连续=1
+2026-10-17 01:08:54.898 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [discover] discover failed: 窗口列表查询失败：用户拒绝了应用程序、窗口、显示器捕捉的TCC
+2026-10-17 01:08:54.898 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [交换] 步骤=原主窗口回轨 对象=2263:1792024453428670:351 结论=被拒绝：拿不到 AX 句柄（身份未唯一确定）
+2026-10-17 01:08:54.937 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [workbench] 主区交换未完成：被拒绝：拿不到 AX 句柄（身份未唯一确定）
+2026-10-17 01:08:54.938 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 switching(2263:1792024453428670:351→862:1792024324080073:12998)→focused(2263:1792024453428670:351)，模式 workbench→workbench，过渡 空闲→空闲，由 mainSwitchFailed(被拒绝：拿不到 AX 句柄（身份未唯一确定）)
+2026-10-17 01:08:54.938 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [hint] 主窗口交换未完成：被拒绝：拿不到 AX 句柄（身份未唯一确定）
+2026-10-17 01:08:54.943 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x66, process, event] Vistile事件: measure 工作台:主区交换 204.6ms 轨道
+2026-10-17 01:08:55.222 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [discover] discover failed: 窗口列表查询失败：用户拒绝了应用程序、窗口、显示器捕捉的TCC
+2026-10-17 01:08:55.725 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [discover] discover failed: 窗口列表查询失败：用户拒绝了应用程序、窗口、显示器捕捉的TCC
+2026-10-17 01:09:02.534 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(2263:1792024453428670:351)→recovering，模式 workbench→workbench，过渡 空闲→空闲，由 returnShortcut
+2026-10-17 01:09:02.714 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [hint] 终端 的窗口尺寸未能恢复，请手动确认
+2026-10-17 01:09:02.715 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 recovering→hidden，模式 workbench→overview，过渡 空闲→空闲，由 restoreCompleted
+2026-10-17 01:09:02.718 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [hint] 有 1 个窗口的尺寸没恢复成功，下次启动会继续尝试
+2026-10-17 01:09:02.795 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 hidden→preparing，模式 overview→overview，过渡 空闲→空闲，由 globalShortcut
+2026-10-17 01:09:03.046 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 preparing→overview，模式 overview→overview，过渡 空闲→空闲，由 catalogUpdated
+2026-10-17 01:09:03.046 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:09:03.046 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 8561/11444 启动一轮捕获
+2026-10-17 01:09:03.067 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 总览卡片 14114:1792024984274429:4967 模式=总览
+2026-10-17 01:09:03.067 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 overview→expanding(14114:1792024984274429:4967)，模式 overview→overview，过渡 空闲→进入工作台(14114:1792024984274429:4967)，由 overviewCardSelected(14114:1792024984274429:4967)
+2026-10-17 01:09:03.074 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 总览→L 型：15 张卡片，100ms
+2026-10-17 01:09:03.212 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x67, process, event] Vistile事件: measure 过渡帧间隔p95·总览→L 型 19.0ms n=5 掉帧占比20.0% 最长连续=1
+2026-10-17 01:09:03.212 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x68, process, event] Vistile事件: measure 工作台:几何写入 113.9ms 写入读回一致
+2026-10-17 01:09:03.212 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=66,183 1505x973 写前=300,184 1481x800 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:09:03.238 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x69, process, event] Vistile事件: measure 工作台:进入主区 141.3ms 成功
+2026-10-17 01:09:03.238 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 进入工作台 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:09:03.238 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 expanding(14114:1792024984274429:4967)→focused(14114:1792024984274429:4967)，模式 overview→workbench，过渡 进入工作台(14114:1792024984274429:4967)→空闲，由 workbenchTransitionFinished
+2026-10-17 01:09:03.270 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.microsoft.VSCode pid=14114（受控目标=14114/4967）
+2026-10-17 01:09:03.270 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:09:03.271 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:09:03.368 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967（应用激活）：读回[14114:1792024984274429:4967]，仍在前台
+2026-10-17 01:09:03.368 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967（AX AXFocusedWindowChanged）：读回[14114:1792024984274429:4967]，仍在前台
+2026-10-17 01:09:03.368 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967（AX AXMainWindowChanged）：读回[14114:1792024984274429:4967]，仍在前台
+2026-10-17 01:09:03.598 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(14114:1792024984274429:4967)→collapsing(14114:1792024984274429:4967)，模式 workbench→workbench，过渡 空闲→返回总览，由 returnToOverviewRequested
+2026-10-17 01:09:03.600 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型→总览：15 张卡片，100ms
+2026-10-17 01:09:03.610 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 82289/20082 启动一轮捕获
+2026-10-17 01:09:03.641 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x6a, process, event] Vistile事件: measure 工作台:写回原尺寸 30.6ms 已恢复原尺寸
+2026-10-17 01:09:03.641 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写回] 14114:1792024984274429:4967 结论=已恢复原尺寸
+2026-10-17 01:09:03.641 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x6b, process, event] Vistile事件: measure 工作台:返回总览 30.6ms 成功
+2026-10-17 01:09:03.641 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 返回总览 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:09:03.641 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 collapsing(14114:1792024984274429:4967)→overview，模式 workbench→overview，过渡 返回总览→空闲，由 workbenchTransitionFinished
+2026-10-17 01:09:03.707 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x6c, process, event] Vistile事件: measure 过渡帧间隔p95·L 型→总览 15.2ms n=9 掉帧占比0.0% 最长连续=0
+2026-10-17 01:09:03.713 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:09:03.734 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 总览卡片 14114:1792024984274429:4967 模式=总览
+2026-10-17 01:09:03.734 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 overview→expanding(14114:1792024984274429:4967)，模式 overview→overview，过渡 空闲→进入工作台(14114:1792024984274429:4967)，由 overviewCardSelected(14114:1792024984274429:4967)
+2026-10-17 01:09:03.735 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 总览→L 型：15 张卡片，100ms
+2026-10-17 01:09:03.856 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x6d, process, event] Vistile事件: measure 工作台:几何写入 86.2ms 写入读回一致
+2026-10-17 01:09:03.856 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=66,183 1505x973 写前=300,184 1481x800 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:09:03.867 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x6e, process, event] Vistile事件: measure 过渡帧间隔p95·总览→L 型 17.6ms n=7 掉帧占比0.0% 最长连续=0
+2026-10-17 01:09:03.904 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x6f, process, event] Vistile事件: measure 工作台:进入主区 142.1ms 成功
+2026-10-17 01:09:03.904 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 进入工作台 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:09:03.904 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 expanding(14114:1792024984274429:4967)→focused(14114:1792024984274429:4967)，模式 overview→workbench，过渡 进入工作台(14114:1792024984274429:4967)→空闲，由 workbenchTransitionFinished
+2026-10-17 01:09:03.909 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 46686/22787 启动一轮捕获
+2026-10-17 01:09:04.191 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 96408/23948 启动一轮捕获
+2026-10-17 01:09:04.193 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(14114:1792024984274429:4967)→collapsing(14114:1792024984274429:4967)，模式 workbench→workbench，过渡 空闲→返回总览，由 returnToOverviewRequested
+2026-10-17 01:09:04.195 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型→总览：15 张卡片，100ms
+2026-10-17 01:09:04.203 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 40994/23960 启动一轮捕获
+2026-10-17 01:09:04.228 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x70, process, event] Vistile事件: measure 工作台:写回原尺寸 24.1ms 已恢复原尺寸
+2026-10-17 01:09:04.228 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写回] 14114:1792024984274429:4967 结论=已恢复原尺寸
+2026-10-17 01:09:04.228 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x71, process, event] Vistile事件: measure 工作台:返回总览 24.2ms 成功
+2026-10-17 01:09:04.228 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 返回总览 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:09:04.228 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 collapsing(14114:1792024984274429:4967)→overview，模式 workbench→overview，过渡 返回总览→空闲，由 workbenchTransitionFinished
+2026-10-17 01:09:04.303 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x72, process, event] Vistile事件: measure 过渡帧间隔p95·L 型→总览 20.4ms n=7 掉帧占比0.0% 最长连续=0
+2026-10-17 01:09:04.322 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 总览卡片 2263:1792024453428670:351 模式=总览
+2026-10-17 01:09:04.322 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 overview→expanding(2263:1792024453428670:351)，模式 overview→overview，过渡 空闲→进入工作台(2263:1792024453428670:351)，由 overviewCardSelected(2263:1792024453428670:351)
+2026-10-17 01:09:04.330 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 总览→L 型：15 张卡片，100ms
+2026-10-17 01:09:04.410 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:09:04.410 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x73, process, event] Vistile事件: measure 工作台:几何写入 60.6ms 写入读回一致
+2026-10-17 01:09:04.410 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 2263:1792024453428670:351 目标=66,183 1505x973 写前=54,40 1746x1129 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:09:04.411 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:09:04.411 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:09:04.411 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:09:04.411 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:09:04.456 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x74, process, event] Vistile事件: measure 工作台:进入主区 112.0ms 成功
+2026-10-17 01:09:04.456 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 进入工作台 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:09:04.457 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 expanding(2263:1792024453428670:351)→focused(2263:1792024453428670:351)，模式 overview→workbench，过渡 进入工作台(2263:1792024453428670:351)→空闲，由 workbenchTransitionFinished
+2026-10-17 01:09:04.508 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.google.Chrome pid=2263（受控目标=2263/351）
+2026-10-17 01:09:04.508 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x75, process, event] Vistile事件: measure 过渡帧间隔p95·总览→L 型 57.9ms n=3 掉帧占比66.7% 最长连续=2
+2026-10-17 01:09:04.512 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(2263:1792024453428670:351)→collapsing(2263:1792024453428670:351)，模式 workbench→workbench，过渡 空闲→返回总览，由 returnToOverviewRequested
+2026-10-17 01:09:04.517 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型→总览：15 张卡片，100ms
+2026-10-17 01:09:04.620 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x76, process, event] Vistile事件: measure 过渡帧间隔p95·L 型→总览 8.3ms n=5 掉帧占比0.0% 最长连续=0
+2026-10-17 01:09:04.644 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x77, process, event] Vistile事件: measure 工作台:写回原尺寸 69.3ms 已恢复原尺寸
+2026-10-17 01:09:04.644 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写回] 2263:1792024453428670:351 结论=已恢复原尺寸
+2026-10-17 01:09:04.644 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x78, process, event] Vistile事件: measure 工作台:返回总览 69.5ms 成功
+2026-10-17 01:09:04.644 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 返回总览 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:09:04.644 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 collapsing(2263:1792024453428670:351)→overview，模式 workbench→overview，过渡 返回总览→空闲，由 workbenchTransitionFinished
+2026-10-17 01:09:04.676 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 总览卡片 14114:1792024984274429:4967 模式=总览
+2026-10-17 01:09:04.676 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 overview→expanding(14114:1792024984274429:4967)，模式 overview→overview，过渡 空闲→进入工作台(14114:1792024984274429:4967)，由 overviewCardSelected(14114:1792024984274429:4967)
+2026-10-17 01:09:04.679 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 总览→L 型：15 张卡片，100ms
+2026-10-17 01:09:04.906 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x79, process, event] Vistile事件: measure 工作台:几何写入 211.5ms 写入读回一致
+2026-10-17 01:09:04.906 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=66,183 1505x973 写前=300,184 1481x800 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:09:04.939 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x7a, process, event] Vistile事件: measure 工作台:进入主区 248.6ms 成功
+2026-10-17 01:09:04.939 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 进入工作台 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:09:04.939 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 expanding(14114:1792024984274429:4967)→focused(14114:1792024984274429:4967)，模式 overview→workbench，过渡 进入工作台(14114:1792024984274429:4967)→空闲，由 workbenchTransitionFinished
+2026-10-17 01:09:04.984 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.microsoft.VSCode pid=14114（受控目标=14114/4967）
+2026-10-17 01:09:04.990 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:09:04.990 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x7b, process, event] Vistile事件: measure 过渡帧间隔p95·总览→L 型 13.1ms n=4 掉帧占比25.0% 最长连续=1
+2026-10-17 01:09:05.022 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 50200/24285 启动一轮捕获
+2026-10-17 01:09:05.023 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:09:05.081 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967（AX AXFocusedWindowChanged）：读回[14114:1792024984274429:4967]，仍在前台
+2026-10-17 01:09:05.083 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(14114:1792024984274429:4967)→collapsing(14114:1792024984274429:4967)，模式 workbench→workbench，过渡 空闲→返回总览，由 returnToOverviewRequested
+2026-10-17 01:09:05.084 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型→总览：15 张卡片，100ms
+2026-10-17 01:09:05.089 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967（应用激活）：读回[14114:1792024984274429:4967]，仍在前台
+2026-10-17 01:09:05.089 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967（AX AXMainWindowChanged）：读回[14114:1792024984274429:4967]，仍在前台
+2026-10-17 01:09:05.143 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x7c, process, event] Vistile事件: measure 工作台:写回原尺寸 52.7ms 已恢复原尺寸
+2026-10-17 01:09:05.143 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写回] 14114:1792024984274429:4967 结论=已恢复原尺寸
+2026-10-17 01:09:05.143 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x7d, process, event] Vistile事件: measure 工作台:返回总览 52.8ms 成功
+2026-10-17 01:09:05.143 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 返回总览 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:09:05.143 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 collapsing(14114:1792024984274429:4967)→overview，模式 workbench→overview，过渡 返回总览→空闲，由 workbenchTransitionFinished
+2026-10-17 01:09:05.187 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x7e, process, event] Vistile事件: measure 过渡帧间隔p95·L 型→总览 12.0ms n=8 掉帧占比0.0% 最长连续=0
+2026-10-17 01:09:05.219 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 总览卡片 2263:1792024453428670:351 模式=总览
+2026-10-17 01:09:05.219 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 overview→expanding(2263:1792024453428670:351)，模式 overview→overview，过渡 空闲→进入工作台(2263:1792024453428670:351)，由 overviewCardSelected(2263:1792024453428670:351)
+2026-10-17 01:09:05.221 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 总览→L 型：15 张卡片，100ms
+2026-10-17 01:09:05.513 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x7f, process, event] Vistile事件: measure 过渡帧间隔p95·总览→L 型 9.1ms n=5 掉帧占比20.0% 最长连续=1
+2026-10-17 01:09:05.546 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x80, process, event] Vistile事件: measure 工作台:几何写入 305.9ms 写入读回一致
+2026-10-17 01:09:05.547 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 2263:1792024453428670:351 目标=66,183 1505x973 写前=54,40 1746x1129 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:09:05.594 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:09:05.594 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:09:05.594 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:09:05.594 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:09:05.631 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x81, process, event] Vistile事件: measure 工作台:进入主区 395.3ms 成功
+2026-10-17 01:09:05.631 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 进入工作台 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:09:05.632 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 expanding(2263:1792024453428670:351)→focused(2263:1792024453428670:351)，模式 overview→workbench，过渡 进入工作台(2263:1792024453428670:351)→空闲，由 workbenchTransitionFinished
+2026-10-17 01:09:05.725 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.google.Chrome pid=2263（受控目标=2263/351）
+2026-10-17 01:09:05.907 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(2263:1792024453428670:351)→collapsing(2263:1792024453428670:351)，模式 workbench→workbench，过渡 空闲→返回总览，由 returnToOverviewRequested
+2026-10-17 01:09:05.910 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型→总览：15 张卡片，100ms
+2026-10-17 01:09:05.920 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351（应用激活）：读回[2263:1792024453428670:351]，仍在前台
+2026-10-17 01:09:06.016 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x82, process, event] Vistile事件: measure 工作台:写回原尺寸 80.9ms 已恢复原尺寸
+2026-10-17 01:09:06.016 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写回] 2263:1792024453428670:351 结论=已恢复原尺寸
+2026-10-17 01:09:06.016 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x83, process, event] Vistile事件: measure 工作台:返回总览 81.0ms 成功
+2026-10-17 01:09:06.016 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 返回总览 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:09:06.016 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 collapsing(2263:1792024453428670:351)→overview，模式 workbench→overview，过渡 返回总览→空闲，由 workbenchTransitionFinished
+2026-10-17 01:09:06.022 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x84, process, event] Vistile事件: measure 过渡帧间隔p95·L 型→总览 8.3ms n=9 掉帧占比0.0% 最长连续=0
+2026-10-17 01:09:06.067 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 总览卡片 14114:1792024984274429:4967 模式=总览
+2026-10-17 01:09:06.067 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 overview→expanding(14114:1792024984274429:4967)，模式 overview→overview，过渡 空闲→进入工作台(14114:1792024984274429:4967)，由 overviewCardSelected(14114:1792024984274429:4967)
+2026-10-17 01:09:06.068 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 总览→L 型：15 张卡片，100ms
+2026-10-17 01:09:06.090 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 50200/24287 启动一轮捕获
+2026-10-17 01:09:06.113 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x85, process, event] Vistile事件: measure 工作台:几何写入 26.5ms 写入读回一致
+2026-10-17 01:09:06.113 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=66,183 1505x973 写前=300,184 1481x800 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:09:06.134 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:09:06.134 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:09:06.150 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x86, process, event] Vistile事件: measure 工作台:进入主区 64.3ms 成功
+2026-10-17 01:09:06.150 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 进入工作台 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:09:06.150 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 expanding(14114:1792024984274429:4967)→focused(14114:1792024984274429:4967)，模式 overview→workbench，过渡 进入工作台(14114:1792024984274429:4967)→空闲，由 workbenchTransitionFinished
+2026-10-17 01:09:06.243 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.microsoft.VSCode pid=14114（受控目标=14114/4967）
+2026-10-17 01:09:06.276 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(14114:1792024984274429:4967)→collapsing(14114:1792024984274429:4967)，模式 workbench→workbench，过渡 空闲→返回总览，由 returnToOverviewRequested
+2026-10-17 01:09:06.280 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型→总览：15 张卡片，100ms
+2026-10-17 01:09:06.321 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:09:06.321 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:09:06.328 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x87, process, event] Vistile事件: measure 工作台:写回原尺寸 6.6ms 窗口已在原位置
+2026-10-17 01:09:06.328 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写回] 14114:1792024984274429:4967 结论=窗口已在原位置
+2026-10-17 01:09:06.328 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x88, process, event] Vistile事件: measure 工作台:返回总览 6.7ms 成功
+2026-10-17 01:09:06.328 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 返回总览 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:09:06.328 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 collapsing(14114:1792024984274429:4967)→overview，模式 workbench→overview，过渡 返回总览→空闲，由 workbenchTransitionFinished
+2026-10-17 01:09:06.415 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 总览卡片 2263:1792024453428670:351 模式=总览
+2026-10-17 01:09:06.415 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 overview→expanding(2263:1792024453428670:351)，模式 overview→overview，过渡 空闲→进入工作台(2263:1792024453428670:351)，由 overviewCardSelected(2263:1792024453428670:351)
+2026-10-17 01:09:06.416 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 总览→L 型：15 张卡片，100ms
+2026-10-17 01:09:06.658 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x89, process, event] Vistile事件: measure 过渡帧间隔p95·总览→L 型 9.6ms n=8 掉帧占比12.5% 最长连续=1
+2026-10-17 01:09:06.670 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x8a, process, event] Vistile事件: measure 工作台:几何写入 222.7ms 写入读回一致
+2026-10-17 01:09:06.670 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 2263:1792024453428670:351 目标=66,183 1505x973 写前=54,40 1746x1129 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:09:06.880 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:09:06.880 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:09:06.881 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:09:06.881 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:09:07.060 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x8b, process, event] Vistile事件: measure 工作台:进入主区 630.0ms 成功
+2026-10-17 01:09:07.060 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 进入工作台 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:09:07.061 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 expanding(2263:1792024453428670:351)→focused(2263:1792024453428670:351)，模式 overview→workbench，过渡 进入工作台(2263:1792024453428670:351)→空闲，由 workbenchTransitionFinished
+2026-10-17 01:09:07.097 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.google.Chrome pid=2263（受控目标=2263/351）
+2026-10-17 01:09:07.170 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(2263:1792024453428670:351)→collapsing(2263:1792024453428670:351)，模式 workbench→workbench，过渡 空闲→返回总览，由 returnToOverviewRequested
+2026-10-17 01:09:07.172 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型→总览：15 张卡片，100ms
+2026-10-17 01:09:07.211 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351（应用激活）：读回[2263:1792024453428670:351]，仍在前台
+2026-10-17 01:09:07.281 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x8c, process, event] Vistile事件: measure 过渡帧间隔p95·L 型→总览 8.3ms n=6 掉帧占比0.0% 最长连续=0
+2026-10-17 01:09:07.283 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x8d, process, event] Vistile事件: measure 工作台:写回原尺寸 76.4ms 已恢复原尺寸
+2026-10-17 01:09:07.283 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写回] 2263:1792024453428670:351 结论=已恢复原尺寸
+2026-10-17 01:09:07.283 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x8e, process, event] Vistile事件: measure 工作台:返回总览 76.5ms 成功
+2026-10-17 01:09:07.283 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 返回总览 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:09:07.283 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 collapsing(2263:1792024453428670:351)→overview，模式 workbench→overview，过渡 返回总览→空闲，由 workbenchTransitionFinished
+2026-10-17 01:09:07.300 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:09:07.333 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 总览卡片 14114:1792024984274429:4967 模式=总览
+2026-10-17 01:09:07.334 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 overview→expanding(14114:1792024984274429:4967)，模式 overview→overview，过渡 空闲→进入工作台(14114:1792024984274429:4967)，由 overviewCardSelected(14114:1792024984274429:4967)
+2026-10-17 01:09:07.334 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 总览→L 型：15 张卡片，100ms
+2026-10-17 01:09:07.485 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x8f, process, event] Vistile事件: measure 工作台:几何写入 23.8ms 写入读回一致
+2026-10-17 01:09:07.485 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=66,183 1505x973 写前=66,184 1505x973 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:09:07.485 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:09:07.486 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:09:07.486 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:09:07.486 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:09:07.505 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x90, process, event] Vistile事件: measure 工作台:进入主区 158.2ms 成功
+2026-10-17 01:09:07.505 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 进入工作台 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:09:07.505 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 expanding(14114:1792024984274429:4967)→focused(14114:1792024984274429:4967)，模式 overview→workbench，过渡 进入工作台(14114:1792024984274429:4967)→空闲，由 workbenchTransitionFinished
+2026-10-17 01:09:07.549 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.microsoft.VSCode pid=14114（受控目标=14114/4967）
+2026-10-17 01:09:07.596 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(14114:1792024984274429:4967)→collapsing(14114:1792024984274429:4967)，模式 workbench→workbench，过渡 空闲→返回总览，由 returnToOverviewRequested
+2026-10-17 01:09:07.597 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型→总览：15 张卡片，100ms
+2026-10-17 01:09:07.638 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967（应用激活）：读回[14114:1792024984274429:4967]，仍在前台
+2026-10-17 01:09:07.641 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x91, process, event] Vistile事件: measure 工作台:写回原尺寸 3.5ms 窗口已在原位置
+2026-10-17 01:09:07.641 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写回] 14114:1792024984274429:4967 结论=窗口已在原位置
+2026-10-17 01:09:07.641 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x92, process, event] Vistile事件: measure 工作台:返回总览 3.5ms 成功
+2026-10-17 01:09:07.641 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 返回总览 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:09:07.641 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 collapsing(14114:1792024984274429:4967)→overview，模式 workbench→overview，过渡 返回总览→空闲，由 workbenchTransitionFinished
+2026-10-17 01:09:07.699 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x93, process, event] Vistile事件: measure 过渡帧间隔p95·L 型→总览 8.3ms n=7 掉帧占比0.0% 最长连续=0
+2026-10-17 01:09:07.722 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 总览卡片 2263:1792024453428670:351 模式=总览
+2026-10-17 01:09:07.722 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 overview→expanding(2263:1792024453428670:351)，模式 overview→overview，过渡 空闲→进入工作台(2263:1792024453428670:351)，由 overviewCardSelected(2263:1792024453428670:351)
+2026-10-17 01:09:07.723 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 总览→L 型：15 张卡片，100ms
+2026-10-17 01:09:07.850 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x94, process, event] Vistile事件: measure 过渡帧间隔p95·总览→L 型 12.7ms n=4 掉帧占比25.0% 最长连续=1
+2026-10-17 01:09:07.983 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x95, process, event] Vistile事件: measure 工作台:几何写入 244.2ms 写入读回一致
+2026-10-17 01:09:07.983 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 2263:1792024453428670:351 目标=66,183 1505x973 写前=54,40 1746x1129 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:09:08.122 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x96, process, event] Vistile事件: measure 工作台:进入主区 383.6ms 成功
+2026-10-17 01:09:08.122 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 进入工作台 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:09:08.122 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 expanding(2263:1792024453428670:351)→focused(2263:1792024453428670:351)，模式 overview→workbench，过渡 进入工作台(2263:1792024453428670:351)→空闲，由 workbenchTransitionFinished
+2026-10-17 01:09:08.266 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.google.Chrome pid=2263（受控目标=2263/351）
+2026-10-17 01:09:08.269 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(2263:1792024453428670:351)→collapsing(2263:1792024453428670:351)，模式 workbench→workbench，过渡 空闲→返回总览，由 returnToOverviewRequested
+2026-10-17 01:09:08.277 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型→总览：15 张卡片，100ms
+2026-10-17 01:09:08.307 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:09:08.307 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:09:08.314 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:09:08.314 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:09:08.400 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x97, process, event] Vistile事件: measure 过渡帧间隔p95·L 型→总览 9.8ms n=7 掉帧占比0.0% 最长连续=0
+2026-10-17 01:09:08.406 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x98, process, event] Vistile事件: measure 工作台:写回原尺寸 97.4ms 已恢复原尺寸
+2026-10-17 01:09:08.407 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写回] 2263:1792024453428670:351 结论=已恢复原尺寸
+2026-10-17 01:09:08.407 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x99, process, event] Vistile事件: measure 工作台:返回总览 97.5ms 成功
+2026-10-17 01:09:08.407 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 返回总览 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:09:08.407 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 collapsing(2263:1792024453428670:351)→overview，模式 workbench→overview，过渡 返回总览→空闲，由 workbenchTransitionFinished
+2026-10-17 01:09:08.454 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 总览卡片 14114:1792024984274429:4967 模式=总览
+2026-10-17 01:09:08.454 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 overview→expanding(14114:1792024984274429:4967)，模式 overview→overview，过渡 空闲→进入工作台(14114:1792024984274429:4967)，由 overviewCardSelected(14114:1792024984274429:4967)
+2026-10-17 01:09:08.455 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 总览→L 型：15 张卡片，100ms
+2026-10-17 01:09:08.465 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 50200/24288 启动一轮捕获
+2026-10-17 01:09:08.616 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x9a, process, event] Vistile事件: measure 过渡帧间隔p95·总览→L 型 8.6ms n=5 掉帧占比20.0% 最长连续=1
+2026-10-17 01:09:08.627 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x9b, process, event] Vistile事件: measure 工作台:几何写入 134.4ms 写入读回一致
+2026-10-17 01:09:08.627 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=66,183 1505x973 写前=66,184 1505x973 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:09:08.627 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:09:08.627 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:09:08.627 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:09:08.627 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:09:08.642 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x9c, process, event] Vistile事件: measure 工作台:进入主区 177.1ms 成功
+2026-10-17 01:09:08.642 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 进入工作台 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:09:08.642 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 expanding(14114:1792024984274429:4967)→focused(14114:1792024984274429:4967)，模式 overview→workbench，过渡 进入工作台(14114:1792024984274429:4967)→空闲，由 workbenchTransitionFinished
+2026-10-17 01:09:08.718 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.microsoft.VSCode pid=14114（受控目标=14114/4967）
+2026-10-17 01:09:08.750 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(14114:1792024984274429:4967)→collapsing(14114:1792024984274429:4967)，模式 workbench→workbench，过渡 空闲→返回总览，由 returnToOverviewRequested
+2026-10-17 01:09:08.751 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型→总览：15 张卡片，100ms
+2026-10-17 01:09:08.758 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967（应用激活）：读回[14114:1792024984274429:4967]，仍在前台
+2026-10-17 01:09:08.759 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x9d, process, event] Vistile事件: measure 工作台:写回原尺寸 0.8ms 窗口已在原位置
+2026-10-17 01:09:08.759 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写回] 14114:1792024984274429:4967 结论=窗口已在原位置
+2026-10-17 01:09:08.759 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0x9e, process, event] Vistile事件: measure 工作台:返回总览 0.9ms 成功
+2026-10-17 01:09:08.759 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 返回总览 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:09:08.759 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 collapsing(14114:1792024984274429:4967)→overview，模式 workbench→overview，过渡 返回总览→空闲，由 workbenchTransitionFinished
+2026-10-17 01:09:09.006 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 总览卡片 2263:1792024453428670:351 模式=总览
+2026-10-17 01:09:09.006 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 overview→expanding(2263:1792024453428670:351)，模式 overview→overview，过渡 空闲→进入工作台(2263:1792024453428670:351)，由 overviewCardSelected(2263:1792024453428670:351)
+2026-10-17 01:09:09.007 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 总览→L 型：15 张卡片，100ms
+2026-10-17 01:09:09.120 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0xa0, process, event] Vistile事件: measure 过渡帧间隔p95·总览→L 型 10.3ms n=8 掉帧占比0.0% 最长连续=0
+2026-10-17 01:09:09.441 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0xa1, process, event] Vistile事件: measure 工作台:几何写入 409.0ms 写入读回一致
+2026-10-17 01:09:09.441 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 2263:1792024453428670:351 目标=66,183 1505x973 写前=54,40 1746x1129 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:09:09.460 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:09:09.460 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:09:09.466 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=2263 → 核对受控窗口 2263:1792024453428670:351
+2026-10-17 01:09:09.467 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:09:09.537 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0xa2, process, event] Vistile事件: measure 工作台:进入主区 506.4ms 成功
+2026-10-17 01:09:09.537 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 进入工作台 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:09:09.539 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 expanding(2263:1792024453428670:351)→focused(2263:1792024453428670:351)，模式 overview→workbench，过渡 进入工作台(2263:1792024453428670:351)→空闲，由 workbenchTransitionFinished
+2026-10-17 01:09:09.568 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.google.Chrome pid=2263（受控目标=2263/351）
+2026-10-17 01:09:09.568 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:09:09.614 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 2263:1792024453428670:351（应用激活）：读回[2263:1792024453428670:351]，仍在前台
+2026-10-17 01:09:09.637 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(2263:1792024453428670:351)→collapsing(2263:1792024453428670:351)，模式 workbench→workbench，过渡 空闲→返回总览，由 returnToOverviewRequested
+2026-10-17 01:09:09.638 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型→总览：15 张卡片，100ms
+2026-10-17 01:09:09.720 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0xa3, process, event] Vistile事件: measure 工作台:写回原尺寸 54.8ms 已恢复原尺寸
+2026-10-17 01:09:09.720 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写回] 2263:1792024453428670:351 结论=已恢复原尺寸
+2026-10-17 01:09:09.720 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0xa4, process, event] Vistile事件: measure 工作台:返回总览 54.9ms 成功
+2026-10-17 01:09:09.720 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 返回总览 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 01:09:09.720 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 collapsing(2263:1792024453428670:351)→overview，模式 workbench→overview，过渡 返回总览→空闲，由 workbenchTransitionFinished
+2026-10-17 01:09:09.761 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0xa5, process, event] Vistile事件: measure 过渡帧间隔p95·L 型→总览 29.4ms n=7 掉帧占比14.3% 最长连续=1
+2026-10-17 01:09:09.794 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 总览卡片 14114:1792024984274429:4967 模式=总览
+2026-10-17 01:09:09.794 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 overview→expanding(14114:1792024984274429:4967)，模式 overview→overview，过渡 空闲→进入工作台(14114:1792024984274429:4967)，由 overviewCardSelected(14114:1792024984274429:4967)
+2026-10-17 01:09:09.803 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 总览→L 型：15 张卡片，100ms
+2026-10-17 01:09:09.859 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0xa6, process, event] Vistile事件: measure 工作台:几何写入 12.7ms 写入读回一致
+2026-10-17 01:09:09.859 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=66,183 1505x973 写前=66,184 1505x973 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 01:09:09.862 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXFocusedWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:09:09.862 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：AX AXFocusedWindowChanged
+2026-10-17 01:09:09.862 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] AX 焦点通知 AXMainWindowChanged pid=14114 → 核对受控窗口 14114:1792024984274429:4967
+2026-10-17 01:09:09.862 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 核对受控窗口 14114:1792024984274429:4967 跳过（过渡/交换在途）：AX AXMainWindowChanged
+2026-10-17 01:09:09.912 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0xa7, process, event] Vistile事件: measure 过渡帧间隔p95·总览→L 型 8.3ms n=8 掉帧占比0.0% 最长连续=0
+2026-10-17 01:09:09.929 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0xa8, process, event] Vistile事件: measure 工作台:进入主区 88.5ms 成功
+2026-10-17 01:09:09.929 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 进入工作台 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:09:09.929 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 expanding(14114:1792024984274429:4967)→focused(14114:1792024984274429:4967)，模式 overview→workbench，过渡 进入工作台(14114:1792024984274429:4967)→空闲，由 workbenchTransitionFinished
+2026-10-17 01:09:09.986 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [focus] 应用激活 com.microsoft.VSCode pid=14114（受控目标=14114/4967）
+2026-10-17 01:09:09.986 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 focused(14114:1792024984274429:4967)→collapsing(14114:1792024984274429:4967)，模式 workbench→workbench，过渡 空闲→返回总览，由 returnToOverviewRequested
+2026-10-17 01:09:09.987 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 L 型→总览：15 张卡片，100ms
+2026-10-17 01:09:10.012 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0xa9, process, event] Vistile事件: measure 工作台:写回原尺寸 19.1ms 窗口已在原位置
+2026-10-17 01:09:10.012 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [写回] 14114:1792024984274429:4967 结论=窗口已在原位置
+2026-10-17 01:09:10.012 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0xaa, process, event] Vistile事件: measure 工作台:返回总览 19.2ms 成功
+2026-10-17 01:09:10.012 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 返回总览 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 01:09:10.012 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 collapsing(14114:1792024984274429:4967)→overview，模式 workbench→overview，过渡 返回总览→空闲，由 workbenchTransitionFinished
+2026-10-17 01:09:10.225 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:09:10.234 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0xab, process, event] Vistile事件: measure 过渡帧间隔p95·L 型→总览 50.7ms n=3 掉帧占比66.7% 最长连续=2
+2026-10-17 01:09:10.237 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [点击] 总览卡片 2263:1792024453428670:351 模式=总览
+2026-10-17 01:09:10.237 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 overview→expanding(2263:1792024453428670:351)，模式 overview→overview，过渡 空闲→进入工作台(2263:1792024453428670:351)，由 overviewCardSelected(2263:1792024453428670:351)
+2026-10-17 01:09:10.237 Df Vistile[82475:c26f62] [com.misswell.Vistile:ui] [过渡] 播放 总览→L 型：15 张卡片，100ms
+2026-10-17 01:09:10.366 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [discover] discover failed: 窗口列表查询失败：用户拒绝了应用程序、窗口、显示器捕捉的TCC
+2026-10-17 01:09:10.366 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0xac, process, event] Vistile事件: measure 工作台:进入主区 106.2ms 被拒绝：拿不到 AX 句柄（身份未唯一确定）
+2026-10-17 01:09:10.366 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [过渡] 进入工作台 对象=2263:1792024453428670:351 结论=被拒绝：拿不到 AX 句柄（身份未唯一确定）
+2026-10-17 01:09:10.367 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 01:09:10.406 Sp Vistile[82475:c26f62] [com.misswell.Vistile:session] [spid 0xad, process, event] Vistile事件: measure 过渡帧间隔p95·总览→L 型 24.2ms n=4 掉帧占比25.0% 最长连续=1
+2026-10-17 01:09:10.414 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [discover] discover failed: 窗口列表查询失败：用户拒绝了应用程序、窗口、显示器捕捉的TCC
+2026-10-17 01:09:10.414 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [workbench] 进入工作台未完成：被拒绝：拿不到 AX 句柄（身份未唯一确定）
+2026-10-17 01:09:10.414 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 expanding(2263:1792024453428670:351)→overview，模式 overview→overview，过渡 进入工作台(2263:1792024453428670:351)→空闲，由 workbenchTransitionFinished
+2026-10-17 01:09:10.417 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [hint] 这次切换没有完成：被拒绝：拿不到 AX 句柄（身份未唯一确定）
+2026-10-17 01:09:10.470 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [discover] discover failed: 窗口列表查询失败：用户拒绝了应用程序、窗口、显示器捕捉的TCC
+2026-10-17 01:09:10.817 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [discover] discover failed: 窗口列表查询失败：用户拒绝了应用程序、窗口、显示器捕捉的TCC
+2026-10-17 01:09:22.355 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 overview→recovering，模式 overview→overview，过渡 空闲→空闲，由 quitRequested
+2026-10-17 01:09:22.377 Db Vistile[82475:c26f62] [com.misswell.Vistile:session] [session] 阶段 recovering→hidden，模式 overview→overview，过渡 空闲→空闲，由 restoreCompleted
+2026-10-17 01:09:24.386 I  Vistile[82475:c26f62] [com.misswell.Vistile:session] 退出恢复 终端: 窗口已在原位置

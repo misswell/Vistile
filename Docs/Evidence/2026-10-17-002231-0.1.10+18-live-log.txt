@@ -1,0 +1,491 @@
+2026-10-17 00:22:06.036 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0x2, process, begin] Vistile区间: begin 启动
+2026-10-17 00:22:06.065 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [app] 协调层就绪：层级策略 普通层级 + 激活 + AX Raise，密度 standard
+2026-10-17 00:22:06.134 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0x2, process,   end] Vistile区间: end 启动
+2026-10-17 00:22:06.137 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [keyboard] 总览需要键盘，但当前没有可用面板
+2026-10-17 00:22:06.382 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 2263/351 启动一轮捕获
+2026-10-17 00:22:06.382 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 19645/4262 启动一轮捕获
+2026-10-17 00:22:06.382 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:06.619 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:06.641 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:06.652 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:06.662 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:06.669 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:06.761 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:06.788 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:06.803 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:06.809 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 00:22:06.838 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:06.847 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 8561/11444 启动一轮捕获
+2026-10-17 00:22:06.881 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:06.891 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 11768/11520 启动一轮捕获
+2026-10-17 00:22:06.922 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:06.994 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 862/12998 启动一轮捕获
+2026-10-17 00:22:06.994 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:07.003 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 79172/19577 启动一轮捕获
+2026-10-17 00:22:07.085 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:07.094 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 82289/20082 启动一轮捕获
+2026-10-17 00:22:07.135 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:07.145 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 63286/21709 启动一轮捕获
+2026-10-17 00:22:07.196 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:07.205 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 46686/22787 启动一轮捕获
+2026-10-17 00:22:07.268 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:07.287 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 766/23074 启动一轮捕获
+2026-10-17 00:22:07.390 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:07.402 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 96408/23948 启动一轮捕获
+2026-10-17 00:22:07.496 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:07.533 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:07.547 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:07.562 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:07.576 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:07.589 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:07.600 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:07.620 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:07.638 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:07.714 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:07.992 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:08.138 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:08.362 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:08.641 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:08.682 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:08.698 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:08.723 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:08.730 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:08.739 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:08.756 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:09.099 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:10.033 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 2263/351 启动一轮捕获
+2026-10-17 00:22:10.033 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 19645/4262 启动一轮捕获
+2026-10-17 00:22:10.033 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:10.080 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:10.092 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:10.099 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:10.112 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:10.124 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:10.136 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:10.141 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [点击] 总览卡片 14114:1792024984274429:4967 模式=总览
+2026-10-17 00:22:10.167 Df Vistile[881:bd9615] [com.misswell.Vistile:ui] [过渡] 播放 总览→L 型：19 张卡片，240ms
+2026-10-17 00:22:10.167 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:10.329 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:10.336 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:10.343 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 8561/11444 启动一轮捕获
+2026-10-17 00:22:10.343 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 11768/11520 启动一轮捕获
+2026-10-17 00:22:10.344 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:10.408 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0x7, process, event] Vistile事件: measure 过渡帧间隔p95·总览→L 型 8.3ms n=3 掉帧占比0.0% 最长连续=0
+2026-10-17 00:22:10.490 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0x8, process, event] Vistile事件: measure 工作台:几何写入 112.2ms 写入读回一致
+2026-10-17 00:22:10.490 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=66,183 1505x973 写前=300,184 1481x800 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 00:22:10.492 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:10.515 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:10.532 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:10.549 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0x9, process, event] Vistile事件: measure 工作台:进入主区 213.3ms 成功
+2026-10-17 00:22:10.549 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [过渡] 进入工作台 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 00:22:10.553 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:10.997 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 2263/351 启动一轮捕获
+2026-10-17 00:22:10.997 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 19645/4262 启动一轮捕获
+2026-10-17 00:22:10.997 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.032 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.038 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.043 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.048 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.070 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.075 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.080 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.088 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.093 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.098 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.112 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.117 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.123 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.128 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.133 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.137 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.141 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.147 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.152 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.161 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.172 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.179 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.185 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.190 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.198 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.205 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.211 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.216 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.222 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.229 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.232 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.237 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.241 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.247 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.252 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.256 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.263 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.272 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.276 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.281 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.285 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.289 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.294 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.299 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.305 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.312 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.319 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.329 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.334 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.339 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.346 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.353 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.357 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.361 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.365 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.369 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.374 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.378 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.382 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.386 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.390 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.395 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.400 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.405 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.410 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.415 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.422 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.428 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.433 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.437 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.442 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.447 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.455 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.462 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.466 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.470 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.475 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.479 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.484 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.488 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.492 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.497 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.501 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.506 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.510 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.514 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.518 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.523 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.529 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.536 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.542 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.546 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.550 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.555 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.559 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.563 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.568 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.572 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.580 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.586 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.590 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.594 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.601 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.608 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.615 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.621 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.627 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.634 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.640 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.647 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 00:22:11.648 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:11.656 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 8561/11444 启动一轮捕获
+2026-10-17 00:22:11.720 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [点击] 总览卡片 14114:1792024984274429:4967 模式=总览
+2026-10-17 00:22:11.724 Df Vistile[881:bd9615] [com.misswell.Vistile:ui] [过渡] 播放 总览→L 型：19 张卡片，240ms
+2026-10-17 00:22:11.724 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:11.889 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0xa, process, event] Vistile事件: measure 工作台:几何写入 135.6ms 写入读回一致
+2026-10-17 00:22:11.889 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=66,183 1505x973 写前=300,184 1481x800 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 00:22:11.890 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:11.907 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:11.918 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:11.933 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0xb, process, event] Vistile事件: measure 工作台:进入主区 179.8ms 成功
+2026-10-17 00:22:11.933 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [过渡] 进入工作台 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 00:22:11.934 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:11.981 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0xc, process, event] Vistile事件: measure 过渡帧间隔p95·总览→L 型 44.3ms n=13 掉帧占比23.1% 最长连续=2
+2026-10-17 00:22:11.981 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 11768/11520 启动一轮捕获
+2026-10-17 00:22:11.981 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:11.990 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:12.027 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 862/12998 启动一轮捕获
+2026-10-17 00:22:12.030 Df Vistile[881:bd9615] [com.misswell.Vistile:ui] [过渡] 播放 L 型→总览：19 张卡片，200ms
+2026-10-17 00:22:12.030 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:12.087 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0xd, process, event] Vistile事件: measure 工作台:写回原尺寸 44.3ms 已恢复原尺寸
+2026-10-17 00:22:12.087 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [写回] 14114:1792024984274429:4967 结论=已恢复原尺寸
+2026-10-17 00:22:12.087 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0xe, process, event] Vistile事件: measure 工作台:返回总览 44.3ms 成功
+2026-10-17 00:22:12.087 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [过渡] 返回总览 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 00:22:12.087 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.122 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.130 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.145 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.153 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 00:22:12.160 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.215 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.226 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 79172/19577 启动一轮捕获
+2026-10-17 00:22:12.237 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0xf, process, event] Vistile事件: measure 过渡帧间隔p95·L 型→总览 31.3ms n=12 掉帧占比8.3% 最长连续=1
+2026-10-17 00:22:12.237 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [motion] 动效等级变化：连续2段过渡超出帧预算（p95 31.3ms、掉帧 8.3%）：完整→轻量
+2026-10-17 00:22:12.244 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.273 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.290 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.322 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.361 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.370 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.377 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.385 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.401 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.436 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.455 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.471 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.480 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 82289/20082 启动一轮捕获
+2026-10-17 00:22:12.537 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 63286/21709 启动一轮捕获
+2026-10-17 00:22:12.605 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.617 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.629 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 46686/22787 启动一轮捕获
+2026-10-17 00:22:12.645 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.666 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.679 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 766/23074 启动一轮捕获
+2026-10-17 00:22:12.757 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.780 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.788 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 96408/23948 启动一轮捕获
+2026-10-17 00:22:12.918 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.947 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:12.970 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:13.101 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:13.249 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:13.261 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:13.270 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:13.288 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:13.304 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:13.330 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:13.357 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:13.364 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:13.682 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:13.865 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:14.007 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:14.028 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:14.043 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:14.056 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:14.066 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:14.077 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:14.086 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:14.095 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:14.223 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:14.255 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:14.267 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:14.557 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:14.738 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:14.758 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:14.853 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:14.868 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:15.043 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:15.051 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:15.061 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:15.070 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:15.080 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:15.093 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:15.103 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:15.116 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:15.127 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:15.136 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:15.420 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:15.503 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:15.758 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [discover] discover queued: shortcut
+2026-10-17 00:22:15.917 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 00:22:15.917 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 8561/11444 启动一轮捕获
+2026-10-17 00:22:15.918 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:15.950 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [点击] 总览卡片 14114:1792024984274429:4967 模式=总览
+2026-10-17 00:22:15.953 Df Vistile[881:bd9615] [com.misswell.Vistile:ui] [过渡] 播放 总览→L 型：19 张卡片，240ms
+2026-10-17 00:22:15.953 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:15.976 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:15.999 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:16.097 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:16.118 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0x10, process, event] Vistile事件: measure 工作台:几何写入 122.4ms 写入读回一致
+2026-10-17 00:22:16.118 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=66,183 1505x973 写前=300,184 1481x800 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 00:22:16.155 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:16.187 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:16.197 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:16.237 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:16.245 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0x11, process, event] Vistile事件: measure 工作台:进入主区 270.2ms 成功
+2026-10-17 00:22:16.245 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [过渡] 进入工作台 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 00:22:16.246 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:16.256 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:16.263 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:16.272 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:16.279 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:16.291 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:16.297 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0x12, process, event] Vistile事件: measure 过渡帧间隔p95·总览→L 型 118.6ms n=6 掉帧占比33.3% 最长连续=1
+2026-10-17 00:22:16.327 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 11768/11520 启动一轮捕获
+2026-10-17 00:22:16.361 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:16.370 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 862/12998 启动一轮捕获
+2026-10-17 00:22:16.412 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:16.456 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:16.501 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 79172/19577 启动一轮捕获
+2026-10-17 00:22:16.552 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:16.561 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 82289/20082 启动一轮捕获
+2026-10-17 00:22:16.617 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:16.623 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [点击] 轨道卡片 顶栏#0 2263:1792024453428670:351 主区=14114:1792024984274429:4967 交换=空闲
+2026-10-17 00:22:16.627 Df Vistile[881:bd9615] [com.misswell.Vistile:ui] [过渡] 播放 L 型内交换：2 张卡片，180ms
+2026-10-17 00:22:16.627 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:16.637 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:16.647 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 63286/21709 启动一轮捕获
+2026-10-17 00:22:16.647 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [交换] 步骤=准备 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 00:22:16.648 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:16.686 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:16.719 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0x13, process, event] Vistile事件: measure 工作台:几何写入 58.0ms 写入读回一致
+2026-10-17 00:22:16.719 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [写入] 2263:1792024453428670:351 目标=66,183 1505x973 写前=54,40 1746x1129 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 00:22:16.719 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [交换] 步骤=目标进主区 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 00:22:16.720 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:16.748 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:16.761 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:16.817 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0x14, process, event] Vistile事件: measure 过渡帧间隔p95·L 型内交换 22.0ms n=10 掉帧占比10.0% 最长连续=1
+2026-10-17 00:22:16.817 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [motion] 动效等级变化：连续2段过渡超出帧预算（p95 22.0ms、掉帧 10.0%）：轻量→淡化
+2026-10-17 00:22:16.876 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [交换] 步骤=前景确认 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 00:22:16.876 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:17.167 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:17.187 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 46686/22787 启动一轮捕获
+2026-10-17 00:22:17.199 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0x15, process, event] Vistile事件: measure 工作台:几何写入 34.4ms 写入读回一致
+2026-10-17 00:22:17.199 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=300,184 1481x800 写前=66,184 1505x973 读回=300,184 1481x800 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 00:22:17.199 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [交换] 步骤=原主窗口回轨 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 00:22:17.209 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:17.222 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [交换] 步骤=提交 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 00:22:17.223 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:17.229 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:17.237 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0x16, process, event] Vistile事件: measure 工作台:主区交换 590.4ms 轨道
+2026-10-17 00:22:17.238 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:17.252 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:17.257 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:17.349 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:17.406 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:17.685 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:17.701 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 00:22:17.702 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:17.720 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:17.729 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:17.738 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:17.747 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:17.752 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:17.763 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:17.769 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:17.778 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:17.786 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:17.794 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:17.808 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:17.816 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 766/23074 启动一轮捕获
+2026-10-17 00:22:17.970 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.072 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.097 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.103 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 96408/23948 启动一轮捕获
+2026-10-17 00:22:18.144 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.168 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.192 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.207 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.232 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.253 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.273 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.295 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.312 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.347 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.373 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.396 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.411 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.422 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.469 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.506 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.555 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.592 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.642 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.691 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.705 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.762 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.778 Df Vistile[881:bd9615] [com.misswell.Vistile:ui] [过渡] 播放 L 型→总览：19 张卡片，100ms
+2026-10-17 00:22:18.778 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:18.852 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0x17, process, event] Vistile事件: measure 工作台:写回原尺寸 64.8ms 已恢复原尺寸
+2026-10-17 00:22:18.852 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [写回] 2263:1792024453428670:351 结论=已恢复原尺寸
+2026-10-17 00:22:18.852 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0x18, process, event] Vistile事件: measure 工作台:返回总览 64.9ms 成功
+2026-10-17 00:22:18.852 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [过渡] 返回总览 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 00:22:18.852 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 2263/351 启动一轮捕获
+2026-10-17 00:22:18.852 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:18.869 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:18.878 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:18.886 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:18.893 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0x19, process, event] Vistile事件: measure 过渡帧间隔p95·L 型→总览 8.3ms n=8 掉帧占比12.5% 最长连续=1
+2026-10-17 00:22:18.975 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:19.021 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:19.646 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 2263/351 启动一轮捕获
+2026-10-17 00:22:19.646 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:19.671 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标
+2026-10-17 00:22:19.676 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [点击] 总览卡片 14114:1792024984274429:4967 模式=总览
+2026-10-17 00:22:19.679 Df Vistile[881:bd9615] [com.misswell.Vistile:ui] [过渡] 播放 总览→L 型：19 张卡片，100ms
+2026-10-17 00:22:19.679 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:19.712 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:19.806 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:19.852 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0x1a, process, event] Vistile事件: measure 工作台:几何写入 133.8ms 写入读回一致
+2026-10-17 00:22:19.852 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=66,183 1505x973 写前=300,184 1481x800 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 00:22:19.854 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:19.910 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0x1b, process, event] Vistile事件: measure 过渡帧间隔p95·总览→L 型 34.6ms n=5 掉帧占比40.0% 最长连续=2
+2026-10-17 00:22:19.911 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0x1c, process, event] Vistile事件: measure 工作台:进入主区 201.7ms 成功
+2026-10-17 00:22:19.911 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [过渡] 进入工作台 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 00:22:19.912 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:19.922 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:19.930 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:19.938 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:19.946 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:19.955 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:19.994 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.005 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.019 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.027 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [点击] 轨道卡片 顶栏#0 2263:1792024453428670:351 主区=14114:1792024984274429:4967 交换=空闲
+2026-10-17 00:22:20.028 Df Vistile[881:bd9615] [com.misswell.Vistile:ui] [过渡] 播放 L 型内交换：2 张卡片，80ms
+2026-10-17 00:22:20.028 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.036 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.044 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.057 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.065 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.072 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.082 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.088 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.093 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.107 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [交换] 步骤=准备 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 00:22:20.107 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.111 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.132 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0x1d, process, event] Vistile事件: measure 工作台:几何写入 21.1ms 写入读回一致
+2026-10-17 00:22:20.132 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [写入] 2263:1792024453428670:351 目标=66,183 1505x973 写前=54,40 1746x1129 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 00:22:20.132 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [交换] 步骤=目标进主区 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 00:22:20.134 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.161 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [交换] 步骤=前景确认 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 00:22:20.167 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.328 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.354 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.396 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.415 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.466 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0x1e, process, event] Vistile事件: measure 工作台:几何写入 143.1ms 写入读回一致
+2026-10-17 00:22:20.466 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [写入] 14114:1792024984274429:4967 目标=300,184 1481x800 写前=66,184 1505x973 读回=300,184 1481x800 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 00:22:20.466 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [交换] 步骤=原主窗口回轨 对象=14114:1792024984274429:4967 结论=成功
+2026-10-17 00:22:20.467 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.496 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [交换] 步骤=提交 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 00:22:20.496 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.517 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 00:22:20.517 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.526 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0x1f, process, event] Vistile事件: measure 工作台:主区交换 446.4ms 轨道
+2026-10-17 00:22:20.527 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [点击] 轨道卡片 侧栏#0 50200:1792164239473196:24291 主区=2263:1792024453428670:351 交换=空闲
+2026-10-17 00:22:20.529 Df Vistile[881:bd9615] [com.misswell.Vistile:ui] [过渡] 播放 L 型内交换：2 张卡片，80ms
+2026-10-17 00:22:20.529 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.558 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [交换] 步骤=准备 对象=50200:1792164239473196:24291 结论=成功
+2026-10-17 00:22:20.558 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.582 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.599 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.608 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0x20, process, event] Vistile事件: measure 工作台:几何写入 25.5ms 写入读回一致
+2026-10-17 00:22:20.608 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [写入] 50200:1792164239473196:24291 目标=66,183 1505x973 写前=350,360 500x330 读回=66,184 1505x973 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 00:22:20.608 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [交换] 步骤=目标进主区 对象=50200:1792164239473196:24291 结论=成功
+2026-10-17 00:22:20.609 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 18 个目标
+2026-10-17 00:22:20.734 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [交换] 步骤=前景确认 对象=50200:1792164239473196:24291 结论=成功
+2026-10-17 00:22:20.848 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0x21, process, event] Vistile事件: measure 工作台:几何写入 113.4ms 写入读回一致
+2026-10-17 00:22:20.848 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [写入] 2263:1792024453428670:351 目标=54,40 1746x1129 写前=66,184 1505x973 读回=54,40 1746x1129 size错误=0 position错误=0 结论=写入读回一致
+2026-10-17 00:22:20.848 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [交换] 步骤=原主窗口回轨 对象=2263:1792024453428670:351 结论=成功
+2026-10-17 00:22:20.848 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [交换] 步骤=提交 对象=50200:1792164239473196:24291 结论=成功
+2026-10-17 00:22:20.848 Sp Vistile[881:bd9615] [com.misswell.Vistile:session] [spid 0x22, process, event] Vistile事件: measure 工作台:主区交换 299.5ms 轨道
+2026-10-17 00:22:31.874 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 2263/351 启动一轮捕获
+2026-10-17 00:22:31.874 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 14114/4967 启动一轮捕获
+2026-10-17 00:22:31.874 Db Vistile[881:bd9615] [com.misswell.Vistile:session] [capture] 预算降级影响 19 个目标

@@ -1,0 +1,808 @@
+{
+  "appVersion" : "Vistile 0.1.10+19",
+  "generatedAt" : "2026-10-16T16:43:36Z",
+  "hardware" : "arm64\/arm64, 10 cores, 24GB",
+  "notes" : [
+    "上一轮报告已归档：\/Users\/guofeng\/Desktop\/Vistile Diagnostics\/_archive\/Vistile-0.1.10+18-2026-10-17-002231",
+    "P0 探针运行中：自动项记录客观证据，人工项保持未测",
+    "捕获预算降级影响 17 个目标（流上限 12，热状态 nominal）",
+    "捕获预算降级影响 16 个目标（流上限 12，热状态 nominal）",
+    "P0 验收清单：\/Users\/guofeng\/Desktop\/Vistile Diagnostics\/P0-acceptance-checklist.md"
+  ],
+  "performance" : [
+    {
+      "context" : "n=4 掉帧占比25.0% 最长连续=1",
+      "name" : "过渡帧间隔p95·L 型内交换",
+      "valueMS" : 24.047000013524666
+    },
+    {
+      "context" : "轨道",
+      "name" : "工作台:主区交换",
+      "valueMS" : 150.0610113143921
+    },
+    {
+      "context" : "n=4 掉帧占比25.0% 最长连续=1",
+      "name" : "过渡帧间隔p95·总览→L 型",
+      "valueMS" : 14.168458350468427
+    },
+    {
+      "context" : "写入读回一致",
+      "name" : "工作台:几何写入",
+      "valueMS" : 30.9220552444458
+    },
+    {
+      "context" : "成功",
+      "name" : "工作台:进入主区",
+      "valueMS" : 142.4030065536499
+    },
+    {
+      "context" : "已恢复原尺寸",
+      "name" : "工作台:写回原尺寸",
+      "valueMS" : 23.75507354736328
+    },
+    {
+      "context" : "成功",
+      "name" : "工作台:返回总览",
+      "valueMS" : 23.797988891601562
+    },
+    {
+      "context" : "n=7 掉帧占比0.0% 最长连续=0",
+      "name" : "过渡帧间隔p95·L 型→总览",
+      "valueMS" : 13.391791668254882
+    },
+    {
+      "context" : "n=10，目标 ≤600ms",
+      "name" : "点击→落定p95·总览→L 型",
+      "valueMS" : 431.4689636230469
+    },
+    {
+      "context" : "n=4，目标 ≤500ms",
+      "name" : "点击→落定p95·L 型内交换",
+      "valueMS" : 517.846941947937
+    },
+    {
+      "context" : "n=10，目标 ≤500ms",
+      "name" : "点击→落定p95·L 型→总览",
+      "valueMS" : 298.0600595474243
+    },
+    {
+      "context" : "帧\/秒（数值填在毫秒列，便于表格直接排序）",
+      "name" : "总览帧率",
+      "valueMS" : 23.89036707354168
+    },
+    {
+      "context" : "总览打开时占用，100% = 一个逻辑核满载",
+      "name" : "Vistile CPU",
+      "valueMS" : 0.18902662323976152
+    },
+    {
+      "context" : "n=4, median=367.2",
+      "name" : "工作台:主区交换 p95",
+      "valueMS" : 367.17700958251953
+    },
+    {
+      "context" : "n=12, median=48.3",
+      "name" : "工作台:写回原尺寸 p95",
+      "valueMS" : 84.38599109649658
+    },
+    {
+      "context" : "n=22, median=53.7",
+      "name" : "工作台:几何写入 p95",
+      "valueMS" : 153.76996994018555
+    },
+    {
+      "context" : "n=12, median=48.4",
+      "name" : "工作台:返回总览 p95",
+      "valueMS" : 84.43593978881836
+    },
+    {
+      "context" : "n=14, median=163.6",
+      "name" : "工作台:进入主区 p95",
+      "valueMS" : 358.43098163604736
+    },
+    {
+      "context" : "n=8, median=12.8",
+      "name" : "过渡帧间隔p95·L 型→总览 p95",
+      "valueMS" : 38.012250006431714
+    },
+    {
+      "context" : "n=2, median=24.0",
+      "name" : "过渡帧间隔p95·L 型内交换 p95",
+      "valueMS" : 20.03300000797026
+    },
+    {
+      "context" : "n=8, median=16.7",
+      "name" : "过渡帧间隔p95·总览→L 型 p95",
+      "valueMS" : 41.42483332543634
+    }
+  ],
+  "rows" : [
+    {
+      "application" : "Code",
+      "applicationVersion" : "",
+      "association" : "passed",
+      "capture" : "unverified",
+      "knownLimitation" : "",
+      "move" : "unverified",
+      "ordering" : "unverified",
+      "resize" : "unverified",
+      "restore" : "unverified",
+      "sheet" : "unverified"
+    },
+    {
+      "application" : "Google Chrome",
+      "applicationVersion" : "",
+      "association" : "passed",
+      "capture" : "unverified",
+      "knownLimitation" : "",
+      "move" : "unverified",
+      "ordering" : "unverified",
+      "resize" : "unverified",
+      "restore" : "unverified",
+      "sheet" : "unverified"
+    },
+    {
+      "application" : "Google Chrome Beta",
+      "applicationVersion" : "",
+      "association" : "passed",
+      "capture" : "unverified",
+      "knownLimitation" : "",
+      "move" : "unverified",
+      "ordering" : "unverified",
+      "resize" : "unverified",
+      "restore" : "unverified",
+      "sheet" : "unverified"
+    },
+    {
+      "application" : "IntelliJ IDEA",
+      "applicationVersion" : "",
+      "association" : "passed",
+      "capture" : "unverified",
+      "knownLimitation" : "",
+      "move" : "unverified",
+      "ordering" : "unverified",
+      "resize" : "unverified",
+      "restore" : "unverified",
+      "sheet" : "unverified"
+    },
+    {
+      "application" : "Microsoft Edge",
+      "applicationVersion" : "",
+      "association" : "passed",
+      "capture" : "unverified",
+      "knownLimitation" : "",
+      "move" : "unverified",
+      "ordering" : "unverified",
+      "resize" : "unverified",
+      "restore" : "unverified",
+      "sheet" : "unverified"
+    },
+    {
+      "application" : "OrbStack",
+      "applicationVersion" : "",
+      "association" : "passed",
+      "capture" : "unverified",
+      "knownLimitation" : "",
+      "move" : "unverified",
+      "ordering" : "unverified",
+      "resize" : "unverified",
+      "restore" : "unverified",
+      "sheet" : "unverified"
+    },
+    {
+      "application" : "Qoder",
+      "applicationVersion" : "",
+      "association" : "passed",
+      "capture" : "unverified",
+      "knownLimitation" : "",
+      "move" : "unverified",
+      "ordering" : "unverified",
+      "resize" : "unverified",
+      "restore" : "unverified",
+      "sheet" : "unverified"
+    },
+    {
+      "application" : "Qoder CN",
+      "applicationVersion" : "",
+      "association" : "passed",
+      "capture" : "unverified",
+      "knownLimitation" : "",
+      "move" : "unverified",
+      "ordering" : "unverified",
+      "resize" : "unverified",
+      "restore" : "unverified",
+      "sheet" : "unverified"
+    },
+    {
+      "application" : "ZCode",
+      "applicationVersion" : "",
+      "association" : "passed",
+      "capture" : "unverified",
+      "knownLimitation" : "",
+      "move" : "unverified",
+      "ordering" : "unverified",
+      "resize" : "unverified",
+      "restore" : "unverified",
+      "sheet" : "unverified"
+    },
+    {
+      "application" : "universalAccessAuthWarn",
+      "applicationVersion" : "",
+      "association" : "passed",
+      "capture" : "unverified",
+      "knownLimitation" : "",
+      "move" : "unverified",
+      "ordering" : "unverified",
+      "resize" : "unverified",
+      "restore" : "unverified",
+      "sheet" : "unverified"
+    },
+    {
+      "application" : "终端",
+      "applicationVersion" : "",
+      "association" : "passed",
+      "capture" : "unverified",
+      "knownLimitation" : "",
+      "move" : "unverified",
+      "ordering" : "unverified",
+      "resize" : "unverified",
+      "restore" : "unverified",
+      "sheet" : "unverified"
+    },
+    {
+      "application" : "UITestHarness",
+      "applicationVersion" : "",
+      "association" : "passed",
+      "capture" : "unverified",
+      "knownLimitation" : "",
+      "move" : "unverified",
+      "ordering" : "passed",
+      "resize" : "unverified",
+      "restore" : "unverified",
+      "sheet" : "unverified"
+    }
+  ],
+  "samples" : [
+    {
+      "capturedAt" : "2026-10-16T16:42:55Z",
+      "check" : "全局快捷键",
+      "detail" : "已注册；实机触发需录屏验证",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "⌃⌥空格",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:42:55Z",
+      "check" : "Metal 渲染",
+      "detail" : "设备与纹理缓存已建立；帧率、内存与 WindowServer 增量待实测",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "总览画面合成",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:42:55Z",
+      "check" : "P0-0 系统权限",
+      "detail" : "屏幕录制=true，辅助功能=true；缺任一项时后续自动项只能记为未测或失败",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "passed",
+      "subject" : "屏幕录制 \/ 辅助功能",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:42:56Z",
+      "check" : "P0-15 总览先行",
+      "detail" : "首开：模式=总览，总览面板 1 块，17 个可聚焦窗口全部有格子（卡片位 17 个），主区=空，工作台面板=0，在途几何事务 0 笔，卡片点击 0 次",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "passed",
+      "subject" : "总览先行",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:42:56Z",
+      "check" : "P0-15 人工验收 · 首开录屏",
+      "detail" : "用快捷键与菜单栏各打开一次：首次必须是全屏总览；未点击任何卡片前，录屏确认没有窗口移动、没有出现两栏；点 A 之后才出现主区与两栏。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:42:56Z",
+      "check" : "P0-15 人工验收 · 退出重开不加记忆",
+      "detail" : "退出 Vistile 再启动，仍从总览开始，不记忆上次的 L 型。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:42:56Z",
+      "check" : "P0-1 目录与身份",
+      "detail" : "窗口 17 个；多窗口进程 1 个；AX 唯一对应 17 个；窗口编号无重复=true；同进程 AX 索引无重复=true",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "passed",
+      "subject" : "目录与身份",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:42:56Z",
+      "check" : "P0-1 人工验收 · 画面没有串",
+      "detail" : "打开两个 Safari 与两个 Finder 窗口，逐个点卡片，录屏确认每张卡片内容与放大后的真实窗口一致。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:42:57Z",
+      "check" : "P0-2 遮挡时仍实时",
+      "detail" : "被遮挡窗口 17 个，其中 15 个在 1.5s 内收到新帧；全目录帧增量 65（约 42.7 帧\/秒）",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "passed",
+      "subject" : "遮挡时仍实时",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:42:57Z",
+      "check" : "P0-2 人工验收 · 静止窗口不谎报",
+      "detail" : "确认卡片右上角只在低频或暂停时出现状态文字，实时时不显示任何标注。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:42:58Z",
+      "check" : "P0-3 只提升被点窗口",
+      "detail" : "1 个多窗口应用：UITestHarness（6 窗口）目标顺序 #15→#5，同应用另一窗口 #13→#15，共同参照窗口 22 个（前 33／后 33）",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "passed",
+      "subject" : "只提升被点窗口",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:42:58Z",
+      "check" : "P0-3 人工验收 · 背景总览仍可见",
+      "detail" : "同上场景，录屏确认放大后背景总览没有被隐藏、其他应用窗口没有被误提到前面。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:00Z",
+      "check" : "P0-4 键盘不被总览占用",
+      "detail" : "进入工作台（主区=Code）落定后：没有任何 Vistile 面板持有键盘，键盘归属=targetApplication",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "passed",
+      "subject" : "原生前台输入",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:00Z",
+      "check" : "P0-4 人工验收 · 中文输入",
+      "detail" : "放大 Terminal 或备忘录，用中文输入法打「测试」，录屏确认候选窗跟随真实窗口。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:00Z",
+      "check" : "P0-4 人工验收 · 右键与菜单",
+      "detail" : "在放大窗口上右键、打开菜单栏、拖动文本，确认全部落在真实窗口内。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:00Z",
+      "check" : "P0-4 人工验收 · 保存面板",
+      "detail" : "在 Safari 里 ⌘S 打开保存面板，确认面板可见可点、取消后回到总览不丢窗口。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:00Z",
+      "check" : "P0-4 人工验收 · 滚动与快捷键",
+      "detail" : "放大后滚动页面并试用 ⌘C\/⌘V\/⌘T，确认没有按键被总览截走。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:01Z",
+      "check" : "P0-5 背景点击状态机 soak",
+      "detail" : "状态机 100 次背景点击耗时 371.3ms；阶段=overview；最小化数量 0→0；1\/1 块屏确认自留事件",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "passed",
+      "subject" : "背景点击 100 次",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:01Z",
+      "check" : "P0-5 人工验收 · 点击不穿透",
+      "detail" : "总览打开时，在背景空白处连点 100 次，录屏确认后面的按钮没被触发、没有窗口被最小化。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:01Z",
+      "check" : "P0-5 人工验收 · 点背景回到总览",
+      "detail" : "放大某个窗口后点背景空白，确认只回到总览，不发生应用切换或窗口最小化。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:01Z",
+      "check" : "P0-6 同标题窗口身份复用",
+      "detail" : "刷新后沿用身份 17 个，格子变动 0 个，共用启动标识的重复窗口编号 0 个",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "passed",
+      "subject" : "身份与格子复用",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:01Z",
+      "check" : "P0-6 人工验收 · 退出再启动",
+      "detail" : "开两个同名窗口（如两个「无标题」备忘录），退出 Vistile 再启动，录屏确认格子与窗口仍然对得上。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:01Z",
+      "check" : "P0-6 人工验收 · 重启后尺寸恢复",
+      "detail" : "改一个窗口尺寸后强退 Vistile（⌥右键图标→退出会走正常恢复；崩溃请结束进程），下次启动应自动恢复原位置，确认弹窗说明。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:01Z",
+      "check" : "P0-7 多显示器",
+      "detail" : "只检测到 1 块显示器，需要接第二块屏（负坐标与不同缩放都要覆盖）",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "多显示器",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:01Z",
+      "check" : "P0-7 人工验收 · 多显示器",
+      "detail" : "接上第二块屏（含负坐标或上下排列），确认两屏都有总览、跨屏拖动窗口后格子不跳、Retina 与外屏缩放混合时卡片不变形。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:01Z",
+      "check" : "P0-8 最小化窗口",
+      "detail" : "本机没有最小化窗口，无法自动验证",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "最小化窗口",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:01Z",
+      "check" : "P0-8 人工验收 · 最小化窗口",
+      "detail" : "把窗口丢进 Dock，确认卡片标注「已最小化」而不是显示成实时画面；点卡片应解除最小化并放大。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:01Z",
+      "check" : "P0-8 撤销权限",
+      "detail" : "系统权限无法由程序撤销；请在系统设置里关掉屏幕录制后重启 Vistile",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "撤销权限",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:01Z",
+      "check" : "P0-8 人工验收 · 撤销权限",
+      "detail" : "在系统设置里取消屏幕录制权限后重开 Vistile，确认卡片明确写「缺少屏幕录制权限，无画面」，不显示旧帧冒充实时。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:01Z",
+      "check" : "P0-8 人工验收 · 应用无响应",
+      "detail" : "让某个应用卡死（例如 `sleep` 死循环的 Terminal），确认总览仍能显示其它窗口、该卡片标注低频或启动中，Vistile 主线程不卡住。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:01Z",
+      "check" : "P0-8 人工验收 · 窗口中途关闭",
+      "detail" : "放大窗口后从别处关掉它，确认回到总览且不残留事务记录。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:02Z",
+      "check" : "P0-9 事件转接到真实上屏",
+      "detail" : "真实点击 → 进入工作台（主区=Code）：视图动作 1 次，阶段到达=true，进入落定=true；真实点击「全部窗口」=true，回到总览=true；最小化数量 0→0；同期 present +83、捕获帧 +97（12 路流），GPU 错误 +0、提交失败 +0，缺 drawable 累计 0",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "passed",
+      "subject" : "真实视图链路",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:02Z",
+      "check" : "P0-9 人工验收 · 画面确实是这张卡",
+      "detail" : "录屏确认放大时屏幕上的窗口与刚点的卡片画面一致，不是别的应用的窗口。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:02Z",
+      "check" : "P0-10 未实现层级策略迁移",
+      "detail" : "生效策略=normalLevelActivateAndRaise，持久化=normalLevelActivateAndRaise",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "passed",
+      "subject" : "层级策略已实现且写回",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:02Z",
+      "check" : "P0-10 人工验收 · 设置里看不到分块",
+      "detail" : "打开设置窗口，确认层级策略下拉里已经没有「背景分块避让」。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:04Z",
+      "check" : "P0-10 层级不每次回调重排",
+      "detail" : "12 路直播流、2s 内 169 帧回调期间层级改写 0 次（期望 0 次）",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "passed",
+      "subject" : "层级不随回调重排",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:05Z",
+      "check" : "P0-11 令牌不永久抑制外部激活",
+      "detail" : "空转背景点击后令牌残留=false；随后模拟外部激活（com.qodercn.app）正常退出总览",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "passed",
+      "subject" : "背景点击不留令牌",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:05Z",
+      "check" : "P0-11 人工验收 · Cmd-Tab 之后",
+      "detail" : "放大窗口后按 ⌘Tab 切到别的应用，确认总览自动隐藏；再按快捷键能重新打开，不需要重启 Vistile。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:05Z",
+      "check" : "P0-11 人工验收 · 对话框不被强关",
+      "detail" : "在放大窗口里打开一个 Sheet（如另存为），点背景，确认对话框不被强行关掉。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:06Z",
+      "check" : "P0-12 工作台入口",
+      "detail" : "真实点击卡片 14114:1792024984274429:4967 进入工作台：主窗口读回偏差 0.5pt（可调整=true）；面板=投影（顶 0.0pt \/ 侧 0.0pt）",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "passed",
+      "subject" : "工作台入口",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:06Z",
+      "check" : "P0-12 人工验收 · L 型与真实窗口",
+      "detail" : "点卡片后：主区必须是真实窗口（在其中打中文、右键、⌘W 都由真实应用响应），两栏不得盖住主区，角落工具区的按钮可点。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:08Z",
+      "check" : "P0-13 主副交换",
+      "detail" : "真实点击顶栏卡片 2263:1792024453428670:351：主区切到它、原主 14114:1792024984274429:4967 回到该 slot、其余 15 个占用与滚动偏移未动；新主读回偏差 0.5pt；原主回到进入前位置（偏差 0.0pt）",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "passed",
+      "subject" : "主副交换",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:08Z",
+      "check" : "P0-13 人工验收 · 交换画面",
+      "detail" : "点顶栏\/侧栏里的一张预览：主区换成它、被换下的窗口出现在刚才那张卡片的位置，其他卡片不跳位；先在栏里滚动几格再交换，确认滚动位置不回弹。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:08Z",
+      "check" : "P0-14 返回总览",
+      "detail" : "真实点击「全部窗口」后回到总览，总览面板 1 块重新显示",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "passed",
+      "subject" : "返回总览",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:08Z",
+      "check" : "P0-14 人工验收 · 返回一致",
+      "detail" : "点「全部窗口」：回到的必须是进入前的那套总览（格子、搜索词、滚动位置都不变），背景不闪。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:09Z",
+      "check" : "前景化",
+      "detail" : "前台读回 activate=true raise=true focused读回=是 前台=是；矩阵「层级」格由 P0-3 判，不由此项代填",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "passed",
+      "subject" : "UITestHarness",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:17Z",
+      "check" : "P0-16 固定交换 soak",
+      "detail" : "已完成 3\/100 次；问题：第 4 次没收敛（主区=14114:1792024984274429:4967，阶段=focused，状态机=-）",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "failed",
+      "subject" : "固定交换 100 次",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:17Z",
+      "check" : "P0-16 人工验收 · 连续交换",
+      "detail" : "点开工作台后连续快速点两栏卡片：立即反馈、无回跳、无输入积压；栏内滚动位置不乱。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:22Z",
+      "check" : "前景化",
+      "detail" : "前台读回 activate=true raise=true focused读回=是 前台=是；矩阵「层级」格由 P0-3 判，不由此项代填",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "passed",
+      "subject" : "Google Chrome",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:22Z",
+      "check" : "前景化",
+      "detail" : "前台读回 activate=true raise=true focused读回=是 前台=是；矩阵「层级」格由 P0-3 判，不由此项代填",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "passed",
+      "subject" : "Code",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:31Z",
+      "check" : "P0-17 往返 soak",
+      "detail" : "已完成 9\/100 轮；问题：第 10 轮进入没落定到 2263:1792024453428670:351（主区=空，阶段=overview）；完成 9\/100 轮",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "failed",
+      "subject" : "往返 100 次",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:31Z",
+      "check" : "P0-17 人工验收 · 往返录屏",
+      "detail" : "点「全部窗口」回总览、再点同一\/不同窗口，往返 30 次：总览位置、轨道位置、滚动都不变，退出后再开仍从总览开始。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:31Z",
+      "check" : "P0-18 样本与帧预算",
+      "detail" : "样本不足（不能判）：总览→L 型 帧样本 8 < 100；L 型内交换 帧样本 2 < 100；L 型→总览 帧样本 8 < 100；总览→L 型 墙钟样本 10 < 100；L 型内交换 墙钟样本 4 < 100；L 型→总览 墙钟样本 10 < 100；超目标：有 12 段过渡超出 §20.2 帧预算；总览→L 型 n=8 帧 p95=41.4ms；L 型内交换 n=2 帧 p95=20.0ms；L 型→总览 n=8 帧 p95=38.0ms；帧预算：6 段在内、12 段超预算（判据 P95≤20ms 且掉帧占比≤1% 且无连续 3 帧卡顿）；总览→L 型 点击→落定 p95=431ms（目标 ≤600ms，n=10）；L 型内交换 点击→落定 p95=518ms（目标 ≤500ms，n=4）；L 型→总览 点击→落定 p95=298ms（目标 ≤500ms，n=10）",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "样本与帧预算",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:31Z",
+      "check" : "P0-18 人工验收 · 录屏对照",
+      "detail" : "用 QuickTime 录总览→L型、交换、返回各一段，对照报告里的 p95 与录屏观感（无回跳、无输入积压）。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:34Z",
+      "check" : "性能采样",
+      "detail" : "帧 72 张\/3.0s；空闲基线与 WindowServer 增量需 Activity Monitor 对照",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "2 路流 \/ 8 个低频",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:34Z",
+      "check" : "性能 人工验收 · 空闲基线",
+      "detail" : "关闭总览后在活动监视器确认 CPU 回到接近 0%，GPU 无持续占用。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:34Z",
+      "check" : "性能 人工验收 · 多窗口压力",
+      "detail" : "开到 30 个窗口，确认帧率下降是渐进的、卡片标注与实际更新方式一致。",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "unverified",
+      "subject" : "录屏\/肉眼",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:34Z",
+      "check" : "运行环境自检",
+      "detail" : "窗口 17 个（AX 可解析 17 个），活跃流 2 路，本次启动累计捕获帧 331、累计 present 1059，会话锁定=否：画面在更新、AX 也解析得到，依赖帧与依赖 AX 的结论都可用",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "passed",
+      "subject" : "本轮是否可判",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:34Z",
+      "check" : "P0 汇总",
+      "detail" : "有 2 个自动项失败，见对应条目；本轮可判（窗口 17 个（AX 可解析 17 个），活跃流 2 路，本次启动累计捕获帧 331、累计 present 1059，会话锁定=否）",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "failed",
+      "subject" : "自动 21 项 \/ 人工 30 项",
+      "systemVersion" : "macOS 27.0.1"
+    },
+    {
+      "capturedAt" : "2026-10-16T16:43:36Z",
+      "check" : "退出恢复",
+      "detail" : "未结束事务 0 条",
+      "hardware" : "arm64\/arm64, 10 cores, 24GB",
+      "result" : "passed",
+      "subject" : "会话事务",
+      "systemVersion" : "macOS 27.0.1"
+    }
+  ],
+  "systemVersion" : "macOS 27.0.1"
+}

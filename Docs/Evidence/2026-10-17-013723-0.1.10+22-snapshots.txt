@@ -1,0 +1,1276 @@
+===T+5.1 1792172187 front=loginwindow[422]
+  #0 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+5.1 1792172187 front=loginwindow[422]
+  #1 ZCode [ZCode] @437,257 1407x685
+===T+5.1 1792172187 front=loginwindow[422]
+  #2 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+5.1 1792172187 front=loginwindow[422]
+  #3 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+5.1 1792172187 front=loginwindow[422]
+  #4 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+5.1 1792172187 front=loginwindow[422]
+  #5 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+5.1 1792172187 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+5.1 1792172187 front=loginwindow[422]
+  #7 UITestHarness [无标题副本] @258,256 548x366
+===T+5.1 1792172187 front=loginwindow[422]
+  #8 UITestHarness [无标题副本] @212,204 572x384
+===T+5.1 1792172187 front=loginwindow[422]
+  #9 UITestHarness [Harness 窗口 2] @166,152 596x402
+===T+5.1 1792172187 front=loginwindow[422]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+6.1 1792172188 front=loginwindow[422]
+  #0 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+6.1 1792172188 front=loginwindow[422]
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+===T+6.1 1792172188 front=loginwindow[422]
+  #2 ZCode [ZCode] @437,257 1407x685
+===T+6.1 1792172188 front=loginwindow[422]
+  #3 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+6.1 1792172188 front=loginwindow[422]
+  #4 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+6.1 1792172188 front=loginwindow[422]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+6.1 1792172188 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+6.1 1792172188 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+6.1 1792172188 front=loginwindow[422]
+  #8 UITestHarness [无标题副本] @258,256 548x366
+===T+6.1 1792172188 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @212,204 572x384
+===T+6.1 1792172188 front=loginwindow[422]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+7.1 1792172189 front=loginwindow[422]
+  #0 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+7.1 1792172189 front=loginwindow[422]
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+===T+7.1 1792172189 front=loginwindow[422]
+  #2 ZCode [ZCode] @437,257 1407x685
+===T+7.1 1792172189 front=loginwindow[422]
+  #3 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+7.1 1792172189 front=loginwindow[422]
+  #4 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+7.1 1792172189 front=loginwindow[422]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+7.1 1792172189 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+7.1 1792172189 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+7.1 1792172189 front=loginwindow[422]
+  #8 UITestHarness [无标题副本] @258,256 548x366
+===T+7.1 1792172189 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @212,204 572x384
+===T+7.1 1792172189 front=loginwindow[422]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+8.1 1792172190 front=loginwindow[422]
+  #0 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+8.1 1792172190 front=loginwindow[422]
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+===T+8.1 1792172190 front=loginwindow[422]
+  #2 ZCode [ZCode] @437,257 1407x685
+===T+8.1 1792172190 front=loginwindow[422]
+  #3 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+8.1 1792172190 front=loginwindow[422]
+  #4 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+8.1 1792172190 front=loginwindow[422]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+8.1 1792172190 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+8.1 1792172190 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+8.1 1792172190 front=loginwindow[422]
+  #8 UITestHarness [无标题副本] @258,256 548x366
+===T+8.1 1792172190 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @212,204 572x384
+===T+8.1 1792172190 front=loginwindow[422]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+9.1 1792172191 front=loginwindow[422]
+  #0 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+9.1 1792172191 front=loginwindow[422]
+  #1 Vistile [Vistile Overview] @70,50 1714x1109
+===T+9.1 1792172191 front=loginwindow[422]
+  #2 ZCode [ZCode] @437,257 1407x685
+===T+9.1 1792172191 front=loginwindow[422]
+  #3 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+9.1 1792172191 front=loginwindow[422]
+  #4 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+9.1 1792172191 front=loginwindow[422]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+9.1 1792172191 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+9.1 1792172191 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+9.1 1792172191 front=loginwindow[422]
+  #8 UITestHarness [无标题副本] @258,256 548x366
+===T+9.1 1792172191 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @212,204 572x384
+===T+9.1 1792172191 front=loginwindow[422]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+10.1 1792172192 front=loginwindow[422]
+  #0 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+10.1 1792172192 front=loginwindow[422]
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+===T+10.1 1792172192 front=loginwindow[422]
+  #2 ZCode [ZCode] @437,257 1407x685
+===T+10.1 1792172192 front=loginwindow[422]
+  #3 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+10.1 1792172192 front=loginwindow[422]
+  #4 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+10.1 1792172192 front=loginwindow[422]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+10.1 1792172192 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+10.1 1792172192 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+10.1 1792172192 front=loginwindow[422]
+  #8 UITestHarness [无标题副本] @258,256 548x366
+===T+10.1 1792172192 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @212,204 572x384
+===T+10.1 1792172192 front=loginwindow[422]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+11.1 1792172193 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+11.1 1792172193 front=loginwindow[422]
+  #1 Vistile [Vistile Workbench] @1571,183 217x974
+===T+11.1 1792172193 front=loginwindow[422]
+  #2 Vistile [Vistile Workbench] @66,52 1722x132
+===T+11.1 1792172193 front=loginwindow[422]
+  #3 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+11.1 1792172193 front=loginwindow[422]
+  #4 ZCode [ZCode] @437,257 1407x685
+===T+11.1 1792172193 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+11.1 1792172193 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+11.1 1792172193 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+11.1 1792172193 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+11.1 1792172193 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+11.1 1792172193 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"verified"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+12.2 1792172194 front=loginwindow[422]
+  #0 Google Chrome [组织用户中心] @66,184 1505x973
+===T+12.2 1792172194 front=loginwindow[422]
+  #1 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+12.2 1792172194 front=loginwindow[422]
+  #2 Vistile [Vistile Workbench] @1571,183 217x974
+===T+12.2 1792172194 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @66,52 1722x132
+===T+12.2 1792172194 front=loginwindow[422]
+  #4 ZCode [ZCode] @437,257 1407x685
+===T+12.2 1792172194 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+12.2 1792172194 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+12.2 1792172194 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+12.2 1792172194 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+12.2 1792172194 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+12.2 1792172194 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,184],[1505,973]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"verified"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:36:34Z","identity":{"processID":2263,"p
+===T+13.2 1792172195 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+13.2 1792172195 front=loginwindow[422]
+  #1 Vistile [Vistile Workbench] @1571,183 217x974
+===T+13.2 1792172195 front=loginwindow[422]
+  #2 Vistile [Vistile Workbench] @66,52 1722x132
+===T+13.2 1792172195 front=loginwindow[422]
+  #3 Vistile [] @5,3 1790x1163
+===T+13.2 1792172195 front=loginwindow[422]
+  #4 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+13.2 1792172195 front=loginwindow[422]
+  #5 ZCode [ZCode] @437,257 1407x685
+===T+13.2 1792172195 front=loginwindow[422]
+  #6 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+13.2 1792172195 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+13.2 1792172195 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+13.2 1792172195 front=loginwindow[422]
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+13.2 1792172195 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"verified"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+14.2 1792172197 front=loginwindow[422]
+  #0 ZCode [ZCode] @66,396 1414x700
+===T+14.2 1792172197 front=loginwindow[422]
+  #1 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+14.2 1792172197 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+14.2 1792172197 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+14.2 1792172197 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+14.2 1792172197 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+14.2 1792172197 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+14.2 1792172197 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+14.2 1792172197 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+14.2 1792172197 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+14.2 1792172197 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"verified"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","identity":{"
+===T+15.3 1792172198 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+15.3 1792172198 front=loginwindow[422]
+  #1 ZCode [ZCode] @66,411 1414x700
+===T+15.3 1792172198 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+15.3 1792172198 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+15.3 1792172198 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+15.3 1792172198 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+15.3 1792172198 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+15.3 1792172198 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+15.3 1792172198 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+15.3 1792172198 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+15.3 1792172198 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"verified"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","identity":{"
+===T+16.3 1792172199 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+16.3 1792172199 front=loginwindow[422]
+  #1 ZCode [ZCode] @93,399 1414x700
+===T+16.3 1792172199 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+16.3 1792172199 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+16.3 1792172199 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+16.3 1792172199 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+16.3 1792172199 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+16.3 1792172199 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+16.3 1792172199 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+16.3 1792172199 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+16.3 1792172199 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"verified"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","identity":{"
+===T+17.3 1792172200 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+17.3 1792172200 front=loginwindow[422]
+  #1 ZCode [ZCode] @66,411 1413x697
+===T+17.3 1792172200 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+17.3 1792172200 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+17.3 1792172200 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+17.3 1792172200 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+17.3 1792172200 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+17.3 1792172200 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+17.3 1792172200 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+17.3 1792172200 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+17.3 1792172200 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"verified"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","identity":{"
+===T+18.3 1792172201 front=loginwindow[422]
+  #0 ZCode [ZCode] @66,411 1408x687
+===T+18.3 1792172201 front=loginwindow[422]
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+18.3 1792172201 front=loginwindow[422]
+  #2 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+18.3 1792172201 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+18.3 1792172201 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+18.3 1792172201 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+18.3 1792172201 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+18.3 1792172201 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+18.3 1792172201 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+18.3 1792172201 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+18.3 1792172201 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,184],[1505,973]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"verified"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"应用按自身尺寸约束返回 66,4
+===T+19.3 1792172202 front=loginwindow[422]
+  #0 ZCode [ZCode] @96,398 1407x685
+===T+19.3 1792172202 front=loginwindow[422]
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+19.3 1792172202 front=loginwindow[422]
+  #2 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+19.3 1792172202 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+19.3 1792172202 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+19.3 1792172202 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+19.3 1792172202 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+19.3 1792172202 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+19.3 1792172202 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+19.3 1792172202 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+19.3 1792172202 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,184],[1505,973]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"verified"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"应用按自身尺寸约束返回 66,4
+===T+20.3 1792172203 front=loginwindow[422]
+  #0 ZCode [ZCode] @66,411 1407x685
+===T+20.3 1792172203 front=loginwindow[422]
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+20.3 1792172203 front=loginwindow[422]
+  #2 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+20.3 1792172203 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+20.3 1792172203 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+20.3 1792172203 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+20.3 1792172203 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+20.3 1792172203 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+20.3 1792172203 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+20.3 1792172203 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+20.3 1792172203 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"mutationPlanned"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","ident
+===T+21.3 1792172204 front=loginwindow[422]
+  #0 ZCode [ZCode] @68,410 1407x685
+===T+21.3 1792172204 front=loginwindow[422]
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+21.3 1792172204 front=loginwindow[422]
+  #2 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+21.3 1792172204 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+21.3 1792172204 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+21.3 1792172204 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+21.3 1792172204 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+21.3 1792172204 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+21.3 1792172204 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+21.3 1792172204 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+21.3 1792172204 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"mutationPlanned"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","ident
+===T+22.3 1792172205 front=loginwindow[422]
+  #0 ZCode [ZCode] @66,411 1407x685
+===T+22.3 1792172205 front=loginwindow[422]
+  #1 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+22.3 1792172205 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+22.3 1792172205 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+22.3 1792172205 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+22.3 1792172205 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+22.3 1792172205 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+22.3 1792172205 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+22.3 1792172205 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+22.3 1792172205 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+22.3 1792172205 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"verified"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","identity":{"
+===T+23.4 1792172206 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+23.4 1792172206 front=loginwindow[422]
+  #1 ZCode [ZCode] @429,260 1407x685
+===T+23.4 1792172206 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+23.4 1792172206 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+23.4 1792172206 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+23.4 1792172206 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+23.4 1792172206 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+23.4 1792172206 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+23.4 1792172206 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+23.4 1792172206 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+23.4 1792172206 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,184],[1505,973]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"mutationPlanned"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","identity":{"processID":19
+===T+24.4 1792172207 front=loginwindow[422]
+  #0 ZCode [ZCode] @66,396 1414x700
+===T+24.4 1792172207 front=loginwindow[422]
+  #1 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+24.4 1792172207 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+24.4 1792172207 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+24.4 1792172207 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+24.4 1792172207 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+24.4 1792172207 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+24.4 1792172207 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+24.4 1792172207 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+24.4 1792172207 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+24.4 1792172207 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"verified"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","identity":{"
+===T+25.4 1792172208 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+25.4 1792172208 front=loginwindow[422]
+  #1 ZCode [ZCode] @311,299 1414x700
+===T+25.4 1792172208 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+25.4 1792172208 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+25.4 1792172208 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+25.4 1792172208 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+25.4 1792172208 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+25.4 1792172208 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+25.4 1792172208 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+25.4 1792172208 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+25.4 1792172208 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"verified"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReaso
+===T+26.4 1792172209 front=loginwindow[422]
+  #0 ZCode [ZCode] @66,411 1414x700
+===T+26.4 1792172209 front=loginwindow[422]
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+26.4 1792172209 front=loginwindow[422]
+  #2 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+26.4 1792172209 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+26.4 1792172209 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+26.4 1792172209 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+26.4 1792172209 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+26.4 1792172209 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+26.4 1792172209 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+26.4 1792172209 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+26.4 1792172209 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"verified"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","identity":{"
+===T+27.4 1792172210 front=loginwindow[422]
+  #0 ZCode [ZCode] @66,411 1414x700
+===T+27.4 1792172210 front=loginwindow[422]
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+27.4 1792172210 front=loginwindow[422]
+  #2 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+27.4 1792172210 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+27.4 1792172210 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+27.4 1792172210 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+27.4 1792172210 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+27.4 1792172210 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+27.4 1792172210 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+27.4 1792172210 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+27.4 1792172210 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"mutationPlanned"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","ident
+===T+28.4 1792172211 front=loginwindow[422]
+  #0 ZCode [ZCode] @66,411 1414x700
+===T+28.4 1792172211 front=loginwindow[422]
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+28.4 1792172211 front=loginwindow[422]
+  #2 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+28.4 1792172211 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+28.4 1792172211 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+28.4 1792172211 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+28.4 1792172211 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+28.4 1792172211 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+28.4 1792172211 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+28.4 1792172211 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+28.4 1792172211 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"mutationPlanned"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","ident
+===T+29.4 1792172212 front=loginwindow[422]
+  #0 ZCode [ZCode] @423,250 1413x698
+===T+29.4 1792172212 front=loginwindow[422]
+  #1 Google Chrome [组织用户中心] @66,184 1505x973
+===T+29.4 1792172212 front=loginwindow[422]
+  #2 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+29.4 1792172212 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+29.4 1792172212 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+29.4 1792172212 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+29.4 1792172212 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+29.4 1792172212 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+29.4 1792172212 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+29.4 1792172212 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+29.4 1792172212 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,184],[1505,973]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"verified"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"应用按自身尺寸约束返回 66,4
+===T+30.4 1792172213 front=loginwindow[422]
+  #0 ZCode [ZCode] @90,400 1413x698
+===T+30.4 1792172213 front=loginwindow[422]
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+30.4 1792172213 front=loginwindow[422]
+  #2 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+30.4 1792172213 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+30.4 1792172213 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+30.4 1792172213 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+30.4 1792172213 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+30.4 1792172213 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+30.4 1792172213 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+30.4 1792172213 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+30.4 1792172213 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,184],[1505,973]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"verified"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"应用按自身尺寸约束返回 66,4
+===T+31.4 1792172214 front=loginwindow[422]
+  #0 Google Chrome [组织用户中心] @66,184 1505x973
+===T+31.4 1792172214 front=loginwindow[422]
+  #1 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+31.4 1792172214 front=loginwindow[422]
+  #2 ZCode [ZCode] @437,244 1413x698
+===T+31.4 1792172214 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+31.4 1792172214 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+31.4 1792172214 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+31.4 1792172214 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+31.4 1792172214 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+31.4 1792172214 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+31.4 1792172214 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+31.4 1792172214 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,184],[1505,973]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"verified"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"应用按自身尺寸约束返回 66,4
+===T+32.4 1792172215 front=loginwindow[422]
+  #0 ZCode [ZCode] @96,397 1413x698
+===T+32.4 1792172215 front=loginwindow[422]
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+32.4 1792172215 front=loginwindow[422]
+  #2 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+32.4 1792172215 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+32.4 1792172215 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+32.4 1792172215 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+32.4 1792172215 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+32.4 1792172215 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+32.4 1792172215 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+32.4 1792172215 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+32.4 1792172215 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,184],[1505,973]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"verified"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"应用按自身尺寸约束返回 66,4
+===T+33.5 1792172216 front=loginwindow[422]
+  #0 ZCode [ZCode] @67,410 1413x698
+===T+33.5 1792172216 front=loginwindow[422]
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+33.5 1792172216 front=loginwindow[422]
+  #2 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+33.5 1792172216 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+33.5 1792172216 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+33.5 1792172216 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+33.5 1792172216 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+33.5 1792172216 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+33.5 1792172216 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+33.5 1792172216 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+33.5 1792172216 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"mutationPlanned"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","ident
+===T+34.5 1792172217 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+34.5 1792172217 front=loginwindow[422]
+  #1 ZCode [ZCode] @113,390 1413x698
+===T+34.5 1792172217 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+34.5 1792172217 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+34.5 1792172217 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+34.5 1792172217 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+34.5 1792172217 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+34.5 1792172217 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+34.5 1792172217 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+34.5 1792172217 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+34.5 1792172217 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"verified"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReaso
+===T+35.5 1792172218 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+35.5 1792172218 front=loginwindow[422]
+  #1 ZCode [ZCode] @295,308 1413x698
+===T+35.5 1792172218 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+35.5 1792172218 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+35.5 1792172218 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+35.5 1792172218 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+35.5 1792172218 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+35.5 1792172218 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+35.5 1792172218 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+35.5 1792172218 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+35.5 1792172218 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"verified"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReaso
+===T+36.5 1792172219 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+36.5 1792172219 front=loginwindow[422]
+  #1 Google Chrome [组织用户中心] @66,184 1505x973
+===T+36.5 1792172219 front=loginwindow[422]
+  #2 ZCode [ZCode] @429,248 1413x698
+===T+36.5 1792172219 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+36.5 1792172219 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+36.5 1792172219 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+36.5 1792172219 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+36.5 1792172219 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+36.5 1792172219 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+36.5 1792172219 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+36.5 1792172219 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,184],[1505,973]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"mutationPlanned"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"应用按自身尺寸约束
+===T+37.5 1792172220 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+37.5 1792172220 front=loginwindow[422]
+  #1 Vistile [] @17,11 1766x1147
+===T+37.5 1792172220 front=loginwindow[422]
+  #2 ZCode [ZCode] @437,244 1413x698
+===T+37.5 1792172220 front=loginwindow[422]
+  #3 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+37.5 1792172220 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @1571,183 217x974
+===T+37.5 1792172220 front=loginwindow[422]
+  #5 Vistile [Vistile Workbench] @66,52 1722x132
+===T+37.5 1792172220 front=loginwindow[422]
+  #6 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+37.5 1792172220 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+37.5 1792172220 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+37.5 1792172220 front=loginwindow[422]
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+37.5 1792172220 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"verified"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReaso
+===T+38.5 1792172221 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+38.5 1792172221 front=loginwindow[422]
+  #1 ZCode [ZCode] @246,330 1413x698
+===T+38.5 1792172221 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+38.5 1792172221 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+38.5 1792172221 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+38.5 1792172221 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+38.5 1792172221 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+38.5 1792172221 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+38.5 1792172221 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+38.5 1792172221 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+38.5 1792172221 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,184],[1505,973]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"mutationPlanned"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"应用按自身尺寸约束
+===T+39.5 1792172222 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+39.5 1792172222 front=loginwindow[422]
+  #1 ZCode [ZCode] @418,253 1413x698
+===T+39.5 1792172222 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+39.5 1792172222 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+39.5 1792172222 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+39.5 1792172222 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+39.5 1792172222 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+39.5 1792172222 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+39.5 1792172222 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+39.5 1792172222 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+39.5 1792172222 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,184],[1505,973]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"mutationPlanned"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"应用按自身尺寸约束
+===T+40.5 1792172223 front=loginwindow[422]
+  #0 Google Chrome [组织用户中心] @66,184 1505x973
+===T+40.5 1792172223 front=loginwindow[422]
+  #1 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+40.5 1792172223 front=loginwindow[422]
+  #2 ZCode [ZCode] @437,244 1413x698
+===T+40.5 1792172223 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+40.5 1792172223 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+40.5 1792172223 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+40.5 1792172223 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+40.5 1792172223 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+40.5 1792172223 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+40.5 1792172223 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+40.5 1792172223 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,184],[1505,973]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"verified"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"应用按自身尺寸约束返回 437,
+===T+41.5 1792172224 front=loginwindow[422]
+  #0 Google Chrome [组织用户中心] @66,184 1505x973
+===T+41.5 1792172224 front=loginwindow[422]
+  #1 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+41.5 1792172224 front=loginwindow[422]
+  #2 ZCode [ZCode] @437,244 1413x698
+===T+41.5 1792172224 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+41.5 1792172224 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+41.5 1792172224 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+41.5 1792172224 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+41.5 1792172224 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+41.5 1792172224 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+41.5 1792172224 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+41.5 1792172224 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,184],[1505,973]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"verified"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"应用按自身尺寸约束返回 437,
+===T+42.6 1792172225 front=loginwindow[422]
+  #0 ZCode [ZCode] @121,386 1413x698
+===T+42.6 1792172225 front=loginwindow[422]
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+42.6 1792172225 front=loginwindow[422]
+  #2 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+42.6 1792172225 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+42.6 1792172225 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+42.6 1792172225 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+42.6 1792172225 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+42.6 1792172225 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+42.6 1792172225 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+42.6 1792172225 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+42.6 1792172225 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,184],[1505,973]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"verified"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"应用按自身尺寸约束返回 66,4
+===T+43.6 1792172226 front=loginwindow[422]
+  #0 ZCode [ZCode] @66,411 1413x698
+===T+43.6 1792172226 front=loginwindow[422]
+  #1 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+43.6 1792172226 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+43.6 1792172226 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+43.6 1792172226 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+43.6 1792172226 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+43.6 1792172226 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+43.6 1792172226 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+43.6 1792172226 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+43.6 1792172226 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+43.6 1792172226 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"verified"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","identity":{"
+===T+44.6 1792172227 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+44.6 1792172227 front=loginwindow[422]
+  #1 ZCode [ZCode] @94,399 1413x698
+===T+44.6 1792172227 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+44.6 1792172227 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+44.6 1792172227 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+44.6 1792172227 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+44.6 1792172227 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+44.6 1792172227 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+44.6 1792172227 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+44.6 1792172227 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+44.6 1792172227 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"verified"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReaso
+===T+45.6 1792172228 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+45.6 1792172228 front=loginwindow[422]
+  #1 ZCode [ZCode] @270,319 1413x698
+===T+45.6 1792172228 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+45.6 1792172228 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @1571,183 217x974
+===T+45.6 1792172228 front=loginwindow[422]
+  #4 Vistile [Vistile Workbench] @66,52 1722x132
+===T+45.6 1792172228 front=loginwindow[422]
+  #5 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+45.6 1792172228 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+45.6 1792172228 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+45.6 1792172228 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+45.6 1792172228 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @258,256 548x366
+===T+45.6 1792172228 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:36:32Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"lastProvisionalFrame":[[66,184],[1505,973]],"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,184],[1505,973]],"provisionalDisplayID":1,"restoreAttempts":0,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"mutationPlanned"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"应用按自身尺寸约束
+===T+46.6 1792172229 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+46.6 1792172229 front=loginwindow[422]
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+===T+46.6 1792172229 front=loginwindow[422]
+  #2 Vistile [Vistile Workbench] @1571,185 217x970
+===T+46.6 1792172229 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @70,52 1714x132
+===T+46.6 1792172229 front=loginwindow[422]
+  #4 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+46.6 1792172229 front=loginwindow[422]
+  #5 ZCode [ZCode] @393,244 1413x698
+===T+46.6 1792172229 front=loginwindow[422]
+  #6 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+46.6 1792172229 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+46.6 1792172229 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+46.6 1792172229 front=loginwindow[422]
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+46.6 1792172229 front=loginwindow[422]
+  JOURNAL {"entries":{"14114:1792024984274429:4967":{"bundleID":"com.microsoft.VSCode","created":"2026-10-16T17:37:08Z","identity":{"processID":14114,"processStartIdentity":1792024984274429,"windowID":4967},"originalDisplayID":1,"originalFrame":[[66,184],[1505,973]],"plannedDisplayID":1,"plannedFrame":[[66,183.55],[1505.3600000000001,973.45]],"restoreAttempts":0,"sessionID":"CB814AA7-4379-4B47-8685-25A95C219AAD","state":"mutationPlanned"},"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"恢复读回偏差 13.0pt","identity":{"processID":19645,"processStartI
+===T+47.6 1792172230 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+47.6 1792172230 front=loginwindow[422]
+  #1 Vistile [Vistile Overview] @59,43 1736x1123
+===T+47.6 1792172230 front=loginwindow[422]
+  #2 Vistile [Vistile Workbench] @1573,192 213x956
+===T+47.6 1792172230 front=loginwindow[422]
+  #3 Vistile [Vistile Workbench] @82,53 1690x130
+===T+47.6 1792172230 front=loginwindow[422]
+  #4 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+47.6 1792172230 front=loginwindow[422]
+  #5 ZCode [ZCode] @393,244 1413x698
+===T+47.6 1792172230 front=loginwindow[422]
+  #6 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+47.6 1792172230 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+47.6 1792172230 front=loginwindow[422]
+  #8 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+47.6 1792172230 front=loginwindow[422]
+  #9 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+47.6 1792172230 front=loginwindow[422]
+  JOURNAL {"entries":{"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"恢复读回偏差 13.0pt","identity":{"processID":19645,"processStartIdentity":1792045891827530,"windowID":4262},"lastProvisionalFrame":[[437,244],[1413,698]],"originalDisplayID":1,"originalFrame":[[437,257],[1407,685]],"plannedDisplayID":1,"plannedFrame":[[437,257],[1407,685]],"provisionalDisplayID":1,"restoreAttempts":1,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"failed"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:37:09Z","iden
+===T+48.6 1792172231 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+48.6 1792172231 front=loginwindow[422]
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+===T+48.6 1792172231 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+48.6 1792172231 front=loginwindow[422]
+  #3 ZCode [ZCode] @393,244 1413x698
+===T+48.6 1792172231 front=loginwindow[422]
+  #4 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+48.6 1792172231 front=loginwindow[422]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+48.6 1792172231 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+48.6 1792172231 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+48.6 1792172231 front=loginwindow[422]
+  #8 UITestHarness [无标题副本] @258,256 548x366
+===T+48.6 1792172231 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @212,204 572x384
+===T+48.6 1792172231 front=loginwindow[422]
+  JOURNAL {"entries":{"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"恢复读回偏差 13.0pt","identity":{"processID":19645,"processStartIdentity":1792045891827530,"windowID":4262},"lastProvisionalFrame":[[437,244],[1413,698]],"originalDisplayID":1,"originalFrame":[[437,257],[1407,685]],"plannedDisplayID":1,"plannedFrame":[[437,257],[1407,685]],"provisionalDisplayID":1,"restoreAttempts":1,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"failed"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+49.6 1792172232 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+49.6 1792172232 front=loginwindow[422]
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+===T+49.6 1792172232 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+49.6 1792172232 front=loginwindow[422]
+  #3 ZCode [ZCode] @393,244 1413x698
+===T+49.6 1792172232 front=loginwindow[422]
+  #4 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+49.6 1792172232 front=loginwindow[422]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+49.6 1792172232 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+49.6 1792172232 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+49.6 1792172232 front=loginwindow[422]
+  #8 UITestHarness [无标题副本] @258,256 548x366
+===T+49.6 1792172232 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @212,204 572x384
+===T+49.6 1792172232 front=loginwindow[422]
+  JOURNAL {"entries":{"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"恢复读回偏差 13.0pt","identity":{"processID":19645,"processStartIdentity":1792045891827530,"windowID":4262},"lastProvisionalFrame":[[437,244],[1413,698]],"originalDisplayID":1,"originalFrame":[[437,257],[1407,685]],"plannedDisplayID":1,"plannedFrame":[[437,257],[1407,685]],"provisionalDisplayID":1,"restoreAttempts":1,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"failed"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+50.6 1792172233 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+50.6 1792172233 front=loginwindow[422]
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+===T+50.6 1792172233 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+50.6 1792172233 front=loginwindow[422]
+  #3 ZCode [ZCode] @393,244 1413x698
+===T+50.6 1792172233 front=loginwindow[422]
+  #4 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+50.6 1792172233 front=loginwindow[422]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+50.6 1792172233 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+50.6 1792172233 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+50.6 1792172233 front=loginwindow[422]
+  #8 UITestHarness [无标题副本] @258,256 548x366
+===T+50.6 1792172233 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @212,204 572x384
+===T+50.6 1792172233 front=loginwindow[422]
+  JOURNAL {"entries":{"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"恢复读回偏差 13.0pt","identity":{"processID":19645,"processStartIdentity":1792045891827530,"windowID":4262},"lastProvisionalFrame":[[437,244],[1413,698]],"originalDisplayID":1,"originalFrame":[[437,257],[1407,685]],"plannedDisplayID":1,"plannedFrame":[[437,257],[1407,685]],"provisionalDisplayID":1,"restoreAttempts":1,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"failed"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+51.6 1792172234 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+51.6 1792172234 front=loginwindow[422]
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+===T+51.6 1792172234 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+51.6 1792172234 front=loginwindow[422]
+  #3 ZCode [ZCode] @393,244 1413x698
+===T+51.6 1792172234 front=loginwindow[422]
+  #4 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+51.6 1792172234 front=loginwindow[422]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+51.6 1792172234 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+51.6 1792172234 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+51.6 1792172234 front=loginwindow[422]
+  #8 UITestHarness [无标题副本] @258,256 548x366
+===T+51.6 1792172234 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @212,204 572x384
+===T+51.6 1792172234 front=loginwindow[422]
+  JOURNAL {"entries":{"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"恢复读回偏差 13.0pt","identity":{"processID":19645,"processStartIdentity":1792045891827530,"windowID":4262},"lastProvisionalFrame":[[437,244],[1413,698]],"originalDisplayID":1,"originalFrame":[[437,257],[1407,685]],"plannedDisplayID":1,"plannedFrame":[[437,257],[1407,685]],"provisionalDisplayID":1,"restoreAttempts":1,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"failed"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+52.6 1792172235 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+52.6 1792172235 front=loginwindow[422]
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+===T+52.6 1792172235 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+52.6 1792172235 front=loginwindow[422]
+  #3 ZCode [ZCode] @393,244 1413x698
+===T+52.6 1792172235 front=loginwindow[422]
+  #4 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+52.6 1792172235 front=loginwindow[422]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+52.6 1792172235 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+52.6 1792172235 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+52.6 1792172235 front=loginwindow[422]
+  #8 UITestHarness [无标题副本] @258,256 548x366
+===T+52.6 1792172235 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @212,204 572x384
+===T+52.6 1792172235 front=loginwindow[422]
+  JOURNAL {"entries":{"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"恢复读回偏差 13.0pt","identity":{"processID":19645,"processStartIdentity":1792045891827530,"windowID":4262},"lastProvisionalFrame":[[437,244],[1413,698]],"originalDisplayID":1,"originalFrame":[[437,257],[1407,685]],"plannedDisplayID":1,"plannedFrame":[[437,257],[1407,685]],"provisionalDisplayID":1,"restoreAttempts":1,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"failed"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+53.6 1792172236 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+53.6 1792172236 front=loginwindow[422]
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+===T+53.6 1792172236 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+53.6 1792172236 front=loginwindow[422]
+  #3 ZCode [ZCode] @393,244 1413x698
+===T+53.6 1792172236 front=loginwindow[422]
+  #4 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+53.6 1792172236 front=loginwindow[422]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+53.6 1792172236 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+53.6 1792172236 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+53.6 1792172236 front=loginwindow[422]
+  #8 UITestHarness [无标题副本] @258,256 548x366
+===T+53.6 1792172236 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @212,204 572x384
+===T+53.6 1792172236 front=loginwindow[422]
+  JOURNAL {"entries":{"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"恢复读回偏差 13.0pt","identity":{"processID":19645,"processStartIdentity":1792045891827530,"windowID":4262},"lastProvisionalFrame":[[437,244],[1413,698]],"originalDisplayID":1,"originalFrame":[[437,257],[1407,685]],"plannedDisplayID":1,"plannedFrame":[[437,257],[1407,685]],"provisionalDisplayID":1,"restoreAttempts":1,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"failed"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+54.6 1792172237 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+54.6 1792172237 front=loginwindow[422]
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+===T+54.6 1792172237 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+54.6 1792172237 front=loginwindow[422]
+  #3 ZCode [ZCode] @393,244 1413x698
+===T+54.6 1792172237 front=loginwindow[422]
+  #4 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+54.6 1792172237 front=loginwindow[422]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+54.6 1792172237 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+54.6 1792172237 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+54.6 1792172237 front=loginwindow[422]
+  #8 UITestHarness [无标题副本] @258,256 548x366
+===T+54.6 1792172237 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @212,204 572x384
+===T+54.6 1792172237 front=loginwindow[422]
+  JOURNAL {"entries":{"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"恢复读回偏差 13.0pt","identity":{"processID":19645,"processStartIdentity":1792045891827530,"windowID":4262},"lastProvisionalFrame":[[437,244],[1413,698]],"originalDisplayID":1,"originalFrame":[[437,257],[1407,685]],"plannedDisplayID":1,"plannedFrame":[[437,257],[1407,685]],"provisionalDisplayID":1,"restoreAttempts":1,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"failed"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+55.6 1792172238 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+55.6 1792172238 front=loginwindow[422]
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+===T+55.6 1792172238 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+55.6 1792172238 front=loginwindow[422]
+  #3 ZCode [ZCode] @393,244 1413x698
+===T+55.6 1792172238 front=loginwindow[422]
+  #4 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+55.6 1792172238 front=loginwindow[422]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+55.6 1792172238 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+55.6 1792172238 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+55.6 1792172238 front=loginwindow[422]
+  #8 UITestHarness [无标题副本] @258,256 548x366
+===T+55.6 1792172238 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @212,204 572x384
+===T+55.6 1792172238 front=loginwindow[422]
+  JOURNAL {"entries":{"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"恢复读回偏差 13.0pt","identity":{"processID":19645,"processStartIdentity":1792045891827530,"windowID":4262},"lastProvisionalFrame":[[437,244],[1413,698]],"originalDisplayID":1,"originalFrame":[[437,257],[1407,685]],"plannedDisplayID":1,"plannedFrame":[[437,257],[1407,685]],"provisionalDisplayID":1,"restoreAttempts":1,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"failed"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+56.6 1792172239 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+56.6 1792172239 front=loginwindow[422]
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+===T+56.6 1792172239 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+56.6 1792172239 front=loginwindow[422]
+  #3 ZCode [ZCode] @393,244 1413x698
+===T+56.6 1792172239 front=loginwindow[422]
+  #4 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+56.6 1792172239 front=loginwindow[422]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+56.6 1792172239 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+56.6 1792172239 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+56.6 1792172239 front=loginwindow[422]
+  #8 UITestHarness [无标题副本] @258,256 548x366
+===T+56.6 1792172239 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @212,204 572x384
+===T+56.6 1792172239 front=loginwindow[422]
+  JOURNAL {"entries":{"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"恢复读回偏差 13.0pt","identity":{"processID":19645,"processStartIdentity":1792045891827530,"windowID":4262},"lastProvisionalFrame":[[437,244],[1413,698]],"originalDisplayID":1,"originalFrame":[[437,257],[1407,685]],"plannedDisplayID":1,"plannedFrame":[[437,257],[1407,685]],"provisionalDisplayID":1,"restoreAttempts":1,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"failed"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+57.6 1792172240 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+57.6 1792172240 front=loginwindow[422]
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+===T+57.6 1792172240 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+57.6 1792172240 front=loginwindow[422]
+  #3 ZCode [ZCode] @393,244 1413x698
+===T+57.6 1792172240 front=loginwindow[422]
+  #4 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+57.6 1792172240 front=loginwindow[422]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+57.6 1792172240 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+57.6 1792172240 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+57.6 1792172240 front=loginwindow[422]
+  #8 UITestHarness [无标题副本] @258,256 548x366
+===T+57.6 1792172240 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @212,204 572x384
+===T+57.6 1792172240 front=loginwindow[422]
+  JOURNAL {"entries":{"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"恢复读回偏差 13.0pt","identity":{"processID":19645,"processStartIdentity":1792045891827530,"windowID":4262},"lastProvisionalFrame":[[437,244],[1413,698]],"originalDisplayID":1,"originalFrame":[[437,257],[1407,685]],"plannedDisplayID":1,"plannedFrame":[[437,257],[1407,685]],"provisionalDisplayID":1,"restoreAttempts":1,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"failed"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+58.7 1792172241 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+58.7 1792172241 front=loginwindow[422]
+  #1 Vistile [Vistile Overview] @54,40 1746x1129
+===T+58.7 1792172241 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+58.7 1792172241 front=loginwindow[422]
+  #3 ZCode [ZCode] @393,244 1413x698
+===T+58.7 1792172241 front=loginwindow[422]
+  #4 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+58.7 1792172241 front=loginwindow[422]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+58.7 1792172241 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+58.7 1792172241 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+58.7 1792172241 front=loginwindow[422]
+  #8 UITestHarness [无标题副本] @258,256 548x366
+===T+58.7 1792172241 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @212,204 572x384
+===T+58.7 1792172241 front=loginwindow[422]
+  JOURNAL {"entries":{"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"恢复读回偏差 13.0pt","identity":{"processID":19645,"processStartIdentity":1792045891827530,"windowID":4262},"lastProvisionalFrame":[[437,244],[1413,698]],"originalDisplayID":1,"originalFrame":[[437,257],[1407,685]],"plannedDisplayID":1,"plannedFrame":[[437,257],[1407,685]],"provisionalDisplayID":1,"restoreAttempts":1,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"failed"}},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+59.7 1792172242 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+59.7 1792172242 front=loginwindow[422]
+  #1 Vistile [Vistile Overview] @65,47 1724x1115
+===T+59.7 1792172242 front=loginwindow[422]
+  #2 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+59.7 1792172242 front=loginwindow[422]
+  #3 ZCode [ZCode] @393,244 1413x698
+===T+59.7 1792172242 front=loginwindow[422]
+  #4 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+59.7 1792172242 front=loginwindow[422]
+  #5 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+59.7 1792172242 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+59.7 1792172242 front=loginwindow[422]
+  #7 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+59.7 1792172242 front=loginwindow[422]
+  #8 UITestHarness [无标题副本] @258,256 548x366
+===T+59.7 1792172242 front=loginwindow[422]
+  #9 UITestHarness [无标题副本] @212,204 572x384
+===T+59.7 1792172242 front=loginwindow[422]
+  JOURNAL {"entries":{"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"恢复读回偏差 13.0pt","identity":{"processID":19645,"processStartIdentity":1792045891827530,"windowID":4262},"lastProvisionalFrame":[[437,244],[1413,698]],"originalDisplayID":1,"originalFrame":[[437,257],[1407,685]],"plannedDisplayID":1,"plannedFrame":[[437,257],[1407,685]],"provisionalDisplayID":1,"restoreAttempts":1,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"failed"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:37:09Z","fail
+===T+60.7 1792172243 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+60.7 1792172243 front=loginwindow[422]
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+60.7 1792172243 front=loginwindow[422]
+  #2 ZCode [ZCode] @393,244 1413x698
+===T+60.7 1792172243 front=loginwindow[422]
+  #3 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+60.7 1792172243 front=loginwindow[422]
+  #4 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+60.7 1792172243 front=loginwindow[422]
+  #5 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+60.7 1792172243 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+60.7 1792172243 front=loginwindow[422]
+  #7 UITestHarness [无标题副本] @258,256 548x366
+===T+60.7 1792172243 front=loginwindow[422]
+  #8 UITestHarness [无标题副本] @212,204 572x384
+===T+60.7 1792172243 front=loginwindow[422]
+  #9 UITestHarness [Harness 窗口 2] @166,152 596x402
+===T+60.7 1792172243 front=loginwindow[422]
+  JOURNAL {"entries":{"19645:1792045891827530:4262":{"bundleID":"dev.zcode.app","created":"2026-10-16T17:36:36Z","failureReason":"恢复读回偏差 13.0pt","identity":{"processID":19645,"processStartIdentity":1792045891827530,"windowID":4262},"lastProvisionalFrame":[[437,244],[1413,698]],"originalDisplayID":1,"originalFrame":[[437,257],[1407,685]],"plannedDisplayID":1,"plannedFrame":[[437,257],[1407,685]],"provisionalDisplayID":1,"restoreAttempts":1,"sessionID":"C588E528-2EFC-479F-9C6A-E83FE5FED085","state":"failed"},"2263:1792024453428670:351":{"bundleID":"com.google.Chrome","created":"2026-10-16T17:37:09Z","fail
+===T+61.7 1792172244 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+61.7 1792172244 front=loginwindow[422]
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+61.7 1792172244 front=loginwindow[422]
+  #2 ZCode [ZCode] @393,244 1413x698
+===T+61.7 1792172244 front=loginwindow[422]
+  #3 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+61.7 1792172244 front=loginwindow[422]
+  #4 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+61.7 1792172244 front=loginwindow[422]
+  #5 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+61.7 1792172244 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+61.7 1792172244 front=loginwindow[422]
+  #7 UITestHarness [无标题副本] @258,256 548x366
+===T+61.7 1792172244 front=loginwindow[422]
+  #8 UITestHarness [无标题副本] @212,204 572x384
+===T+61.7 1792172244 front=loginwindow[422]
+  #9 UITestHarness [Harness 窗口 2] @166,152 596x402
+===T+61.7 1792172244 front=loginwindow[422]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}
+===T+62.7 1792172245 front=loginwindow[422]
+  #0 Code [Personnel.jsx — tg-frontend-second] @66,184 1505x973
+===T+62.7 1792172245 front=loginwindow[422]
+  #1 Google Chrome [组织用户中心] @54,40 1746x1129
+===T+62.7 1792172245 front=loginwindow[422]
+  #2 ZCode [ZCode] @393,244 1413x698
+===T+62.7 1792172245 front=loginwindow[422]
+  #3 终端 [_ — -zsh — 80×24] @577,332 580x421
+===T+62.7 1792172245 front=loginwindow[422]
+  #4 UITestHarness [Harness 窗口 1] @120,100 620x420
+===T+62.7 1792172245 front=loginwindow[422]
+  #5 UITestHarness [Harness 窗口 6] @350,360 500x330
+===T+62.7 1792172245 front=loginwindow[422]
+  #6 UITestHarness [Harness 窗口 5] @304,308 524x348
+===T+62.7 1792172245 front=loginwindow[422]
+  #7 UITestHarness [无标题副本] @258,256 548x366
+===T+62.7 1792172245 front=loginwindow[422]
+  #8 UITestHarness [无标题副本] @212,204 572x384
+===T+62.7 1792172245 front=loginwindow[422]
+  #9 UITestHarness [Harness 窗口 2] @166,152 596x402
+===T+62.7 1792172245 front=loginwindow[422]
+  JOURNAL {"entries":{},"sessionID":"5D4A78C8-BDEE-4949-89B5-083237E10937"}

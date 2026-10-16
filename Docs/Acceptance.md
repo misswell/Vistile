@@ -19,6 +19,17 @@
 | 10-16 17:46 | 0.1.6+7 | 可用 | 13 项：11 通过 / 2 失败 | `P0-7` 缺布局 1；`P0-9` present +0（0 路流瞬间取样）。**`P0-3` 这一轮两个多窗口应用都判通过** |
 | 10-16 18:14 / 18:17 / 18:27 | 0.1.8+9 | **作废 ×3** | — | 同样全程 0 帧、AX 可解析 0/10；18:27 那轮距覆盖安装已 14 分钟，**"等一会儿就好"是错的，锁屏才是根因** |
 | 10-16 18:33 | 0.1.8+9 | 有帧可判，但**整轮在锁定态** | 14 项：13 通过 / 1 失败 | 唯一红是 `P0-3`「Raise 没有发出（拿不到 AX 句柄）」——锁定态下任何应用的 AX 窗口列表都是空的，0.1.9 起这种轮次记**未测** |
+| 10-16 20:25 | 0.1.9+11 | **诊断轮** | 17 项：16 通过 / 1 失败 | `P0-4`「总览面板持有键盘=true，键盘归属=overview」——红在取证时机不在产品（修复前的对照） |
+| 10-16 20:29 | 0.1.9+12 | **诊断轮** | 17 项：16 通过 / 1 失败 | `P0-4`「5s 内没落定＋总览面板持有键盘」，形状同 +11 |
+| 10-16 20:38 | 0.1.9+13 | 可用 | 17 项：无失败 | `P0-4` 转通过（进入主区 n=3）；`P0-7` 未测（本轮只接 1 块屏） |
+| 10-17 00:02 | 0.1.10+16 | 可用 | 21 项：19 通过 / 2 失败 | `P0-16`=2/100、`P0-17`=12/100——拒绝来自同一根因：窗口服务器几何提交滞后 AX 约 0.6s，目录采样把刚移动的窗口判成"未唯一"；`P0-12/13/14` 转通过 |
+| 10-17 00:15 | 0.1.10+17 | 可用 | 21 项：19 通过 / 2 失败 | `P0-16`=6/100、`P0-17`=21/100；新失败形状＝目录快照把一次 AX 读超时折叠成"不可调整尺寸"，写前守卫拿坏采样当事实 |
+| 10-17 00:22 | 0.1.10+18 | **诊断轮**（不可全判） | 21 项：19 通过 / 2 失败 | `P0-16`=1/100（第 2 次交换后会话静默退出）、`P0-17` 未测、`P0-14` 红＝探针取样早于返回动画落地；全程 0 帧，依赖帧的项不能当产品结论 |
+| 10-17 00:43 | 0.1.10+19 | **诊断轮** | 21 项：19 通过 / 2 失败 | `P0-16`=3/100、`P0-17`=9/100——被点身份瞬时未唯一时宿主把点击丢掉（有日志留痕）；+19 焦点阶梯修复本轮零静默退出 |
+| 10-17 00:50 | 0.1.10+20 | 可用 | 21 项：20 通过 / 1 失败 | `P0-16` 转通过（100/100，p95=384ms）；`P0-17` 红＝241.0pt 漂移，独立快照证明是探针单次取样误报；另抓到两条幻影提示「窗口尺寸未能恢复」（+21 修） |
+| 10-17 01:09 | 0.1.10+21 | **诊断轮** | 21 项：18 通过 / 3 失败 | `P0-16`=19/100（「拿不到 AX 句柄（身份未唯一确定）」）、`P0-17`=11/100＋真实漂移 144/234pt；两处句柄路径一个坏采样就判死（+22 修：带截止时间复核目录） |
+| 10-17 01:37 | 0.1.10+22 | **诊断轮** | 21 项：20 通过 / 1 失败 | `P0-16` 转通过（100/100，p95=552ms）；`P0-17`=3/100（第 4 轮 Chrome 写入报 -25204、读回其实已在目标位）＋漂移 241pt（基线采样在几何提交滞后窗口内）与 44pt（ZCode 自播动画） |
+| 10-17 01:58 | 0.1.10+23 | **诊断轮** | 21 项：20 通过 / 1 失败 | `P0-16`=通过（100/100）；`P0-17`=61/100——第 62 轮写入双侧错误码=0、单次读回读不到被判「不能宣称到位」，但 32ms 后恢复路径读到了 66,184；幻影提示与真实漂移本轮消失。本轮中途有锁定段与授权弹窗，只作诊断 |
 
 ### 锁定态会伪造结论，这是本轮新学到的
 
@@ -172,7 +183,12 @@ xcodebuild -project Vistile.xcodeproj -scheme VistileHostTests \
   -derivedDataPath build CODE_SIGNING_ALLOWED=NO test
 
 # 4. 造可控窗口（同名副本 + 计数器 + 中文输入框 + 保存面板）
-xcodebuild -project Vistile.xcodeproj -target UITestHarness -derivedDataPath build -configuration Debug build
+#    新版 xcodebuild 不再接受「-target 直连 + -derivedDataPath」同时出现（报 exit 64：
+#    "requires a scheme"）；改走 scheme，UITestHarness 已挂在 Vistile scheme 的 build 目标里
+#    （见 project.yml），产物路径不变。
+xcodebuild -project Vistile.xcodeproj -scheme Vistile \
+  -destination 'platform=macOS,arch=arm64' -configuration Debug \
+  -derivedDataPath build build
 open build/Build/Products/Debug/UITestHarness.app
 
 # 5. 跑探针：只能跑在已经授权的那个包上。屏幕录制与辅助功能记在签名身份上，
@@ -233,3 +249,77 @@ head -6 "$HOME/Desktop/Vistile Diagnostics/capability-report.md"   # 仍是上�
 ls "$HOME/Desktop/Vistile Diagnostics/" | grep -c '^host-test-'    # 期望 0：测试产物不在桌面
 ls "$TMPDIR/Vistile Diagnostics/" | grep -c '^host-test-'          # 期望 > 0：它们落在临时目录
 ```
+
+2026-10-17 02:24 宿主测试后的实测复核：桌面报告仍是 0.1.10+23 探针（01:58:30 生成）未被覆盖、桌面 `host-test-*` = 0 条、临时目录 808 条——三条读数都符合预期。
+
+## 7. 工作台 W/H 用例覆盖与 0.1.10 实际结果
+
+0.1.10+24 最终回归（提交前最后一轮，2026-10-17 02:23–02:24）：
+
+- 核心包 `swift test`：swift-testing **147 项 / 15 个 suite** ＋ XCTest **46 项**（即 `WorkbenchTests` 全部，W01–W29 的核心纯逻辑），0 失败，EXIT=0。
+- 宿主 `VistileHostTests`：**157 项执行、1 项跳过、0 失败**，EXIT=0（xcresult：`build/Logs/Test/Test-VistileHostTests-2026.10.17_02-23-31-+0800.xcresult`）。
+
+跳过的 1 项（按方案 §22 不计为成功，属实机待验项，不属于 W/H 任一项）：
+
+- `T01ActionRoutingTests.testKeyboardFocusReallyLandsOnContentView` —— 跳过原因原文："宿主未取得前台激活：面板实际 isKey 依赖系统前台，需在实机/P0 验证"。
+
+### W（方案 §18.1；全部在 `Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift`）
+
+| 编号 | 用例 | 覆盖测试 | 结果 |
+| --- | --- | --- | --- |
+| W01 | 左/右栏几何 | `testW01RailGeometryStaysInsideAndNeverOverlaps` | 通过 |
+| W02 | 面积与约束 | `testW02AreaRatioIsRealAreaAndSmallScreensAreExplicitlyConstrained` | 通过 |
+| W03 | 交换 A/B | `testW03SwapOnlyTouchesMainAndSourceSlot` | 通过 |
+| W04 | 连续 A/B/C | `testW04ConsecutiveSwapsConserveWindowsAndKeepScroll` | 通过 |
+| W05 | 中间卡片关闭 | `testW05ClosingAMiddleCardOnlyLeavesItsSlotEmpty` | 通过 |
+| W06 | 新窗口与追加 | `testW06NewWindowFillsVacancyThenAppendsWithoutStealingMain` | 通过 |
+| W07 | 查询/过滤 | `testW07SearchNeverChangesFrozenPositions` | 通过 |
+| W08 | 模式往返 | `testW08ModeRoundTripKeepsPlacementAndMainIdentity` | 通过 |
+| W09 | 过渡 latest-wins | `testW09LatestSelectionWinsAfterPreviousConverges` | 通过 |
+| W10 | 退出优先级 | `testW10ExitEventsWinAndStaleCompletionsCannotReviveWorkbench`＋`testW10SpaceChangeAndQuitAlsoTakePriority` | 通过 |
+| W11 | 多屏目标 | `testW11TargetDisplayAndSourceDisplayStaySeparate`＋`testW11FixedPreferredDisplayWinsAndFallsBackWhenUnplugged` | 通过 |
+| W12 | 持久化迁移 | `testW12LegacySettingsNeverBypassOverviewEntryOrDoubleScaleMainArea`＋`testW12SanitizeDropsDegenerateRailPreferences`＋`testW12LegacyTitleDerivedKeysAreCleanedToAppLevel`＋`testW12MemoryKeyNeverCarriesWindowTitle` | 通过 |
+| W13 | 每次打开 | `testW13EveryOpenStartsAtOverviewAndNeverAutoEnters` | 通过 |
+| W14 | 未选择不改窗口 | `testW14NothingTouchesRealWindowsBeforeSelection` | 通过 |
+| W15 | 首次选中 | `testW15FirstSelectionCreatesOneMainPlusPreviews` | 通过 |
+| W16 | 首次选中失败 | `testW16FailedFirstSelectionStaysInOverview` | 通过 |
+| W17 | 返回全部窗口 | `testW17ReturnRestoresFrozenOverviewAndConservesWindows` | 通过 |
+| W18 | 上下文重新选择 | `testW18ContextReselectionRestoresOrSwapsCorrectly` | 通过 |
+| W19 | Esc/全局退出 | `testW19EscapeFollowsKeyboardOwnership` | 通过 |
+| W20 | 模式过渡打断 | `testW20InterruptedTransitionNeverCommitsStaleTokens` | 通过 |
+| W21 | 1窗/0窗/关闭目标 | `testW21SingleWindowZeroWindowsAndClosedTarget` | 通过 |
+| W22 | 动效等级 | `testW22ReducedMotionAndPressureOnlyChangeTiming`＋`testW22FrameStatsMeasureP95RatioAndConsecutiveStutterRuns`＋`testW22MotionLevelDegradesOnBadStreakAndRecoversSlowlyWithHysteresis`＋`testW22ReduceMotionAndPressureSetTheBaseLevelAndResetObservations` | 通过 |
+| W23（M3b 加项） | 分隔线调整 | `testW23DividerHitBandsSitInsideGapsAndClampToStyle`＋`testW23DividerPreviewOnlyMovesLocalProjectionAndNeverSettles`＋`testW23DividerCommitSettlesOnceAndStaleReadBackCannotOverwriteFinal` | 通过 |
+| W24（M3d 加项） | 整理与置顶 | `testW24OrganizeCompactsGapsAndPutsPinnedAppsFirst`＋`testW24PinToggleIsAppScopedAndReversibleWithoutMovingCards`＋`testW24AdoptedPinsApplyAtFirstOrganizeAfterRelaunch`＋`testW24OrganizeAndPinRefuseWhileSwitchIsBusy`＋`testW24PreferenceKeyNeverCarriesWindowTitle` | 通过 |
+| W25（M3f 加项） | 写入读回记入事务 | `testW25EnteringRecordsDockReadBackSoRecoveryRestoresOriginal`＋`testW25SwapStepsRecordReadBacksSoRollbackAndQuitCanRestore` | 通过 |
+| W26–W29（+21 追加：幻影与事务收口） | 返回收口 / 进入失败补偿 / 进入超时 / 交换回滚收口 | `testW26SettledReturnLeavesNoPhantomForInterruptedHide`、`testW27EnteringFailureCompensationSettlesBeforeTransitionEnd`、`testW28EnteringTimeoutLeavesNoPhantomTransaction`、`testW29SwitchRollbackSettlementAcceptedWithoutSwitchingPhase` | 通过 |
+
+### H（方案 §18.2；全部在 `Tests/HostTests/`）
+
+| 编号 | 用例 | 覆盖（文件・场景标记） | 结果 |
+| --- | --- | --- | --- |
+| H01 | 两栏点击链路 | WorkbenchRailViewTests・点击链路，及拖动路径 | 通过 |
+| H02 | 非激活焦点 | WorkbenchRailViewTests・键盘策略、「全部窗口」按钮（H02/H17 同一路径） | 通过 |
+| H03 | Metal 设备/呈现 | WorkbenchRailViewTests・Metal 设备与呈现几何 | 通过 |
+| H04 | B 几何失败 | WorkbenchSwitchTests・目标写入被拒：不提交、补偿、不假成功 | 通过 |
+| H05 | A 恢复失败 | WorkbenchSwitchTests・原主写回失败：留痕、不假成功 | 通过 |
+| H06 | 异步交错 | WorkbenchSwitchTests・在途卡住与取消（H06/H19）：迟到回调不改变任何东西 | 通过 |
+| H07 | 最小化/关闭 | WorkbenchSwitchTests・先解除再写几何、途中句柄丢失零写入、H07b 预算内复核 | 通过 |
+| H08 | 分隔线拖动 | WorkbenchDividerTests・设备级事实：串行执行，最终尺寸不被旧写入覆盖 | 通过 |
+| H09 | 滚动/拖动 | WorkbenchRailViewTests・滚动与视口裁剪、边缘自动滚动 | 通过 |
+| H10 | 主区最小尺寸 | WorkbenchSwitchTests・应用约束返回：记事实、继续、不覆盖预览栏 | 通过 |
+| H11 | 屏幕变化 | WorkbenchRailViewTests・坐标与屏幕 | 通过 |
+| H12 | 捕获需求 | WorkbenchRailViewTests・捕获需求的投影事实 | 通过 |
+| H13 | 模态与失焦 | WorkbenchRailViewTests・无障碍（朗读与激活）；WorkbenchSwitchTests・对话框阻塞（挂 Sheet 不许写） | 通过 |
+| H14 | 日志失败 | WorkbenchSwitchTests・意图没落盘：写前拒绝、零写入 | 通过 |
+| H15 | 全部入口 | WorkbenchEntryTests・先显示总览、不写 AX | 通过 |
+| H16 | 初选真实事件 | WorkbenchEntryTests・点击之后才建两栏并交接真实窗口 | 通过 |
+| H17 | 返回真实面板 | WorkbenchRailViewTests・「全部窗口」按钮 | 通过 |
+| H18 | 全屏过渡资源 | TransitionSceneTests・整屏过渡只有一层承载窗口 | 通过 |
+| H19 | 慢 AX/首帧 | WorkbenchSwitchTests・超时：到点先报，再按逆序补偿一次 | 通过 |
+| H20 | 快速点击退出 | WorkbenchSwitchTests・连点：只有最新意图提交，队列有界 | 通过 |
+| H21 | 帧率与预览解耦 | TransitionSceneTests・位移动画由时间轴驱动 | 通过 |
+| H22 | 焦点交接 | WorkbenchSwitchTests・先到位、再确认前台、最后才提交 | 通过 |
+| H23 | （加项）目录快照滞后 | WorkbenchSwitchTests・写前实读纠回原位置，返回真的写回 | 通过 |
+
+两条口径说明：**「通过」只代表宿主侧用注入替身能验到的那部分**（方案 §18.2 每行"必须断言"的范围），真实系统权限、真实窗口与视觉结果仍靠 §19 实机路径与 P0 探针，两者不可互替；**无任何 W/H 项被 skip**，唯一 skip 的 `T01ActionRoutingTests` 那条见本节开头。

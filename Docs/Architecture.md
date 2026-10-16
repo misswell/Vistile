@@ -57,7 +57,7 @@ Effect：`discover`、`startCapture`、`stopCapture`、`stopAllCapture`、`showO
 | `CGWindowListCopyWindowInfo` | layer、alpha、`kCGWindowSharingState`、窗口顺序 | 过滤桌面元素与 Dock 层；补齐 SC 未列出但存在的窗口（标记为不可捕获）；P0 的窗口顺序证据 |
 | Accessibility（`AXUIElementCopyAttributeValue` 等公开属性/动作） | 位置、尺寸、最小化、`AXRaise`、焦点窗口 | 唯一确认后读写真实窗口几何 |
 
-`AXObserverHub` 用公开观察器订阅窗口移动/缩放/最小化，事件在 `AXExecutor` 上串行执行，单次调用 0.35s 超时；不支持 AX 的进程记入 `axUnsupportedPIDs`，其卡片只保留预览并明确标注。读写之后一律**读回校验**（`AXWindowResolver.apply(frame:)` 比较读回值），不一致标记 `partial`/`failed` 并保留可重试，绝不假装成功。
+`AXObserverHub` 用公开观察器订阅窗口移动/缩放/最小化，事件在 `AXExecutor` 上串行执行，单次调用 0.35s 超时；不支持 AX 的进程记入 `axUnsupportedPIDs`，其卡片只保留预览并明确标注。几何写入全部走 `AXWindowResolver.apply(frame:)` 的**写后读回**判定：读回在容差内即 `exact`——**错误码不许覆盖读回证据**（实机有 Chrome 位置写入报 -25204、读回已在目标位的反例）；写回值与写前不同判 `constrained`；读不到先做有界重试（3 次、间隔 70ms，应用刚被改几何时 AX 会短暂忙），重试仍读不到才判 `unreadable`；`rejected` 只在窗口明确拒绝且读回可证时成立。非 `exact` 的恢复写入一律保留事务、绝不假装成功。
 
 ## 5. 捕获与预算
 
@@ -79,15 +79,17 @@ Effect：`discover`、`startCapture`、`stopCapture`、`stopAllCapture`、`showO
 
 卡片装饰（标题条、边框、状态文字）走 CALayer，画面走 CAMetalLayer，`zPosition` 排序。无障碍由 `CardAccessibilityBuilder` 从视图当前的描述符生成 `NSAccessibilityElement` 子元素，动作以公开 `NSAccessibilityCustomAction("展开窗口")` 暴露——**没有私有 API，也没有自造状态**。
 
-## 7. 放大、收回与几何事务
+## 7. 模式过渡与几何事务
 
-点卡片 → `expandRequested`：先 `writeJournal` 记录原 frame，再由 `FocusCoordinator` 通过 AX 写临时 frame（近全屏，比例来自设置，默认 0.86×0.88）+ `raiseTarget` + 激活目标应用，同时 `TransitionProxyWindow` 用 Metal 把卡片画面从格子矩形插值到目标矩形，与真实窗口到位做短交叉淡化。代理窗口 `ignoresMouseEvents = true`、`canBecomeKey = false`，不接管输入。
+两种模式：`.overview`（每屏全屏总览：全部窗口的固定格子实时缩略图，`activeMain == nil`）与 `.workbench`（主窗口＋L 型预览栏）。每次启动都从总览开始，只有点击卡片才进入工作台；进入与返回都由 `WorkbenchReducer` 的单一状态机驱动（阶段 `.overview → .expanding → .focused → .collapsing`），过渡令牌化、可打断——新令牌作废旧过渡，锁屏/退屏/退出由系统级恢复接管（方案 §4、§10.4）。
 
-插值容器 + 等比内容 + 短交叉淡化三者共同保证动画过程中也不变形。到位判据是 AX 读回一致，不是"调用返回成功"。
+**进入（`enteringWorkbench`）**：先冻结总览快照、写事务日志（被点窗口的原 frame），再把**被点窗口**带进主区（`FocusGeometry.dockedRect`，比例来自设置；自身不可调整尺寸的窗口按其当前尺寸对中）；其余窗口的真实几何**一个都不动**，作为背景留在原地。L 型栏由两个 `WorkbenchWindowController` 面板绘制（顶栏＋侧栏），栏内预览卡片从各自总览格子动画到确定的 slot rect（`railHandoffs`）——这是视图层的空间变化，不是真实窗口的移动。成功后撤下全屏总览面板；失败把已写入的几何补偿回原 frame、状态机退回总览，并把补偿结果同步回报给状态机（`geometryRestoreSettled`），绝不留下半套 L 型或空白主区。
 
-点击背景空白由总览面板自留（`OverviewPanel` 覆写命中测试，卡片内控件不会被第二下触发），状态机走 `backgroundClicked` → 回总览；**不最小化、不穿透、不切换应用**。"点背景卡片切换"默认关闭。
+**L 型内 A/B 交换（`mainSwitch`）**：只有两个窗口的真实几何会动——被点卡片进主区、原主回到自己进入工作台前的 frame；其余窗口与两条栏的滚动偏移、占用都不变（方案 §6.1 硬不变量）。写入同样日志先行、逐窗读回；失败整体回滚。
 
-`WindowTransaction` 记 (identity, originalFrame, provisionalFrame, displayID, sessionID, 时间)。`RecoveryCoordinator.restoreOnQuit()` 在正常退出时逐条恢复并读回校验；未确认恢复的事务保留到下次启动，由 `restoreOnLaunch(recorder:)` 先于新会话处理，两条路径不同时写几何。用户选择"保留本次尺寸"时按其意愿跳过恢复。
+**返回（`returningOverview`）**：主窗口写回进入前的 frame（从哪来回哪去），状态机清 `activeMain`，总览面板按保存的快照重现（格子、搜索词、滚动位置不变）。
+
+**窗口被手动改过尺寸**：`WindowTransaction` 记 (identity, originalFrame, provisionalFrame, displayID, sessionID, 时间)。用户在主区自己 resize 过的窗口按"保留本次尺寸"处理，恢复时按其意愿跳过。`RecoveryCoordinator.restoreOnQuit()` 在正常退出时逐条恢复并读回校验；未确认恢复的事务保留到下次启动，由 `restoreOnLaunch(recorder:)` 先于新会话处理，两条路径不同时写几何。
 
 ## 8. 前台与键盘
 
