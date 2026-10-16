@@ -34,6 +34,7 @@
 | Apple 侧公证记录 | 按名字过滤后共 **4 条，两对**，每对都是一条 `.notarization.zip`（`.app` 本体）早于一条 `.dmg`：00:09:58→00:10:21（干跑）与 00:13:56→00:14:26（发布那次），四条全 `Accepted`。只剩 dmg 就等于 `.app` 从没提交给 Apple，所以「成对且 zip 在前」这一条要看，不能只看 dmg | `xcrun notarytool history` 本机按名字过滤实测 |
 | 修的那处真进了发出去的包 | 标签 `v0.1.1` → `804e24f`，发布任务 `SOURCE_REF: v0.1.1`，而 `.p8` 落盘顺序修复 `64c6635` 是 `804e24f` 的祖先（`git merge-base --is-ancestor` 实测通过）。`main` 只比标签多一个文档提交 `52794fb` | 本机 git 查询 + run [`38828073929`](https://github.com/misswell/Vistile/actions/runs/38828073929) 的 env 行 |
 | 反面教材（已防呆） | 干跑那次手动触发了真实标签 `v0.1.1`，产出的 `Vistile_v0.1.1_macos_arm64.dmg` 与线上发布的同名文件**字节完全不同**（干跑 `1410db98…0a3f3a` / 发布 `01646765…97760`）。workflow 的 `workflow_dispatch.tag` 现在要求填测试标签，`verify` 任务在标签等于 `Info.plist` 版本时打 `::warning::` 并写进 job summary——不硬拦，因为「重发同一版」是合法兜底路线 | 两次 run 的 artifact 各自 `shasum -a 256` |
+| 已证明（当前测试面） | 核心包 126 项纯逻辑测试 + 宿主层 80 项测试（真实控制器/内容视图/CAMetalLayer，目录与写入走注入替身）在本机通过；宿主里「面板实际成为 key 窗口」一条依赖系统前台，取不到时显式 skip（本机两种结果都出现过：跳过、通过）；CI 已在 `pull_request` 与 `push main` 上跑同样两条（`.github/workflows/ci.yml`，不需要任何签名凭据） | 本机 Xcode 27 / SDK 27.0，2026-10-16，命令见 [Acceptance.md](Acceptance.md) §4 |
 | 未证明 | 用户自己的 Mac 上双击安装的实际体验（权限授予流程、是否被拦）、Intel 机器、以及 P0 的功能行为 | — |
 
 同一套脚本在本机用 `Apple Development` 身份跑过 `SKIP_NOTARIZE=1`：镜像里的 app 确实是
@@ -86,7 +87,15 @@ CI 复核因此先把评估状态打进日志，硬把关放在两处与机器�
 
 - **受保护内容 / `kCGWindowSharingState = none`**：不进可捕获集合，卡片标注"应用禁止该窗口被捕获"，保留最后一帧，不冒充实时。
 - **SC 未列出但 CG 存在的窗口**：仍进目录并明确标记不可捕获（`WindowCatalog`），只作为格子存在。
-- **最小化窗口**：不保留空转流，保留最后一帧，状态写"已最小化"；点卡片应解除最小化后再放大。
+- **最小化窗口**：不保留空转流，保留最后一帧，状态写"已最小化"。点卡片时先写 `kAXMinimized = false` 并读回确认，
+  再按身份重取 AX 句柄（解除最小化会让目录换代，旧索引不得复用），确认非最小化后才写几何并展开；
+  解除失败或读不到句柄时直接报失败，不发 `expandCompleted`、不伪造近全屏。**收回与退出恢复都不会把它重新塞回 Dock。**
+- **层级策略持久化值未实现**（`.splitBackgroundTiles`）：启动时迁移到 `.normalLevelActivateAndRaise` 并写回，
+  `migratedOrderingStrategy` 记一次诊断事实；设置界面不再列出该选项。
+- **前景化判定**：`activate`/`AXRaise` 的返回值只算"请求已发出"。判定只读回：目标是不是该应用当前的
+  focused window、目标进程是不是真的前台。两项都读到相反证据才判失败并回总览；读不到记"不可确认"，不判成功。
+- **背景点击的受信令牌**：只有真的引发收起或切换的那一次点击才会留下令牌；
+  总览态下的空转背景点击不留令牌，后续 ⌘Tab/外部应用激活照常隐藏总览。
 - **无屏幕录制权限**：`SCShareableContent` 无窗口可返回，卡片明确写缺少权限、无画面；不会用旧帧或截图冒充。
 - **无辅助功能权限**：只做预览，受控聚焦/移动/resize 明确禁用并提示。
 - **AX 不支持的进程**：`AXObserverHub.axUnsupportedPIDs` 记录，卡片保留预览、禁用受控聚焦。
@@ -98,12 +107,13 @@ CI 复核因此先把评估状态打进日志，硬把关放在两处与机器�
 ## 4. 怎么把格子填成事实
 
 1. 授权两项权限并重启应用，用 `UITestHarness` 或真实应用把场景摆出来。
-2. 跑 `VISTILE_P0_MODE=1 open -n -g -W --env VISTILE_P0_MODE=1 build/Build/Products/Debug/Vistile.app`（构建时加 `-derivedDataPath build`，见 [Acceptance.md](Acceptance.md) §4）。
+2. 跑 `open -n -g -W --env VISTILE_P0_MODE=1 build/Build/Products/Debug/Vistile.app`（构建命令与宿主测试见 [Acceptance.md](Acceptance.md) §4）。
 3. 每个格子要有对应证据：
    - 捕获 / 恢复 → mailbox `publishedCount` 增长、事务清零记录；
    - 关联 → `P0-1` 的身份唯一性与"画面没有串"录屏；
    - 移动 / resize → AX 读回一致（`geometryVerified`），不是"调用返回 0"；
-   - 层级 → `CGWindowListCopyWindowInfo` 顺序下标 + 录屏；
+   - 层级 → `CGWindowListCopyWindowInfo` 顺序下标（`P0-3`）+ focused window / 前台进程读回（`P0-9` 的展开路径）+ 录屏；
+   - 上屏 → `P0-9` 的 `RendererDiagnostics.presents` 增量与 GPU 错误计数；
    - Sheet → 另存为面板可见可点、取消后回总览不丢窗口。
 4. 把 `capability-report.md` 与录屏一起归档；失败格子写清应用版本、系统版本与复现步骤。
 5. 只有拿到证据的格子才允许从"未测"改成"通过/失败"。**代码可编译不代表跨应用交互已验证。**

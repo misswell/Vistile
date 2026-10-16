@@ -97,6 +97,10 @@ secrets 还没填时这条会**红**，红在第一步并点名缺哪个键（`�
 
 发布相关的脚本：`.github/scripts/import_signing_identity.sh`（一次性钥匙串 + 真试签）、`.github/scripts/build_sign_notarize.sh`（构建→签名→公证→装订→出镜像→挂载复核）、`Tools/make_dmg.sh`。
 
+日常改代码不看凭据也能有 CI：`.github/workflows/ci.yml` 在每个 PR 与 `push main` 上跑两条——
+核心包 `swift test`、`Vistile` 无签名构建 + `VistileHostTests` 全量宿主测试。它不碰签名与公证 secrets，
+也不产安装包；需要屏幕录制或辅助功能才能判定的断言在代码里显式 `XCTSkip`，不在无权限 runner 上假通过。
+
 本机可以先自检除公证之外的每一步（不需要任何凭据）：
 
 ```bash
@@ -117,10 +121,20 @@ SIGNING_IDENTITY="Apple Development: <你的身份>" RELEASE_TAG=v9.9.9-selfchec
 ## 测试
 
 ```bash
-cd Packages/VistileCore && swift test      # 76 项单元测试，9 个 suite
+# 纯逻辑：状态机、格子、坐标、捕获模式、事务与预算
+cd Packages/VistileCore && swift test      # 126 项，12 个 suite
+
+# 宿主层：真实控制器 / 内容视图 / CAMetalLayer，目录与几何写入走注入替身
+xcodegen generate
+xcodebuild -project Vistile.xcodeproj -scheme VistileHostTests \
+  -destination 'platform=macOS,arch=arm64' -configuration Debug \
+  -derivedDataPath build CODE_SIGNING_ALLOWED=NO test   # 80 项
 ```
 
-覆盖：状态机全部转移与不变量、格子容量与确定性排序、固定槽位不被挤动、坐标翻转往返误差为零、严格等比适配（不裁切不拉伸）、身份匹配（同标题多窗口、PID 复用）、帧信箱只留最新、日志与事务里不含窗口标题与像素。
+覆盖：状态机全部转移与不变量、格子容量与确定性排序、固定槽位不被挤动、坐标翻转往返误差为零、严格等比适配（不裁切不拉伸）、身份匹配（同标题多窗口、PID 复用）、帧信箱只留最新、日志与事务里不含窗口标题与像素；宿主层再加事件转接恰好一次、真实 first responder、present 与 GPU 错误观测、样本附件解析、展开/收回/恢复交错、最小化先解除再写几何、层级与前台只按读回判定。
+
+宿主测试的面板全部摆在主屏之外（`x = -20000`），运行期间用户桌面上不会多出总览窗口；
+其中「面板实际成为 key 窗口」依赖系统前台激活，取不到时该用例显式跳过，交给 P0 实机项。
 
 ## 运行
 
@@ -144,16 +158,16 @@ Vistile 是菜单栏常驻应用（`LSUIElement`），没有 Dock 图标。首�
 ## P0 探针与诊断产物
 
 ```bash
-VISTILE_P0_MODE=1 open -n -g -W --env VISTILE_P0_MODE=1 build/Build/Products/Debug/Vistile.app
+open -n -g -W --env VISTILE_P0_MODE=1 build/Build/Products/Debug/Vistile.app
 ```
 
 探针跑完自动退出，产物写在 `~/Desktop/Vistile Diagnostics/`：
 
-- `P0-acceptance-checklist.md` — P0-1…P0-8 结论表（通过 / 失败 / 未测），人工项附复现步骤
+- `P0-acceptance-checklist.md` — P0-1…P0-11 结论表（通过 / 失败 / 未测），人工项附复现步骤
 - `capability-report.md` / `.json` — 能力验证条目、兼容矩阵、计时、备注
 - 会话事务：`~/Library/Application Support/Vistile/session-journal.json`
 
-客观证据只来自进程内事实：mailbox 发布计数、`CGWindowListCopyWindowInfo` 的窗口顺序下标、身份与槽位沿用、键盘焦点归属、状态机不变量。"函数返回没报错"从不作为通过条件。
+客观证据只来自进程内事实：mailbox 发布计数、`CGWindowListCopyWindowInfo` 的窗口顺序下标、身份与槽位沿用、键盘焦点归属、状态机不变量、`RendererDiagnostics` 的 present/GPU 错误计数、层级改写次数与真实视图动作计数。"函数返回没报错"从不作为通过条件。
 
 ## 测试脚手架
 

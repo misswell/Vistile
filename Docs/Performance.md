@@ -26,13 +26,17 @@
 | 降级触发 | 流数超软上限，或热状态 `serious`/`critical` | `CaptureBudget.nextAction` |
 | 优先窗口 | 未远超软上限且非危急时最后才被降级 | 同上 |
 | 整屏重绘 | 每帧一个 command buffer，全部卡片共用；无新帧不提交 | `OverviewRenderer` |
+| 重绘触发 | 由新帧与状态变化调用 `scheduleRedraw`，同一轮次只排一次队；**没有 60Hz 空转定时器** | `OverviewRenderer.scheduleRedraw`、`AppCoordinator.redraw` |
+| 层级改写 | 只在策略或目标窗口编号变化时执行一次，签名相同直接返回；`orderingApplyCount` 供 P0-10 取证 | `AppCoordinator.applyOrdering` |
 | 纹理生命周期 | 纹理与 `CVMetalTexture` 同存活，command buffer 完成前不释放 | `MetalFrame` / `TexturePool` |
 
 长期并发流上限与降级阈值**必须由实测校准**：`streamSoftLimit = 12` 与上面三档 fps 都是保守起点，实测后要按真实数据替换。
 
 ## 3. 本机自动采样（2026-10-16，macOS 27.0.1，Apple M1，8 逻辑核，16GB）
 
-运行方式：`VISTILE_P0_MODE=1` 探针完整跑一遍后自动退出。屏幕录制与辅助功能均未授予，因此目录为空、没有活跃流。
+运行方式：`open -n -g -W --env VISTILE_P0_MODE=1 build/Build/Products/Debug/Vistile.app` 探针完整跑一遍后自动退出。屏幕录制与辅助功能均未授予，因此目录为空、没有活跃流。
+
+这组数据没有捕获负载，只证明测量口径与代码路径能跑通；含 R01–R11 修复的当前代码必须在授权机上重跑才有可比性。
 
 | 指标 | 值 | 说明 |
 | --- | --- | --- |
@@ -47,7 +51,7 @@
 
 ## 4. 必须补齐的实测项（全部未测）
 
-1. **空闲基线**：总览关闭时 CPU 是否回到接近 0%，GPU 无持续占用（Activity Monitor 对照）。
+1. **空闲基线**：总览打开且画面静止时 `presents` 不增长、总览关闭后 CPU 回到接近 0%、GPU 无持续占用（Activity Monitor 对照）。
 2. **12 窗口常驻**：balanced 层级下的 CPU、GPU、内存（纹理数 × 输出尺寸）、`windowserver` 增量。
 3. **30 窗口压力**：帧率下降是否渐进、降级发生时卡片标注是否与实际更新方式一致、`replacedCount`/`staleCount` 是否上升。
 4. **遮挡窗口**：被完全遮住的窗口其 `publishedCount` 是否继续增长（这是"实时"的判据，不是肉眼判断）。
@@ -55,5 +59,8 @@
 6. **过渡动画**：24 帧内是否稳定、代理层与真实窗口衔接有无闪白。
 7. **跨缩放屏**：Retina 与外屏混合时纹理尺寸选择是否仍按格子宽度。
 8. **长时间停留**：30 分钟内是否有纹理/事务/观察器泄漏（`inFlightTextureCount`、`retained.count`、`journal.unfinished`）。
+9. **呈现健康度**：`RendererDiagnostics` 的 `missingDrawables`、`submissionFailures`、`gpuErrors` 在长时间运行与显示器变更后是否保持为 0（P0-9 每轮记增量）。
+10. **层级改写频率**：`orderingApplyCount` 在总览持续打开的 30 分钟内应只有策略/目标变化那几次；持续随帧增长说明在跟 WindowServer 较劲（P0-10 记 2s 窗口）。
+11. **软上限校准**：`streamSoftLimit = 12` 目前只是保守起点，要用第 2、3 项的实测数据决定它是收紧还是放宽。
 
-复现与记录方式：用 `UITestHarness` 造窗口，跑 `VISTILE_P0_MODE=1`，把 `~/Desktop/Vistile Diagnostics/capability-report.md` 的计时表与 `P0-acceptance-checklist.md` 一起存档；Instruments 用 `com.misswell.Vistile` 子系统的 signpost 区间对齐时间轴。
+复现与记录方式：用 `UITestHarness` 造窗口，跑 `open -n -g -W --env VISTILE_P0_MODE=1 build/Build/Products/Debug/Vistile.app`，把 `~/Desktop/Vistile Diagnostics/capability-report.md` 的计时表与 `P0-acceptance-checklist.md` 一起存档；Instruments 用 `com.misswell.Vistile` 子系统的 signpost 区间对齐时间轴。
