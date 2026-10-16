@@ -586,6 +586,12 @@ final class P0Probe {
         manual("P0-10", "设置里看不到分块", "打开设置窗口，确认层级策略下拉里已经没有「背景分块避让」。")
 
         // §12.2：层级只在策略/目标变化时改写；捕获回调反复 order(.below) 是在跟 WindowServer 较劲。
+        // 取数之前得先有流。0.1.6/0.1.7 两轮这里都在 0 路活跃流的瞬间睡了 2s，只能记"无回调可对照"，
+        // 而同一轮更晚的性能采样却有 12 路流——那是取样时刻，不是产品行为。
+        // 判据一个字没动：仍然是"有直播流的那 2s 内层级改写必须 0 次"。
+        if permissionNote(.screenRecording) == nil {
+            _ = await waitUntil(timeout: 4.0) { self.coordinator.capture.activeStreamCount > 0 }
+        }
         let appliedBefore = coordinator.orderingApplyCount
         let framesBefore = totalPublished()
         try? await Task.sleep(nanoseconds: 2_000_000_000)
@@ -597,7 +603,7 @@ final class P0Probe {
         record("P0-10", "层级不随回调重排", passed: passed,
                detail: blocked ?? (streams > 0
                     ? "\(streams) 路直播流、2s 内 \(frames) 帧回调期间层级改写 \(applied) 次（期望 0 次）"
-                    : "当前没有活跃捕获流，无回调可对照：2s 内层级改写 \(applied) 次，需在有直播流时重跑"),
+                    : "等 4s 起流没等到、再观察 2s 仍没有活跃捕获流，无回调可对照：这 2s 内层级改写 \(applied) 次，需在有直播流时重跑"),
                check: "P0-10 层级不每次回调重排")
         if passed == false {
             recorder.updateRow(application: "总览承载窗口", version: "", ordering: .failed,
