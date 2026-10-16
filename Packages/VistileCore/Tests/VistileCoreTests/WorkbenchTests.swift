@@ -538,6 +538,47 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertEqual(state.records[list[0].identity]?.displayID, 1, "跨屏选主不改窗口的原始显示器记录")
     }
 
+    func testW11FixedPreferredDisplayWinsAndFallsBackWhenUnplugged() throws {
+        let d1 = DisplayInfo(id: 1,
+                             frame: CGRect(x: 0, y: 0, width: 1_512, height: 982),
+                             visibleFrame: CGRect(x: 0, y: 64, width: 1_512, height: 918),
+                             backingScale: 2, isPrimary: true)
+        let d2 = DisplayInfo(id: 2,
+                             frame: CGRect(x: 1_512, y: 0, width: 1_440, height: 900),
+                             visibleFrame: CGRect(x: 1_512, y: 40, width: 1_440, height: 860),
+                             backingScale: 2, isPrimary: false)
+        let list = [
+            Fixtures.record(511, 21, frame: CGRect(x: 100, y: 100, width: 900, height: 600),
+                            title: "P1", app: "A", displayID: 1),
+            Fixtures.record(512, 22, frame: CGRect(x: 1_700, y: 120, width: 900, height: 600),
+                            title: "S1", app: "B", displayID: 2)
+        ]
+        var state = SessionState()
+        state.policy = SessionPolicy()
+        state.slots.capacity = 48
+        for item in list { state.records[item.identity] = item }
+        for item in list { state.slots.assign(item.identity, memoryKey: item.memoryKey) }
+        state.catalogGeneration = 1
+        state.displays = [d1, d2]
+        Fixtures.openToOverview(&state, records: list)
+
+        // 固定 2 号屏：点 1 号屏上的卡片，工作台仍建在 2 号屏（方案 §13 的可选固定显示器）。
+        state.workbench.preferredDisplayID = 2
+        let plan = try XCTUnwrap(enterPlan(select(&state, fromOverview: list[0].identity)))
+        XCTAssertEqual(plan.displayID, d2.id)
+        XCTAssertEqual(plan.snapshot.layout.visibleFrame, d2.visibleFrame)
+        finishEntering(&state)
+
+        // 拔掉 2 号屏后偏好必须退回"跟随点击"：不能拿失效 displayID 继续算几何（方案 §16）。
+        _ = Fixtures.dispatch(&state, .globalShortcut)
+        let recoverToken = try XCTUnwrap(state.phase.token)
+        _ = Fixtures.dispatch(&state, .restoreCompleted(recoverToken))
+        state.displays = [d1]
+        Fixtures.openToOverview(&state, records: list)
+        let fallback = try XCTUnwrap(enterPlan(select(&state, fromOverview: list[0].identity)))
+        XCTAssertEqual(fallback.displayID, d1.id, "偏好屏不存在时必须退回点击卡片所在的屏")
+    }
+
     // MARK: - W13 / W14 入口与不改窗口
 
     func testW13EveryOpenStartsAtOverviewAndNeverAutoEnters() throws {
@@ -798,6 +839,49 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertTrue(hasCancelTransition(closed))
         XCTAssertTrue(hasHideWorkbench(closed))
         XCTAssertFalse(hints(closed).isEmpty, "失败必须说话")
+    }
+
+    // MARK: - W12 设置持久化迁移
+
+    func testW12LegacySettingsNeverBypassOverviewEntryOrDoubleScaleMainArea() {
+        let legacy = LegacyWorkbenchValues(defaultPresentationMode: "focused",
+                                           lastPresentationMode: "workbench",
+                                           foregroundWidthRatio: 0.86,
+                                           foregroundHeightRatio: 0.88,
+                                           backgroundClickSwitches: true)
+        let (preferences, notes) = WorkbenchPreferences.migrating(from: legacy)
+
+        XCTAssertTrue(WorkbenchPreferences.alwaysStartsAtOverview, "入口固定总览，旧模式键不得改变它")
+        XCTAssertEqual(notes.count, 3, "三条迁移事实都要说出来，不能静默改掉用户设置")
+        XCTAssertEqual(preferences.schemaVersion, WorkbenchPreferences.currentSchemaVersion)
+        XCTAssertEqual(preferences.side, .right, "旧版本没有侧栏偏好，取默认右栏")
+        XCTAssertNil(preferences.topHeightPreference)
+        XCTAssertNil(preferences.sideWidthPreference)
+        XCTAssertEqual(preferences.overflowBehavior, .scroll)
+
+        // 旧比例不进新主区几何：主区矩形只由布局与策略决定，不因旧设置再缩放一次。
+        let visible = CGRect(x: 0, y: 64, width: 1_512, height: 918)
+        let layout = WorkbenchLayoutEngine.layout(displayID: 1, visibleFrame: visible, side: preferences.side)
+        let main = FocusGeometry.dockedRect(in: layout.mainRect,
+                                            currentSize: CGSize(width: 1_280, height: 800),
+                                            isResizable: true)
+        XCTAssertEqual(main.width, layout.mainRect.width, accuracy: 0.5,
+                       "主区尺寸来自布局本身，旧比例不得再叠一次")
+        XCTAssertEqual(main.height, layout.mainRect.height, accuracy: 0.5)
+    }
+
+    func testW12SanitizeDropsDegenerateRailPreferences() {
+        var preferences = WorkbenchPreferences()
+        preferences.topHeightPreference = .nan
+        preferences.sideWidthPreference = -8
+        preferences.pinnedKeys = ["", "com.apple.Safari"]
+        preferences.railOrderPreference = ["": 0, "com.apple.Safari": 1]
+        let clean = preferences.sanitized()
+        XCTAssertNil(clean.topHeightPreference, "NaN 偏好必须当作没有偏好")
+        XCTAssertNil(clean.sideWidthPreference, "负值偏好必须丢弃")
+        XCTAssertEqual(clean.pinnedKeys, ["com.apple.Safari"])
+        XCTAssertEqual(clean.railOrderPreference, ["com.apple.Safari": 1])
+        XCTAssertEqual(clean.schemaVersion, WorkbenchPreferences.currentSchemaVersion)
     }
 
     // MARK: - W22 动效等级

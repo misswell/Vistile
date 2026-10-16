@@ -14,7 +14,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private var onboarding: OnboardingWindowController?
 
     private let statusLine = NSMenuItem(title: "准备中", action: nil, keyEquivalent: "")
-    private let toggleItem = NSMenuItem()
+    private let openItem = NSMenuItem()
+    private let backItem = NSMenuItem()
+    private let hideItem = NSMenuItem()
     private let permissionsItem = NSMenuItem(title: "权限与诊断…", action: nil, keyEquivalent: "")
 
     init(coordinator: AppCoordinator, settings: SettingsModel, permissions: PermissionManager) {
@@ -41,15 +43,21 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.addItem(statusLine)
         menu.addItem(.separator())
 
-        toggleItem.title = "打开总览"
-        toggleItem.target = self
-        toggleItem.action = #selector(toggleOverview)
-        toggleItem.keyEquivalent = ""
-        menu.addItem(toggleItem)
+        // 三个入口分开写：打开永远先全屏总览，回来才是回到全部窗口，隐藏是明确动作（方案 §11、§16）。
+        openItem.title = "打开窗口总览"
+        openItem.target = self
+        openItem.action = #selector(openOverview)
+        menu.addItem(openItem)
 
-        let back = NSMenuItem(title: "返回总览", action: #selector(returnToOverview), keyEquivalent: "")
-        back.target = self
-        menu.addItem(back)
+        backItem.title = "回到全部窗口"
+        backItem.target = self
+        backItem.action = #selector(returnToOverview)
+        menu.addItem(backItem)
+
+        hideItem.title = "隐藏"
+        hideItem.target = self
+        hideItem.action = #selector(hideOverview)
+        menu.addItem(hideItem)
 
         let organize = NSMenuItem(title: "整理格子", action: #selector(organize), keyEquivalent: "")
         organize.target = self
@@ -85,7 +93,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         permissions.refresh()
-        toggleItem.title = coordinator.state.phase.isVisible ? "关闭总览" : "打开总览"
+        let visible = coordinator.state.phase.isVisible
+        let inWorkbench = coordinator.state.mode == .workbench
+        // 已开着时「打开」没有意义，反之亦然；工作台外「回到全部窗口」也是空动作。
+        openItem.isEnabled = !visible
+        backItem.isEnabled = inWorkbench
+        hideItem.isEnabled = visible
         permissionsItem.title = permissions.status.isComplete
             ? "权限已就绪 · 打开诊断记录"
             : "需要授权：\(missingPermissionNames())"
@@ -100,8 +113,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     // MARK: - 动作
 
-    @objc private func toggleOverview() { coordinator.toggleOverview() }
-    @objc private func returnToOverview() { coordinator.returnToOverview() }
+    /// 只在隐藏态可用：每次打开都先落在全屏总览，工作台只能由点击卡片进入（方案 §4.1、§16）。
+    @objc private func openOverview() { coordinator.toggleOverview() }
+    @objc private func returnToOverview() { coordinator.returnToAllWindows() }
+    @objc private func hideOverview() { coordinator.hideNow() }
     @objc private func organize() { coordinator.organizeNow() }
     @objc private func refresh() { coordinator.refreshNow() }
 

@@ -19,6 +19,8 @@ final class AppCoordinator {
     let capture: CaptureCoordinator
     let focus: FocusCoordinator
     let recovery: RecoveryCoordinator
+    /// 工作台两窗口动作的串行执行器（方案 §8.2）；探针可读它的事实（是否到过限时）。
+    let switchCoordinator: WorkbenchSwitchCoordinator
     let observerHub = AXObserverHub()
     let hotKey = GlobalHotKey()
 
@@ -31,6 +33,9 @@ final class AppCoordinator {
 
     private(set) var state = SessionState()
     private(set) var controllers: [UInt32: OverviewWindowController] = [:]
+    private(set) var workbenchControllers: [UInt32: WorkbenchWindowController] = [:]
+    /// 宿主最近一次收到的冻结投影：只有 reducer 发 updateWorkbenchLayout 或过渡计划时才更新。
+    private(set) var workbenchPresentation: WorkbenchPresentation?
     private(set) var layouts: [UInt32: GridLayout] = [:]
     private(set) var cardRects: [WindowIdentity: CGRect] = [:]
     var onStatus: ((String) -> Void)?
@@ -54,7 +59,6 @@ final class AppCoordinator {
     private var pendingHint: String?
     private var structuralRefreshWork: DispatchWorkItem?
     private var hasWarnedTinyThumbnails = false
-    private var hasReportedUnwiredWorkbench = false
     private var lastOpenConditions: OpenConditions?
     private var observers: [NSObjectProtocol] = []
 
@@ -85,15 +89,24 @@ final class AppCoordinator {
                                            settings: settings,
                                            permissions: permissions)
         self.recovery = recovery
-        self.focus = FocusCoordinator(catalog: catalog,
-                                      metal: metal,
-                                      writer: resolver,
-                                      store: journal,
-                                      settings: settings,
-                                      metrics: metrics,
-                                      recorder: recorder,
-                                      recovery: recovery,
-                                      permissions: permissions)
+        let focus = FocusCoordinator(catalog: catalog,
+                                     metal: metal,
+                                     writer: resolver,
+                                     store: journal,
+                                     settings: settings,
+                                     metrics: metrics,
+                                     recorder: recorder,
+                                     recovery: recovery,
+                                     permissions: permissions)
+        self.focus = focus
+        self.switchCoordinator = WorkbenchSwitchCoordinator(catalog: catalog,
+                                                            writer: resolver,
+                                                            store: journal,
+                                                            recovery: recovery,
+                                                            focus: focus,
+                                                            permissions: permissions,
+                                                            metrics: metrics,
+                                                            recorder: recorder)
     }
 
     // MARK: - 启动
@@ -130,6 +143,20 @@ final class AppCoordinator {
         focus.textureProvider = { [weak self] identity in self?.renderer.texture(for: identity) }
         // 过期的过渡不许再改状态：宿主用状态机自己那一次令牌判定。
         focus.isTokenCurrent = { [weak self] token in self?.state.phase.token == token }
+        switchCoordinator.onEvent = { [weak self] event in self?.dispatch(event) }
+        switchCoordinator.onStatus = { [weak self] text in self?.log("workbench", text) }
+        // 交换执行器不自己判断状态：每一步都回来问唯一状态机这次交换还算不算数（方案 §8.2）。
+        switchCoordinator.directive = { [weak self] token in
+            guard let self else { return .aborted }
+            switch self.state.workbench.mainSwitch {
+            case let .switching(intent, _) where intent.token == token:
+                return .proceed
+            case let .rollingBack(intent, reason) where intent.token == token:
+                return .rollback(reason: reason)
+            default:
+                return .aborted
+            }
+        }
 
         observerHub.onWindowEvent = { [weak self] event in self?.handle(event) }
         observerHub.onSupportChanged = { [weak self] pid, supported in
@@ -169,6 +196,11 @@ final class AppCoordinator {
             recorder.record("层级策略迁移", subject: migrated.displayName, result: .blocked,
                             detail: "该策略没有实现（没有分块窗口、裁剪与命中测试），已改用 \(settings.orderingStrategy.displayName)")
         }
+        // 旧版展示模式/比例键只识别一次并说清楚，不让任何一次打开绕过总览入口（方案 §16）。
+        for note in settings.workbenchMigrationNotes {
+            log("settings", note)
+            recorder.record("工作台设置迁移", subject: "旧版本持久化值", result: .blocked, detail: note)
+        }
     }
 
     // MARK: - 对外动作
@@ -181,9 +213,41 @@ final class AppCoordinator {
 
     func returnToOverview() { dispatch(.returnShortcut) }
 
+    /// 菜单「回到全部窗口」：工作台里回冻结总览；已经停在总览时是空动作（方案 §4.5）。
+    func returnToAllWindows() { dispatch(.returnToOverviewRequested) }
+
+    /// 菜单「隐藏」：任何可见形态都收起；隐藏态不发事件，避免反过来打开（方案 §11）。
+    func hideNow() {
+        guard state.phase.isVisible else { return }
+        dispatch(.globalShortcut)
+    }
+
     func closeOverview() { dispatch(.escapePressed) }
 
     func organizeNow() { dispatch(.organizeRequested) }
+
+    /// 分隔线拖动结束（M3 接拖动 UI）：写盘只在拖动结束，且只有状态真的收下最终值才写（方案 §11.2、§16）。
+    func reportWorkbenchRailSize(topHeight: CGFloat?, sideWidth: CGFloat?) {
+        dispatch(.workbenchRailSizeChanged(topHeight: topHeight, sideWidth: sideWidth))
+        if state.workbench.topHeightPreference == topHeight, state.workbench.sideWidthPreference == sideWidth {
+            settings.workbenchTopHeight = topHeight
+            settings.workbenchSideWidth = sideWidth
+        }
+    }
+
+    /// 设置页切侧栏方向：工作台开着就即时生效，隐藏或空闲时只记设置，下次进入落位（方案 §16）。
+    func setWorkbenchSide(_ side: RailSide) {
+        settings.workbenchSide = side
+        if state.workbench.modeTransition.isTransitioning || state.mode == .workbench {
+            dispatch(.railSideChanged(side))
+        }
+    }
+
+    /// 设置页选工作台屏幕：nil = 跟随点击。当前已经在工作台里时不搬活动屏，下一次进入生效（方案 §13）。
+    func setPreferredWorkbenchDisplay(_ displayID: UInt32?) {
+        settings.preferredWorkbenchDisplayID = displayID
+        state.workbench.preferredDisplayID = displayID
+    }
 
     func refreshNow() { dispatch(.reconcileTick) }
 
@@ -195,6 +259,11 @@ final class AppCoordinator {
     /// 初次进入按跨会话记忆的顺序；容量随后按目录数量确定，不预设上限。
     private func prepareSlotMemory() {
         state.slots = SlotRegistry(capacity: 0, orderPreference: settings.slotOrderPreference)
+        // 工作台布局偏好是用户设置：每次从隐藏进入时按设置落位，会话里的改动已在动作处写回（方案 §16）。
+        state.workbench.side = settings.workbenchSide
+        state.workbench.topHeightPreference = settings.workbenchTopHeight
+        state.workbench.sideWidthPreference = settings.workbenchSideWidth
+        state.workbench.preferredDisplayID = settings.preferredWorkbenchDisplayID
         hasWarnedTinyThumbnails = false
     }
 
@@ -337,28 +406,36 @@ final class AppCoordinator {
             // 目标没了：立刻收掉代理浮层并清空令牌，旧动画回调此后不再有效。
             focus.cancelAnimation()
 
-        // M1 阶段工作台只到核心层，宿主接线在 M2（方案 §21）。以下 case 如实记录，
-        // 不伪造动画或几何；hideWorkbench 是"确保工作台面板不存在"，当前天然成立。
+        // MARK: 工作台（方案 §4、§8）
+
         case let .enterWorkbench(plan):
-            reportWorkbenchUnwired("enterWorkbench", identity: plan.identity)
+            // 投影立刻生效：总览面板收起、两栏按冻结几何显示，然后才写主窗口（方案 §4.2）。
+            workbenchPresentation = plan.presentation
+            ensureWorkbenchControllers()
+            switchCoordinator.perform(plan)
 
         case let .returnToOverview(plan):
-            reportWorkbenchUnwired("returnToOverview", identity: plan.identity)
+            switchCoordinator.perform(plan)
 
         case let .beginMainSwitch(plan):
-            reportWorkbenchUnwired("beginMainSwitch", identity: plan.intent.to)
+            switchCoordinator.perform(plan)
 
         case .cancelWorkbenchTransition:
-            reportWorkbenchUnwired("cancelWorkbenchTransition", identity: nil)
+            // 目标消失或超时：停止后续步骤；已写入的窗口由事务日志交回恢复路径（方案 §10.5）。
+            switchCoordinator.cancel()
 
         case .hideWorkbench:
-            break
+            hideWorkbenchPanels()
 
         case let .updateWorkbenchLayout(presentation):
-            reportWorkbenchUnwired("updateWorkbenchLayout", identity: presentation.mainIdentity)
+            workbenchPresentation = presentation
 
-        case let .settleMainFrame(identity, _, _, _):
-            reportWorkbenchUnwired("settleMainFrame", identity: identity)
+        case let .settleMainFrame(identity, targetFrame, token, _):
+            // M2 不做动画：主区几何立即写入并读回（方案 §21，动画在 M3）。
+            let displayID = state.workbench.activeDisplayID
+                ?? state.workbench.snapshot?.displayID
+                ?? catalog.mapper.primaryDisplay?.id ?? 0
+            switchCoordinator.settle(identity, targetFrame: targetFrame, displayID: displayID, token: token)
 
         case let .setKeyboardFocus(focus):
             applyKeyboardFocus(focus)
@@ -379,15 +456,6 @@ final class AppCoordinator {
         return true
     }
 
-    /// M1 的工作台 effect 只在核心层可达；宿主接线在 M2。如实记录一次，避免静默吞掉。
-    private func reportWorkbenchUnwired(_ effect: String, identity: WindowIdentity?) {
-        log("workbench", "\(effect) 尚未接入宿主（M2），本次未执行")
-        guard !hasReportedUnwiredWorkbench else { return }
-        hasReportedUnwiredWorkbench = true
-        recorder.record("工作台宿主接入", subject: identity?.journalKey ?? "-", result: .failed,
-                        detail: "M1 只到核心层；\(effect) 未执行")
-    }
-
     // MARK: - 展示同步
 
     private func performSync() {
@@ -398,6 +466,8 @@ final class AppCoordinator {
         guard state.phase.isVisible else { return }
 
         capture.sync(targets: captureTargets(), tier: state.policy.tier, isAnimating: focus.isAnimating)
+        syncOverviewPanels()
+        syncWorkbenchPanels()
         applyOrdering()
         updateObservers()
 
@@ -417,6 +487,57 @@ final class AppCoordinator {
                                   query: state.searchQuery,
                                   hint: pendingHint)
         }
+    }
+
+    /// 总览面板只在总览模式显示：进入 L 型后（含过渡中）全屏覆盖层必须先收起（方案 §4.2）。
+    private func syncOverviewPanels() {
+        let shouldShow = state.mode == .overview && !state.workbench.modeTransition.isTransitioning
+        for controller in controllers.values {
+            if shouldShow {
+                if !controller.isVisible {
+                    controller.show()
+                    catalog.registerOwnWindow(id: controller.windowNumber)
+                    // 重新显示的面板要重新下发一次层级，隐藏期间目标可能已换（方案 §12.2）。
+                    appliedOrdering = nil
+                }
+            } else if controller.isVisible {
+                controller.setKeyboardFocus(false)
+                controller.hide()
+            }
+        }
+    }
+
+    /// 两条栏按冻结投影显示；投影退化或没有投影时不留下零尺寸空面板（方案 §9.1）。
+    private func syncWorkbenchPanels() {
+        let engaged = state.workbench.modeTransition.isTransitioning || state.mode == .workbench
+        guard engaged, let presentation = workbenchPresentation else {
+            for controller in workbenchControllers.values where controller.isVisible { controller.hide() }
+            return
+        }
+        ensureWorkbenchControllers()
+        for (displayID, controller) in workbenchControllers where displayID != presentation.displayID {
+            if controller.isVisible { controller.hide() }
+        }
+        guard let controller = workbenchControllers[presentation.displayID] else { return }
+        if !controller.isVisible {
+            controller.show()
+            for id in controller.windowNumbers { catalog.registerOwnWindow(id: id) }
+            appliedOrdering = nil
+        }
+        controller.update(presentation: presentation,
+                          renderer: renderer,
+                          mailboxProvider: { [weak self] identity in self?.capture.mailbox(for: identity) },
+                          showsTitles: settings.showsTitles,
+                          searchQuery: state.searchQuery,
+                          hint: pendingHint)
+    }
+
+    private func hideWorkbenchPanels() {
+        for controller in workbenchControllers.values {
+            controller.hide()
+            for id in controller.windowNumbers { catalog.forgetOwnWindow(id: id) }
+        }
+        workbenchPresentation = nil
     }
 
     /// 每屏一份渲染布局：格子矩形来自冻结网格，只有 imageRect 随源尺寸变化（方案 §8.1）。
@@ -452,7 +573,20 @@ final class AppCoordinator {
     }
 
     private func captureTargets() -> [CaptureTarget] {
-        state.records.values.compactMap { record in
+        // 工作台里主区是真实窗口：只有两栏卡片需要实时画面（方案 §4.3、§14 空闲 CPU）。
+        if state.workbench.modeTransition.isTransitioning || state.mode == .workbench,
+           let presentation = workbenchPresentation {
+            let scale = catalog.mapper.display(id: presentation.displayID)?.backingScale ?? 2
+            return presentation.cards.compactMap { card in
+                let cellWidth = presentation.snapshot.contentRect(for: card.slot)?.width
+                    ?? presentation.snapshot.layout.topCardSize.width
+                return CaptureTarget(record: card.record,
+                                     cellWidth: cellWidth,
+                                     backingScale: scale,
+                                     isPriority: settings.isPriority(card.record.memoryKey))
+            }
+        }
+        return state.records.values.compactMap { record in
             guard let display = catalog.mapper.display(id: record.displayID),
                   let slot = record.slot,
                   let card = layouts[display.id]?.card(at: slot) else { return nil }
@@ -472,6 +606,9 @@ final class AppCoordinator {
         appliedOrdering = (settings.orderingStrategy, relative)
         orderingApplyCount += 1
         for controller in controllers.values {
+            controller.applyOrdering(strategy: settings.orderingStrategy, relativeToWindowID: relative)
+        }
+        for controller in workbenchControllers.values {
             controller.applyOrdering(strategy: settings.orderingStrategy, relativeToWindowID: relative)
         }
     }
@@ -510,6 +647,8 @@ final class AppCoordinator {
             controller.setKeyboardFocus(false)
             controller.hide()
         }
+        // 会话隐藏时工作台同样不存在：两栏面板不留透明命中层（方案 §9.1）。
+        hideWorkbenchPanels()
         hintTimer?.invalidate()
         hintTimer = nil
         pendingHint = nil
@@ -553,6 +692,30 @@ final class AppCoordinator {
         if membershipChanged { appliedOrdering = nil }
     }
 
+    /// 工作台面板与总览一样按屏维护；屏被拔掉时同样要收面板并注销自己的窗口编号。
+    private func ensureWorkbenchControllers() {
+        let displays = catalog.mapper.displays
+        let ids = Set(displays.map(\.id))
+        var membershipChanged = false
+        for (displayID, controller) in workbenchControllers where !ids.contains(displayID) {
+            controller.hide()
+            for id in controller.windowNumbers { catalog.forgetOwnWindow(id: id) }
+            workbenchControllers.removeValue(forKey: displayID)
+            membershipChanged = true
+        }
+        for display in displays {
+            if let controller = workbenchControllers[display.id] {
+                controller.updateDisplay(display, mapper: catalog.mapper)
+                continue
+            }
+            let controller = WorkbenchWindowController(display: display, mapper: catalog.mapper, metal: metal)
+            controller.onAction = { [weak self] action in self?.handle(action) }
+            workbenchControllers[display.id] = controller
+            membershipChanged = true
+        }
+        if membershipChanged { appliedOrdering = nil }
+    }
+
     /// 有新鲜帧才提交绘制；没有变化的格子不重复上传（方案 §9.6）。
     private func redraw() {
         guard state.phase.isVisible else { return }
@@ -562,20 +725,39 @@ final class AppCoordinator {
                                           mailboxes: { [weak self] identity in self?.capture.mailbox(for: identity) },
                                           force: false)
         }
+        if let presentation = workbenchPresentation,
+           let controller = workbenchControllers[presentation.displayID], controller.isVisible {
+            for view in [controller.topRail, controller.sideRail] {
+                view.redraw(using: renderer,
+                            mailboxes: { [weak self] identity in self?.capture.mailbox(for: identity) },
+                            force: false)
+            }
+        }
     }
 
     // MARK: - 键盘焦点
 
     private func applyKeyboardFocus(_ focus: KeyboardFocus) {
         switch focus {
-        case .overview, .railSearch:
+        case .overview:
             let host = keyboardHost()
             for controller in controllers.values where controller !== host { controller.setKeyboardFocus(false) }
+            for controller in workbenchControllers.values { controller.setSearchKeyboard(false) }
             host?.setKeyboardFocus(true)
             reportKeyboardReality(focus, host: host)
+        case .railSearch:
+            // 只有搜索框在编辑时工作台面板才接受键盘（方案 §9.3）。
+            let host = workbenchController()
+            for controller in controllers.values { controller.setKeyboardFocus(false) }
+            for controller in workbenchControllers.values where controller !== host {
+                controller.setSearchKeyboard(false)
+            }
+            host?.setSearchKeyboard(true)
+            reportKeyboardReality(focus, host: nil)
         case .targetApplication, .none:
             // 聚焦真实窗口时必须让出键盘，否则输入法与快捷键会被面板吃掉。
             for controller in controllers.values { controller.setKeyboardFocus(false) }
+            for controller in workbenchControllers.values { controller.setSearchKeyboard(false) }
             reportKeyboardReality(focus, host: nil)
         }
     }
@@ -591,17 +773,28 @@ final class AppCoordinator {
             guard !host.keyboardAccepted else { return }
             log("keyboard", "总览键盘未落位：面板不是 key 或 first responder 不是内容视图，方向键/Esc/搜索不保证有效")
         case .railSearch:
-            // 工作台搜索框持有键盘（M2 接入）；现在如实记录实况，不假装搜索可用。
-            guard let host else {
-                log("keyboard", "搜索需要键盘，但当前没有可用面板（工作台未接入，M2）")
+            guard let search = workbenchController() else {
+                log("keyboard", "搜索需要键盘，但当前没有工作台面板")
                 return
             }
-            guard !host.keyboardAccepted else { return }
-            log("keyboard", "搜索键盘未落位：面板不是 key（工作台未接入，M2）")
+            guard !search.isSearchFocused else { return }
+            log("keyboard", "搜索键盘未落位：工作台顶栏面板不是 key 或搜索框不是 first responder")
         case .targetApplication, .none:
-            guard let still = controllers.values.first(where: { $0.isKey }) else { return }
-            log("keyboard", "让出键盘后 display \(still.displayID) 面板仍是 key，原生输入可能落进总览")
+            if let still = controllers.values.first(where: { $0.isKey }) {
+                log("keyboard", "让出键盘后 display \(still.displayID) 总览面板仍是 key，原生输入可能落进总览")
+            }
+            if let still = workbenchControllers.values.first(where: { $0.isSearchFocused }) {
+                log("keyboard", "让出键盘后 display \(still.displayID) 搜索框仍持有键盘")
+            }
         }
+    }
+
+    private func workbenchController() -> WorkbenchWindowController? {
+        let displayID = state.workbench.activeDisplayID
+            ?? workbenchPresentation?.displayID
+            ?? state.phase.controlledTarget.flatMap { state.displayID(of: $0) }
+        if let displayID, let controller = workbenchControllers[displayID] { return controller }
+        return workbenchControllers.values.first
     }
 
     private func keyboardHost() -> OverviewWindowController? {
@@ -621,7 +814,14 @@ final class AppCoordinator {
         switch action {
         case let .cardClicked(identity):
             cardClickCount += 1
-            dispatch(.cardClicked(identity))
+            // 总览里的选择只有一个入口：进入工作台（方案 §4.1）。没有格子位置就不是一次有效选择。
+            guard let slot = state.slots.slot(for: identity) else {
+                log("overview", "点击的卡片没有格子位置，未发起聚焦")
+                return
+            }
+            dispatch(.overviewCardSelected(identity: identity,
+                                           slot: slot,
+                                           revision: state.workbench.layoutRevision))
         case .backgroundClicked:
             viewBackgroundClickCount += 1
             // 面板自留事件：不穿透到后面的应用，也不激活卡片内的任何控件。
@@ -634,6 +834,29 @@ final class AppCoordinator {
             dispatch(.organizeRequested)
         case .exit:
             dispatch(.escapePressed)
+        case let .search(query):
+            dispatch(.searchChanged(query))
+        }
+    }
+
+    /// 工作台视图动作同样只转成事件：命中、滚动、搜索都不在视图里改状态（方案 §7.1）。
+    private func handle(_ action: WorkbenchWindowController.Action) {
+        switch action {
+        case let .railCardClicked(slot, identity):
+            dispatch(.railCardSelected(slot: slot, identity: identity))
+        case let .railCardDragged(from, to):
+            dispatch(.railCardDragged(from: from, to: to))
+        case let .railScrolled(rail, offset):
+            dispatch(.railScrolled(rail: rail, offset: offset))
+        case .returnToOverview:
+            dispatch(.returnToOverviewRequested)
+        case .toggleSide:
+            let side = (workbenchPresentation?.side ?? state.workbench.side).toggled
+            dispatch(.railSideChanged(side))
+            // 被状态机拒绝的请求不能改用户设置：只有状态真的换了方向才写盘（方案 §11.2、§16）。
+            if state.workbench.side == side { settings.workbenchSide = side }
+        case let .searchFocus(focused):
+            dispatch(.workbenchSearchFocusChanged(focused))
         case let .search(query):
             dispatch(.searchChanged(query))
         }

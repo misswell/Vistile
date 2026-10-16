@@ -803,6 +803,11 @@ public enum WorkbenchReducer {
     private static func workbenchDisplay(_ state: SessionState,
                                          identity: WindowIdentity,
                                          record: WindowRecord) -> DisplayInfo? {
+        // 用户固定了工作台屏幕时先用它；没设置或该屏已拔掉，才跟随点击的卡片（方案 §13）。
+        if let preferred = state.workbench.preferredDisplayID,
+           let display = state.displays.first(where: { $0.id == preferred }) {
+            return display
+        }
         if let displayID = state.gridCell(for: identity)?.displayID,
            let display = state.displays.first(where: { $0.id == displayID }) {
             return display

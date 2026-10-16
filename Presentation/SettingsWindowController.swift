@@ -10,6 +10,12 @@ struct WindowChoice: Identifiable, Hashable {
     var id: String { key }
 }
 
+/// 工作台屏幕候选：编号是目录里的显示器 id，名字来自系统（方案 §13）。
+struct DisplayChoice: Identifiable, Hashable {
+    let id: UInt32
+    let name: String
+}
+
 /// 设置窗口（方案 §13）。这里只写 SettingsModel，行为变化一律回到协调层走事件管线，
 /// 视图不自己保存"当前是不是总览显示中"这类布尔。
 @MainActor
@@ -61,13 +67,36 @@ final class SettingsWindowController {
                          launchNote: notice,
                          windowChoices: currentWindowChoices(),
                          runningBundleIDs: runningBundleIDs(),
+                         displayChoices: displayChoices(),
                          onApply: applyCallback(),
                          onRefresh: { [weak self] in self?.rerender() },
                          onRequestPermission: { [weak self] kind in self?.request(kind) },
                          onOpenSystemSettings: { pane in SettingsWindowController.openSettings(pane) },
                          onSetLaunchAtLogin: { [weak self] enabled in self?.setLaunchAtLogin(enabled) },
                          onRecordHotKey: { [weak self] in self?.recordHotKey() },
+                         onWorkbenchSide: { [weak self] side in self?.coordinator.setWorkbenchSide(side) },
+                         onWorkbenchDisplay: { [weak self] id in self?.coordinator.setPreferredWorkbenchDisplay(id) },
+                         onResetRailSizes: { [weak self] in self?.resetRailSizePreference() },
                          onExportDiagnostics: { [weak self] in self?.exportDiagnostics() })
+    }
+
+    /// 显示器名字来自 NSScreen，编号来自目录的显示器事实：两者对不上时如实显示编号（方案 §13）。
+    private func displayChoices() -> [DisplayChoice] {
+        let screens = NSScreen.screens
+        return coordinator.catalog.mapper.displays.map { display in
+            let number = screens.first {
+                ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == display.id
+            }
+            let name = number.map { $0.localizedName } ?? "显示器 \(display.id)"
+            return DisplayChoice(id: display.id, name: display.isPrimary ? "\(name)（主屏）" : name)
+        }
+    }
+
+    private func resetRailSizePreference() {
+        settings.workbenchTopHeight = nil
+        settings.workbenchSideWidth = nil
+        notice = "栏尺寸偏好已清空；下次进入工作台按布局默认值展开"
+        rerender()
     }
 
     private func rerender() {
@@ -174,19 +203,24 @@ struct SettingsRootView: View {
     let launchNote: String
     let windowChoices: [WindowChoice]
     let runningBundleIDs: [String]
+    let displayChoices: [DisplayChoice]
     let onApply: () -> Void
     let onRefresh: () -> Void
     let onRequestPermission: (PermissionKind) -> Void
     let onOpenSystemSettings: (String) -> Void
     let onSetLaunchAtLogin: (Bool) -> Void
     let onRecordHotKey: () -> Void
+    let onWorkbenchSide: (RailSide) -> Void
+    let onWorkbenchDisplay: (UInt32?) -> Void
+    let onResetRailSizes: () -> Void
     let onExportDiagnostics: () -> Void
 
     var body: some View {
         Form {
             general
             overview
-            focus
+            workbench
+            recovery
             performance
             exclusions
             permissions
@@ -244,19 +278,34 @@ struct SettingsRootView: View {
         }
     }
 
-    @ViewBuilder private var focus: some View {
-        Section("聚焦") {
-            Slider(value: binding({ $0.foregroundWidthRatio }, { $0.foregroundWidthRatio = $1 }),
-                   in: 0.75...0.94) {
-                Text("前景宽度 \(Int(settings.foregroundWidthRatio * 100))%")
+    @ViewBuilder private var workbench: some View {
+        Section("工作台（L 型）") {
+            Picker("侧栏方向", selection: Binding(get: { settings.workbenchSide },
+                                              set: { onWorkbenchSide($0) })) {
+                Text("左栏").tag(RailSide.left)
+                Text("右栏").tag(RailSide.right)
             }
-            Slider(value: binding({ $0.foregroundHeightRatio }, { $0.foregroundHeightRatio = $1 }),
-                   in: 0.75...0.94) {
-                Text("前景高度 \(Int(settings.foregroundHeightRatio * 100))%")
+            Picker("工作台屏幕", selection: Binding(get: { settings.preferredWorkbenchDisplayID },
+                                                set: { onWorkbenchDisplay($0) })) {
+                Text("跟随点击的窗口").tag(UInt32?.none)
+                ForEach(displayChoices) { choice in
+                    Text(choice.name).tag(UInt32?.some(choice.id))
+                }
             }
-            Toggle("点击背景卡片直接切换", isOn: binding({ $0.backgroundClickSwitches }, { $0.backgroundClickSwitches = $1 }))
-            Text("默认关闭：背景只负责回到总览，避免误切窗口。")
+            Text("默认跟随点击：点哪块屏上的卡片，工作台就开在哪块屏。指定屏幕后固定在该屏；屏幕被拔掉会自动退回跟随点击。")
                 .font(.callout).foregroundStyle(.secondary)
+            HStack {
+                Text("栏尺寸")
+                Spacer()
+                Button("恢复默认栏尺寸", action: onResetRailSizes)
+            }
+            Text("主区几何由布局决定，不再叠加旧版的前景宽高比例；点击卡片始终把该窗口换进主区，点空白处保持不动。")
+                .font(.callout).foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder private var recovery: some View {
+        Section("窗口恢复") {
             Toggle("保留聚焦期间我手动调整的尺寸", isOn: binding({ $0.preserveUserGeometry }, { $0.preserveUserGeometry = $1 }))
             Text("关闭时，退出会把我临时改过的窗口尺寸恢复原样。")
                 .font(.callout).foregroundStyle(.secondary)

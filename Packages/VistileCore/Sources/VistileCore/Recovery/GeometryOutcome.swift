@@ -39,9 +39,7 @@ public enum GeometryOutcome: Hashable, Sendable {
     public var didChangeGeometry: Bool {
         switch self {
         case .exact, .constrained: return true
-        case .rejected(let reason):
-            if case .unchangedByWrite = reason { return false }
-            return true
+        case .rejected(let reason): return reason.didChangeGeometry
         case .unreadable, .targetGone: return false
         }
     }
@@ -64,6 +62,16 @@ public enum GeometryRejectReason: Hashable, Sendable {
     case unchangedByWrite(previous: CGRect)
     /// 写前就读不到 frame：此时不得盲目写入。
     case beforeWriteUnreadable
+    /// 写前的业务前提不成立（权限、事务未落盘、句柄未确定）：一次 AX 写入都没发生。
+    case preconditionFailed(String)
+
+    /// 是否已经动过窗口几何。没写过的原因不能算"改过"，否则会触发多余的补偿（方案 §6.1）。
+    public var didChangeGeometry: Bool {
+        switch self {
+        case .sizeWrite, .positionWrite: return true
+        case .unchangedByWrite, .beforeWriteUnreadable, .preconditionFailed: return false
+        }
+    }
 
     public var message: String {
         switch self {
@@ -71,6 +79,7 @@ public enum GeometryRejectReason: Hashable, Sendable {
         case let .positionWrite(code): return "位置写入返回错误码 \(code)"
         case let .unchangedByWrite(previous): return "写前写后一致（\(RecoveryText.frame(previous))），目标未被接受"
         case .beforeWriteUnreadable: return "写入前读不到当前 frame"
+        case let .preconditionFailed(reason): return reason
         }
     }
 }

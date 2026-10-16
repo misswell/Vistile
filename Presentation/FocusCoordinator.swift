@@ -304,6 +304,61 @@ final class FocusCoordinator {
         stopAnimation()
     }
 
+    // MARK: - 工作台共用（方案 §8.2）
+
+    /// 工作台交换执行器走同一条 AX 通道写几何：写入期间与写后短窗口的归因
+    /// 必须由同一份记账决定，否则我们自己的写入会被读成用户拖动（方案 §6.5）。
+    func beginProgrammaticWrite(_ identity: WindowIdentity) {
+        writing.insert(identity)
+    }
+
+    func endProgrammaticWrite(_ identity: WindowIdentity, frame: CGRect) {
+        writing.remove(identity)
+        lastWritten[identity] = (frame, Date())
+    }
+
+    /// 工作台交换的「前景确认」步骤读回的事实。只用公开激活 + AX Raise + 读回，
+    /// 与展开路径完全同一条实现（含同应用兄弟窗口的读回判定）。
+    struct ActivationFacts: Equatable {
+        var activationRequested = false
+        var activationReturned = false
+        var raiseReturned = false
+        var focusedWindowMatches: Bool?
+        var frontApplicationMatches: Bool?
+
+        var isVerifiedFront: Bool { focusedWindowMatches == true || frontApplicationMatches == true }
+        /// 只有相反证据才算失败：读不到不等于失败（方案 §12.2）。
+        var isProvenBehind: Bool { focusedWindowMatches == false && frontApplicationMatches == false }
+
+        var evidence: String {
+            func text(_ value: Bool?) -> String {
+                switch value {
+                case .some(true): return "是"
+                case .some(false): return "否"
+                case nil: return "不可读"
+                }
+            }
+            return "activate=\(activationReturned) raise=\(raiseReturned) "
+                + "focused读回=\(text(focusedWindowMatches)) 前台=\(text(frontApplicationMatches))"
+        }
+    }
+
+    @discardableResult
+    func activateAndRaise(_ identity: WindowIdentity) async -> ActivationFacts {
+        guard let record = catalog.record(for: identity) else {
+            var facts = ActivationFacts()
+            facts.frontApplicationMatches = false
+            onStatus?("前景化失败：目录里已没有该窗口")
+            return facts
+        }
+        let report = await bringToFront(record: record, element: catalog.axEntry(for: record)?.element)
+        return ActivationFacts(activationRequested: report.activationRequested,
+                               activationReturned: report.activationReturned,
+                               raiseReturned: report.raiseReturned,
+                               focusedWindowMatches: report.focusedWindowMatches,
+                               frontApplicationMatches: report.frontApplicationMatches)
+    }
+
     /// 通道字典按窗口累积，空闲时必须回收（方案 §14 内存）。
     func pruneIdleChannels() {
         for identity in Array(tails.keys) where !busy.contains(identity) {

@@ -241,6 +241,9 @@ public struct WorkbenchFrameWrite: Hashable, Sendable {
 public struct WorkbenchState: Hashable, Sendable {
     /// 活动工作台显示器：首次选择时确定，会话内至多一个主区事务（方案 §13）。
     public var activeDisplayID: UInt32?
+    /// 用户固定的工作台显示器偏好；nil = 跟随点击的卡片所在屏幕（方案 §13）。
+    /// 与 activeDisplayID 不同：这是跨会话设置，会话隐藏不重置；屏幕不存在时退回跟随点击。
+    public var preferredDisplayID: UInt32?
     public var placement = WorkbenchPlacement()
     public var side: RailSide = .right
     /// 两条栏各自的滚动偏移（pt）。滚动不改变 slot 编号。

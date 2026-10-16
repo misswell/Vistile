@@ -149,6 +149,13 @@ public struct WorkbenchSwitchStepResult: Hashable, Sendable {
 public enum WorkbenchTransitionKind: String, Hashable, Sendable {
     case enteringWorkbench
     case returningOverview
+
+    public var displayName: String {
+        switch self {
+        case .enteringWorkbench: return "进入工作台"
+        case .returningOverview: return "返回总览"
+        }
+    }
 }
 
 /// 其余卡片在冻结总览与轨道之间的过渡端点（方案 §4.2.5、§10.1）。

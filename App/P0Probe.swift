@@ -66,6 +66,9 @@ final class P0Probe {
         await p0_9_realViewChain()
         await p0_10_orderingFacts()
         await p0_11_trustedToken()
+        await p0_12_workbenchEntry()
+        await p0_13_mainSwitch()
+        await p0_14_returnToOverview()
         await performanceSample()
         let environment = await environmentSelfCheck()
         if coordinator.state.phase == .hidden { await showOverview() }
@@ -690,6 +693,255 @@ final class P0Probe {
         manual("P0-11", "对话框不被强关", "在放大窗口里打开一个 Sheet（如另存为），点背景，确认对话框不被强行关掉。")
     }
 
+    // MARK: - P0-12 工作台入口（方案 §4.1、§4.2）
+
+    /// P0-12 进入工作台前主窗口的真实 frame：P0-13 用它核对"原主回到了原位置"。
+    private var entryMainFrame: CGRect?
+
+    private func p0_12_workbenchEntry() async {
+        await restoreOverview()
+        guard coordinator.state.phase == .overview else {
+            record("P0-12", "工作台入口", passed: nil,
+                   detail: "总览没能打开，无法从总览进入工作台", check: "P0-12 工作台入口")
+            return
+        }
+        guard let candidate = expandCandidate() else {
+            record("P0-12", "工作台入口", passed: nil,
+                   detail: (P0Probe.targetFilter().isEmpty
+                        ? "没有可聚焦的窗口" : "指定目标「\(P0Probe.targetFilter())」没有可聚焦窗口") + environmentSuffix(),
+                   check: "P0-12 工作台入口")
+            return
+        }
+        entryMainFrame = coordinator.state.records[candidate.identity]?.frame
+        guard let target = panelPoint(for: candidate.identity) else {
+            record("P0-12", "工作台入口", passed: nil,
+                   detail: "\(candidate.applicationName) 的格子不在任何总览面板上，无法通过真实视图进入",
+                   check: "P0-12 工作台入口")
+            return
+        }
+        let clicksBefore = coordinator.cardClickCount
+        guard sendRealMouseDownUp(target) else {
+            record("P0-12", "工作台入口", passed: nil,
+                   detail: "真实点击无法派发到总览内容视图（面板不存在或该点命中的不是它）",
+                   check: "P0-12 工作台入口")
+            return
+        }
+        let entered = await waitUntil(timeout: 8.0) {
+            let state = self.coordinator.state
+            return state.mode == .workbench
+                && !state.workbench.modeTransition.isTransitioning
+                && !state.workbench.mainSwitch.isBusy
+        }
+        // 进入会写真实窗口几何，读回要等目录刷新一轮：不刷新就读到的是写之前的 frame。
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        let generation = coordinator.state.catalogGeneration
+        coordinator.refreshNow()
+        _ = await waitUntil(timeout: 2.0) { self.coordinator.state.catalogGeneration > generation }
+
+        let state = coordinator.state
+        var issues: [String] = []
+        var facts: [String] = []
+        let clicks = coordinator.cardClickCount - clicksBefore
+        if clicks != 1 { issues.append("点击动作次数=\(clicks)") }
+        if state.mode != .workbench { issues.append("进入后模式不是工作台（阶段=\(phaseDebug(state.phase))）") }
+        if state.workbench.modeTransition.isTransitioning { issues.append("模式过渡仍在途") }
+        if state.workbench.placement.main != candidate.identity {
+            issues.append("主区=\(state.workbench.placement.main.map(\.journalKey) ?? "空")，期望 \(candidate.identity.journalKey)")
+        }
+        let overviewVisible = coordinator.controllers.values.filter(\.isVisible).count
+        if overviewVisible != 0 { issues.append("总览面板仍可见 \(overviewVisible) 块") }
+        if let snapshot = state.workbench.snapshot,
+           let presentation = coordinator.workbenchPresentation,
+           let controller = coordinator.workbenchControllers[presentation.displayID],
+           let record = state.records[candidate.identity] {
+            if !controller.isVisible { issues.append("工作台面板未显示") }
+            let mapper = coordinator.catalog.mapper
+            let topDeviation = P0Probe.rectDeviation(controller.topPanelFrame,
+                                                     mapper.cgToAppKit(snapshot.layout.topRailRect))
+            let sideDeviation = P0Probe.rectDeviation(controller.sidePanelFrame,
+                                                      mapper.cgToAppKit(snapshot.layout.sideRailRect))
+            if topDeviation > 1 || sideDeviation > 1 {
+                issues.append("面板矩形偏离投影（顶 \(P0Probe.pt(topDeviation))pt / 侧 \(P0Probe.pt(sideDeviation))pt）")
+            }
+            if snapshot.layout.topRailRect.intersects(snapshot.layout.mainRect)
+                || snapshot.layout.sideRailRect.intersects(snapshot.layout.mainRect) {
+                issues.append("投影里栏与主区相交")
+            }
+            if snapshot.layout.isDegenerate { facts.append("该屏布局退化，只留主区") }
+            if let entryFrame = entryMainFrame {
+                let expected = FocusGeometry.dockedRect(in: snapshot.layout.mainRect,
+                                                        currentSize: entryFrame.size,
+                                                        isResizable: record.allowsGeometryControl)
+                let deviation = P0Probe.rectDeviation(record.frame, expected)
+                if deviation > 4 {
+                    // §10.1 要求可调整窗口精确占 mainRect；偏差就是偏差，不替应用解释。
+                    issues.append("主窗口读回与主区目标偏差 \(P0Probe.pt(deviation))pt"
+                                + "（读回 \(P0Probe.rectText(record.frame))，目标 \(P0Probe.rectText(expected))，"
+                                + "可调整=\(record.allowsGeometryControl)）")
+                } else {
+                    facts.append("主窗口读回偏差 \(P0Probe.pt(deviation))pt（可调整=\(record.allowsGeometryControl)）")
+                }
+            } else {
+                issues.append("进入前读不到主窗口原始 frame")
+            }
+            facts.append("面板=投影（顶 \(P0Probe.pt(topDeviation))pt / 侧 \(P0Probe.pt(sideDeviation))pt）")
+        } else {
+            issues.append("进入后没有投影/承载/记录，无法核对几何")
+        }
+        let blocked = permissionNote(.accessibility)
+        record("P0-12", "工作台入口", passed: blocked == nil ? entered && issues.isEmpty : nil,
+               detail: blocked ?? (issues.isEmpty
+                    ? "真实点击卡片 \(candidate.identity.journalKey) 进入工作台：" + facts.joined(separator: "；")
+                    : "问题：" + issues.joined(separator: "；")),
+               check: "P0-12 工作台入口")
+        manual("P0-12", "L 型与真实窗口", "点卡片后：主区必须是真实窗口（在其中打中文、右键、⌘W 都由真实应用响应），"
+               + "两栏不得盖住主区，角落工具区的按钮可点。")
+    }
+
+    // MARK: - P0-13 主副交换（方案 §4.3、§6.1、§8）
+
+    private func p0_13_mainSwitch() async {
+        let state = coordinator.state
+        guard state.mode == .workbench, !state.workbench.modeTransition.isTransitioning else {
+            record("P0-13", "主副交换", passed: nil,
+                   detail: "上一项没有进入工作台，无法验证交换", check: "P0-13 主副交换")
+            return
+        }
+        guard let presentation = coordinator.workbenchPresentation,
+              let main = state.workbench.placement.main else {
+            record("P0-13", "主副交换", passed: nil,
+                   detail: "工作台里没有投影或没有主窗口，无法验证交换", check: "P0-13 主副交换")
+            return
+        }
+        let railCards = (presentation.topCards + presentation.sideCards).filter(\.isVisible)
+        guard let cardB = railCards.first else {
+            record("P0-13", "主副交换", passed: nil,
+                   detail: "两栏里没有可见卡片（只有主窗口，或该屏布局退化），本项不适用",
+                   check: "P0-13 主副交换")
+            manual("P0-13", "交换画面", "两个以上窗口时点顶栏/侧栏的预览：主区换成它，被换下的窗口出现在那张卡片的位置。")
+            return
+        }
+        let beforeTop = state.workbench.topScrollOffset
+        let beforeSide = state.workbench.sideScrollOffset
+        let beforeOthers = state.workbench.placement.occupants.filter { $0.key != cardB.slot }
+        let beforeFrames = beforeOthers.mapValues { state.records[$0]?.frame }
+        let bSize = state.records[cardB.identity]?.frame.size
+
+        // 交换必须由真实鼠标事件触发：直接 dispatch 的话，栏视图的命中与手势链断了也能"通过"。
+        guard let railPoint = workbenchRailPoint(for: cardB.slot),
+              sendRealMouseDownUp((railPoint.window, railPoint.point), hitView: railPoint.view) else {
+            record("P0-13", "主副交换", passed: nil,
+                   detail: "轨道卡片 \(cardB.slot.rail == .top ? "顶栏" : "侧栏")#\(cardB.slot.ordinal) 此刻不在画面上，"
+                        + "或该点命中的不是轨道视图本身，无法派发真实点击",
+                   check: "P0-13 主副交换")
+            return
+        }
+        let switched = await waitUntil(timeout: 8.0) {
+            let state = self.coordinator.state
+            guard !state.workbench.mainSwitch.isBusy, !state.workbench.modeTransition.isTransitioning else { return false }
+            return state.workbench.placement.main == cardB.identity
+        }
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        let generation = coordinator.state.catalogGeneration
+        coordinator.refreshNow()
+        _ = await waitUntil(timeout: 2.0) { self.coordinator.state.catalogGeneration > generation }
+
+        let after = coordinator.state
+        var issues: [String] = []
+        var facts: [String] = []
+        if !switched {
+            var reason = ""
+            if case let .failed(_, note) = after.workbench.mainSwitch { reason = "；状态机给出的原因：\(note)" }
+            issues.append("交换没有收敛到目标主区（主区=\(after.workbench.placement.main.map(\.journalKey) ?? "空")"
+                        + "，阶段=\(phaseDebug(after.phase))\(reason)）")
+        }
+        if after.workbench.placement.occupant(at: cardB.slot) != main {
+            issues.append("被点 slot 上没有回到原主窗口（\(after.workbench.placement.occupant(at: cardB.slot)?.journalKey ?? "空")）")
+        }
+        let afterOthers = after.workbench.placement.occupants.filter { $0.key != cardB.slot }
+        if afterOthers != beforeOthers {
+            issues.append("其他 slot 占用发生变化（\(beforeOthers.count) → \(afterOthers.count)）")
+        }
+        if after.workbench.topScrollOffset != beforeTop || after.workbench.sideScrollOffset != beforeSide {
+            issues.append("滚动偏移被改变（顶 \(beforeTop)→\(after.workbench.topScrollOffset)，"
+                        + "侧 \(beforeSide)→\(after.workbench.sideScrollOffset)）")
+        }
+        var moved: [String] = []
+        for (slot, identity) in beforeOthers {
+            guard let before = beforeFrames[slot] ?? nil else { continue }
+            guard let now = after.records[identity]?.frame else {
+                moved.append("\(identity.journalKey) 已不在目录")
+                continue
+            }
+            let deviation = P0Probe.rectDeviation(before, now)
+            if deviation > 4 { moved.append("\(identity.journalKey) 移动 \(P0Probe.pt(deviation))pt") }
+        }
+        if !moved.isEmpty { issues.append("非主窗口几何被动过：" + moved.joined(separator: "、")) }
+        if let bSize, let recordB = after.records[cardB.identity], let snapshotNow = after.workbench.snapshot {
+            let expected = FocusGeometry.dockedRect(in: snapshotNow.layout.mainRect,
+                                                    currentSize: bSize,
+                                                    isResizable: recordB.allowsGeometryControl)
+            let deviation = P0Probe.rectDeviation(recordB.frame, expected)
+            if deviation > 4 {
+                issues.append("新主窗口读回与主区目标偏差 \(P0Probe.pt(deviation))pt"
+                            + "（读回 \(P0Probe.rectText(recordB.frame))，目标 \(P0Probe.rectText(expected))）")
+            } else {
+                facts.append("新主读回偏差 \(P0Probe.pt(deviation))pt")
+            }
+        }
+        if let entryFrame = entryMainFrame, let recordA = after.records[main] {
+            let deviation = P0Probe.rectDeviation(recordA.frame, entryFrame)
+            if deviation > 4 {
+                issues.append("原主窗口没有回到进入前的位置（偏差 \(P0Probe.pt(deviation))pt）")
+            } else {
+                facts.append("原主回到进入前位置（偏差 \(P0Probe.pt(deviation))pt）")
+            }
+        }
+        record("P0-13", "主副交换", passed: issues.isEmpty,
+               detail: issues.isEmpty
+                    ? "真实点击\(cardB.slot.rail == .top ? "顶栏" : "侧栏")卡片 \(cardB.identity.journalKey)：主区切到它、"
+                      + "原主 \(main.journalKey) 回到该 slot、其余 \(beforeOthers.count) 个占用与滚动偏移未动；"
+                      + facts.joined(separator: "；")
+                    : "问题：" + issues.joined(separator: "；"),
+               check: "P0-13 主副交换")
+        manual("P0-13", "交换画面", "点顶栏/侧栏里的一张预览：主区换成它、被换下的窗口出现在刚才那张卡片的位置，其他卡片不跳位；"
+               + "先在栏里滚动几格再交换，确认滚动位置不回弹。")
+    }
+
+    // MARK: - P0-14 返回总览（方案 §4.4）
+
+    private func p0_14_returnToOverview() async {
+        guard coordinator.state.mode == .workbench else {
+            record("P0-14", "返回总览", passed: nil,
+                   detail: "当前不在工作台，无法验证「全部窗口」返回", check: "P0-14 返回总览")
+            return
+        }
+        guard let buttonPoint = allWindowsButtonPoint() else {
+            record("P0-14", "返回总览", passed: nil,
+                   detail: "找不到「全部窗口」按钮的真实点位（按钮不在画面上，或该点的命中不是标题为「全部窗口」的按钮）",
+                   check: "P0-14 返回总览")
+            return
+        }
+        let dispatched = sendRealMouseDownUp((buttonPoint.window, buttonPoint.point), hitView: buttonPoint.view)
+        let returned = await waitUntil(timeout: 8.0) {
+            let state = self.coordinator.state
+            return state.mode == .overview && !state.workbench.modeTransition.isTransitioning
+                && state.phase == .overview
+        }
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        let panels = coordinator.controllers.values.filter(\.isVisible).count
+        var issues: [String] = []
+        if !dispatched { issues.append("真实点击无法派发到「全部窗口」按钮") }
+        if !returned { issues.append("状态机没有回到总览（阶段=\(phaseDebug(coordinator.state.phase))）") }
+        if panels == 0 { issues.append("总览面板没有重新显示") }
+        record("P0-14", "返回总览", passed: issues.isEmpty,
+               detail: issues.isEmpty
+                    ? "真实点击「全部窗口」后回到总览，总览面板 \(panels) 块重新显示"
+                    : "问题：" + issues.joined(separator: "；"),
+               check: "P0-14 返回总览")
+        manual("P0-14", "返回一致", "点「全部窗口」：回到的必须是进入前的那套总览（格子、搜索词、滚动位置都不变），背景不闪。")
+    }
+
     // MARK: - 本轮取证环境自检
 
     /// 依赖帧的自动项（P0-2 / P0-9 / P0-10 / 性能采样）只有在"这一轮目录真的产过帧"时才谈得上成立；
@@ -753,14 +1005,42 @@ final class P0Probe {
     }
 
     /// 一整次左键按下 + 抬起，交给 NSWindow 做真实派发（hitTest → 视图手势 → 动作转接）。
-    private func sendRealMouseDownUp(_ target: (window: NSWindow, point: CGPoint)) -> Bool {
-        guard let view = target.window.contentView as? OverviewContentView,
-              view.hitTest(target.point) != nil,
+    /// `hitView` 用于工作台的两栏与工具栏：调用方给出事件必须落到的视图，命中测试对不上就不发。
+    private func sendRealMouseDownUp(_ target: (window: NSWindow, point: CGPoint), hitView: NSView? = nil) -> Bool {
+        guard let content = target.window.contentView,
+              let hit = content.hitTest(target.point),
               let down = Self.mouseEvent(.leftMouseDown, window: target.window, point: target.point),
               let up = Self.mouseEvent(.leftMouseUp, window: target.window, point: target.point) else { return false }
+        if let hitView {
+            guard hit === hitView || hit.isDescendant(of: hitView) else { return false }
+        } else {
+            guard content is OverviewContentView else { return false }
+        }
         target.window.sendEvent(down)
         target.window.sendEvent(up)
         return true
+    }
+
+    /// 工作台某条栏上某张卡片的真实事件点。命中测试必须落回栏视图本身：
+    /// 落在工具栏或按钮上的点会被它们吃掉，那种点不能当"点了卡片"用。
+    private func workbenchRailPoint(for slot: RailSlotID) -> (window: NSWindow, point: CGPoint, view: NSView)? {
+        guard let controller = coordinator.workbenchControllers[slot.displayID] else { return nil }
+        let rail = slot.rail == .top ? controller.topRail : controller.sideRail
+        guard let window = rail.window, let local = rail.cellCenter(for: slot) else { return nil }
+        let point = rail.convert(local, to: nil)
+        guard rail.hitTest(point) === rail else { return nil }
+        return (window, point, rail)
+    }
+
+    /// 「全部窗口」按钮中心的真实事件点；标题对不上就不给坐标（不许猜位置）。
+    private func allWindowsButtonPoint() -> (window: NSWindow, point: CGPoint, view: NSView)? {
+        guard let controller = coordinator.workbenchControllers.values.first(where: { $0.isVisible }) else { return nil }
+        let toolbar = controller.toolbarView
+        guard let window = toolbar.window else { return nil }
+        let frame = toolbar.allWindowsButtonFrame
+        let point = toolbar.convert(CGPoint(x: frame.midX, y: frame.midY), to: nil)
+        guard let button = window.contentView?.hitTest(point) as? NSButton, button.title == "全部窗口" else { return nil }
+        return (window, point, toolbar)
     }
 
     /// 点在确定不属于任何格子的空白上：命中测试为 nil 才算真的背景，不能靠"随便挑个角"。
@@ -784,6 +1064,19 @@ final class P0Probe {
                            eventNumber: 0,
                            clickCount: 1,
                            pressure: 0.5)
+    }
+
+    /// 两个矩形四条边的最大偏差（pt）。位置与尺寸一起比，避免"位置对了但尺寸没写进去"漏判。
+    static func rectDeviation(_ a: CGRect, _ b: CGRect) -> CGFloat {
+        max(abs(a.minX - b.minX),
+            max(abs(a.minY - b.minY),
+                max(abs(a.width - b.width), abs(a.height - b.height))))
+    }
+
+    static func pt(_ value: CGFloat) -> String { String(format: "%.1f", value) }
+
+    static func rectText(_ rect: CGRect) -> String {
+        String(format: "(%.0f,%.0f %.0fx%.0f)", rect.minX, rect.minY, rect.width, rect.height)
     }
 
     // MARK: - 性能记录

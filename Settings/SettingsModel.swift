@@ -114,6 +114,8 @@ final class SettingsModel: ObservableObject {
         case foregroundWidth, foregroundHeight, backgroundClickSwitches, preserveUserGeometry
         case tier, priorityKeys, excludedBundles, orderingStrategy, didCompleteGuidedSetup
         case slotOrder, compactMode, systemLogging
+        case workbenchSide, workbenchTopHeight, workbenchSideWidth, workbenchDisplay
+        case workbenchOverflow, workbenchSchema
     }
 
     private let defaults: UserDefaults
@@ -138,6 +140,24 @@ final class SettingsModel: ObservableObject {
     @Published var orderingStrategy: OrderingStrategy { didSet { defaults.set(orderingStrategy.rawValue, for: .orderingStrategy) } }
     @Published var didCompleteGuidedSetup: Bool { didSet { defaults.set(didCompleteGuidedSetup, for: .didCompleteGuidedSetup) } }
     @Published var verboseLogging: Bool { didSet { defaults.set(verboseLogging, for: .systemLogging) } }
+    /// 侧栏方向与分隔线偏好：清洗规则在核心 `WorkbenchPreferences`，宿主只负责键值往返（方案 §16）。
+    @Published var workbenchSide: RailSide { didSet { defaults.set(workbenchSide.rawValue, for: .workbenchSide) } }
+    /// nil 表示用布局默认；拖动结束才写盘（方案 §11.2）。
+    @Published var workbenchTopHeight: CGFloat? {
+        didSet { defaults.set(workbenchTopHeight.map { Double($0) }, for: .workbenchTopHeight) }
+    }
+    @Published var workbenchSideWidth: CGFloat? {
+        didSet { defaults.set(workbenchSideWidth.map { Double($0) }, for: .workbenchSideWidth) }
+    }
+    /// 工作台优先显示器；nil = 跟随点击的窗口所在屏幕（方案 §13）。
+    @Published var preferredWorkbenchDisplayID: UInt32? {
+        didSet { defaults.set(preferredWorkbenchDisplayID.map { Int($0) }, for: .workbenchDisplay) }
+    }
+    @Published var workbenchOverflow: OverflowBehavior {
+        didSet { defaults.set(workbenchOverflow.rawValue, for: .workbenchOverflow) }
+    }
+    /// 旧版本持久化值的一次性迁移说明；空数组表示这次启动没有可迁移的旧值。
+    private(set) var workbenchMigrationNotes: [String] = []
     /// 本次启动从持久化值里迁移掉的未实现策略；nil 表示没有发生过迁移。
     private(set) var migratedOrderingStrategy: OrderingStrategy?
     /// 持久化里现在到底存着哪个策略：P0 探针用它确认迁移已写回，不会每次启动重演（方案 §12.1）。
@@ -188,6 +208,44 @@ final class SettingsModel: ObservableObject {
         if needsMigration { defaults.set(resolvedStrategy.rawValue, for: .orderingStrategy) }
         didCompleteGuidedSetup = defaults.bool(for: .didCompleteGuidedSetup)
         verboseLogging = defaults.bool(for: .systemLogging)
+
+        // 0.1.3–0.1.5 遗留值：只识别，不让它们改变入口或再次缩放主区（方案 §16）。
+        // 旧键不在 register 域里，且必须读"真的写过的"持久化域，否则默认值会被当成用户设置；
+        // standard 的持久化域是应用 id，注入的测试套件没有持久化域，一律视为"没设置过旧值"。
+        let persisted: [String: Any]
+        if defaults === UserDefaults.standard, let bundleID = Bundle.main.bundleIdentifier {
+            persisted = defaults.persistentDomain(forName: bundleID) ?? [:]
+        } else {
+            persisted = [:]
+        }
+        let legacy = LegacyWorkbenchValues(
+            defaultPresentationMode: persisted["defaultPresentationMode"] as? String,
+            lastPresentationMode: persisted["lastPresentationMode"] as? String,
+            foregroundWidthRatio: persisted[Key.foregroundWidth.rawValue] as? Double,
+            foregroundHeightRatio: persisted[Key.foregroundHeight.rawValue] as? Double,
+            backgroundClickSwitches: persisted[Key.backgroundClickSwitches.rawValue] as? Bool)
+        let migrated = WorkbenchPreferences.migrating(from: legacy)
+        workbenchMigrationNotes = migrated.notes
+        // 迁移结果不是"新的默认设置"：用户已存的键仍以持久化值为准，只对坏值做清洗。
+        let stored = WorkbenchPreferences(
+            side: RailSide(rawValue: defaults.string(for: .workbenchSide) ?? "") ?? migrated.preferences.side,
+            topHeightPreference: defaults.doubleValue(for: .workbenchTopHeight).map { CGFloat($0) }
+                ?? migrated.preferences.topHeightPreference,
+            sideWidthPreference: defaults.doubleValue(for: .workbenchSideWidth).map { CGFloat($0) }
+                ?? migrated.preferences.sideWidthPreference,
+            preferredDisplayID: defaults.integerValue(for: .workbenchDisplay).flatMap { UInt32(exactly: $0) }
+                ?? migrated.preferences.preferredDisplayID,
+            overflowBehavior: OverflowBehavior(rawValue: defaults.string(for: .workbenchOverflow) ?? "")
+                ?? migrated.preferences.overflowBehavior).sanitized()
+        workbenchSide = stored.side
+        workbenchTopHeight = stored.topHeightPreference
+        workbenchSideWidth = stored.sideWidthPreference
+        preferredWorkbenchDisplayID = stored.preferredDisplayID
+        workbenchOverflow = stored.overflowBehavior
+        // 清洗结果与 schema 版本显式写回：坏值（NaN/负值）不能每次启动重演，版本号供后续迁移判断。
+        defaults.set(stored.topHeightPreference.map { Double($0) }, for: .workbenchTopHeight)
+        defaults.set(stored.sideWidthPreference.map { Double($0) }, for: .workbenchSideWidth)
+        defaults.set(WorkbenchPreferences.currentSchemaVersion, for: .workbenchSchema)
     }
 
     var reduceMotion: Bool {
@@ -239,6 +297,9 @@ final class SettingsModel: ObservableObject {
 fileprivate extension UserDefaults {
     func bool(for key: SettingsModel.Key) -> Bool { object(forKey: key.rawValue) as? Bool ?? false }
     func integer(for key: SettingsModel.Key) -> Int { object(forKey: key.rawValue) as? Int ?? 0 }
+    /// nil 与 0 必须区分：显示器编号和栏尺寸偏好里 0 不是合法值。
+    func integerValue(for key: SettingsModel.Key) -> Int? { object(forKey: key.rawValue) as? Int }
+    func doubleValue(for key: SettingsModel.Key) -> Double? { object(forKey: key.rawValue) as? Double }
     func double(for key: SettingsModel.Key) -> Double { object(forKey: key.rawValue) as? Double ?? 0 }
     func string(for key: SettingsModel.Key) -> String? { object(forKey: key.rawValue) as? String }
     func stringArray(for key: SettingsModel.Key) -> [String]? { stringArray(forKey: key.rawValue) }

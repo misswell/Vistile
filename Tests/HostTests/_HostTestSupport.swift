@@ -105,6 +105,58 @@ enum HostFixtures {
     }
 }
 
+/// 工作台视图/交换测试共用的冻结投影。
+struct HostWorkbenchFixture {
+    let state: SessionState
+    let placement: WorkbenchPlacement
+    let snapshot: WorkbenchLayoutSnapshot
+
+    var layout: WorkbenchLayout { snapshot.layout }
+    var presentation: WorkbenchPresentation {
+        WorkbenchPresenter.make(state: state, snapshot: snapshot, placement: placement)
+    }
+}
+
+enum HostWorkbench {
+    /// count 个窗口：0 号进主区，其余按 `sideFirst` 先排侧栏、再排顶栏。
+    /// 几何走核心层同一条布局路径，测试不另造坐标；sideSlots 大于可见容量时得到可滚动的侧栏。
+    static func fixture(count: Int = 4,
+                        side: RailSide = .right,
+                        sideFirst: Int = 1,
+                        sideSlots: Int? = nil) -> HostWorkbenchFixture {
+        var state = SessionState()
+        for index in 0..<count {
+            let record = HostFixtures.record(index, slot: index)
+            state.records[record.identity] = record
+        }
+        state.catalogGeneration = 1
+        state.displays = [HostFixtures.display]
+
+        var layout = WorkbenchLayoutEngine.layout(displayID: HostFixtures.display.id,
+                                                  visibleFrame: HostFixtures.visibleFrame,
+                                                  side: side)
+        layout = layout.extending(sideSlots: sideSlots ?? layout.sideCapacity)
+        let snapshot = WorkbenchLayoutSnapshot(displayID: layout.displayID,
+                                               layout: layout,
+                                               topScrollOffset: 0,
+                                               sideScrollOffset: 0,
+                                               revision: 1)
+
+        var placement = WorkbenchPlacement()
+        if count > 0 { placement.setMain(HostFixtures.identity(0)) }
+        var rail = (1..<max(1, count)).map { HostFixtures.identity($0) }
+        let sideSlots = layout.slotOrder.filter { $0.rail == .side }
+        let topSlots = layout.slotOrder.filter { $0.rail == .top }
+        for slot in sideSlots.prefix(max(0, sideFirst)) where !rail.isEmpty {
+            placement.place(rail.removeFirst(), at: slot)
+        }
+        for slot in topSlots where !rail.isEmpty {
+            placement.place(rail.removeFirst(), at: slot)
+        }
+        return HostWorkbenchFixture(state: state, placement: placement, snapshot: snapshot)
+    }
+}
+
 final class ActionRecorder {
     private(set) var actions: [OverviewContentView.Action] = []
     var onEach: ((OverviewContentView.Action) -> Void)?
