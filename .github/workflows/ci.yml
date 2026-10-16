@@ -1,0 +1,84 @@
+name: CI
+
+# PR 与 main 的每次推送都跑：核心纯逻辑测试 + 无签名构建 + 宿主测试。
+# 这里不放任何签名/公证凭据，也不产安装包——那是 release.yml 的事。
+#
+# 宿主测试全部注入替身（假的目录来源、假 PID、假写入器、假捕获运行），面板摆在主屏之外。
+# runner 上没有屏幕录制权限、也没有辅助功能授权，因此需要真实系统权限的断言一律显式
+# XCTSkip，而不是静默降级成"看起来通过"；这类用例的实机归属记在 Docs/Compatibility.md。
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # 只在 arm64 跑：捕获、Metal 与 AX 的实机路径都在 Apple Silicon 上验收过，
+  # 产一个没人验过的架构的结果只会把噪声带进矩阵。
+  DESTINATION: platform=macOS,arch=arm64
+
+jobs:
+  core:
+    name: 核心包 swift test
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 选最新 Xcode 并打印工具链
+        # 镜像默认 Xcode 不一定带 swift-tools-version 6.0；DEVELOPER_DIR 必须在本步就 export，
+        # 否则这里打印的是默认版本、真正构建用的是另一个，日志与事实对不上。
+        run: |
+          set -euo pipefail
+          newest="$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+          export DEVELOPER_DIR="$newest/Contents/Developer"
+          echo "DEVELOPER_DIR=$DEVELOPER_DIR" >>"$GITHUB_ENV"
+          sw_vers -productVersion
+          xcodebuild -version
+          xcrun --sdk macosx --show-sdk-version
+          swift --version
+
+      - name: 纯逻辑测试
+        working-directory: Packages/VistileCore
+        run: swift test
+
+  host:
+    name: 宿主构建与测试（无签名）
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 选最新 Xcode
+        run: |
+          set -euo pipefail
+          newest="$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+          export DEVELOPER_DIR="$newest/Contents/Developer"
+          echo "DEVELOPER_DIR=$DEVELOPER_DIR" >>"$GITHUB_ENV"
+          xcodebuild -version
+
+      - name: 应用本体无签名构建
+        # 无签名构建只证明"干净 runner 编得过这个工程"，不是可安装产物。
+        run: |
+          set -euo pipefail
+          xcodebuild -project Vistile.xcodeproj -scheme Vistile \
+            -destination "$DESTINATION" -configuration Debug \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+
+      - name: 宿主测试
+        # 失败必须让本步变红：先把输出落文件、单独取退出码，再把汇总行打进 step summary。
+        # 用管道接 grep 会把 xcodebuild 的非零状态吞成 0。
+        run: |
+          set -euo pipefail
+          status=0
+          xcodebuild test -project Vistile.xcodeproj -scheme VistileHostTests \
+            -destination "$DESTINATION" -configuration Debug \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO \
+            >/tmp/host-tests.log 2>&1 || status=$?
+          tail -40 /tmp/host-tests.log
+          grep -E "Executed [0-9]+ tests" /tmp/host-tests.log | tail -1 >>"$GITHUB_STEP_SUMMARY" || true
+          grep -cE "^Test Case .* skipped" /tmp/host-tests.log \
+            | sed 's/^/显式跳过用例：/' >>"$GITHUB_STEP_SUMMARY" || true
+          exit $status
