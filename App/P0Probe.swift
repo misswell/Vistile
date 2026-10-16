@@ -236,6 +236,10 @@ final class P0Probe {
                 + "共同参照窗口 \(audit.sharedCount) 个（前 \(audit.beforeCount)／后 \(audit.afterCount)）"
             if passed {
                 lines.append(line)
+                // 「层级」列的定义就是这一项判的东西（展开时目标在总览前且不带动兄弟），
+                // 所以通过也必须写这一格。0.1.6 收回两处代填时只在失败分支写，
+                // 结果这一列从此只能出「失败」、永远变不成「通过」——17:46 那轮就是这样。
+                recorder.updateRow(application: target.applicationName, version: "", ordering: .passed)
             } else {
                 let cause = raise.wasIssued ? audit.failureCause : "Raise 没有发出（\(raise.detail)）"
                 failures.append(target.applicationName)
