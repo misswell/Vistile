@@ -57,6 +57,21 @@ base64 -i developer-id.p12 | gh secret set APPLE_DEVELOPER_ID_P12_BASE64 -R miss
 gh secret set APPLE_DEVELOPER_ID_P12_PASSWORD -R misswell/Vistile        # 从标准输入读
 ```
 
+p12 必须用 **legacy 算法**导出，否则 runner 上 `security import` 会报
+`MAC verification failed during PKCS12 import (wrong password?)`——这句骗人，跟口令无关，
+是 OpenSSL 3 默认的 AES-256 + SHA256 MAC macOS 钥匙串读不进去：
+
+```bash
+openssl pkcs12 -export -legacy \
+  -inkey DeveloperID.key -in DeveloperID.cer -certfile DeveloperIDCA.pem \
+  -name "Developer ID Application: <你的名字> (<TEAMID>)" \
+  -passout file:./pw -out developer-id.p12
+```
+
+换 p12 时 `APPLE_DEVELOPER_ID_P12_BASE64` 与 `APPLE_DEVELOPER_ID_P12_PASSWORD` 必须成对更新。
+本地验一对密钥与证书是不是配套的（不动登录钥匙串）：`openssl pkey -pubout` 与
+`openssl x509 -pubkey` 的指纹一致，再往一个临时钥匙串里 `security import` 试一次。
+
 先花十几秒验证凭据能不能在 runner 上用通，再花几十分钟构建：
 
 ```bash
@@ -70,7 +85,7 @@ secrets 还没填时这条会**红**，红在第一步并点名缺哪个键（`�
 本机可以先自检除公证之外的每一步（不需要任何凭据）：
 
 ```bash
-SIGNING_IDENTITY="Apple Development: <你的身份>" RELEASE_TAG=v0.1.0 SKIP_NOTARIZE=1 \
+SIGNING_IDENTITY="Apple Development: <你的身份>" RELEASE_TAG=v0.1.1 SKIP_NOTARIZE=1 \
   bash .github/scripts/build_sign_notarize.sh
 ```
 
