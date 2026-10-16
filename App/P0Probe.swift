@@ -72,7 +72,13 @@ final class P0Probe {
                             ? "自动项未发现失败；跨应用交互仍需按验收清单肉眼与录屏确认"
                             : "有 \(autoFailures) 个自动项失败，见对应条目")
         writeChecklist()
-        onFinished?()
+        // onFinished 走的是 NSApp.terminate：它就地等 applicationShouldTerminate 的 reply，
+        // 而 reply 只能靠主队列排空送达。探针跑完时主线程正卡在 main queue 的 drain 里，
+        // 就地调用会把 drain 占死、reply 永远排不上（0.1.2 实测两次挂死）。
+        // 交给 run loop 的观察点执行：退出请求发出时当前 drain 已经返回。
+        let finish = onFinished
+        CFRunLoopPerformBlock(CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue) { finish?() }
+        CFRunLoopWakeUp(CFRunLoopGetMain())
     }
 
     private var autoCount: Int { checklist.filter { !$0.isManual }.count }
