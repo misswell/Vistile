@@ -323,6 +323,9 @@ final class AppCoordinator {
         state.workbench.topHeightPreference = settings.workbenchTopHeight
         state.workbench.sideWidthPreference = settings.workbenchSideWidth
         state.workbench.preferredDisplayID = settings.preferredWorkbenchDisplayID
+        // 轨道记忆（整理顺序、固定在顶部）跨会话注入：键只含应用标识，不含窗口标题（方案 §16）。
+        state.workbench.placement.adoptMemory(orderPreference: settings.workbenchRailOrder,
+                                              pinned: Set(settings.workbenchPins))
         hasWarnedTinyThumbnails = false
     }
 
@@ -534,6 +537,11 @@ final class AppCoordinator {
             } else {
                 applyKeyboardFocus(focus)
             }
+
+        case let .persistWorkbenchRailMemory(orderPreference, pinnedKeys):
+            // 轨道记忆是用户说过的话，只有整理/固定动作才会到这里：如实写盘（方案 §16）。
+            settings.workbenchRailOrder = orderPreference
+            settings.workbenchPins = pinnedKeys.sorted()
 
         case let .scheduleReconcile(interval):
             scheduleReconcile(interval)
@@ -1049,6 +1057,10 @@ final class AppCoordinator {
         case let .railDividerDragEnded(rail, value):
             reportWorkbenchRailSize(topHeight: rail == .top ? value : nil,
                                     sideWidth: rail == .side ? value : nil)
+        case let .railPinToggled(identity):
+            dispatch(.railPinToggled(identity: identity))
+        case .organize:
+            dispatch(.organizeRequested)
         case .returnToOverview:
             dispatch(.returnToOverviewRequested)
         case .toggleSide:

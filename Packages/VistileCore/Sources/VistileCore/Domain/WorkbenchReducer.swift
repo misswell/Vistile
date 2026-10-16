@@ -18,6 +18,8 @@ public enum WorkbenchReducer {
             return beginRailSelection(&state, slot: slot, identity: identity)
         case let .railCardDragged(from, to):
             return handleRailDrag(&state, from: from, to: to)
+        case let .railPinToggled(identity):
+            return toggleRailPin(&state, identity: identity)
         case let .railScrolled(rail, offset):
             return handleRailScroll(&state, rail: rail, offset: offset)
         case let .railSideChanged(side):
@@ -493,11 +495,15 @@ public enum WorkbenchReducer {
               let snapshot = state.workbench.snapshot,
               !state.workbench.placement.occupants.isEmpty else { return [] }
         var placement = state.workbench.placement
-        let memoryKeys = Dictionary(uniqueKeysWithValues: state.records.map { ($0.key, $0.value.memoryKey) })
+        let keys = placement.occupants.values.reduce(into: [WindowIdentity: String]()) { result, identity in
+            if let record = state.records[identity] { result[identity] = record.preferenceKey }
+        }
+        let ordered = organizeOrder(state: state, placement: placement)
         var layout = snapshot.layout
         placement.reorganize(slotOrder: extendedSlotOrder(layout: layout,
-                                                          needed: placement.occupants.count),
-                             memoryKeys: memoryKeys)
+                                                          needed: ordered.count),
+                             ordered: ordered,
+                             keys: keys)
         state.workbench.placement = placement
         // 整理后可能用到了可见容量之外的 slot：内容轨道必须同步延长，否则那些窗口滚不到。
         layout = layout.extending(sideSlots: maxSideOrdinal(placement) + 1)
@@ -506,7 +512,50 @@ public enum WorkbenchReducer {
             state.workbench.snapshot = updated
             state.workbench.layoutRevision = updated.revision
         }
-        return layoutEffects(state)
+        return layoutEffects(state) + [persistRailMemory(state)]
+    }
+
+    /// 整理顺序（方案 §4.4、§6.2）：固定在顶部的应用先占顶栏，其余按总览稳定顺序；
+    /// 不在总览里的成员排在最后，用与应用名/身份同源的确定性键收尾。
+    private static func organizeOrder(state: SessionState,
+                                      placement: WorkbenchPlacement) -> [WindowIdentity] {
+        let stable = stableOrder(state)
+        let rankOf = Dictionary(uniqueKeysWithValues: stable.enumerated().map { ($0.element, $0.offset) })
+        func isPinned(_ identity: WindowIdentity) -> Bool {
+            guard let record = state.records[identity] else { return false }
+            return placement.pinned.contains(record.preferenceKey)
+        }
+        return placement.occupants.values.sorted { lhs, rhs in
+            let lPinned = isPinned(lhs)
+            let rPinned = isPinned(rhs)
+            if lPinned != rPinned { return lPinned }
+            let lRank = rankOf[lhs] ?? Int.max
+            let rRank = rankOf[rhs] ?? Int.max
+            if lRank != rRank { return lRank < rRank }
+            let lName = state.records[lhs]?.applicationName ?? ""
+            let rName = state.records[rhs]?.applicationName ?? ""
+            if lName != rName { return lName < rName }
+            if lhs.processID != rhs.processID { return lhs.processID < rhs.processID }
+            return lhs.windowID < rhs.windowID
+        }
+    }
+
+    /// 固定在顶部：只写 rail 偏好与跨会话记忆，卡片此刻不动（方案 §6.2）。
+    private static func toggleRailPin(_ state: inout SessionState,
+                                      identity: WindowIdentity) -> [SessionEffect] {
+        guard state.mode == .workbench, state.workbench.modeTransition == .idle,
+              !state.workbench.mainSwitch.isBusy,
+              state.workbench.placement.occupants.values.contains(identity),
+              let record = state.records[identity] else { return [] }
+        let key = record.preferenceKey
+        state.workbench.placement.setPinned(key, pinned: !state.workbench.placement.pinned.contains(key))
+        return layoutEffects(state) + [persistRailMemory(state)]
+    }
+
+    /// 跨会话轨道记忆：只含应用级键与 pin，不含窗口标题（方案 §16）。
+    private static func persistRailMemory(_ state: SessionState) -> SessionEffect {
+        .persistWorkbenchRailMemory(orderPreference: state.workbench.placement.orderPreference,
+                                    pinnedKeys: state.workbench.placement.pinned)
     }
 
     private static func handleSearchFocus(_ state: inout SessionState, focused: Bool) -> [SessionEffect] {
@@ -714,6 +763,8 @@ public enum WorkbenchReducer {
                                                 layout: WorkbenchLayout) -> WorkbenchLayout {
         if placement.isEmpty {
             var fresh = WorkbenchPlacement()
+            // 跨会话记忆（整理顺序、pin）跟着新会话走：重新落位不等于忘掉用户说过的话（方案 §16）。
+            fresh.adoptMemory(orderPreference: placement.orderPreference, pinned: placement.pinned)
             fresh.setMain(target)
             let extended = fillRailOccupants(&fresh, state: state, layout: layout)
             placement = fresh
@@ -726,7 +777,7 @@ public enum WorkbenchReducer {
             let previousMain = placement.main ?? state.workbench.lastSelectedMain
             placement.setMain(target)
             if let previousMain, state.records[previousMain] != nil {
-                placement.place(previousMain, at: slot, memoryKey: state.records[previousMain]?.memoryKey)
+                placement.place(previousMain, at: slot)
             }
         } else {
             placement.setMain(target)
@@ -748,17 +799,16 @@ public enum WorkbenchReducer {
         var nextSide = max(layout.sideSlotCount, maxSideOrdinal(placement) + 1)
         var neededSide = layout.sideSlotCount
         for identity in missing {
-            let memoryKey = state.records[identity]?.memoryKey
             if !vacant.isEmpty {
                 let slot = vacant.removeFirst()
-                if placement.place(identity, at: slot, memoryKey: memoryKey), slot.rail == .side {
+                if placement.place(identity, at: slot), slot.rail == .side {
                     neededSide = max(neededSide, slot.ordinal + 1)
                 }
                 continue
             }
             let slot = RailSlotID(displayID: layout.displayID, rail: .side, ordinal: nextSide)
             nextSide += 1
-            if placement.place(identity, at: slot, memoryKey: memoryKey) {
+            if placement.place(identity, at: slot) {
                 neededSide = max(neededSide, slot.ordinal + 1)
             }
         }

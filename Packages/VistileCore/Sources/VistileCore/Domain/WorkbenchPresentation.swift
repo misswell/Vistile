@@ -7,11 +7,14 @@ public struct WorkbenchCard: Hashable, Sendable {
     public let record: WindowRecord
     /// 此刻是否落在 viewport 里（部分可见也算）：决定捕获优先级与"可见 n/共 m"。
     public let isVisible: Bool
+    /// 该窗口所属应用是否被用户"固定在顶部"（方案 §6.2）：宿主据此画标记，不改位置。
+    public let isPinned: Bool
 
-    public init(slot: RailSlotID, record: WindowRecord, isVisible: Bool) {
+    public init(slot: RailSlotID, record: WindowRecord, isVisible: Bool, isPinned: Bool = false) {
         self.slot = slot
         self.record = record
         self.isVisible = isVisible
+        self.isPinned = isPinned
     }
 
     public var identity: WindowIdentity { record.identity }
@@ -74,7 +77,10 @@ public enum WorkbenchPresenter {
         var side: [WorkbenchCard] = []
         for (slot, identity) in placement.occupants.sorted(by: { $0.key < $1.key }) {
             guard let record = state.records[identity] else { continue }
-            let card = WorkbenchCard(slot: slot, record: record, isVisible: snapshot.isVisible(slot))
+            let card = WorkbenchCard(slot: slot,
+                                     record: record,
+                                     isVisible: snapshot.isVisible(slot),
+                                     isPinned: placement.pinned.contains(record.preferenceKey))
             switch slot.rail {
             case .top: top.append(card)
             case .side: side.append(card)

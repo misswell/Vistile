@@ -1096,6 +1096,205 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertEqual(journalWrites(final).count, 1, "读回结果落一次事务记录")
     }
 
+    // MARK: - W24 整理与固定在顶部（方案 §4.4、§6.2、§16）
+
+    /// 每窗独立 bundle 的记录集：pin 与顺序偏好是应用级键，共用一个 bundle 就分不出谁是谁。
+    private func m3dRecords(count: Int = 6, titlePrefix: String = "窗口") -> [WindowRecord] {
+        (0..<count).map { index in
+            Fixtures.record(500 + Int32(index), UInt32(2_000 + index),
+                            frame: CGRect(x: 40 + CGFloat(index) * 30, y: 40, width: 900, height: 600),
+                            title: "\(titlePrefix) \(index) — 机密标题",
+                            app: "App\(index)",
+                            bundle: "com.test.app\(index)")
+        }
+    }
+
+    private func openState(with list: [WindowRecord]) -> SessionState {
+        var state = SessionState()
+        state.policy = SessionPolicy()
+        state.slots.capacity = max(list.count, 48)
+        for item in list { state.records[item.identity] = item }
+        for item in list { state.slots.assign(item.identity, memoryKey: item.memoryKey) }
+        state.catalogGeneration = 1
+        state.displays = Fixtures.displays
+        Fixtures.openToOverview(&state, records: list)
+        return state
+    }
+
+    private func persistRailMemories(_ effects: [SessionEffect]) -> [(orderPreference: [String: Int], pinnedKeys: Set<String>)] {
+        effects.compactMap {
+            if case let .persistWorkbenchRailMemory(orderPreference, pinnedKeys) = $0 {
+                return (orderPreference, pinnedKeys)
+            }
+            return nil
+        }
+    }
+
+    func testW24OrganizeCompactsGapsAndPutsPinnedAppsFirst() throws {
+        let list = m3dRecords()
+        var state = openState(with: list)
+        enterWorkbench(&state, target: list[0].identity)
+        let layout = try XCTUnwrap(state.workbench.snapshot?.layout)
+        let occupiedSlots = state.workbench.placement.occupants.keys.sorted()
+        let topFirst = try XCTUnwrap(occupiedSlots.first)
+        let sideFirst = try XCTUnwrap(occupiedSlots.last)
+        XCTAssertEqual(topFirst, layout.slotOrder.first, "进入工作台后从头连续占用")
+        XCTAssertNotEqual(sideFirst, topFirst, "对调需要两个不同的占用位")
+        let pinnedIdentity = try XCTUnwrap(state.workbench.placement.occupant(at: sideFirst))
+        XCTAssertNotEqual(pinnedIdentity, list[0].identity, "主窗口不在轨道上，别拿它当 pin 目标")
+        let pinnedKey = try XCTUnwrap(state.records[pinnedIdentity]?.preferenceKey)
+
+        // 制造乱序与空位：把第一个与最后一个占用对调，再关掉（对调后）最后一位。
+        let topOccupant = try XCTUnwrap(state.workbench.placement.occupant(at: topFirst))
+        _ = Fixtures.dispatch(&state, .railCardDragged(from: topFirst, to: sideFirst))
+        XCTAssertEqual(state.workbench.placement.occupant(at: topFirst), pinnedIdentity, "对调先制造乱序")
+        _ = Fixtures.dispatch(&state, .windowClosed(topOccupant))
+        XCTAssertGreaterThan(state.workbench.placement.occupants.count, 0)
+
+        // 固定在顶部：只写偏好，卡片此刻不动（方案 §6.2）。
+        let pinEffects = Fixtures.dispatch(&state, .railPinToggled(identity: pinnedIdentity))
+        XCTAssertEqual(state.workbench.placement.occupant(at: topFirst), pinnedIdentity, "pin 立即不动任何卡片")
+        let pinPayload = try XCTUnwrap(persistRailMemories(pinEffects).first)
+        XCTAssertEqual(pinPayload.pinnedKeys, [pinnedKey])
+        XCTAssertEqual(pinPayload.orderPreference, state.workbench.placement.orderPreference,
+                       "落盘的顺序就是状态里的顺序，不另算一份")
+
+        // 整理：空位压缩、固定优先占顶栏第一格、其余按总览冻结顺序。
+        let organizeEffects = Fixtures.dispatch(&state, .organizeRequested)
+        let after = try XCTUnwrap(state.workbench.snapshot?.layout)
+        let members = state.workbench.placement.occupants.count
+        let expectedFollowing = list.map { ($0.identity, state.gridCell(for: $0.identity)?.cell.slot?.index ?? Int.max) }
+            .filter { $0.0 != list[0].identity && $0.0 != pinnedIdentity && state.workbench.placement.contains($0.0) }
+            .sorted { $0.1 < $1.1 }
+            .map(\.0)
+        let expectedOrder = [pinnedIdentity] + expectedFollowing
+        XCTAssertEqual(expectedOrder.count, members)
+        for (index, identity) in expectedOrder.enumerated() {
+            XCTAssertEqual(state.workbench.placement.occupant(at: after.slotOrder[index]), identity,
+                           "第 \(index) 位应为 \(identity.windowID)")
+        }
+        XCTAssertGreaterThanOrEqual(after.slotOrder.count, members, "整理用到的 slot 全在内容轨道里")
+
+        // 顺序偏好只在整理时重写：rank 就是最终位次，键是应用级 preferenceKey。
+        let payload = try XCTUnwrap(persistRailMemories(organizeEffects).first)
+        XCTAssertEqual(payload.pinnedKeys, [pinnedKey])
+        XCTAssertEqual(state.workbench.placement.orderPreference[pinnedKey], 0)
+        XCTAssertEqual(payload.orderPreference.keys.count, members)
+        for key in payload.orderPreference.keys {
+            XCTAssertFalse(key.contains("机密"), "顺序偏好不得落窗口标题（方案 §16）：\(key)")
+        }
+
+        // 投影里 pin 标记由展示事实驱动，与位置无关（方案 §6.2）。
+        let presentation = try XCTUnwrap(presentations(organizeEffects).last)
+        XCTAssertEqual(presentation.card(for: pinnedIdentity)?.isPinned, true)
+    }
+
+    func testW24PinToggleIsAppScopedAndReversibleWithoutMovingCards() throws {
+        let list = m3dRecords()
+        var state = openState(with: list)
+        enterWorkbench(&state, target: list[0].identity)
+        let slot = try XCTUnwrap(state.workbench.placement.occupants.keys.sorted().first)
+        let identity = try XCTUnwrap(state.workbench.placement.occupant(at: slot))
+        let before = state.workbench.placement
+        let key = try XCTUnwrap(state.records[identity]?.preferenceKey)
+
+        let pin = Fixtures.dispatch(&state, .railPinToggled(identity: identity))
+        XCTAssertEqual(state.workbench.placement.occupants, before.occupants, "pin 不改占用")
+        XCTAssertEqual(state.workbench.placement.orderPreference, before.orderPreference, "pin 不动顺序偏好")
+        XCTAssertEqual(persistRailMemories(pin).first?.pinnedKeys, [key])
+        let pinnedPresentation = try XCTUnwrap(presentations(pin).last)
+        XCTAssertEqual(pinnedPresentation.card(for: identity)?.isPinned, true)
+
+        let unpin = Fixtures.dispatch(&state, .railPinToggled(identity: identity))
+        XCTAssertEqual(persistRailMemories(unpin).first?.pinnedKeys, [])
+        XCTAssertEqual(state.workbench.placement.pinned, [])
+
+        // 主窗口不在轨道上：pin 只属于轨道卡片，对主窗口不发效果。
+        let main = try XCTUnwrap(state.workbench.placement.main)
+        let ghost = Fixtures.dispatch(&state, .railPinToggled(identity: main))
+        XCTAssertTrue(ghost.isEmpty, "主窗口没有轨道位置，pin 请求不得认领")
+        XCTAssertTrue(state.workbench.placement.pinned.isEmpty)
+
+        // 拖动换位不写顺序偏好：只有明确的整理才重写 rank（方案 §4.4）。
+        let slots = state.workbench.snapshot?.layout.slotOrder ?? []
+        guard slots.count >= 2 else { return XCTFail("轨道容量不足") }
+        let drag = Fixtures.dispatch(&state, .railCardDragged(from: slots[0], to: slots[1]))
+        XCTAssertTrue(persistRailMemories(drag).isEmpty, "拖动不得顺手把顺序偏好落盘")
+        XCTAssertEqual(state.workbench.placement.orderPreference, before.orderPreference)
+    }
+
+    func testW24AdoptedPinsApplyAtFirstOrganizeAfterRelaunch() throws {
+        let list = m3dRecords()
+        var state = openState(with: list)
+        // 上次会话留下的记忆：固定在顶部的应用 + 一条过期 rank。
+        state.workbench.placement.adoptMemory(orderPreference: ["com.test.app3": 0],
+                                              pinned: ["com.test.app4"])
+        enterWorkbench(&state, target: list[0].identity)
+        XCTAssertEqual(state.workbench.placement.pinned, ["com.test.app4"],
+                       "进入工作台不丢跨会话记忆")
+
+        let effects = Fixtures.dispatch(&state, .organizeRequested)
+        let layout = try XCTUnwrap(state.workbench.snapshot?.layout)
+        XCTAssertEqual(state.workbench.placement.occupant(at: layout.slotOrder[0])?.windowID, 2_004,
+                       "固定的应用优先占顶栏第一格，即使它不是总览第一")
+
+        // 整理按当时的「总览顺序」重排（方案 §4.4）：过期 rank 不得压过现在的总览顺序。
+        let expected = list.map { ($0.identity, state.gridCell(for: $0.identity)?.cell.slot?.index ?? Int.max) }
+            .filter { $0.0 != list[0].identity && state.records[$0.0]?.preferenceKey != "com.test.app4" }
+            .sorted { $0.1 < $1.1 }
+            .map(\.0)
+        for (index, identity) in expected.enumerated() {
+            XCTAssertEqual(state.workbench.placement.occupant(at: layout.slotOrder[index + 1]), identity,
+                           "第 \(index + 1) 位应跟随总览顺序")
+        }
+
+        // 整理重写了顺序偏好：rank 是本次整理后的最终位次，过期值被取代。
+        let payload = try XCTUnwrap(persistRailMemories(effects).first)
+        XCTAssertEqual(payload.orderPreference["com.test.app4"], 0)
+        XCTAssertEqual(state.workbench.placement.orderPreference["com.test.app3"],
+                       expected.firstIndex { state.records[$0]?.preferenceKey == "com.test.app3" }.map { $0 + 1 },
+                       "app3 的位次由本次总览顺序决定，而不是旧 rank 0")
+    }
+
+    func testW24OrganizeAndPinRefuseWhileSwitchIsBusy() throws {
+        let list = m3dRecords()
+        var state = openState(with: list)
+        enterWorkbench(&state, target: list[0].identity)
+        let slot = try XCTUnwrap(state.workbench.placement.occupants.keys.sorted().first)
+        let identity = try XCTUnwrap(state.workbench.placement.occupant(at: slot))
+
+        let selectEffects = Fixtures.dispatch(&state, .railCardSelected(slot: slot, identity: identity))
+        XCTAssertNotNil(switchPlan(selectEffects), "选择轨道卡片应发起主区交换")
+        let token = try XCTUnwrap(state.workbench.mainSwitch.intent?.token)
+        XCTAssertTrue(state.workbench.mainSwitch.isBusy)
+
+        let placementDuring = state.workbench.placement
+        let organize = Fixtures.dispatch(&state, .organizeRequested)
+        XCTAssertTrue(organize.isEmpty, "交换进行中不得整理轨道")
+        XCTAssertEqual(state.workbench.placement, placementDuring)
+        let pin = Fixtures.dispatch(&state, .railPinToggled(identity: identity))
+        XCTAssertTrue(pin.isEmpty, "交换进行中不得改轨道偏好")
+        XCTAssertEqual(state.workbench.placement, placementDuring)
+
+        completeSwitch(&state, token: token)
+        XCTAssertFalse(state.workbench.mainSwitch.isBusy)
+        let nextSlot = try XCTUnwrap(state.workbench.placement.occupants.keys.sorted().first)
+        let next = try XCTUnwrap(state.workbench.placement.occupant(at: nextSlot))
+        let nextKey = try XCTUnwrap(state.records[next]?.preferenceKey)
+        let after = Fixtures.dispatch(&state, .railPinToggled(identity: next))
+        XCTAssertFalse(after.isEmpty, "收敛后同一个请求就被收下了")
+        XCTAssertEqual(persistRailMemories(after).first?.pinnedKeys, [nextKey])
+    }
+
+    func testW24PreferenceKeyNeverCarriesWindowTitle() {
+        let titled = Fixtures.record(600, 3_000, title: "绝密项目草案 — 窗口", app: "Notes", bundle: nil)
+        XCTAssertEqual(titled.preferenceKey, "name:notes")
+        XCTAssertFalse(titled.preferenceKey.contains("绝密"))
+        let bundled = Fixtures.record(600, 3_001, title: "绝密项目草案", app: "Notes", bundle: "com.Example.Notes")
+        XCTAssertEqual(bundled.preferenceKey, "com.example.notes")
+        XCTAssertFalse(bundled.preferenceKey.contains("绝密"))
+    }
+
     // MARK: - 随机序列不变量
 
     func testRandomOperationSequencePreservesInvariants() {

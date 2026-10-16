@@ -40,13 +40,14 @@ final class WorkbenchRailViewTests: XCTestCase {
 
     // MARK: - 组装
 
-    private func sync(top: CGFloat = 0, side: CGFloat = 0, query: String = "") {
+    private func sync(top: CGFloat = 0, side: CGFloat = 0, query: String = "",
+                      placement: WorkbenchPlacement? = nil) {
         let snapshot = fixture.snapshot
             .scrolling(rail: .top, to: top)
             .scrolling(rail: .side, to: side)
         let presentation = WorkbenchPresenter.make(state: fixture.state,
                                                    snapshot: snapshot,
-                                                   placement: fixture.placement)
+                                                   placement: placement ?? fixture.placement)
         controller.update(presentation: presentation,
                           renderer: renderer,
                           mailboxProvider: { _ in nil },
@@ -406,5 +407,120 @@ final class WorkbenchRailViewTests: XCTestCase {
         XCTAssertEqual(presentation.visibleCount, 4, "主区 1 + 可见卡片 3")
         XCTAssertEqual(presentation.totalCount, 4)
         XCTAssertFalse(presentation.isMainAreaConstrained, "1440×900 上主区不该被标受限")
+    }
+
+    // MARK: - M3d 固定在顶部（方案 §6.2；RailView action → 控制器链路，H01 同一路径）
+
+    func testRailContextMenuPinsAndBadgeFollowsPresentation() throws {
+        let view = controller.topRail
+        let slot = topSlot(0)
+        let identity = try XCTUnwrap(fixture.placement.occupant(at: slot))
+        let key = try XCTUnwrap(fixture.state.records[identity]?.preferenceKey)
+        let center = try XCTUnwrap(view.cellCenter(for: slot))
+
+        // 卡片之间的空隙没有菜单：右键入口只属于真实卡片。
+        let first = try XCTUnwrap(view.cellCenter(for: topSlot(0)))
+        let second = try XCTUnwrap(view.cellCenter(for: topSlot(1)))
+        let gap = CGPoint(x: (first.x + second.x) / 2, y: first.y)
+        XCTAssertNil(view.contextMenu(forLocalPoint: gap), "空处右键不该弹出固定菜单")
+
+        let menu = try XCTUnwrap(view.contextMenu(forLocalPoint: center))
+        XCTAssertEqual(menu.items.count, 1, "菜单当前只承诺一件事：固定在顶部")
+        XCTAssertEqual(menu.items.first?.title, "固定在顶部")
+        menu.performActionForItem(at: 0)
+        XCTAssertEqual(actions.count, 1, "一次菜单点击只能产生一个动作：\(actions)")
+        guard case let .railPinToggled(pinnedIdentity) = actions.first else {
+            return XCTFail("菜单项必须走固定动作：\(actions)")
+        }
+        XCTAssertEqual(pinnedIdentity, identity)
+
+        // 投影说已固定：徽标、菜单标题、朗读文本都跟着同一条展示事实走。
+        var pinnedPlacement = fixture.placement
+        pinnedPlacement.adoptMemory(orderPreference: [:], pinned: [key])
+        XCTAssertEqual(view.pinBadgeVisible(for: slot), false, "未固定时不画标记")
+        sync(placement: pinnedPlacement)
+        XCTAssertEqual(view.pinBadgeVisible(for: slot), true, "展示事实说已固定，卡片就必须画出标记")
+        XCTAssertEqual(view.pinBadgeVisible(for: topSlot(1)), false, "别的卡片不许跟着亮")
+        XCTAssertEqual(view.contextMenu(forLocalPoint: center)?.items.first?.title, "取消固定在顶部")
+        let children = try XCTUnwrap(view.accessibilityChildren())
+        let firstCard = try XCTUnwrap(children.first as? CardAccessibilityElement)
+        XCTAssertEqual(firstCard.accessibilityRoleDescription(), "顶栏卡片 1")
+        XCTAssertEqual(firstCard.accessibilityLabel(), "App2，窗口 2，实时画面，已固定在顶部",
+                       "固定事实必须能被朗读出来，而不是只画一个色块")
+
+        // 撤掉固定：标记与菜单标题都跟着回去。
+        sync()
+        XCTAssertEqual(view.pinBadgeVisible(for: slot), false)
+        XCTAssertEqual(view.contextMenu(forLocalPoint: center)?.items.first?.title, "固定在顶部")
+    }
+
+    func testMoreMenuHostsOrganizeAndRoutesThroughToolbar() throws {
+        let toolbar = controller.toolbarView
+        toolbar.needsLayout = true
+        toolbar.layoutSubtreeIfNeeded()
+        let panel = try panel(of: controller.topRail)
+
+        let center = CGPoint(x: toolbar.moreButtonFrame.midX, y: toolbar.moreButtonFrame.midY)
+        let hit = try XCTUnwrap(panel.contentView?.hitTest(toolbar.convert(center, to: nil)) as? NSButton,
+                                "工具区该点必须命中「更多」按钮，不能被卡片或空白吃掉")
+        XCTAssertEqual(hit.title, "更多")
+
+        XCTAssertEqual(toolbar.moreMenu.items.map(\.title), ["整理预览栏"],
+                       "整理是唯一会重排轨道的动作，放在「更多」里（方案 §4.4）")
+        toolbar.moreMenu.performActionForItem(at: 0)
+        XCTAssertEqual(actions.count, 1, "一次菜单点击只能产生一个动作：\(actions)")
+        guard case .organize = actions.first else {
+            return XCTFail("整理菜单项必须走 organize 动作：\(actions)")
+        }
+    }
+
+    // MARK: - M3d 边缘自动滚动（方案 §6.2；H09 拖动路径）
+
+    func testDragNearViewportEdgeAutoScrollsAndStopsOnRelease() throws {
+        fixture = HostWorkbench.fixture(count: 12, sideFirst: 8, sideSlots: 12)
+        sync()
+        let side = controller.sideRail
+        let start = try XCTUnwrap(side.cellCenter(for: sideSlot(0)))
+        let nearBottom = CGPoint(x: start.x, y: 6)
+
+        func scrollProposals() -> [(RailKind, CGFloat)] {
+            actions.compactMap {
+                if case let .railScrolled(rail, proposed) = $0 { return (rail, proposed) }
+                return nil
+            }
+        }
+        func spinRunLoop(_ seconds: TimeInterval) {
+            RunLoop.current.run(until: Date().addingTimeInterval(seconds))
+        }
+
+        // 未越过拖动阈值：即使指针贴在边缘也不启动自动滚动。
+        try send(.leftMouseDown, to: side, at: start)
+        try send(.leftMouseDragged, to: side, at: CGPoint(x: start.x, y: start.y - 5))
+        spinRunLoop(0.12)
+        XCTAssertTrue(scrollProposals().isEmpty, "没到拖动阈值不该有任何自动滚动：\(actions)")
+
+        // 越过阈值并停在边缘区内：30Hz 提出新偏移，方向是把下方卡片带进来。
+        try send(.leftMouseDragged, to: side, at: nearBottom)
+        spinRunLoop(0.12)
+        let proposals = scrollProposals()
+        XCTAssertFalse(proposals.isEmpty, "指针贴着视口边缘拖动必须有自动滚动")
+        XCTAssertTrue(proposals.allSatisfy { $0.0 == .side }, "滚的是被拖的那条栏：\(proposals)")
+        XCTAssertTrue(proposals.allSatisfy { $0.1 > 0 }, "下边缘方向 = offset 增大：\(proposals)")
+
+        // 有界：这些提出值经 reducer 夹取后永远落在内容轨道长度之内。
+        let bounded = proposals.reduce(CGFloat(0)) { _, proposal in
+            fixture.snapshot.clampedScroll(rail: .side, offset: proposal.1)
+        }
+        XCTAssertLessThanOrEqual(bounded, fixture.layout.maxSideScroll, "自动滚动不得滚出内容轨道")
+        XCTAssertGreaterThan(fixture.layout.maxSideScroll, 0, "这条 fixture 必须有可滚内容，否则测了个空")
+
+        // 松手：定时器随手势一起收掉，等待期不再新增滚动。（松手可能额外产生一次拖动落点动作。）
+        let countAtRelease = actions.count
+        try send(.leftMouseUp, to: side, at: nearBottom)
+        spinRunLoop(0.12)
+        XCTAssertTrue(actions.dropFirst(countAtRelease).allSatisfy {
+            if case .railScrolled = $0 { return false }
+            return true
+        }, "松手后还在自动滚 = 定时器泄漏：\(actions.dropFirst(countAtRelease))")
     }
 }

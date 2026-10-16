@@ -88,6 +88,8 @@ public enum SessionEvent: Hashable, Sendable {
     case overviewCardSelected(identity: WindowIdentity, slot: SlotID, revision: Int)
     /// 轨道卡片被选中：A/B 交换，其他 slot 不动（方案 §4.3）。
     case railCardSelected(slot: RailSlotID, identity: WindowIdentity)
+    /// 轨道卡片被"固定在顶部"：只写跨会话 rail 偏好，立即不动任何卡片（方案 §6.2）。
+    case railPinToggled(identity: WindowIdentity)
     case railCardDragged(from: RailSlotID, to: RailSlotID)
     case railScrolled(rail: RailKind, offset: CGFloat)
     case railSideChanged(RailSide)
@@ -173,6 +175,8 @@ public enum SessionEffect: Hashable, Sendable {
     /// 主窗口几何微调（侧栏切换、分隔线收敛）：节流写入并读回，不改变 placement（方案 §11.2）。
     case settleMainFrame(WindowIdentity, targetFrame: CGRect, token: TransitionToken, animationMS: Int)
     case setKeyboardFocus(KeyboardFocus)
+    /// 用户显式整理或 pin 后的跨会话轨道记忆：只含应用级键，不含窗口标题（方案 §16）。
+    case persistWorkbenchRailMemory(orderPreference: [String: Int], pinnedKeys: Set<String>)
     case scheduleReconcile(TimeInterval)
     case cancelReconcile
     case presentHint(HintKind)

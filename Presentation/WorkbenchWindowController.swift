@@ -17,6 +17,10 @@ final class WorkbenchWindowController {
         case railDividerDragged(rail: RailKind, value: CGFloat)
         /// 松手：宿主做最终结算与写盘。
         case railDividerDragEnded(rail: RailKind, value: CGFloat)
+        /// 右键菜单的「固定在顶部/取消固定」：只写偏好，卡片此刻不动（方案 §6.2）。
+        case railPinToggled(identity: WindowIdentity)
+        /// 「更多」菜单的「整理预览栏」：重排轨道的唯一入口（方案 §4.4）。
+        case organize
         case returnToOverview
         case toggleSide
         case searchFocus(Bool)
@@ -241,6 +245,8 @@ final class WorkbenchWindowController {
             onAction?(.railCardDragged(from: from, to: target))
         case let .scrolled(rail, offset):
             onAction?(.railScrolled(rail: rail, offset: offset))
+        case let .cardPinToggled(_, identity):
+            onAction?(.railPinToggled(identity: identity))
         }
     }
 
@@ -248,6 +254,7 @@ final class WorkbenchWindowController {
         switch action {
         case .returnToOverview: onAction?(.returnToOverview)
         case .toggleSide: onAction?(.toggleSide)
+        case .organize: onAction?(.organize)
         case let .searchFocus(focused): onAction?(.searchFocus(focused))
         case let .search(query): onAction?(.search(query))
         }

@@ -132,6 +132,12 @@ public struct WindowRecord: Hashable, Sendable {
             .lowercased()
         return "\((bundleID ?? applicationName).lowercased())|\(normalizedTitle)"
     }
+
+    /// 工作台跨会话偏好键（轨道顺序、固定在顶部）：只用应用标识，不含窗口标题（方案 §16）。
+    /// 同一应用的多个窗口共享一个键，它们之间的先后由会话内稳定顺序决定，不落盘标题。
+    public var preferenceKey: String {
+        (bundleID ?? "name:\(applicationName)").lowercased()
+    }
 }
 
 public enum WindowRestriction: Hashable, Sendable {

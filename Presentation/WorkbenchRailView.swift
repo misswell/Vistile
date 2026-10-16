@@ -16,6 +16,8 @@ final class WorkbenchRailView: NSView {
         case cardDragged(from: RailSlotID, screenPoint: CGPoint)
         /// 提出新的滚动偏移；夹取与状态提交由 reducer 负责，视图不自己改快照。
         case scrolled(rail: RailKind, to: CGFloat)
+        /// 右键菜单：把这个应用固定在顶部 / 取消固定（方案 §6.2）。
+        case cardPinToggled(slot: RailSlotID, identity: WindowIdentity)
     }
 
     let rail: RailKind
@@ -198,6 +200,7 @@ final class WorkbenchRailView: NSView {
                      style: chromeStyle,
                      showsTitle: showsTitles,
                      scale: backingScaleFactor)
+        chrome.applyPinned(lastCards[entry.slot]?.isPinned == true)
     }
 
     private func refreshChrome() {
@@ -281,6 +284,12 @@ final class WorkbenchRailView: NSView {
         slotRects.filter { $0.identity != nil && $0.cellRect.intersects(bounds) }.count
     }
 
+    /// 某格的「已固定」标记此刻是否可见：宿主测试与诊断用，证明画出来的和展示事实一致。
+    /// nil = 这一格此刻没有建层（被过滤或在视口外）。
+    func pinBadgeVisible(for slot: RailSlotID) -> Bool? {
+        chromeLayers[slot].map { !$0.pinBadge.isHidden }
+    }
+
     /// VoiceOver 需要读到的卡片事实：位置按这一条栏此刻看得见的第几张，
     /// 状态取目录里的真实捕获阶段，动作与点击走同一条路径（方案 §13）。
     var accessibilityCardDescriptors: [CardAccessibilityDescriptor] {
@@ -289,14 +298,16 @@ final class WorkbenchRailView: NSView {
         return slotRects.compactMap { entry in
             guard let identity = entry.identity, entry.cellRect.intersects(bounds) else { return nil }
             position += 1
-            let record = lastCards[entry.slot]?.record
+            let card = lastCards[entry.slot]
+            let record = card?.record
             let screenRect = window?.convertToScreen(entry.cellRect) ?? entry.cellRect
             let slot = entry.slot
+            let pinnedSuffix = card?.isPinned == true ? "，已固定在顶部" : ""
             return CardAccessibilityDescriptor(
                 screenRect: screenRect,
                 applicationName: record?.applicationName ?? "未知应用",
                 title: record?.title ?? "",
-                statusText: CardAccessibilityBuilder.statusText(record?.capture),
+                statusText: CardAccessibilityBuilder.statusText(record?.capture) + pinnedSuffix,
                 roleDescription: "\(railName)卡片 \(position)",
                 actionName: "切换到主工作区",
                 activate: { [weak self] in self?.onAction?(.cardClicked(slot: slot, identity: identity)) }
@@ -320,6 +331,7 @@ final class WorkbenchRailView: NSView {
     func cancelMouseGesture() {
         gesture = nil
         didDrag = false
+        stopAutoScroll()
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -337,6 +349,7 @@ final class WorkbenchRailView: NSView {
         let point = convert(event.locationInWindow, from: nil)
         guard hypot(point.x - start.start.x, point.y - start.start.y) > Self.dragThreshold else { return }
         didDrag = true
+        updateAutoScroll(point: point)
     }
 
     override func mouseUp(with event: NSEvent) {
@@ -401,6 +414,96 @@ final class WorkbenchRailView: NSView {
         guard delta != 0 else { return }
         // 非翻转视图里 offset 增大 = 内容上移；AppKit 的 deltaY 为正表示"向上滚"。
         onAction?(.scrolled(rail: rail, to: scrollOffset - delta))
+    }
+
+    // MARK: - 拖到边缘的有界自动滚动（方案 §6.2）
+
+    /// 拖动中指针贴住视口边缘时按固定步长提出新的滚动偏移。
+    /// 步长恒定、不加加速；夹取与到界后不再变化都由 reducer 保证，这里只负责提节奏。
+    private static let autoScrollEdgeZone: CGFloat = 36
+    private static let autoScrollStep: CGFloat = 14
+    private static let autoScrollInterval: TimeInterval = 1.0 / 30
+
+    private var autoScrollTimer: Timer?
+    private var autoScrollDirection: CGFloat = 0
+
+    private func updateAutoScroll(point: CGPoint) {
+        let direction: CGFloat
+        switch rail {
+        case .top:
+            // 非翻转视图：右边缘 = x 大。offset 增大 = 内容左移，露出右边缘外的卡片。
+            if point.x > bounds.width - Self.autoScrollEdgeZone { direction = 1 }
+            else if point.x < Self.autoScrollEdgeZone { direction = -1 }
+            else { direction = 0 }
+        case .side:
+            // 非翻转视图：底边缘 = y 小。offset 增大 = 内容上移，露出下边缘外的卡片。
+            if point.y < Self.autoScrollEdgeZone { direction = 1 }
+            else if point.y > bounds.height - Self.autoScrollEdgeZone { direction = -1 }
+            else { direction = 0 }
+        }
+        autoScrollDirection = direction
+        guard direction != 0 else {
+            stopAutoScroll()
+            return
+        }
+        guard autoScrollTimer == nil else { return }
+        let timer = Timer(timeInterval: Self.autoScrollInterval, repeats: true) { [weak self] _ in
+            self?.tickAutoScroll()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        autoScrollTimer = timer
+    }
+
+    private func tickAutoScroll() {
+        guard autoScrollDirection != 0 else { return }
+        onAction?(.scrolled(rail: rail, to: scrollOffset + autoScrollDirection * Self.autoScrollStep))
+    }
+
+    private func stopAutoScroll() {
+        autoScrollTimer?.invalidate()
+        autoScrollTimer = nil
+        autoScrollDirection = 0
+    }
+
+    /// 30Hz 的定时器不能比视图活得久：视图退场时先停掉，别留一个空转的 runloop 源。
+    deinit {
+        autoScrollTimer?.invalidate()
+    }
+
+    // MARK: - 右键菜单（方案 §6.2）
+
+    /// 右键菜单只承载"固定在顶部"这一个轨道偏好：点击卡片仍然是左键的事。
+    override func menu(for event: NSEvent) -> NSMenu? {
+        contextMenu(forLocalPoint: convert(event.locationInWindow, from: nil))
+    }
+
+    /// 菜单构造与 `menu(for:)` 分开：探针/宿主测试直接按本地坐标取菜单，不必伪造 NSEvent。
+    func contextMenu(forLocalPoint point: CGPoint) -> NSMenu? {
+        guard let hit = hitTestCard(at: point) else { return nil }
+        let pinned = lastCards[hit.slot]?.isPinned == true
+        let item = NSMenuItem(title: pinned ? "取消固定在顶部" : "固定在顶部",
+                              action: #selector(togglePinFromMenu(_:)),
+                              keyEquivalent: "")
+        item.target = self
+        item.representedObject = PinMenuTarget(slot: hit.slot, identity: hit.identity)
+        let menu = NSMenu()
+        menu.addItem(item)
+        return menu
+    }
+
+    private final class PinMenuTarget: NSObject {
+        let slot: RailSlotID
+        let identity: WindowIdentity
+
+        init(slot: RailSlotID, identity: WindowIdentity) {
+            self.slot = slot
+            self.identity = identity
+        }
+    }
+
+    @objc private func togglePinFromMenu(_ sender: NSMenuItem) {
+        guard let target = sender.representedObject as? PinMenuTarget else { return }
+        onAction?(.cardPinToggled(slot: target.slot, identity: target.identity))
     }
 
     override func layout() {

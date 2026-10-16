@@ -46,7 +46,7 @@ public struct WorkbenchPreferences: Hashable, Sendable {
     /// 活动工作台显示器偏好；进程重启后显示器可能已不存在，宿主必须有 fallback。
     public var preferredDisplayID: UInt32?
     public var overflowBehavior: OverflowBehavior
-    /// 跨会话的顺序偏好与 pin（只存 memoryKey，不存窗口标题）。
+    /// 跨会话的顺序偏好与 pin：键是应用级 preferenceKey（bundleID 或进程名），不含窗口标题（方案 §16）。
     public var railOrderPreference: [String: Int]
     public var pinnedKeys: Set<String>
 

@@ -115,7 +115,7 @@ final class SettingsModel: ObservableObject {
         case tier, priorityKeys, excludedBundles, orderingStrategy, didCompleteGuidedSetup
         case slotOrder, compactMode, systemLogging
         case workbenchSide, workbenchTopHeight, workbenchSideWidth, workbenchDisplay
-        case workbenchOverflow, workbenchSchema
+        case workbenchOverflow, workbenchSchema, workbenchRailOrder, workbenchPins
     }
 
     private let defaults: UserDefaults
@@ -155,6 +155,14 @@ final class SettingsModel: ObservableObject {
     }
     @Published var workbenchOverflow: OverflowBehavior {
         didSet { defaults.set(workbenchOverflow.rawValue, for: .workbenchOverflow) }
+    }
+    /// 轨道顺序偏好与「固定在顶部」：键是应用级 preferenceKey，不含窗口标题（方案 §16）。
+    /// 只在用户明确整理或右键固定时写盘，不随卡片落位自动漂移。
+    @Published var workbenchRailOrder: [String: Int] {
+        didSet { defaults.set(workbenchRailOrder.mapValues { NSNumber(value: $0) }, for: .workbenchRailOrder) }
+    }
+    @Published var workbenchPins: [String] {
+        didSet { defaults.set(workbenchPins, for: .workbenchPins) }
     }
     /// 旧版本持久化值的一次性迁移说明；空数组表示这次启动没有可迁移的旧值。
     private(set) var workbenchMigrationNotes: [String] = []
@@ -236,15 +244,21 @@ final class SettingsModel: ObservableObject {
             preferredDisplayID: defaults.integerValue(for: .workbenchDisplay).flatMap { UInt32(exactly: $0) }
                 ?? migrated.preferences.preferredDisplayID,
             overflowBehavior: OverflowBehavior(rawValue: defaults.string(for: .workbenchOverflow) ?? "")
-                ?? migrated.preferences.overflowBehavior).sanitized()
+                ?? migrated.preferences.overflowBehavior,
+            railOrderPreference: (defaults.dictionaryValue(for: .workbenchRailOrder) as? [String: Int]) ?? [:],
+            pinnedKeys: Set(defaults.stringArray(for: .workbenchPins) ?? [])).sanitized()
         workbenchSide = stored.side
         workbenchTopHeight = stored.topHeightPreference
         workbenchSideWidth = stored.sideWidthPreference
         preferredWorkbenchDisplayID = stored.preferredDisplayID
         workbenchOverflow = stored.overflowBehavior
+        workbenchRailOrder = stored.railOrderPreference
+        workbenchPins = stored.pinnedKeys.sorted()
         // 清洗结果与 schema 版本显式写回：坏值（NaN/负值）不能每次启动重演，版本号供后续迁移判断。
         defaults.set(stored.topHeightPreference.map { Double($0) }, for: .workbenchTopHeight)
         defaults.set(stored.sideWidthPreference.map { Double($0) }, for: .workbenchSideWidth)
+        defaults.set(stored.railOrderPreference.mapValues { NSNumber(value: $0) }, for: .workbenchRailOrder)
+        defaults.set(stored.pinnedKeys.sorted(), for: .workbenchPins)
         defaults.set(WorkbenchPreferences.currentSchemaVersion, for: .workbenchSchema)
     }
 

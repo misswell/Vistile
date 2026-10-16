@@ -53,8 +53,10 @@ public struct WorkbenchPlacement: Hashable, Sendable {
     public private(set) var main: WindowIdentity?
     public private(set) var occupants: [RailSlotID: WindowIdentity]
     public private(set) var revision: UInt64
-    /// 用户显式整理过的顺序偏好（memoryKey）：只在"按总览顺序整理"时写入（方案 §6.2）。
+    /// 用户显式整理过的顺序偏好：键是应用级 preferenceKey（不含窗口标题），值越小越靠前（方案 §6.2、§16）。
+    /// 只在明确的整理动作里重写；同键多窗口的相对先后由会话内 slot 顺序稳定决定。
     public private(set) var orderPreference: [String: Int]
+    /// 用户显式"固定在顶部"的应用（preferenceKey）：下次主动整理时优先占顶栏（方案 §6.2）。
     public private(set) var pinned: Set<String>
 
     public init(main: WindowIdentity? = nil,
@@ -119,11 +121,11 @@ public struct WorkbenchPlacement: Hashable, Sendable {
     }
 
     /// 新窗口填空位或追加逻辑 slot：不抢主、不移动任何已有 occupant（方案 §6.2）。
+    /// 落位不写顺序偏好：rank 只在明确的整理里按用户意图重写（方案 §4.4），免得越攒越多的无主键落盘。
     @discardableResult
-    public mutating func place(_ identity: WindowIdentity, at slot: RailSlotID, memoryKey: String? = nil) -> Bool {
+    public mutating func place(_ identity: WindowIdentity, at slot: RailSlotID) -> Bool {
         guard !contains(identity), occupants[slot] == nil else { return false }
         occupants[slot] = identity
-        if let memoryKey { orderPreference[memoryKey] = orderPreference.count }
         revision += 1
         return true
     }
@@ -153,28 +155,32 @@ public struct WorkbenchPlacement: Hashable, Sendable {
         return true
     }
 
-    /// 用户主动整理：压缩空位并重新分配。只在明确的整理动作里调用（方案 §6.2）。
+    /// 用户主动整理：压缩空位并按算好的身份顺序重新分配（方案 §4.4、§6.2）。
+    /// `ordered` 由 reducer 给出（固定在顶部的优先占顶栏，其余按总览稳定顺序）；
+    /// 这是唯一会重排轨道的动作，顺带把结果写进顺序偏好（键是应用级 preferenceKey）。
     public mutating func reorganize(slotOrder: [RailSlotID],
-                                    memoryKeys: [WindowIdentity: String]) {
-        let ordered = occupants
-            .sorted { lhs, rhs in
-                let lKey = memoryKeys[lhs.value] ?? ""
-                let rKey = memoryKeys[rhs.value] ?? ""
-                let lRank = orderPreference[lKey] ?? Int.max
-                let rRank = orderPreference[rKey] ?? Int.max
-                if lRank != rRank { return lRank < rRank }
-                return lhs.key < rhs.key
-            }
-            .map(\.value)
+                                    ordered: [WindowIdentity],
+                                    keys: [WindowIdentity: String]) {
+        let members = ordered.filter { occupants.values.contains($0) }
         occupants.removeAll()
-        for (index, identity) in ordered.enumerated() where index < slotOrder.count {
-            occupants[slotOrder[index]] = identity
+        var ranks: [String: Int] = [:]
+        for (index, identity) in members.enumerated() {
+            if index < slotOrder.count { occupants[slotOrder[index]] = identity }
+            if let key = keys[identity] { ranks[key] = ranks[key] ?? index }
         }
+        orderPreference = ranks
         revision += 1
     }
 
-    public mutating func setPinned(_ memoryKey: String, pinned isPinned: Bool) {
-        if isPinned { pinned.insert(memoryKey) } else { pinned.remove(memoryKey) }
+    public mutating func setPinned(_ preferenceKey: String, pinned isPinned: Bool) {
+        if isPinned { pinned.insert(preferenceKey) } else { pinned.remove(preferenceKey) }
+    }
+
+    /// 会话开始：把跨会话记忆（顺序偏好与 pin）注入新会话；键只含应用标识，不含窗口标题（方案 §16）。
+    /// 不推进 revision：这不是一次占用关系变更，只是记住用户以前说过的话。
+    public mutating func adoptMemory(orderPreference: [String: Int], pinned: Set<String>) {
+        self.orderPreference = orderPreference
+        self.pinned = pinned
     }
 
     /// 会话结束：跨会话只保留顺序偏好与 pin（方案 §16）。

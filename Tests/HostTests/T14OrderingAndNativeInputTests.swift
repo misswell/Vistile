@@ -79,6 +79,35 @@ final class T14OrderingAndNativeInputTests: XCTestCase {
         XCTAssertNil(settings.migratedOrderingStrategy)
     }
 
+    // MARK: - 轨道跨会话记忆（方案 §6.2/§16）
+
+    /// 持久化键与 `SettingsModel.Key.workbenchRailOrder` / `.workbenchPins` 的 rawValue 同一个字符串。
+    private let railOrderKey = "workbenchRailOrder"
+    private let pinsKey = "workbenchPins"
+
+    func testWorkbenchRailMemorySurvivesRelaunchAfterSanitizingStrayKeys() {
+        let suite = transientDefaults()
+        // 脏值：空键（旧版本或手改过的 plist）不得进入会话，也不许留在盘上每次启动重洗。
+        suite.set(["com.example.notes": 3, "": 0], forKey: railOrderKey)
+        suite.set(["", "com.example.mail"], forKey: pinsKey)
+
+        settings = SettingsModel(defaults: suite)
+        XCTAssertEqual(settings.workbenchRailOrder, ["com.example.notes": 3], "空键必须被清洗掉")
+        XCTAssertEqual(settings.workbenchPins, ["com.example.mail"])
+        XCTAssertEqual(suite.dictionary(forKey: railOrderKey) as? [String: Int],
+                       ["com.example.notes": 3], "清洗结果必须写回，否则每次启动都要再洗一遍")
+        XCTAssertEqual(suite.stringArray(forKey: pinsKey), ["com.example.mail"])
+
+        // 整理/固定后的写盘 → 新实例读回：跨会话记忆的完整往返，键全是应用级 preferenceKey。
+        settings.workbenchRailOrder = ["com.example.notes": 0, "name:Notes": 1]
+        settings.workbenchPins = ["name:Notes", "com.example.notes"]
+        let relaunched = SettingsModel(defaults: suite)
+        XCTAssertEqual(relaunched.workbenchRailOrder, ["com.example.notes": 0, "name:Notes": 1],
+                       "整理写下的 rank 必须原样读回")
+        XCTAssertEqual(relaunched.workbenchPins, ["com.example.notes", "name:Notes"],
+                       "pin 交给消费者前按排序归一：同一份内容不因落盘次序产生不同投影")
+    }
+
     // MARK: - §12.2 前景化按读回判定
 
     func testExpandContinuesOnlyWhenTargetIsReadBackAsFocused() async throws {

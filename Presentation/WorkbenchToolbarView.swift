@@ -4,11 +4,13 @@ import Foundation
 import VistileCore
 
 /// 工作台角落工具区（方案 §5.1、§9.3）：位于顶栏面板内部、主区之外。
-/// 只承载四个动作（全部窗口、侧栏方向、搜索、文字事实），不复制会话状态。
+/// 只承载五个动作（全部窗口、侧栏方向、整理、搜索、文字事实），不复制会话状态。
 final class WorkbenchToolbarView: NSView, NSSearchFieldDelegate {
     enum Action {
         case returnToOverview
         case toggleSide
+        /// 「更多」菜单里的「整理预览栏」：唯一会重排轨道的动作（方案 §4.4、§6.2）。
+        case organize
         case searchFocus(Bool)
         case search(String)
     }
@@ -19,7 +21,10 @@ final class WorkbenchToolbarView: NSView, NSSearchFieldDelegate {
     private let hintLabel = NSTextField(labelWithString: "")
     private let allWindowsButton = NSButton()
     private let sideButton = NSButton()
+    private let moreButton = NSButton()
     private let searchField = NSSearchField()
+    /// 「更多」菜单在 build 里搭好、点击时弹出：探针/宿主测试直接取菜单项触发动作，不真弹（弹窗会起嵌套事件循环）。
+    let moreMenu = NSMenu()
     /// 搜索框此刻是否持有键盘：只影响面板 key 策略，不改会话状态。
     private(set) var searchHasKeyboard = false
 
@@ -68,6 +73,22 @@ final class WorkbenchToolbarView: NSView, NSSearchFieldDelegate {
         sideButton.action = #selector(toggleSide)
         addSubview(sideButton)
 
+        moreButton.title = "更多"
+        moreButton.bezelStyle = .rounded
+        moreButton.controlSize = .small
+        moreButton.target = self
+        moreButton.action = #selector(showMoreMenu)
+        moreButton.toolTip = "整理预览栏等轨道操作"
+        addSubview(moreButton)
+
+        let organizeItem = NSMenuItem(title: "整理预览栏",
+                                      action: #selector(organizeRequested),
+                                      keyEquivalent: "")
+        organizeItem.target = self
+        organizeItem.toolTip = "把卡片收拢排序：固定的应用优先占顶栏，其余按总览顺序"
+        moreMenu.autoenablesItems = false
+        moreMenu.addItem(organizeItem)
+
         searchField.placeholderString = "搜索窗口"
         searchField.controlSize = .small
         searchField.font = .systemFont(ofSize: 11)
@@ -103,11 +124,16 @@ final class WorkbenchToolbarView: NSView, NSSearchFieldDelegate {
 
     /// P0 探针用它把真实鼠标事件落在「全部窗口」按钮上，不靠猜坐标。
     var allWindowsButtonFrame: NSRect { allWindowsButton.frame }
+    var moreButtonFrame: NSRect { moreButton.frame }
 
     // MARK: - 动作
 
     @objc private func returnToOverview() { onAction?(.returnToOverview) }
     @objc private func toggleSide() { onAction?(.toggleSide) }
+    @objc private func showMoreMenu() {
+        moreMenu.popUp(positioning: nil, at: NSPoint(x: 0, y: 0), in: moreButton)
+    }
+    @objc private func organizeRequested() { onAction?(.organize) }
 
     func controlTextDidBeginEditing(_ obj: Notification) {
         searchHasKeyboard = true
@@ -147,7 +173,17 @@ final class WorkbenchToolbarView: NSView, NSSearchFieldDelegate {
         }
         countLabel.frame = place(15)
         y -= 4
-        allWindowsButton.frame = place(22)
+        // 「全部窗口」与「更多」并排一行：工具区高度已经紧，按钮不加行。
+        let buttonsRow = place(22)
+        let half = max(28, (buttonsRow.width - 4) / 2)
+        allWindowsButton.frame = NSRect(x: buttonsRow.minX,
+                                        y: buttonsRow.minY,
+                                        width: half,
+                                        height: buttonsRow.height)
+        moreButton.frame = NSRect(x: buttonsRow.minX + half + 4,
+                                  y: buttonsRow.minY,
+                                  width: half,
+                                  height: buttonsRow.height)
         y -= 4
         sideButton.frame = place(22)
         y -= 4
