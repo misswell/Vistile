@@ -12,22 +12,29 @@ final class OverviewWindowController {
     var onAction: ((OverviewContentView.Action) -> Void)?
 
     private let display: DisplayInfo
+    /// 键盘是否真的落到了内容视图：面板成为 key 不等于方向键/Esc 有人接。
+    private(set) var keyboardAccepted = false
 
-    init(display: DisplayInfo, metalLayerScale: CGFloat) {
+    init(display: DisplayInfo, metal: MetalContext) {
         self.display = display
         displayID = display.id
         // 面板 frame 用 AppKit 坐标；领域层坐标是 CG 全局，两者换算只发生在这里。
         let mapper = CoordinateMapper(displays: [display])
         let appKitVisible = mapper.cgToAppKit(display.visibleFrame)
         panel = OverviewPanel(contentRect: appKitVisible)
-        contentView = OverviewContentView(frame: CGRect(origin: .zero, size: appKitVisible.size))
+        contentView = OverviewContentView(frame: CGRect(origin: .zero, size: appKitVisible.size), metal: metal)
         panel.contentView = contentView
         panel.contentView?.autoresizingMask = [.width, .height]
         contentView.configure(style: .standard,
                               showsTitles: true,
                               accent: .controlAccentColor,
                               cgOrigin: display.visibleFrame.origin,
-                              scale: metalLayerScale)
+                              scale: display.backingScale)
+        // R01：视图事件只有一条出口——转接到控制器，再由协调层进状态机。
+        // 不在每次 updateLayout 重复绑定，也不让视图直接持有协调器。
+        contentView.onAction = { [weak self] action in
+            self?.onAction?(action)
+        }
     }
 
     var isVisible: Bool { panel.isVisible }
@@ -42,11 +49,16 @@ final class OverviewWindowController {
     func setKeyboardFocus(_ enabled: Bool) {
         panel.acceptsKeyboard = enabled
         if enabled {
-            // 不激活面板需要显式成为 key 才能收到方向键与 Esc。
+            // 不激活面板也必须显式成为 key，并且把 first responder 交给内容视图，
+            // 否则面板拿到 key 而视图不收键，方向键/Esc/搜索全部落空。
             panel.makeKeyAndOrderFront(nil)
-        } else if panel.isKeyWindow {
-            panel.orderOut(nil)
-            panel.makeKeyAndOrderFront(nil)
+            keyboardAccepted = panel.makeFirstResponder(contentView) && panel.firstResponder === contentView
+        } else {
+            keyboardAccepted = false
+            guard panel.isKeyWindow else { return }
+            // 让出键盘不等于把背景重新前置：交出激活状态即可，面板保持可见、不重新抢 key。
+            panel.makeFirstResponder(nil)
+            NSApp.deactivate()
         }
     }
 
@@ -57,6 +69,8 @@ final class OverviewWindowController {
     }
 
     func hide() {
+        // 隐藏时正在进行的手势不能残留到下一次打开（方案 §13.1）。
+        contentView.cancelMouseGesture()
         panel.orderOut(nil)
     }
 
@@ -81,12 +95,15 @@ final class OverviewWindowController {
                       renderer: OverviewRenderer,
                       mailboxProvider: (WindowIdentity) -> FrameMailbox<MetalFrame>?,
                       style: OverviewStyle,
-                      showsTitles: Bool) {
+                      showsTitles: Bool,
+                      searchQuery: String) {
         contentView.configure(style: style,
                               showsTitles: showsTitles,
                               accent: .controlAccentColor,
                               cgOrigin: display.visibleFrame.origin,
                               scale: display.backingScale)
+        // 筛选词以领域状态为准：每屏面板都要跟上，不能只改工具条文字。
+        contentView.setSearchQuery(searchQuery)
         contentView.update(layout: layout,
                            records: records,
                            frameByID: { records[$0]?.frame },

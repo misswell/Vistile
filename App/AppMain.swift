@@ -24,7 +24,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var startup: Task<Void, Never>?
     private var hasBegunTermination = false
 
+    /// 宿主测试用同一个 App 承载，但绝不能改动用户桌面状态：
+    /// 不注册全局快捷键、不建总览/引导窗口、不启动协调器。
+    private static var isTestHost: Bool {
+        let env = ProcessInfo.processInfo.environment
+        return env["VISTILE_TEST_HOST"] == "1" || NSClassFromString("XCTestCase") != nil
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard !Self.isTestHost else { return }
         metrics.begin("启动")
         // 任一环节失败都不启动：本方案禁止用静态截图冒充实时预览，也不允许带着坏管线继续跑。
         guard let metal = MetalContext.make() else {

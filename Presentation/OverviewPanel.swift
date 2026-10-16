@@ -85,7 +85,8 @@ final class CardChrome {
                scale: CGFloat) {
         titleText.string = title
         titleText.isHidden = !showsTitle
-        titleBar.isHidden = !showsTitle
+        // 关掉标题也不能把状态事实一起藏掉：已最小化、无权限必须还能看见（方案 §13.3）。
+        titleBar.isHidden = !(showsTitle || status != nil)
         border.borderColor = (isSelected ? accent : NSColor.white.withAlphaComponent(isHovered ? 0.32 : 0.14)).cgColor
         border.borderWidth = isSelected ? 2 : 1
         statusText.isHidden = status == nil
@@ -96,10 +97,11 @@ final class CardChrome {
         _ = scale
     }
 
-    func layout(in rect: CGRect, style: OverviewStyle, showsTitle: Bool) {
+    func layout(in rect: CGRect, style: OverviewStyle, showsTitle: Bool, showsStatus: Bool) {
         container.frame = rect
         border.frame = CGRect(origin: .zero, size: rect.size)
-        let barHeight: CGFloat = showsTitle ? style.titleHeight : 0
+        // 关标题时若还有状态要说，标题条仍要留出高度，否则状态文字会被压成 0 高。
+        let barHeight: CGFloat = (showsTitle || showsStatus) ? style.titleHeight : 0
         // 视图未翻转，标题条要贴在格子上沿。
         titleBar.frame = CGRect(x: 0, y: rect.height - barHeight, width: rect.width, height: barHeight)
         titleText.frame = CGRect(x: 30, y: titleBar.bounds.midY - 7, width: max(0, rect.width - 34 - 56), height: 14)

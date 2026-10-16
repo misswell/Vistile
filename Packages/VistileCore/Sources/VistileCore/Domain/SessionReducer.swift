@@ -127,6 +127,7 @@ public enum SessionReducer {
             return handleFocusLost(&state, origin)
 
         case .expandCompleted(let token):
+            var effects: [SessionEffect] = [.setKeyboardFocus(.targetApplication)]
             switch state.phase {
             case let .expanding(target, current) where current == token:
                 state.phase = .focused(target: target)
@@ -137,12 +138,13 @@ public enum SessionReducer {
             }
             state.keyboardFocus = .targetApplication
             state.trustedInteraction = nil
+            // 键盘必须真的交给前台应用：域状态改了但不发 effect，NSWindow 会照常吃掉输入。
             let target = state.phase.controlledTarget
             if let pending = state.pendingTarget, pending != target {
                 state.pendingTarget = nil
-                return beginSwitch(&state, from: target ?? pending, to: pending)
+                return effects + beginSwitch(&state, from: target ?? pending, to: pending)
             }
-            return []
+            return effects
 
         case .collapseCompleted(let token):
             guard case let .collapsing(target, current) = state.phase, current == token else { return [] }
@@ -400,6 +402,8 @@ public enum SessionReducer {
         state.phase = .expanding(target: target, token: token)
         state.keyboardFocus = .targetApplication
         state.trustedInteraction = nil
+        // 展开开始就让出键盘：动画期间用户已经在往这个窗口里打字。
+        effects.append(.setKeyboardFocus(.targetApplication))
         return effects
     }
 
@@ -430,6 +434,8 @@ public enum SessionReducer {
         effects.append(.expand(to, token: token,
                                animationMS: state.policy.animationMS(isExpand: true, style: state.style)))
         state.phase = .switching(from: from, to: to, token: token)
+        state.keyboardFocus = .targetApplication
+        effects.append(.setKeyboardFocus(.targetApplication))
         return effects
     }
 

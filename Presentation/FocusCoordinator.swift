@@ -281,11 +281,38 @@ final class FocusCoordinator {
         }
         let view = window.proxyView
         view.configure(cgOrigin: display.frame.origin, scale: display.backingScale)
-        view.setSource(textureProvider?(identity), sourceAspect: max(0.2, source.width / max(1, source.height)))
+        let sourceFrame = textureProvider?(identity)
+        view.setSource(sourceFrame, sourceAspect: sourceAspect(for: identity, frame: sourceFrame, cellRect: source))
         view.onComplete = { [weak self] in self?.finish(token) }
+        // 打断续接：上一段动画仍在跑时必须从画面当前位置继续，而不是从旧起点重放。
+        let startRect = view.isAnimating ? view.currentRectInCG : source
+        // 减少动态效果时做真正的短淡化（固定在终点矩形），而不是把同一段缩放动画调快。
+        let fadeOnly = settings.sessionPolicy().reduceMotion
         window.orderFrontRegardless()
-        view.animate(fromCG: source, toCG: destination, durationMS: animationMS, reverse: reverse)
+        view.animate(fromCG: startRect,
+                     toCG: destination,
+                     durationMS: animationMS,
+                     reverse: reverse,
+                     mode: fadeOnly ? .fade : .scale,
+                     startAlpha: fadeOnly ? (reverse ? 1 : 0) : 1,
+                     endAlpha: fadeOnly ? (reverse ? 0 : 1) : 1)
         scheduleTimeout(token, animationMS: animationMS)
+    }
+
+    /// 动画画面比例取有效捕获内容或真实源窗口，不能用"含标题条的格子比例"（方案 §4.3）。
+    private func sourceAspect(for identity: WindowIdentity, frame: MetalFrame?, cellRect: CGRect) -> CGFloat {
+        if let meta = frame?.meta {
+            if meta.sourceSize.width > 1, meta.sourceSize.height > 1 {
+                return max(0.2, meta.sourceSize.width / meta.sourceSize.height)
+            }
+            if meta.pixelWidth > 1, meta.pixelHeight > 1 {
+                return max(0.2, CGFloat(meta.pixelWidth) / CGFloat(meta.pixelHeight))
+            }
+        }
+        if let record = catalog.record(for: identity), record.frame.width > 1, record.frame.height > 1 {
+            return max(0.2, record.frame.width / record.frame.height)
+        }
+        return max(0.2, cellRect.width / max(1, cellRect.height))
     }
 
     private func ensureProxy(on display: DisplayInfo) -> TransitionProxyWindow? {

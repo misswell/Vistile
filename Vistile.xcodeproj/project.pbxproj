@@ -8,9 +8,11 @@
 
 /* Begin PBXBuildFile section */
 		025451BFAB291BF34176AED2 /* VistileCore in Frameworks */ = {isa = PBXBuildFile; productRef = BD7428CEA4ACB87F840B7BED /* VistileCore */; };
+		063BD37362B37C21047C7762 /* _HostTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ABCE49D751144985B381F37 /* _HostTestSupport.swift */; };
 		0ABDF1235FB672B9E4F1101B /* WindowCaptureSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 924104F29146981BFEBCCFCD /* WindowCaptureSession.swift */; };
 		0B5CAF1D6149C6D6F18E900C /* P0Probe.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0FA4004CD0EABA6ECE6C3E /* P0Probe.swift */; };
 		0DC662E0EB28B6E2B8F6385A /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDBB08C7C49C725949173227 /* Logger.swift */; };
+		20A2ACF88FA737CC7EF59529 /* T01ActionRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E35B95703E76B3642D977F59 /* T01ActionRoutingTests.swift */; };
 		2438B7A2CBB4EFFF6A224B39 /* OverviewRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CF737B1EDD4A02BE6FC613A /* OverviewRenderer.swift */; };
 		2569D36CFD1EB7661E9C0C2A /* CardAccessibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91FD08B025E2B7EF42D6783C /* CardAccessibility.swift */; };
 		39F4C4506D2B093742743E86 /* TexturePool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 706165B8FEFF2F2BEBA18DD7 /* TexturePool.swift */; };
@@ -26,6 +28,7 @@
 		AF79A5ACC2EE0C0859F94087 /* CaptureCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04D019FC787F5F1113453C96 /* CaptureCoordinator.swift */; };
 		B0B597E40E2B5D8320CF116B /* ShaderSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 094AC6BDD927BE302227D9C5 /* ShaderSource.swift */; };
 		B2D4B50D378761F95139F28B /* OnboardingWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EDE34CF9D3F74B9154A5099 /* OnboardingWindowController.swift */; };
+		C170972E12CDFC5BD041B69A /* T02MetalPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCC62AE118E51125D0D37AAD /* T02MetalPresentationTests.swift */; };
 		C5670A373EF1C7D2F938BC2B /* GlobalHotKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E1CDE8A1E92C87EB97FA75A /* GlobalHotKey.swift */; };
 		D334CE436697ED2B30EE4285 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 33C1B8EF35C3D6FD4AB6F52D /* Assets.xcassets */; };
 		DAE89AA003FF425046CB9C0C /* FocusCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E829AF8FD1B927477BF3DFF7 /* FocusCoordinator.swift */; };
@@ -42,6 +45,16 @@
 		FAACE840F16FDB0C61387FDF /* OverviewContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AED590E4158A7DF96C811FB /* OverviewContentView.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		109704B058287641FD53C964 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F222F72A9B07481EFAADBBF4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7AE94FE36169F5A56B388E77;
+			remoteInfo = Vistile;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		04D019FC787F5F1113453C96 /* CaptureCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureCoordinator.swift; sourceTree = "<group>"; };
 		094AC6BDD927BE302227D9C5 /* ShaderSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShaderSource.swift; sourceTree = "<group>"; };
@@ -56,6 +69,7 @@
 		1DF1575851720940E48C98EF /* AppMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMain.swift; sourceTree = "<group>"; };
 		20BBCCDE3166F40B296A2081 /* Vistile.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Vistile.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		24ACA3AFFAF93FB4D2243C31 /* SettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsModel.swift; sourceTree = "<group>"; };
+		2ABCE49D751144985B381F37 /* _HostTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = _HostTestSupport.swift; sourceTree = "<group>"; };
 		2AED590E4158A7DF96C811FB /* OverviewContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewContentView.swift; sourceTree = "<group>"; };
 		33C1B8EF35C3D6FD4AB6F52D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		35DACB50468E3040BDEB483A /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
@@ -65,6 +79,7 @@
 		50E40CDA738024A315D4897E /* TransitionProxyWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitionProxyWindow.swift; sourceTree = "<group>"; };
 		6803AFD08D18C59EC43BB922 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
 		706165B8FEFF2F2BEBA18DD7 /* TexturePool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TexturePool.swift; sourceTree = "<group>"; };
+		70D235D93911E381066BCE3A /* VistileHostTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VistileHostTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		77152A385FDC4AEE49D6B57F /* VistileCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = VistileCore; path = Packages/VistileCore; sourceTree = SOURCE_ROOT; };
 		7EDE34CF9D3F74B9154A5099 /* OnboardingWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWindowController.swift; sourceTree = "<group>"; };
 		91FD08B025E2B7EF42D6783C /* CardAccessibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardAccessibility.swift; sourceTree = "<group>"; };
@@ -75,6 +90,8 @@
 		CCDB480DD96FCE1FB3F291AD /* AppCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinator.swift; sourceTree = "<group>"; };
 		CDBB08C7C49C725949173227 /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
 		D53BDE44215B7E07152CC3EE /* WindowCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowCatalog.swift; sourceTree = "<group>"; };
+		DCC62AE118E51125D0D37AAD /* T02MetalPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = T02MetalPresentationTests.swift; sourceTree = "<group>"; };
+		E35B95703E76B3642D977F59 /* T01ActionRoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = T01ActionRoutingTests.swift; sourceTree = "<group>"; };
 		E43F151C6A384598DD4807FD /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		E829AF8FD1B927477BF3DFF7 /* FocusCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusCoordinator.swift; sourceTree = "<group>"; };
 		FE0FA4004CD0EABA6ECE6C3E /* P0Probe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = P0Probe.swift; sourceTree = "<group>"; };
@@ -97,6 +114,7 @@
 			children = (
 				3E530AFE0CB1DE726F2E5020 /* UITestHarness.app */,
 				20BBCCDE3166F40B296A2081 /* Vistile.app */,
+				70D235D93911E381066BCE3A /* VistileHostTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -137,9 +155,28 @@
 				6EAA0C82DB283037C3A7FB1E /* Rendering */,
 				CB29930AB1FCFAC3BE6ED960 /* Resources */,
 				ECEF00C0894B8B4967585DDA /* Settings */,
+				10470452A20A37C96799CDE1 /* Tests */,
 				06565B49AE5C4BFADD6D50B4 /* UITestHarness */,
 				03570ABC6CFFEB54309AE9C7 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		10470452A20A37C96799CDE1 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				10A0C0E5988413AD7EF32F9D /* HostTests */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		10A0C0E5988413AD7EF32F9D /* HostTests */ = {
+			isa = PBXGroup;
+			children = (
+				2ABCE49D751144985B381F37 /* _HostTestSupport.swift */,
+				E35B95703E76B3642D977F59 /* T01ActionRoutingTests.swift */,
+				DCC62AE118E51125D0D37AAD /* T02MetalPresentationTests.swift */,
+			);
+			path = HostTests;
 			sourceTree = "<group>";
 		};
 		41225BD09527C15ED7187DFD /* Permissions */ = {
@@ -277,6 +314,24 @@
 			productReference = 3E530AFE0CB1DE726F2E5020 /* UITestHarness.app */;
 			productType = "com.apple.product-type.application";
 		};
+		F0B1CD2F5AF3C05852E43F3E /* VistileHostTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E8FC514008BA33A1EF68DCA9 /* Build configuration list for PBXNativeTarget "VistileHostTests" */;
+			buildPhases = (
+				1026F60EA2E8591F9E5762A8 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A3A362DE6B557637CD8982CC /* PBXTargetDependency */,
+			);
+			name = VistileHostTests;
+			packageProductDependencies = (
+			);
+			productName = VistileHostTests;
+			productReference = 70D235D93911E381066BCE3A /* VistileHostTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -291,6 +346,10 @@
 						ProvisioningStyle = Manual;
 					};
 					DAB5E5AAA98BC726754B260A = {
+						DevelopmentTeam = U8U443D7ZL;
+						ProvisioningStyle = Manual;
+					};
+					F0B1CD2F5AF3C05852E43F3E = {
 						DevelopmentTeam = U8U443D7ZL;
 						ProvisioningStyle = Manual;
 					};
@@ -315,6 +374,7 @@
 			targets = (
 				7AE94FE36169F5A56B388E77 /* Vistile */,
 				DAB5E5AAA98BC726754B260A /* UITestHarness */,
+				F0B1CD2F5AF3C05852E43F3E /* VistileHostTests */,
 			);
 		};
 /* End PBXProject section */
@@ -331,6 +391,16 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		1026F60EA2E8591F9E5762A8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				20A2ACF88FA737CC7EF59529 /* T01ActionRoutingTests.swift in Sources */,
+				C170972E12CDFC5BD041B69A /* T02MetalPresentationTests.swift in Sources */,
+				063BD37362B37C21047C7762 /* _HostTestSupport.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		6FB12E9FDA64C56AD04697B9 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -377,6 +447,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A3A362DE6B557637CD8982CC /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 7AE94FE36169F5A56B388E77 /* Vistile */;
+			targetProxy = 109704B058287641FD53C964 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		093A4C206E7E2457D906B4EC /* Release */ = {
@@ -490,6 +568,34 @@
 			};
 			name = Debug;
 		};
+		C01869AEB4410625F26CF28B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = com.misswell.Vistile.HostTests;
+				PRODUCT_NAME = VistileHostTests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Vistile.app/Contents/MacOS/Vistile";
+			};
+			name = Debug;
+		};
+		CAAA0423F4774FF7444EEC03 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = com.misswell.Vistile.HostTests;
+				PRODUCT_NAME = VistileHostTests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Vistile.app/Contents/MacOS/Vistile";
+			};
+			name = Release;
+		};
 		E653B8904B8F32AFEB887A07 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -592,6 +698,15 @@
 			buildConfigurations = (
 				758ED4736CC1E08E8A4CA146 /* Debug */,
 				11BCA92D97D6DF356F4FF6E7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		E8FC514008BA33A1EF68DCA9 /* Build configuration list for PBXNativeTarget "VistileHostTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C01869AEB4410625F26CF28B /* Debug */,
+				CAAA0423F4774FF7444EEC03 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

@@ -62,6 +62,25 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Support/UITestHarness.entitlements
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
 
+  # 宿主测试（方案 §15.1 第二层）：跑在真实 AppKit/Metal 环境里，验证控制器转接、
+  # CAMetalLayer 设备绑定、CMSampleBuffer 附件解析与协调器的异步交错。
+  # 由 Vistile.app 承载，但 AppMain 检测到测试承载时不注册快捷键、不建窗口、不启动协调器。
+  VistileHostTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests/HostTests
+    dependencies:
+      - target: Vistile
+    settings:
+      base:
+        PRODUCT_NAME: "VistileHostTests"
+        PRODUCT_BUNDLE_IDENTIFIER: com.misswell.Vistile.HostTests
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Vistile.app/Contents/MacOS/Vistile"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks"
+
 schemes:
   Vistile:
     build:
@@ -70,6 +89,18 @@ schemes:
         UITestHarness: all
     run:
       config: Debug
+
+  VistileHostTests:
+    build:
+      targets:
+        Vistile: all
+        VistileHostTests: all
+    test:
+      config: Debug
+      environmentVariables:
+        VISTILE_TEST_HOST: "1"
+      targets:
+        - VistileHostTests
 
   P0Probe:
     build:

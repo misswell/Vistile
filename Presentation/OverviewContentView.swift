@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import CoreGraphics
 import Foundation
 import Metal
@@ -21,9 +22,24 @@ final class OverviewContentView: NSView {
     var onAction: ((Action) -> Void)?
     var searchQuery: String = ""
 
-    private let metalLayer = CAMetalLayer()
+    /// 领域状态是筛选词的唯一事实来源：同步时不回发 search 事件，否则与 reducer 成环。
+    func setSearchQuery(_ text: String) {
+        guard text != searchQuery else { return }
+        searchQuery = text
+    }
+
+    /// 画面图层。设备必须来自启动时创建并共享的 MetalContext（R02）：
+    /// 未绑定 device 的 CAMetalLayer 不会有任何 drawable，界面看起来"什么都画不出来"。
+    let metalLayer = CAMetalLayer()
     private var chromeLayers: [SlotID: CardChrome] = [:]
-    private var slotRects: [(slot: SlotID, identity: WindowIdentity, cellRect: CGRect, imageRect: CGRect)] = []
+    /// 一张卡片在视图本地坐标里的几何。可比较，是因为"几何有没有变"决定要不要重绘。
+    private struct SlotGeometry: Equatable {
+        let slot: SlotID
+        let identity: WindowIdentity
+        let cellRect: CGRect
+        let imageRect: CGRect
+    }
+    private var slotRects: [SlotGeometry] = []
     private(set) var lastRecords: [WindowIdentity: WindowRecord] = [:]
     private var selectedSlot: SlotID?
     private var hoveredSlot: SlotID?
@@ -39,6 +55,8 @@ final class OverviewContentView: NSView {
 
     override var isFlipped: Bool { false }
     override var wantsUpdateLayer: Bool { false }
+    /// 面板可以成为 key，但键盘事件只有落到 content view 才有方向键/Esc/搜索。
+    override var acceptsFirstResponder: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override var mouseDownCanMoveWindow: Bool { false }
 
@@ -47,9 +65,23 @@ final class OverviewContentView: NSView {
         commonInit()
     }
 
+    /// 共享设备由启动方注入；视图不得自建 device 或 commandQueue。
+    init(frame frameRect: NSRect, metal: MetalContext) {
+        super.init(frame: frameRect)
+        commonInit()
+        attach(device: metal.device)
+    }
+
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         commonInit()
+    }
+
+    /// 绑定与纹理、管线同一台设备；显示器变化后仍复用这一条提交路径。
+    func attach(device: MTLDevice) {
+        metalLayer.device = device
+        metalLayer.pixelFormat = .bgra8Unorm
+        metalLayer.framebufferOnly = true
     }
 
     private func commonInit() {
@@ -107,7 +139,7 @@ final class OverviewContentView: NSView {
             label.foregroundColor = NSColor.secondaryLabelColor.cgColor
         }
         titleLabel.foregroundColor = NSColor.labelColor.cgColor
-        layoutToolbar()
+        syncLayerGeometry()
     }
 
     /// 工具条只承载三个事实：数量、当前搜索词、一次性提示。
@@ -142,11 +174,14 @@ final class OverviewContentView: NSView {
                 frameByID: (WindowIdentity) -> CGRect?,
                 renderer: OverviewRenderer,
                 mailboxes: (WindowIdentity) -> FrameMailbox<MetalFrame>?) {
-        let oldRects = Dictionary(uniqueKeysWithValues: slotRects.map { ($0.slot, $0.cellRect) })
+        let oldGeometry = slotRects
         lastRecords = records
         slotRects = layout.cards.compactMap { card in
             guard let identity = identityAt(card.slot, records: records) else { return nil }
-            return (card.slot, identity, viewRect(card.cellRect), viewRect(card.imageRect))
+            return SlotGeometry(slot: card.slot,
+                                identity: identity,
+                                cellRect: viewRect(card.cellRect),
+                                imageRect: viewRect(card.imageRect))
         }
         selectedSlot = selectedSlot.flatMap { layout.card(at: $0) != nil ? $0 : nil }
 
@@ -163,24 +198,17 @@ final class OverviewContentView: NSView {
                 return created
             }()
             let record = records[entry.identity]
-            chrome.layout(in: entry.cellRect, style: style, showsTitle: showsTitles)
-            chrome.apply(title: "\(record?.applicationName ?? "") — \(record?.title ?? "")",
-                         status: statusText(record?.capture),
-                         isSelected: selectedSlot == card.slot,
-                         isHovered: hoveredSlot == card.slot,
-                         accent: accentColor,
-                         style: style,
-                         showsTitle: showsTitles,
-                         scale: backingScaleFactor)
+            applyChrome(chrome, entry: entry, record: record)
         }
         for (slot, chrome) in chromeLayers where !keep.contains(slot) {
             chrome.container.removeFromSuperlayer()
             chromeLayers.removeValue(forKey: slot)
         }
 
-        // 画面矩形未变且行列未变时，只重绘有变化的纹理。
-        let layoutChanged = Dictionary(uniqueKeysWithValues: slotRects.map { ($0.slot, $0.cellRect) }) != oldRects
-        redraw(using: renderer, records: records, frameByID: frameByID, mailboxes: mailboxes, force: layoutChanged)
+        // 同一格子里画面矩形改变（源窗口 resize、标题条开关）也必须重绘，
+        // 只比较 cellRect 会让比例已经变样的画面继续留在旧视口上。
+        let geometryChanged = slotRects != oldGeometry
+        redraw(using: renderer, records: records, frameByID: frameByID, mailboxes: mailboxes, force: geometryChanged)
     }
 
     private func identityAt(_ slot: SlotID, records: [WindowIdentity: WindowRecord]) -> WindowIdentity? {
@@ -191,6 +219,27 @@ final class OverviewContentView: NSView {
         searchQuery.isEmpty
             || record.title.localizedCaseInsensitiveContains(searchQuery)
             || record.applicationName.localizedCaseInsensitiveContains(searchQuery)
+    }
+
+    private func applyChrome(_ chrome: CardChrome, entry: SlotGeometry, record: WindowRecord?) {
+        let status = statusText(record?.capture)
+        chrome.layout(in: entry.cellRect, style: style, showsTitle: showsTitles, showsStatus: status != nil)
+        chrome.apply(title: "\(record?.applicationName ?? "") — \(record?.title ?? "")",
+                     status: status,
+                     isSelected: selectedSlot == entry.slot,
+                     isHovered: hoveredSlot == entry.slot,
+                     accent: accentColor,
+                     style: style,
+                     showsTitle: showsTitles,
+                     scale: backingScaleFactor)
+    }
+
+    /// Hover / 键盘选择变化要立刻改到装饰层外观，不能只置 needsDisplay 或等 reconcile（方案 §13.3）。
+    private func refreshChrome() {
+        for (slot, chrome) in chromeLayers {
+            guard let entry = slotRects.first(where: { $0.slot == slot }) else { continue }
+            applyChrome(chrome, entry: entry, record: lastRecords[entry.identity])
+        }
     }
 
     private func statusText(_ capture: CapturePhase?) -> String? {
@@ -219,10 +268,7 @@ final class OverviewContentView: NSView {
         let changed = renderer.absorbFrames(from: sources)
         guard changed || force else { return }
 
-        let drawableSize = CGSize(width: (bounds.width * backingScaleFactor).rounded(),
-                                  height: (bounds.height * backingScaleFactor).rounded())
-        metalLayer.frame = CGRect(origin: .zero, size: bounds.size)
-        metalLayer.drawableSize = drawableSize
+        syncLayerGeometry(renderer: renderer)
 
         var cards: [CardDraw] = []
         var placeholders: [(rect: CGRect, tint: SIMD4<Float>)] = []
@@ -243,6 +289,21 @@ final class OverviewContentView: NSView {
                       placeholders: placeholders,
                       viewBounds: bounds,
                       scale: backingScaleFactor)
+    }
+
+    /// 尺寸、倍率与 drawableSize 必须一起改：只动 drawableSize 会让画面按旧 scale 解释，
+    /// 拖到不同倍率屏幕上直接表现为模糊或错位（方案 §4.3）。
+    func syncLayerGeometry(renderer: OverviewRenderer? = nil) {
+        metalLayer.frame = CGRect(origin: .zero, size: bounds.size)
+        metalLayer.contentsScale = backingScaleFactor
+        if let renderer { renderer.bind(metalLayer) }
+        let pixels = CGSize(width: (bounds.width * backingScaleFactor).rounded(),
+                            height: (bounds.height * backingScaleFactor).rounded())
+        if pixels.width > 1, pixels.height > 1, metalLayer.drawableSize != pixels {
+            metalLayer.drawableSize = pixels
+        }
+        for label in [titleLabel, queryLabel, hintLabel] { label.contentsScale = backingScaleFactor }
+        layoutToolbar()
     }
 
     /// 视图本地坐标：CG 全局（左上原点）平移到视图左下原点。
@@ -267,13 +328,64 @@ final class OverviewContentView: NSView {
         slotRects.first { $0.cellRect.contains(point) }.map { ($0.slot, $0.identity) }
     }
 
+    /// 一次鼠标手势的事实：起点、按下时命中的格子及其画面快照。
+    /// mouseDown 不展开（R11）：按下即聚焦会让拖动永远变成展开。
+    private struct PendingGesture {
+        let start: CGPoint
+        /// nil 表示按在背景上。
+        let slot: SlotID?
+        let identity: WindowIdentity?
+        let cellRect: CGRect?
+    }
+
+    private enum DragDirection { case left, right, up, down }
+    /// 超过该位移才算拖动，不算点击（方案 §13.1）。
+    private static let dragThreshold: CGFloat = 10
+
+    private var gesture: PendingGesture?
+    private var didDrag = false
+
+    /// 会话关闭、布局改变、窗口销毁、权限丢失都要取消进行中的手势。
+    func cancelMouseGesture() {
+        gesture = nil
+        didDrag = false
+    }
+
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        guard let hit = slot(at: point) else {
+        didDrag = false
+        let hit = slot(at: point)
+        gesture = PendingGesture(start: point,
+                                 slot: hit?.slot,
+                                 identity: hit?.identity,
+                                 cellRect: hit.flatMap { entry in slotRects.first { $0.slot == entry.slot }?.cellRect })
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let start = gesture, start.slot != nil else { return }
+        let point = convert(event.locationInWindow, from: nil)
+        guard hypot(point.x - start.start.x, point.y - start.start.y) > Self.dragThreshold else { return }
+        didDrag = true
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        defer { cancelMouseGesture() }
+        guard let start = gesture else { return }
+        if didDrag {
+            // 交换目标由抬起位置决定，不由拖动过程中经过的格子决定；拖动不额外展开（方案 §13.1）。
+            let release = convert(event.locationInWindow, from: nil)
+            guard let target = slot(at: release)?.slot, target != start.slot else { return }
+            onAction?(.cardDragged(from: start.slot!, to: target))
+            return
+        }
+        guard let origin = start.slot, let identity = start.identity else {
+            // down/up 完整序列落在背景：消费本次交互，不穿透到后面的应用。
             onAction?(.backgroundClicked(slotClicked: nil))
             return
         }
-        onAction?(.cardClicked(hit.identity))
+        // 起点必须仍在同一格子里，否则这次按下落在已被重排的画面之上。
+        guard slotRects.first(where: { $0.slot == origin })?.cellRect == start.cellRect else { return }
+        onAction?(.cardClicked(identity))
     }
 
     override func mouseMoved(with event: NSEvent) {
@@ -287,14 +399,15 @@ final class OverviewContentView: NSView {
     override func mouseExited(with event: NSEvent) {
         guard hoveredSlot != nil else { return }
         hoveredSlot = nil
-        needsDisplay = true
+        refreshChrome()
     }
 
     private func updateHover(_ point: CGPoint) {
         let next = slot(at: point)?.slot
         guard next != hoveredSlot else { return }
         hoveredSlot = next
-        needsDisplay = true
+        // 装饰层外观要当场跟上，不能等下一次目录 reconcile（方案 §13.3）。
+        refreshChrome()
     }
 
     private var trackingArea: NSTrackingArea?
@@ -309,28 +422,46 @@ final class OverviewContentView: NSView {
         super.updateTrackingAreas()
     }
 
+    // MARK: - 键盘
+
     override func keyDown(with event: NSEvent) {
-        switch event.keyCode {
-        case 53:
+        switch Int(event.keyCode) {
+        case kVK_Escape:
             // 有筛选词时 Esc 先清除筛选，其次才退出总览（方案 §11：Esc 只在总览持有键盘焦点时生效）。
             if searchQuery.isEmpty { onAction?(.exit) } else { setQuery("") }
-        case 51:
-            if !searchQuery.isEmpty { setQuery(String(searchQuery.dropLast())) }
-        case 36, 76: selectCurrent()              // Return
-        case 123: moveSelection(column: -1)
-        case 121: moveSelection(row: 1)
-        case 122: moveSelection(row: -1)
-        case 124: moveSelection(column: 1)
-        case 49 where event.modifierFlags.contains(.option): onAction?(.organize)
-        case 3 where event.modifierFlags.contains(.command): onAction?(.search(searchQuery))
+        case kVK_Return, kVK_ANSI_KeypadEnter:
+            selectCurrent()
+        case kVK_LeftArrow: moveSelection(.left)
+        case kVK_RightArrow: moveSelection(.right)
+        case kVK_UpArrow: moveSelection(.up)
+        case kVK_DownArrow: moveSelection(.down)
+        case kVK_Space where event.modifierFlags.contains(.option):
+            onAction?(.organize)
+        case kVK_ANSI_F where event.modifierFlags.contains(.command):
+            onAction?(.search(searchQuery))
         default:
-            if event.characters?.count == 1, let character = event.characters?.first,
-               !event.modifierFlags.contains(.command) {
-                setQuery(searchQuery + String(character))
-            } else {
-                super.keyDown(with: event)
-            }
+            // 其余按键交给输入法解释：中文候选（marked text）经 insertText 提交，
+            // 不能用 event.characters 拼接假装支持输入法。
+            super.keyDown(with: event)
         }
+    }
+
+    /// 输入法/普通按键最终落到这里的文本才是筛选词。
+    /// AppKit 的 `insertText:` 参数是 Any：字符串与带属性字符串都可能出现（IME 提交走后者）。
+    override func insertText(_ insertString: Any) {
+        let text: String
+        if let attributed = insertString as? NSAttributedString {
+            text = attributed.string
+        } else {
+            text = (insertString as? String) ?? ""
+        }
+        guard !text.isEmpty else { return }
+        setQuery(searchQuery + text)
+    }
+
+    override func deleteBackward(_ sender: Any?) {
+        guard !searchQuery.isEmpty else { return }
+        setQuery(String(searchQuery.dropLast()))
     }
 
     private func setQuery(_ text: String) {
@@ -346,53 +477,57 @@ final class OverviewContentView: NSView {
     func setSelected(_ slot: SlotID?) {
         guard slot != selectedSlot else { return }
         selectedSlot = slot
-        needsDisplay = true
+        refreshChrome()
     }
 
-    /// 方向键选择邻近 slot：按行列坐标而不是数组顺序（方案 §11）。
-    private func moveSelection(column: Int = 0, row: Int = 0) {
-        let slots = slotRects.map(\.slot).sorted()
-        guard !slots.isEmpty else { return }
-        guard let current = selectedSlot, let index = slots.firstIndex(of: current) else {
-            setSelected(slots.first)
-            onAction?(slots.first.map { .keyboardSelected($0) } ?? .keyboardSelected(slots[0]))
-            return
+    /// 方向键按冻结网格里的实际邻接关系走，不按全局 SlotID 序号（方案 §13.2）：
+    /// 稀疏编号与副屏格子不会因为序号跳跃而选错。空位与被筛掉的项本来就不在 slotRects 里。
+    private func moveSelection(_ direction: DragDirection) {
+        guard !slotRects.isEmpty else { return }
+        let from = selectedSlot.flatMap { slot in slotRects.first { $0.slot == slot } } ?? topLeadingEntry()
+        guard let fromEntry = from else { return }
+        let unit: CGVector
+        switch direction {
+        case .left: unit = CGVector(dx: -1, dy: 0)
+        case .right: unit = CGVector(dx: 1, dy: 0)
+        case .up: unit = CGVector(dx: 0, dy: 1)   // 视图未翻转：向上是 y 增大
+        case .down: unit = CGVector(dx: 0, dy: -1)
         }
-        let columns = max(1, nearestColumnCount())
-        let flat = index + row * columns + column
-        let clamped = min(max(flat, 0), slots.count - 1)
-        setSelected(slots[clamped])
-        onAction?(.keyboardSelected(slots[clamped]))
-    }
-
-    private func nearestColumnCount() -> Int {
-        guard let first = slotRects.first else { return 1 }
-        let sameRow = slotRects.filter { abs($0.cellRect.minY - first.cellRect.minY) < 2 }
-        return max(1, sameRow.count)
-    }
-
-    /// 拖动卡片调整顺序是明确的编辑动作，交换 slot 并持久化。
-    private var dragStart: (point: CGPoint, slot: SlotID)?
-    override func mouseDragged(with event: NSEvent) {
-        let point = convert(event.locationInWindow, from: nil)
-        if dragStart == nil, let hit = slot(at: point) {
-            dragStart = (point, hit.slot)
-            return
+        let fromCenter = CGPoint(x: fromEntry.cellRect.midX, y: fromEntry.cellRect.midY)
+        // 同一行/列容差：偏移超过一格宽度（或高度）不算邻近，避免跨整屏乱跳。
+        let laneLimit = unit.dx == 0 ? fromEntry.cellRect.width * 1.5 : fromEntry.cellRect.height * 1.5
+        var best: (slot: SlotID, along: CGFloat, across: CGFloat)?
+        for entry in slotRects where entry.slot != fromEntry.slot {
+            let dx = entry.cellRect.midX - fromCenter.x
+            let dy = entry.cellRect.midY - fromCenter.y
+            let along = dx * unit.dx + dy * unit.dy
+            guard along > 1 else { continue }
+            let across = abs(dx * unit.dy - dy * unit.dx)
+            guard across <= laneLimit else { continue }
+            if let current = best {
+                if along < current.along - 1 || (abs(along - current.along) <= 1 && across < current.across) {
+                    best = (entry.slot, along, across)
+                }
+            } else {
+                best = (entry.slot, along, across)
+            }
         }
-        guard let start = dragStart, hypot(point.x - start.point.x, point.y - start.point.y) > 12,
-              let target = slot(at: point), target.slot != start.slot else { return }
-        onAction?(.cardDragged(from: start.slot, to: target.slot))
-        dragStart = nil
+        // 边界上没有候选时保持当前选择，不做未声明的循环跳转。
+        guard let target = best else { return }
+        setSelected(target.slot)
+        onAction?(.keyboardSelected(target.slot))
     }
 
-    override func mouseUp(with event: NSEvent) {
-        dragStart = nil
+    /// 未选中任何卡片时的起点：视觉左上角。
+    private func topLeadingEntry() -> SlotGeometry? {
+        slotRects.min { a, b in
+            a.cellRect.maxY != b.cellRect.maxY ? a.cellRect.maxY > b.cellRect.maxY : a.cellRect.minX < b.cellRect.minX
+        }
     }
 
     override func layout() {
         super.layout()
-        metalLayer.frame = CGRect(origin: .zero, size: bounds.size)
-        layoutToolbar()
+        syncLayerGeometry()
     }
 
     // MARK: - 无障碍

@@ -29,7 +29,7 @@ final class TransitionProxyWindow: NSWindow {
 /// 用 Metal 把卡片画面从格子矩形插值到真实窗口矩形。
 /// 宽高比不同：容器矩形插值 + 内容等比适配 + 短交叉淡化，禁止非均匀拉伸（方案 §10.2.5）。
 final class TransitionProxyView: NSView {
-    private let metalLayer = CAMetalLayer()
+    let metalLayer = CAMetalLayer()
     private var renderer: OverviewRenderer?
     private var heldFrame: MetalFrame?
     private var ticker: Timer?
@@ -48,7 +48,10 @@ final class TransitionProxyView: NSView {
         super.init(frame: frameRect)
         wantsLayer = true
         layer = CALayer()
+        // 与总览、捕获纹理同一台设备：自建 device 会让 drawable 与纹理不兼容，代理一帧都画不出来。
+        metalLayer.device = metal.device
         metalLayer.pixelFormat = .bgra8Unorm
+        metalLayer.framebufferOnly = true
         metalLayer.isOpaque = false
         metalLayer.backgroundColor = NSColor.clear.cgColor
         // 视图还没进窗口，拿不到屏的倍率：先用保守值，真实倍率由 configure(scale:) 传入。
@@ -66,27 +69,36 @@ final class TransitionProxyView: NSView {
         metalLayer.contentsScale = max(1, scale)
     }
 
+    /// 动画保存的像素宽高比应取有效捕获内容/真实源窗口比例（由调用方传入）。
     func setSource(_ source: MetalFrame?, sourceAspect: CGFloat) {
         heldFrame = source
         self.sourceAspect = max(0.2, sourceAspect)
     }
 
-    /// 动画被打断时从 presentation layer 的当前矩形继续，而不是从旧起点跳回（方案 §7）。
+    /// 动画是否仍在跑：打断续接必须据此选择起点，而不是从上一次起点重启。
+    private(set) var isAnimating = false
+
+    /// 动画被打断时从当前矩形继续，而不是从旧起点跳回（方案 §7）。
     func currentRect() -> CGRect { currentAnimationRect }
 
     private(set) var currentAnimationRect: CGRect = .zero
     /// 当前画面在 CG 全局坐标里的位置，供打断时接续。
     private(set) var currentRectInCG: CGRect = .zero
 
+    /// 减少动态效果时不做几何插值，只在终点做短淡化。
+    enum AnimationMode { case scale, fade }
+
     func animate(fromCG source: CGRect,
                  toCG destination: CGRect,
                  durationMS: Int,
                  reverse: Bool,
+                 mode: AnimationMode = .scale,
                  startAlpha: CGFloat = 1,
                  endAlpha: CGFloat = 1) {
-        // reverse 只影响调用方的语义（展开/收回），矩形插值本身是对称的。
+        // reverse 只影响调用方的语义（展开/收回），矩形与 alpha 插值本身是对称的。
         _ = reverse
         ticker?.invalidate()
+        animationMode = mode
         startRect = viewRect(source)
         endRect = viewRect(destination)
         currentAnimationRect = startRect
@@ -96,6 +108,7 @@ final class TransitionProxyView: NSView {
         self.startAlpha = startAlpha
         self.endAlpha = endAlpha
         metalLayer.opacity = Float(startAlpha)
+        isAnimating = true
         let next = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
             self?.tick()
         }
@@ -106,13 +119,19 @@ final class TransitionProxyView: NSView {
     func stop() {
         ticker?.invalidate()
         ticker = nil
+        isAnimating = false
     }
+
+    private var animationMode: AnimationMode = .scale
 
     private func tick() {
         let elapsed = Date().timeIntervalSince(startDate)
         let progress = min(1, elapsed / duration)
         let eased = easeInOut(progress)
-        let container = interpolatedRect(from: startRect, to: endRect, progress: CGFloat(eased))
+        // fade：矩形固定在终点，只有 alpha 变化；"声称淡化"就必须真的改 alpha。
+        let container = animationMode == .fade
+            ? endRect
+            : interpolatedRect(from: startRect, to: endRect, progress: CGFloat(eased))
         currentAnimationRect = container
         currentRectInCG = cgRect(fromView: container)
         let alpha = startAlpha + (endAlpha - startAlpha) * CGFloat(eased)
@@ -131,10 +150,15 @@ final class TransitionProxyView: NSView {
                       viewBounds: viewBounds,
                       scale: max(1, metalLayer.contentsScale))
         if progress >= 1 {
-            ticker?.invalidate()
-            ticker = nil
+            stop()
             onComplete?()
         }
+    }
+
+    /// 代理视图没有把 bounds 传给图层就没有任何可见像素。
+    override func layout() {
+        super.layout()
+        metalLayer.frame = CGRect(origin: .zero, size: bounds.size)
     }
 
     private func viewRect(_ cgRect: CGRect) -> CGRect {

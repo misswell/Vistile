@@ -24,6 +24,8 @@ final class AppCoordinator {
 
     private let resolver = AXWindowResolver()
     private let renderer: OverviewRenderer
+    /// 启动时创建的共享设备：总览图层与代理图层都必须绑定它（R02）。
+    private let metal: MetalContext
 
     // MARK: - 状态
 
@@ -65,6 +67,7 @@ final class AppCoordinator {
         self.permissions = permissions
         self.metrics = metrics
         self.recorder = recorder
+        self.metal = metal
         self.renderer = renderer
         self.journal = journal
         self.catalog = catalog
@@ -297,7 +300,8 @@ final class AppCoordinator {
                                     renderer: renderer,
                                     mailboxProvider: { [weak self] identity in self?.capture.mailbox(for: identity) },
                                     style: state.style,
-                                    showsTitles: settings.showsTitles)
+                                    showsTitles: settings.showsTitles,
+                                    searchQuery: state.searchQuery)
             controller.setToolbar(total: total,
                                   shown: records.values.filter { matchesSearch($0) }.count,
                                   query: state.searchQuery,
@@ -414,7 +418,7 @@ final class AppCoordinator {
             controllers.removeValue(forKey: displayID)
         }
         for display in displays where controllers[display.id] == nil {
-            let controller = OverviewWindowController(display: display, metalLayerScale: display.backingScale)
+            let controller = OverviewWindowController(display: display, metal: metal)
             controller.onAction = { [weak self] action in self?.handle(action) }
             controller.onFirstClick = { [weak self] in
                 // 只统计"第一下就落在总览上"的事实，不在这里改状态。
@@ -451,11 +455,30 @@ final class AppCoordinator {
     private func applyKeyboardFocus(_ focus: KeyboardFocus) {
         switch focus {
         case .overview:
-            for controller in controllers.values { controller.setKeyboardFocus(false) }
-            keyboardHost()?.setKeyboardFocus(true)
+            let host = keyboardHost()
+            for controller in controllers.values where controller !== host { controller.setKeyboardFocus(false) }
+            host?.setKeyboardFocus(true)
+            reportKeyboardReality(focus, host: host)
         case .targetApplication, .none:
             // 聚焦真实窗口时必须让出键盘，否则输入法与快捷键会被面板吃掉。
             for controller in controllers.values { controller.setKeyboardFocus(false) }
+            reportKeyboardReality(focus, host: nil)
+        }
+    }
+
+    /// 域状态与 NSWindow 实况必须对得上：脱节时写事实，不能只在状态机里以为已切换。
+    private func reportKeyboardReality(_ focus: KeyboardFocus, host: OverviewWindowController?) {
+        switch focus {
+        case .overview:
+            guard let host else {
+                log("keyboard", "总览需要键盘，但当前没有可用面板")
+                return
+            }
+            guard !host.keyboardAccepted else { return }
+            log("keyboard", "总览键盘未落位：面板不是 key 或 first responder 不是内容视图，方向键/Esc/搜索不保证有效")
+        case .targetApplication, .none:
+            guard let still = controllers.values.first(where: { $0.isKey }) else { return }
+            log("keyboard", "让出键盘后 display \(still.displayID) 面板仍是 key，原生输入可能落进总览")
         }
     }
 
