@@ -113,7 +113,8 @@ final class OverviewWindowController {
                 panel.order(.below, relativeTo: Int(windowID))
             }
         case .splitBackgroundTiles:
-            // 分块避让由 FocusCoordinator 承载多个窗口，这里保持整屏面板隐藏。
+            // 分块避让没有实现：这里只能保持整屏普通层级，不会避开目标区域。
+            // 该值不再对用户开放，遗留持久化值由 SettingsModel 迁移到普通层级（方案 §12.1）。
             panel.level = .normal
         }
     }

@@ -11,7 +11,15 @@ enum OrderingStrategy: String, CaseIterable, Codable {
     /// 显式把总览排到目标窗口编号之下。
     case orderedBelowTarget
     /// 用围绕目标矩形的多个背景承载窗口避开目标区域。
+    ///
+    /// 未实现：代码里没有任何分块窗口、裁剪或命中测试，旧的"由 FocusCoordinator 承载"注释不成立。
+    /// 保留枚举值只为识别遗留持久化值，不对用户开放（方案 §12.1）。
     case splitBackgroundTiles
+
+    /// 只有真实实现并通过同一兼容矩阵验证的策略才对用户开放。
+    static var userSelectableCases: [OrderingStrategy] { allCases.filter { !$0.isUnimplemented } }
+
+    var isUnimplemented: Bool { self == .splitBackgroundTiles }
 
     var displayName: String {
         switch self {
@@ -130,6 +138,8 @@ final class SettingsModel: ObservableObject {
     @Published var orderingStrategy: OrderingStrategy { didSet { defaults.set(orderingStrategy.rawValue, for: .orderingStrategy) } }
     @Published var didCompleteGuidedSetup: Bool { didSet { defaults.set(didCompleteGuidedSetup, for: .didCompleteGuidedSetup) } }
     @Published var verboseLogging: Bool { didSet { defaults.set(verboseLogging, for: .systemLogging) } }
+    /// 本次启动从持久化值里迁移掉的未实现策略；nil 表示没有发生过迁移。
+    private(set) var migratedOrderingStrategy: OrderingStrategy?
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -163,7 +173,15 @@ final class SettingsModel: ObservableObject {
         tier = CaptureTier(rawValue: defaults.string(for: .tier) ?? "") ?? .balanced
         priorityWindowKeys = defaults.stringArray(for: .priorityKeys) ?? []
         excludedBundleIDs = defaults.stringArray(for: .excludedBundles) ?? []
-        orderingStrategy = OrderingStrategy(rawValue: defaults.string(for: .orderingStrategy) ?? "") ?? .normalLevelActivateAndRaise
+        let storedStrategy = OrderingStrategy(rawValue: defaults.string(for: .orderingStrategy) ?? "")
+            ?? .normalLevelActivateAndRaise
+        // 未实现的策略不能继续「看起来开着」：迁移到普通层级，并留下一次诊断事实（方案 §12.1）。
+        let needsMigration = storedStrategy.isUnimplemented
+        let resolvedStrategy = needsMigration ? OrderingStrategy.normalLevelActivateAndRaise : storedStrategy
+        migratedOrderingStrategy = needsMigration ? storedStrategy : nil
+        orderingStrategy = resolvedStrategy
+        // init 里 didSet 不触发，迁移结果必须显式写回：否则每次启动都重演一遍迁移。
+        if needsMigration { defaults.set(resolvedStrategy.rawValue, for: .orderingStrategy) }
         didCompleteGuidedSetup = defaults.bool(for: .didCompleteGuidedSetup)
         verboseLogging = defaults.bool(for: .systemLogging)
     }

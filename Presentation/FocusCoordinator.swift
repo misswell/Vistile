@@ -116,8 +116,40 @@ final class FocusCoordinator {
             return
         }
         // 排队期间目录可能已经换了一代：以最新记录为准，但只写 reducer 给的那个 frame。
-        let current = catalog.record(for: identity) ?? record
-        let ax = catalog.axEntry(for: current)
+        var current = catalog.record(for: identity) ?? record
+        var ax = catalog.axEntry(for: current)
+        if current.isMinimized || current.capture == .pausedMinimized {
+            guard let element = ax?.element else {
+                // 没有句柄就无从解除最小化：不能说"已经展开了"。
+                report(token: token, reason: "\(current.applicationName) 的最小化窗口缺少 AX 句柄")
+                return
+            }
+            let released = await writer.setMinimized(false, element: element)
+            guard isCurrent(token, identity) else { return }
+            guard released else {
+                recorder.updateRow(application: current.applicationName,
+                                   version: "",
+                                   ordering: .failed,
+                                   knownLimitation: "写入 kAXMinimized=false 后读回仍是最小化")
+                report(token: token, reason: "\(current.applicationName) 未解除最小化")
+                return
+            }
+            // 解除最小化会让目录换代：句柄必须按身份重取，旧 AX 索引不得复用（方案 §11）。
+            await catalog.refreshAndWait(reason: .windowEvent)
+            guard isCurrent(token, identity) else { return }
+            guard let fresh = catalog.record(for: identity) else {
+                report(token: token, reason: "解除最小化后目录里找不到该窗口")
+                return
+            }
+            // "其他桌面"的禁用规则照旧：不因为刚解除最小化就绕过（方案 §11 第 7 条）。
+            guard fresh.allowsAutoFocus else {
+                noteBlocked(fresh, "解除最小化后仍不能聚焦：\(fresh.restriction.map { "\($0)" } ?? "身份未唯一确定")")
+                report(token: token, reason: "\(fresh.applicationName) 的窗口当前不可聚焦")
+                return
+            }
+            current = fresh
+            ax = catalog.axEntry(for: fresh)
+        }
         var applied = targetFrame
         if let ax, current.allowsGeometryControl {
             let started = Date()
@@ -155,8 +187,13 @@ final class FocusCoordinator {
                 ? "AX 报告该窗口不可调整尺寸，或本代次句柄不可用"
                 : "身份未唯一确定，禁止几何写入")
         }
-        await bringToFront(record: current, element: ax?.element)
+        let ordering = await bringToFront(record: current, element: ax?.element)
         guard isCurrent(token, identity) else { return }
+        // 有相反证据时不把它当成功展开：走回总览与恢复分支（方案 §12.2）。
+        if ordering.isProvenBehind {
+            report(token: token, reason: "\(current.applicationName) 没能带到前台（\(ordering.evidence)）")
+            return
+        }
         animate(identity: identity,
                 token: token,
                 from: cardRectProvider?(identity) ?? applied,
@@ -285,25 +322,68 @@ final class FocusCoordinator {
         return await writer.currentFrame(of: element) ?? record.frame
     }
 
+    /// 前景化的实测结果：只由读回事实构成，不写"我以为成功"（方案 §12.2）。
+    private struct FrontOrderingReport {
+        var activationRequested = false
+        var activationReturned = false
+        var raiseReturned = false
+        /// 目标是否就是应用的当前 focused window。nil = 读不到，不等于"不是"。
+        var focusedWindowMatches: Bool?
+        /// 目标进程是否确实是当前前台进程（读 NSRunningApplication，不是 activate 的返回值）。
+        var frontApplicationMatches: Bool?
+
+        var isVerifiedFront: Bool { focusedWindowMatches == true || frontApplicationMatches == true }
+        /// 只有相反证据才允许判定失败：读不到不等于失败，但也不能记成成功。
+        var isProvenBehind: Bool { focusedWindowMatches == false && frontApplicationMatches == false }
+
+        var evidence: String {
+            "activate=\(activationReturned) raise=\(raiseReturned) focused读回=\(text(focusedWindowMatches)) 前台=\(text(frontApplicationMatches))"
+        }
+
+        private func text(_ value: Bool?) -> String {
+            switch value {
+            case .some(true): return "是"
+            case .some(false): return "否"
+            case nil: return "不可读"
+            }
+        }
+    }
+
     /// 前景化：公开激活 API + AX Raise + 设为 focused window，不使用私有层级调用。
-    private func bringToFront(record: WindowRecord, element: AXUIElement?) async {
+    /// 返回读回事实；调用方不得把"没报错"当成"已经在前面"。
+    @discardableResult
+    private func bringToFront(record: WindowRecord, element: AXUIElement?) async -> FrontOrderingReport {
         let identity = record.identity
+        var report = FrontOrderingReport()
         if let element {
-            _ = await writer.raise(element: element)
+            report.raiseReturned = await writer.raise(element: element)
             _ = await writer.focus(element: element)
+            // 读回而不是信任写入返回：同应用多窗口时，兄弟窗口占着 focused window 也必须看得出来。
+            if let focused = await writer.focusedWindow(pid: identity.processID) {
+                report.focusedWindowMatches = CFEqual(focused.element, element)
+            }
         }
         guard let application = NSRunningApplication(processIdentifier: identity.processID) else {
             onStatus?("激活失败：进程已退出")
-            return
+            report.frontApplicationMatches = false
+            recorder.updateRow(application: record.applicationName,
+                               version: "",
+                               ordering: .failed,
+                               knownLimitation: "进程已退出，无法前景化")
+            return report
         }
         // 目标应用激活是"原生前台输入"的前提；失败时只记录，不伪装成功。
         // macOS 14 起 .activateIgnoringOtherApps 已失效，只能接受系统的前台限制策略。
-        let activated = application.activate(options: [])
+        report.activationRequested = true
+        report.activationReturned = application.activate(options: [])
+        report.frontApplicationMatches = application.isActive
         recorder.updateRow(application: record.applicationName,
                            version: "",
-                           ordering: activated ? .unverified : .failed,
-                           knownLimitation: activated ? nil : "NSRunningApplication.activate 返回 false")
-        if !activated { onStatus?("激活 \(record.applicationName) 失败") }
+                           ordering: report.isVerifiedFront ? .passed : .unverified,
+                           knownLimitation: report.isVerifiedFront ? nil
+                               : "公开接口无法确认目标已在前台（\(report.evidence)）；须以实机记录为准")
+        if !report.activationReturned { onStatus?("激活 \(record.applicationName) 请求未被系统接受：\(report.evidence)") }
+        return report
     }
 
     private func noteBlocked(_ record: WindowRecord, _ reason: String) {

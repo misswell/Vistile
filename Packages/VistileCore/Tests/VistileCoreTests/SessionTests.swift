@@ -137,6 +137,55 @@ struct SessionReducerTests {
         #expect(state.phase == .overview)
     }
 
+    @Test("总览态点背景不引发切换：不能留下令牌吞掉后来的真实外部激活")
+    func backgroundClickInOverviewLeavesNoToken() {
+        var (state, _) = overview(count: 3)
+        _ = Fixtures.dispatch(&state, .backgroundClicked(interaction: InteractionToken()))
+        // 用户真的切去别的应用：总览要退出，而不是被上一次内部点击的令牌挡掉（方案 §12.2）。
+        let effects = Fixtures.dispatch(&state, .focusLost(origin: .otherApplication(bundleID: "com.example.other")))
+        #expect(!effects.isEmpty, "外部激活被内部令牌抑制：总览会赖在前台不放")
+        #expect(state.phase != .overview)
+    }
+
+    @Test("背景点击造成的收起仍要认出自己触发的前台变更")
+    func backgroundClickCollapseStillSuppressesOwnActivation() {
+        var (state, list) = overview(count: 3)
+        var effects = Fixtures.dispatch(&state, .cardClicked(list[0].identity))
+        effects = Fixtures.dispatch(&state, .expandCompleted(Fixtures.expandToken(effects)!))
+        #expect(state.phase == .focused(target: list[0].identity))
+        _ = Fixtures.dispatch(&state, .backgroundClicked(interaction: InteractionToken()))
+        #expect(state.phase.token != nil)
+        // 自己点背景把前台给了目标应用之外的进程：这次不是外部离开。
+        let own = Fixtures.dispatch(&state, .focusLost(origin: .otherApplication(bundleID: "com.example.other")))
+        #expect(own.isEmpty)
+        #expect(state.phase.isVisible)
+    }
+
+    @Test("受控目标被关闭：先停代理再回总览，晚到的旧令牌回调无效")
+    func closedTargetStopsProxy() {
+        var (state, list) = overview(count: 3)
+        var effects = Fixtures.dispatch(&state, .cardClicked(list[0].identity))
+        let token = Fixtures.expandToken(effects)!
+        // 动画进行到一半时窗口被销毁：画面飞的是这个窗口的矩形，必须当场停下。
+        effects = Fixtures.dispatch(&state, .windowClosed(list[0].identity))
+        #expect(state.phase == .overview)
+        #expect(containsEffect(effects) { if case .cancelTransition = $0 { return true }; return false })
+        #expect(state.phase.controlledTarget == nil)
+        _ = Fixtures.dispatch(&state, .expandCompleted(token))
+        #expect(state.phase == .overview, "旧代理的完成回调不能把已经回总览的状态改回报错的前台")
+    }
+
+    @Test("聚焦中的目标被关闭：同样要收掉代理并清除引用")
+    func closedFocusedTargetStopsProxy() {
+        var (state, list) = overview(count: 3)
+        var effects = Fixtures.dispatch(&state, .cardClicked(list[1].identity))
+        effects = Fixtures.dispatch(&state, .expandCompleted(Fixtures.expandToken(effects)!))
+        #expect(state.phase == .focused(target: list[1].identity))
+        effects = Fixtures.dispatch(&state, .windowClosed(list[1].identity))
+        #expect(state.phase == .overview)
+        #expect(containsEffect(effects) { if case .cancelTransition = $0 { return true }; return false })
+    }
+
     @Test("过渡期间的目标请求 latest-wins")
     func latestWinsTarget() {
         var (state, list) = overview(count: 4)
@@ -187,7 +236,6 @@ struct SessionReducerTests {
         var (state, list) = overview(count: 4, policy: policy)
         let a = list[0].identity
         let b = list[1].identity
-        let provisional = CGRect(x: 40, y: 40, width: 1_200, height: 800)
 
         var effects = Fixtures.dispatch(&state, .cardClicked(a))
         let tokenA = Fixtures.expandToken(effects)!

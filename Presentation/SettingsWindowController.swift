@@ -237,7 +237,7 @@ struct SettingsRootView: View {
                 ForEach(OverviewSortMode.allCases, id: \.self) { Text($0.displayName).tag($0) }
             }
             Picker("层级策略", selection: binding({ $0.orderingStrategy }, { $0.orderingStrategy = $1 })) {
-                ForEach(OrderingStrategy.allCases, id: \.self) { Text($0.displayName).tag($0) }
+                ForEach(OrderingStrategy.userSelectableCases, id: \.self) { Text($0.displayName).tag($0) }
             }
             Text("层级是否真的稳定压过其他应用，必须以实测记录为准；未验证前不要当成保证。")
                 .font(.callout).foregroundStyle(.secondary)

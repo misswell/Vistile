@@ -38,6 +38,8 @@ public enum SessionReducer {
             }
             if let target = state.phase.controlledTarget, target == identity {
                 // 目标已销毁：没有可恢复的 frame，只清理事务与捕获。
+                // 进行中的代理画面必须先停下：它飞的是这个窗口的位置与快照（方案 §12.2）。
+                effects.append(.cancelTransition)
                 state.transactions.removeValue(forKey: identity)
                 effects.append(.dropJournal(identity))
                 state.pendingTarget = nil
@@ -91,12 +93,19 @@ public enum SessionReducer {
             return handleTargetRequest(&state, identity)
 
         case let .backgroundClicked(interaction):
-            state.trustedInteraction = interaction
             switch state.phase {
-            case let .focused(target): return beginCollapse(&state, target)
-            case let .expanding(target, _): return beginCollapse(&state, target)
-            case let .switching(_, target, _): return beginCollapse(&state, target)
-            default: return []
+            case let .focused(target):
+                state.trustedInteraction = interaction
+                return beginCollapse(&state, target)
+            case let .expanding(target, _):
+                state.trustedInteraction = interaction
+                return beginCollapse(&state, target)
+            case let .switching(_, target, _):
+                state.trustedInteraction = interaction
+                return beginCollapse(&state, target)
+            default:
+                // 这次点击没有引发任何收起或切换：不能留下令牌去吞掉后来的真实外部激活（方案 §12.2）。
+                return []
             }
 
         case let .focusLost(origin):

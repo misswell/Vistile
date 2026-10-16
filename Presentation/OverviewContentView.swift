@@ -53,6 +53,11 @@ final class OverviewContentView: NSView {
     private let queryLabel = CATextLayer()
     private let hintLabel = CATextLayer()
 
+    /// 装饰层事实：宿主测试用它确认 hover/选中/状态真的落到图层外观，而不是只改了变量。
+    func chrome(for slot: SlotID) -> CardChrome? { chromeLayers[slot] }
+    /// 这一此刻命中的窗口：筛选或重排后用来验证"格子放的是哪个窗口"。
+    func identityInCell(at point: CGPoint) -> WindowIdentity? { slot(at: point)?.identity }
+
     override var isFlipped: Bool { false }
     override var wantsUpdateLayer: Bool { false }
     /// 面板可以成为 key，但键盘事件只有落到 content view 才有方向键/Esc/搜索。

@@ -24,6 +24,8 @@ protocol GeometryWriting: AnyObject {
     func apply(frame target: CGRect, element: AXUIElement) async -> GeometryWriteReport
     func raise(element: AXUIElement) async -> Bool
     func focus(element: AXUIElement) async -> Bool
+    func setMinimized(_ minimized: Bool, element: AXUIElement) async -> Bool
+    func focusedWindow(pid: pid_t) async -> AXWindowEntry?
 }
 
 extension AXWindowResolver: GeometryWriting {}

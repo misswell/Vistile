@@ -126,6 +126,8 @@ public enum SessionEffect: Hashable, Sendable {
     case restoreGeometry(WindowIdentity, token: TransitionToken)
     case restoreAll(token: TransitionToken, identities: [WindowIdentity])
     case raiseTarget(WindowIdentity)
+    /// 立刻结束进行中的代理动画：目标被销毁时不能让画面继续飞向一个不存在的窗口（方案 §12.2）。
+    case cancelTransition
     case setKeyboardFocus(KeyboardFocus)
     case scheduleReconcile(TimeInterval)
     case cancelReconcile

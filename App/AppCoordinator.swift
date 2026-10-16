@@ -44,8 +44,9 @@ final class AppCoordinator {
     private var isSyncing = false
     private var needsSync = false
     private var reconcileTimer: Timer?
-    private var redrawTimer: Timer?
     private var hintTimer: Timer?
+    /// 上一次真正下发给面板的层级事实；nil 表示还没排过。
+    private var appliedOrdering: (strategy: OrderingStrategy, relativeToWindowID: UInt32?)?
     private var pendingHint: String?
     private var structuralRefreshWork: DispatchWorkItem?
     private var hasWarnedTinyThumbnails = false
@@ -158,6 +159,11 @@ final class AppCoordinator {
         recorder.record("Metal 渲染", subject: "总览画面合成", result: .unverified,
                         detail: "设备与纹理缓存已建立；帧率、内存与 WindowServer 增量待实测")
         log("app", "协调层就绪：层级策略 \(settings.orderingStrategy.displayName)，密度 \(settings.density.rawValue)")
+        // 虚假可选项必须留下迁移事实，而不是悄悄改掉用户的设置（方案 §12.1）。
+        if let migrated = settings.migratedOrderingStrategy {
+            recorder.record("层级策略迁移", subject: migrated.displayName, result: .blocked,
+                            detail: "该策略没有实现（没有分块窗口、裁剪与命中测试），已改用 \(settings.orderingStrategy.displayName)")
+        }
     }
 
     // MARK: - 对外动作
@@ -322,6 +328,10 @@ final class AppCoordinator {
         case let .raiseTarget(identity):
             focus.raiseOnly(identity)
 
+        case .cancelTransition:
+            // 目标没了：立刻收掉代理浮层并清空令牌，旧动画回调此后不再有效。
+            focus.cancelAnimation()
+
         case let .setKeyboardFocus(focus):
             applyKeyboardFocus(focus)
 
@@ -418,6 +428,11 @@ final class AppCoordinator {
 
     private func applyOrdering() {
         let relative = orderingRelativeTo
+        // 层级只在策略或目标窗口编号改变时重排：捕获帧、轮询事实都会触发同步，
+        // 每次回调都 order(.below) 会与 WindowServer 持续较劲（方案 §12.2）。
+        if let applied = appliedOrdering, applied.strategy == settings.orderingStrategy,
+           applied.relativeToWindowID == relative { return }
+        appliedOrdering = (settings.orderingStrategy, relative)
         for controller in controllers.values {
             controller.applyOrdering(strategy: settings.orderingStrategy, relativeToWindowID: relative)
         }
@@ -445,7 +460,7 @@ final class AppCoordinator {
             controller.show()
             catalog.registerOwnWindow(id: controller.windowNumber)
         }
-        startRedrawLoop()
+        // 画面由新帧驱动、装饰层由状态变化驱动：这里不再挂 60Hz 空转定时器（方案 §13.3、§14 空闲 CPU）。
         if let preferredDisplay, let controller = controllers[preferredDisplay] {
             controller.setKeyboardFocus(true)
         }
@@ -457,11 +472,11 @@ final class AppCoordinator {
             controller.setKeyboardFocus(false)
             controller.hide()
         }
-        redrawTimer?.invalidate()
-        redrawTimer = nil
         hintTimer?.invalidate()
         hintTimer = nil
         pendingHint = nil
+        // 下一次打开的面板是同一批对象，但层级要重新下发一次：隐藏期间目标可能已换。
+        appliedOrdering = nil
         observerHub.stopAll()
         // 关闭后不留纹理与流，空闲 CPU 才能回基线（方案 §14）。
         capture.stopAll(releasingMailboxes: true)
@@ -473,10 +488,12 @@ final class AppCoordinator {
     private func ensureControllers() {
         let displays = catalog.mapper.displays
         let ids = Set(displays.map(\.id))
+        var membershipChanged = false
         for (displayID, controller) in controllers where !ids.contains(displayID) {
             controller.hide()
             catalog.forgetOwnWindow(id: controller.windowNumber)
             controllers.removeValue(forKey: displayID)
+            membershipChanged = true
         }
         for display in displays {
             if let controller = controllers[display.id] {
@@ -492,16 +509,10 @@ final class AppCoordinator {
                 self?.backgroundClickCount += 1
             }
             controllers[display.id] = controller
+            membershipChanged = true
         }
-    }
-
-    private func startRedrawLoop() {
-        guard redrawTimer == nil else { return }
-        let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.redraw() }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        redrawTimer = timer
+        // 新建的面板从没被排过序：签名要作废，否则这一屏永远停在默认层级。
+        if membershipChanged { appliedOrdering = nil }
     }
 
     /// 有新鲜帧才提交绘制；没有变化的格子不重复上传（方案 §9.6）。
