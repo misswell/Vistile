@@ -716,6 +716,63 @@ struct WindowMatcherTests {
     }
 }
 
+@Suite("目录身份判据")
+struct CatalogIdentityAuditTests {
+    @Test("跨进程复用同一个 AX 索引不是冲突")
+    func crossProcessIndexReuseIsNotClash() {
+        // 真机的常态：每个应用的窗口列表都从 0 开始编号，所以不同应用都有 0 号窗口。
+        // 0.1.1 与 0.1.3 两轮探针把 17 个窗口的索引放在一起比数量，判成"同进程不唯一"——
+        // 那测的是这件不存在的要求，句柄表与写回都是按 (pid, index) 取的。
+        let records = [
+            Fixtures.record(500, 11, confidence: .unique(score: 0.9, axIndex: 0)),
+            Fixtures.record(500, 12, confidence: .unique(score: 0.85, axIndex: 1)),
+            Fixtures.record(600, 21, confidence: .unique(score: 0.9, axIndex: 0)),
+            Fixtures.record(700, 31, confidence: .unique(score: 0.9, axIndex: 0))
+        ]
+        #expect(CatalogIdentityAudit.axIndexClashes(in: records).isEmpty)
+        #expect(CatalogIdentityAudit.hasUniqueWindowIDs(records))
+    }
+
+    @Test("同进程两个窗口解析到同一个索引才是冲突")
+    func sameProcessDuplicateIndexIsClash() {
+        let records = [
+            Fixtures.record(500, 12, app: "Code", confidence: .unique(score: 0.9, axIndex: 0)),
+            Fixtures.record(500, 11, app: "Code", confidence: .unique(score: 0.9, axIndex: 0)),
+            Fixtures.record(600, 21, app: "Chrome", confidence: .unique(score: 0.9, axIndex: 0))
+        ]
+        let clashes = CatalogIdentityAudit.axIndexClashes(in: records)
+        #expect(clashes.count == 1)
+        #expect(clashes.first?.processID == 500)
+        #expect(clashes.first?.axIndex == 0)
+        #expect(clashes.first?.windowIDs == [11, 12])
+    }
+
+    @Test("没有唯一确定的窗口不参与索引冲突判定")
+    func unresolvedRecordsIgnored() {
+        let records = [
+            Fixtures.record(500, 11, confidence: .ambiguous(alternatives: [0, 1])),
+            Fixtures.record(500, 12, confidence: .unmatched),
+            Fixtures.record(500, 13, confidence: .unique(score: 0.9, axIndex: 2))
+        ]
+        #expect(CatalogIdentityAudit.axIndexClashes(in: records).isEmpty)
+    }
+
+    @Test("窗口编号重复说明目录本身重了")
+    func duplicateWindowIDDetected() {
+        #expect(CatalogIdentityAudit.hasUniqueWindowIDs([Fixtures.record(500, 11), Fixtures.record(600, 21)]))
+        #expect(!CatalogIdentityAudit.hasUniqueWindowIDs([Fixtures.record(500, 11), Fixtures.record(500, 11, puid: 2)]))
+    }
+
+    @Test("冲突列表与输入顺序无关")
+    func clashListIsOrderIndependent() {
+        let a = Fixtures.record(500, 11, confidence: .unique(score: 0.9, axIndex: 0))
+        let b = Fixtures.record(500, 12, confidence: .unique(score: 0.9, axIndex: 0))
+        let c = Fixtures.record(600, 21, confidence: .unique(score: 0.9, axIndex: 0))
+        #expect(CatalogIdentityAudit.axIndexClashes(in: [a, b, c])
+                == CatalogIdentityAudit.axIndexClashes(in: [c, b, a]))
+    }
+}
+
 @Suite("支持范围")
 struct WindowEligibilityTests {
     @Test("普通无标题窗口不因标题为空被排除")

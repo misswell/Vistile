@@ -124,7 +124,7 @@ SIGNING_IDENTITY="Apple Development: <你的身份>" RELEASE_TAG=v9.9.9-selfchec
 
 ```bash
 # 纯逻辑：状态机、格子、坐标、捕获模式、事务与预算
-cd Packages/VistileCore && swift test      # 126 项，12 个 suite
+cd Packages/VistileCore && swift test      # 131 项，13 个 suite
 
 # 宿主层：真实控制器 / 内容视图 / CAMetalLayer，目录与几何写入走注入替身
 xcodegen generate

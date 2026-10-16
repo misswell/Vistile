@@ -35,7 +35,7 @@ Code 上的连带提升仍是未澄清的失败项，不能拿 Chrome 的通过�
 | 多显示器覆盖 | `P0-7` · 2 块屏，有窗口的屏幕都有承载窗口，缺布局 0 |
 | 捕获预算按上限降档 | 备注「降级影响 17 个目标（流上限 12）」，采样时 12 路流 + 5 个低频卡片 |
 | 退出事务恢复 | 「未结束事务 0 条」；0.1.3 探针 14 秒跑完并自行退出 |
-| 纯逻辑层 126 项 / 宿主层 80 项 | `swift test`、`xcodebuild test -scheme VistileHostTests`，CI 两条同步在跑 |
+| 纯逻辑层 131 项 / 宿主层 80 项 | `swift test`、`xcodebuild test -scheme VistileHostTests`，CI 两条同步在跑 |
 
 仍要澄清、现在既不算通过也不算失败的：
 

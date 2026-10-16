@@ -96,15 +96,22 @@ final class P0Probe {
         let records = Array(coordinator.state.records.values)
         let apps = Dictionary(grouping: records, by: { $0.identity.processID })
         let multiWindowApps = apps.filter { $0.value.count >= 2 }
-        let windowIDs = Set(records.map(\.identity.windowID))
-        let axIndexes = records.compactMap { $0.confidence.resolvedAXIndex }
-        let injectiveAX = Set(axIndexes).count == axIndexes.count
-        let uniqueWindowIDs = windowIDs.count == records.count
+        let uniqueWindowIDs = CatalogIdentityAudit.hasUniqueWindowIDs(records)
+        // 判据本身在核心包里（CatalogIdentityAudit），这样"跨进程复用索引不算冲突"
+        // 这条口径能被单元测试钉住，不会哪天又被改回全局比数量。
+        let clashes = CatalogIdentityAudit.axIndexClashes(in: records)
         let readable = records.filter { $0.confidence.allowsAXWrite }.count
 
-        let detail = "窗口 \(records.count) 个；多窗口进程 \(multiWindowApps.count) 个；"
-            + "AX 唯一对应 \(readable) 个；窗口编号无重复=\(uniqueWindowIDs)；同进程 AX 索引无重复=\(injectiveAX)"
-        let passed = records.count >= 6 && uniqueWindowIDs && injectiveAX
+        var detail = "窗口 \(records.count) 个；多窗口进程 \(multiWindowApps.count) 个；"
+            + "AX 唯一对应 \(readable) 个；窗口编号无重复=\(uniqueWindowIDs)；"
+            + "同进程 AX 索引无重复=\(clashes.isEmpty)"
+        if !clashes.isEmpty {
+            detail += "；冲突：" + clashes.map {
+                let names = apps[$0.processID].map { Set($0.map(\.applicationName)).sorted().joined(separator: "/") } ?? "-"
+                return "\(names) pid=\($0.processID) 索引 #\($0.axIndex) ← 窗口 \($0.windowIDs.map { "\($0)" }.joined(separator: ","))"
+            }.joined(separator: "；")
+        }
+        let passed = records.count >= 6 && uniqueWindowIDs && clashes.isEmpty
         let blocked = permissionNote(.screenRecording)
         record("P0-1", "目录与身份",
                passed: blocked == nil ? passed : nil,
@@ -162,37 +169,87 @@ final class P0Probe {
     // MARK: - P0-3 只提升被点窗口
 
     private func p0_3_raiseOnlyTarget() async {
-        let grouped = Dictionary(grouping: Array(coordinator.state.records.values), by: { $0.identity.processID })
-        guard let pair = grouped.first(where: { $0.value.count >= 2 })?.value.sorted(by: { $0.identity.windowID < $1.identity.windowID }),
-              let target = pair.first, let sibling = pair.last,
-              settings.orderingStrategy != .splitBackgroundTiles else {
+        guard settings.orderingStrategy != .splitBackgroundTiles else {
             record("P0-3", "只提升被点窗口", passed: nil,
-                   detail: "本机没有同一应用两个以上窗口，或当前层级策略是背景分块（本探针不覆盖）",
+                   detail: "当前层级策略是背景分块，本探针不覆盖",
                    check: "P0-3 只提升被点窗口")
             manual("P0-3", "只提升被点窗口", "打开两个 Safari 窗口，点其中一个卡片，录屏确认另一个窗口没有被提到前面。")
             return
         }
-        let before = windowOrder()
-        coordinator.focus.raiseOnly(target.identity)
-        _ = await waitUntil(timeout: 2.0) {
-            let after = self.windowOrder()
-            return (after[target.identity.windowID] ?? .max) < (before[target.identity.windowID] ?? .max)
+
+        // 每个"同应用 ≥2 窗口"的进程都跑一遍，并按应用名固定排序。
+        // 以前这里取 Dictionary 的第一个：0.1.1 抽到 Code 判失败，0.1.3 抽到 Chrome 判通过，
+        // Code 那一格因此一直没被复测。VISTILE_P0_TARGET 可以指定只测某个应用（名字或 bundle id 片段）。
+        let grouped = Dictionary(grouping: Array(coordinator.state.records.values), by: { $0.identity.processID })
+        var groups = grouped.values.filter { $0.count >= 2 }.sorted { lhs, rhs in
+            let l = lhs.first, r = rhs.first
+            return (l?.applicationName ?? "", l?.identity.processID ?? 0) < (r?.applicationName ?? "", r?.identity.processID ?? 0)
         }
-        let after = windowOrder()
-        let targetIndex = after[target.identity.windowID]
-        let siblingIndex = after[sibling.identity.windowID]
-        let movedUp = lt(targetIndex, before[target.identity.windowID])
-        let siblingNotRaised = !(lt(siblingIndex, before[sibling.identity.windowID]))
-        let aboveSibling = lt(targetIndex, siblingIndex)
-        let passed = movedUp && siblingNotRaised && aboveSibling
-        record("P0-3", "只提升被点窗口", passed: passed,
-               detail: "\(target.applicationName) 目标窗口顺序 \(describe(before[target.identity.windowID]))→\(describe(targetIndex))，"
-                    + "同应用另一窗口 \(describe(before[sibling.identity.windowID]))→\(describe(siblingIndex))",
+        let allApps = grouped.values.filter { $0.count >= 2 }.map { $0.first?.applicationName ?? "-" }.sorted()
+        let requested = P0Probe.targetFilter()
+        if !requested.isEmpty {
+            groups = groups.filter { group in
+                group.contains { $0.applicationName.localizedCaseInsensitiveContains(requested)
+                    || ($0.bundleID ?? "").localizedCaseInsensitiveContains(requested) }
+            }
+            guard !groups.isEmpty else {
+                record("P0-3", "只提升被点窗口", passed: nil,
+                       detail: "指定目标「\(requested)」在本机没有 ≥2 个窗口；当前多窗口应用：\(allApps.joined(separator: "/"))",
+                       check: "P0-3 只提升被点窗口")
+                manual("P0-3", "只提升被点窗口", "打开两个 \(requested) 窗口后再跑同一条命令。")
+                return
+            }
+        }
+        guard !groups.isEmpty else {
+            record("P0-3", "只提升被点窗口", passed: nil,
+                   detail: "本机没有同一应用两个以上窗口，无法制造兄弟场景",
+                   check: "P0-3 只提升被点窗口")
+            manual("P0-3", "只提升被点窗口", "打开两个 Safari 窗口，点其中一个卡片，录屏确认另一个窗口没有被提到前面。")
+            return
+        }
+
+        var lines: [String] = []
+        var failures: [String] = []
+        for group in groups {
+            let pair = group.sorted { $0.identity.windowID < $1.identity.windowID }
+            guard let target = pair.first, let sibling = pair.last, target.identity != sibling.identity else { continue }
+            let before = windowOrder()
+            coordinator.focus.raiseOnly(target.identity)
+            _ = await waitUntil(timeout: 2.0) {
+                let after = self.windowOrder()
+                return (after[target.identity.windowID] ?? .max) < (before[target.identity.windowID] ?? .max)
+            }
+            let after = windowOrder()
+            let targetIndex = after[target.identity.windowID]
+            let siblingIndex = after[sibling.identity.windowID]
+            let movedUp = lt(targetIndex, before[target.identity.windowID])
+            let siblingNotRaised = !(lt(siblingIndex, before[sibling.identity.windowID]))
+            let aboveSibling = lt(targetIndex, siblingIndex)
+            let passed = movedUp && siblingNotRaised && aboveSibling
+            let line = "\(target.applicationName)（\(pair.count) 窗口）目标顺序 "
+                + "\(describe(before[target.identity.windowID]))→\(describe(targetIndex))，"
+                + "同应用另一窗口 \(describe(before[sibling.identity.windowID]))→\(describe(siblingIndex))"
+            if passed {
+                lines.append(line)
+            } else {
+                let cause = !movedUp ? "目标没被提升" : (!siblingNotRaised ? "兄弟一起被提升" : "目标没在兄弟之上")
+                failures.append(target.applicationName)
+                lines.append("\(line) ⇒ 失败（\(cause)）")
+            }
+            recorder.updateRow(application: target.applicationName, version: "",
+                               ordering: passed ? .passed : .failed,
+                               knownLimitation: passed ? nil : "AX Raise 后同应用兄弟窗口被一起提升（\(causeSummary(movedUp: movedUp, siblingNotRaised: siblingNotRaised, aboveSibling: aboveSibling))）")
+        }
+        record("P0-3", "只提升被点窗口", passed: failures.isEmpty,
+               detail: "\(groups.count) 个多窗口应用：" + lines.joined(separator: "；"),
                check: "P0-3 只提升被点窗口")
-        recorder.updateRow(application: target.applicationName, version: "",
-                           ordering: passed ? .passed : .failed,
-                           knownLimitation: passed ? nil : "AX Raise 后窗口顺序未如预期")
         manual("P0-3", "背景总览仍可见", "同上场景，录屏确认放大后背景总览没有被隐藏、其他应用窗口没有被误提到前面。")
+    }
+
+    private func causeSummary(movedUp: Bool, siblingNotRaised: Bool, aboveSibling: Bool) -> String {
+        if !movedUp { return "目标顺序没变或读不到" }
+        if !siblingNotRaised { return "兄弟窗口索引变小了，被一起提升" }
+        return "目标仍然排在兄弟之后"
     }
 
     /// nil 表示窗口已不在屏幕上；不能把"读不到"当成"排名变好"。
@@ -224,9 +281,12 @@ final class P0Probe {
             manual("P0-4", "中文输入", "授权后点卡片放大窗口，切换到中文输入法打「测试」，确认候选框出现在真实窗口里。")
             return
         }
-        guard let candidate = coordinator.state.records.values.first(where: { $0.allowsAutoFocus }) else {
+        guard let candidate = expandCandidate() else {
             record("P0-4", "原生前台输入", passed: nil,
-                   detail: "没有可聚焦的窗口（身份未唯一确定或受限制）", check: "P0-4 原生前台输入")
+                   detail: P0Probe.targetFilter().isEmpty
+                        ? "没有可聚焦的窗口（身份未唯一确定或受限制）"
+                        : "指定目标「\(P0Probe.targetFilter())」没有可放大的窗口",
+                   check: "P0-4 原生前台输入")
             return
         }
         // 放大必须由真实鼠标事件触发：直接 dispatch 的话，事件转接断了也能"通过"（方案 §14）。
@@ -238,14 +298,20 @@ final class P0Probe {
         }
         let clicksBefore = coordinator.cardClickCount
         let dispatched = sendRealMouseDownUp(target)
-        guard dispatched, coordinator.cardClickCount == clicksBefore + 1 else {
+        // 手势动作要等主队列回到 run loop 才落地：派发后立刻读计数必然还是旧值
+        // （0.1.3 那轮 P0-4 就是这样判成"未测"的，而更晚的 P0-9 用同样的派发拿到了 1 次动作）。
+        // 先等到阶段真的到达目标，再回来核对"恰好一次"。
+        let reached = await waitUntil(timeout: 3.0) { self.coordinator.state.phase.controlledTarget == candidate.identity }
+        let clicks = coordinator.cardClickCount - clicksBefore
+        guard dispatched, clicks == 1 else {
             record("P0-4", "原生前台输入", passed: nil,
                    detail: dispatched
-                        ? "真实点击已派发，但协调器没有恰好收到一次卡片动作（转接断，见 P0-9）"
+                        ? "真实点击已派发但动作次数=\(clicks)（阶段到达=\(reached)，转接断则见 P0-9）"
                         : "真实点击无法派发到总览内容视图（面板不存在或该点命中的不是它）",
                    check: "P0-4 原生前台输入")
             return
         }
+        _ = reached
         _ = await waitUntil(timeout: 3.0) { self.coordinator.state.phase.controlledTarget == candidate.identity }
         try? await Task.sleep(nanoseconds: 400_000_000)
         let panelHoldsKey = coordinator.controllers.values.contains { $0.isKey }
@@ -395,10 +461,12 @@ final class P0Probe {
             return
         }
         if coordinator.state.phase != .overview { await showOverview() }
-        guard let candidate = coordinator.state.records.values.first(where: { $0.allowsAutoFocus }),
+        guard let candidate = expandCandidate(),
               let target = panelPoint(for: candidate.identity) else {
             record("P0-9", "真实视图链路", passed: nil,
-                   detail: "找不到既可放大、又真的落在某块总览面板格子里的窗口，无法造出真实点击坐标",
+                   detail: P0Probe.targetFilter().isEmpty
+                        ? "找不到既可放大、又真的落在某块总览面板格子里的窗口，无法造出真实点击坐标"
+                        : "指定目标「\(P0Probe.targetFilter())」没有既可放大又落在面板格子里的窗口",
                    check: "P0-9 真实视图链路")
             return
         }
@@ -505,6 +573,23 @@ final class P0Probe {
     }
 
     // MARK: - 真实事件派发
+
+    /// 探针的放大目标：按应用名 + 窗口编号固定排序，两次跑选到的是同一个窗口。
+    /// 以前用的是 `records.values.first(where:)`，Dictionary 顺序不保证，所以 0.1.1 与 0.1.3
+    /// 两轮测的根本不是同一个应用。`VISTILE_P0_TARGET` 指定时只在该应用里选（复测具体场景）。
+    private func expandCandidate() -> WindowRecord? {
+        let all = coordinator.state.records.values.filter(\.allowsAutoFocus)
+            .sorted { ($0.applicationName, $0.identity.windowID) < ($1.applicationName, $1.identity.windowID) }
+        let requested = P0Probe.targetFilter()
+        guard !requested.isEmpty else { return all.first }
+        return all.first { $0.applicationName.localizedCaseInsensitiveContains(requested)
+            || ($0.bundleID ?? "").localizedCaseInsensitiveContains(requested) }
+    }
+
+    static func targetFilter() -> String {
+        ProcessInfo.processInfo.environment["VISTILE_P0_TARGET"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
 
     /// 承载某窗口的面板 + 该格子中心在窗口坐标里的位置。拿不到就返回 nil，探针不许改用猜测坐标。
     private func panelPoint(for identity: WindowIdentity) -> (window: NSWindow, point: CGPoint)? {
