@@ -17,6 +17,8 @@ final class CompatibilityRecorder {
     }
 
     private let fileName: String
+    /// 只在 `queue` 上读写：本进程有没有已经保过上一轮。
+    private var previousRunPreserved = false
 
     /// 诊断输出的落点。
     /// 两个都要防的事故：
@@ -44,8 +46,16 @@ final class CompatibilityRecorder {
 
     /// 探针启动前把上一轮的报告与清单挪进 `_archive/<版本-时间>/`，避免新一轮就地覆盖证据。
     /// 返回归档目录；没有旧文件时返回 nil。
+    /// 正常路径不需要调用它：本进程第一次落盘前 `persistLocked()` 会自动挪走。
     @discardableResult
     func archivePreviousRun(fileName: String = "P0-acceptance-checklist.md") -> URL? {
+        queue.sync { archivePreviousRunLocked(fileName: fileName) }
+    }
+
+    @discardableResult
+    private func archivePreviousRunLocked(fileName: String = "P0-acceptance-checklist.md") -> URL? {
+        // 显式调用也算"保过了"：否则调用方之后第一次写盘会再挪一次，把本轮刚写的文件搬走。
+        previousRunPreserved = true
         let manager = FileManager.default
         let names = ["\(self.fileName).md", "\(self.fileName).json", fileName]
         let existing = names.map { outputDirectory.appendingPathComponent($0) }
@@ -66,6 +76,16 @@ final class CompatibilityRecorder {
             note("上一轮报告归档失败（\(error.localizedDescription)），本轮将就地覆盖 \(fileName)")
             return nil
         }
+    }
+
+    /// 归档必须挂在"本进程第一次写盘"这件事上，不能靠调用方在启动序列里记得先调一次。
+    /// 0.1.6 那轮实测：协调层启动时先记了两行事实（全局快捷键 / Metal 渲染）就地写盘，
+    /// 把 0.1.5 的原始报告覆盖掉了，之后探针才归档——归档到的只是自己刚写的那两行。
+    private func preservePreviousRunLocked() {
+        guard !previousRunPreserved else { return }
+        previousRunPreserved = true
+        guard let archived = archivePreviousRunLocked() else { return }
+        report.notes.append("上一轮报告已归档：\(archived.path)")
     }
 
     /// 归档目录名带上"那一份报告自己是哪个构建、什么时候生成的"，
@@ -201,6 +221,7 @@ final class CompatibilityRecorder {
 
     @discardableResult
     private func persistLocked() -> URL? {
+        preservePreviousRunLocked()
         try? FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
         report.generatedAt = Date()
         let json = outputDirectory.appendingPathComponent("\(fileName).json")

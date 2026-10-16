@@ -124,4 +124,42 @@ final class T16DiagnosticsOutputTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(
             atPath: directory.appendingPathComponent("_archive", isDirectory: true).path))
     }
+
+    /// 复现 0.1.6 那轮的真实事故：协调层在启动时先记两行事实（全局快捷键 / Metal 渲染）就地写盘，
+    /// 探针的归档调用排在后面——它归档到的只是自己刚写的那两行，0.1.5 的原始报告在这之前就被覆盖了。
+    /// 所以保命动作必须挂在"本进程第一次写盘"上，而不是靠调用方记得先调一次。
+    func testFirstWritePreservesThePreviousRunEvenWhenNobodyAsked() throws {
+        let directory = try makeScratchDirectory()
+        useDiagnosticsDirectory(directory, override: true)
+
+        let json = directory.appendingPathComponent("capability-report.json")
+        let markdown = directory.appendingPathComponent("capability-report.md")
+        let checklist = directory.appendingPathComponent("P0-acceptance-checklist.md")
+        let old = report(appVersion: "Vistile 0.9.8+2")
+        try old.encoded().write(to: json)
+        try "上一轮的报告".write(to: markdown, atomically: true, encoding: .utf8)
+        try "上一轮的清单".write(to: checklist, atomically: true, encoding: .utf8)
+
+        let recorder = CompatibilityRecorder()
+        recorder.record("全局快捷键", subject: "⌃⌥空格", result: .unverified, detail: "本轮新写的一行")
+        XCTAssertNotNil(recorder.flush())
+
+        let archiveRoot = directory.appendingPathComponent("_archive", isDirectory: true)
+        let rounds = try FileManager.default.contentsOfDirectory(atPath: archiveRoot.path)
+        let round = try XCTUnwrap(rounds.first { $0.contains("0.9.8+2") },
+                                 "第一次写盘就必须把上一轮挪走，且归档名带旧报告自己的版本，实际 \(rounds)")
+        let archivedMarkdown = archiveRoot.appendingPathComponent(round, isDirectory: true)
+            .appendingPathComponent("capability-report.md")
+        XCTAssertEqual(try String(contentsOf: archivedMarkdown, encoding: .utf8), "上一轮的报告")
+        for name in ["capability-report.json", "P0-acceptance-checklist.md"] {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: archiveRoot
+                .appendingPathComponent(round, isDirectory: true)
+                .appendingPathComponent(name).path), "\(name) 也应一起归档")
+        }
+
+        let fresh = try XCTUnwrap(String(contentsOf: directory.appendingPathComponent("capability-report.md"),
+                                         encoding: .utf8))
+        XCTAssertTrue(fresh.contains("本轮新写的一行"))
+        XCTAssertTrue(fresh.contains("上一轮报告已归档"), "新报告里要写清上一轮挪到了哪")
+    }
 }

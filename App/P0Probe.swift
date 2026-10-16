@@ -44,10 +44,8 @@ final class P0Probe {
     // MARK: - 序列
 
     private func run() async {
-        // 先把上一轮的报告挪走：探针每轮都写同一个文件名，不归档就等于就地覆盖证据。
-        if let archived = recorder.archivePreviousRun() {
-            recorder.note("上一轮报告已归档：\(archived.path)")
-        }
+        // 上一轮报告的归档挂在记录器"本进程第一次写盘"之前（见 CompatibilityRecorder.preservePreviousRunLocked）：
+        // 放在这里已经太晚——启动事实先写盘就会把上一轮就地覆盖掉（0.1.6 实测覆盖掉了 0.1.5 的原始报告）。
         recorder.note("P0 探针运行中：自动项记录客观证据，人工项保持未测")
         // 权限是解释后续结论的前提，必须作为事实写进报告，否则"窗口 0 个"会被误读成程序坏了。
         let granted = coordinator.permissions.refresh()
@@ -69,12 +67,13 @@ final class P0Probe {
         await p0_10_orderingFacts()
         await p0_11_trustedToken()
         await performanceSample()
+        let environment = await environmentSelfCheck()
         if coordinator.state.phase == .hidden { await showOverview() }
         recorder.record("P0 汇总", subject: "自动 \(autoCount) 项 / 人工 \(checklist.filter(\.isManual).count) 项",
                         result: autoFailures == 0 ? .unverified : .failed,
-                        detail: autoFailures == 0
+                        detail: (autoFailures == 0
                             ? "自动项未发现失败；跨应用交互仍需按验收清单肉眼与录屏确认"
-                            : "有 \(autoFailures) 个自动项失败，见对应条目")
+                            : "有 \(autoFailures) 个自动项失败，见对应条目") + "；" + environment)
         writeChecklist()
         // onFinished 走的是 NSApp.terminate：它就地等 applicationShouldTerminate 的 reply，
         // 而 reply 只能靠主队列排空送达。探针跑完时主线程正卡在 main queue 的 drain 里，
@@ -435,7 +434,14 @@ final class P0Probe {
         // 不在"总览确实可见、布局确实算过一轮"的前置条件下读 layouts，就会把取证时机读成产品缺陷：
         // 0.1.5 那轮的"承载窗口 2、缺布局 2"发生在前一项过渡超时把状态机降级之后，阶段已经不是 overview。
         await restoreOverview()
-        _ = await waitUntil(timeout: 2.0) { !self.coordinator.layoutDisplayIDs().isEmpty }
+        // 布局是从冻结网格重建的，而网格只在 `.catalogUpdated` 里产出：0.1.6 可用那轮（17:46）
+        // 这一项先于目录落地取数，于是读成「承载窗口 2 块、已算出布局 0 块」。
+        // 用户打开总览走的就是同一条 reconcile 路径，所以探针先把这一轮驱动一次再等。
+        // 判据没变：有窗口的屏幕仍然必须都有承载窗口与布局。
+        coordinator.refreshNow()
+        _ = await waitUntil(timeout: 2.0) {
+            !self.coordinator.layoutDisplayIDs().isEmpty && !self.coordinator.state.grids.isEmpty
+        }
         let covered = Set(coordinator.state.records.values.map(\.displayID))
         let controllers = Set(coordinator.controllers.keys)
         let missingControllers = covered.subtracting(controllers)
@@ -445,7 +451,9 @@ final class P0Probe {
         record("P0-7", "多显示器", passed: blocked == nil ? passed : nil,
                detail: blocked ?? "显示器 \(displays.count) 块（负坐标 \(negative.count) 块，不同缩放 \(scales.count) 种）；"
                     + "有窗口的屏幕 \(covered.count)，承载窗口 \(controllers.count)，缺布局 \(layoutsMissing.count)；"
-                    + "测量时阶段=\(phaseDebug(coordinator.state.phase))，已算出布局的屏幕 \(layoutDisplayIDs().count) 块",
+                    + "测量时阶段=\(phaseDebug(coordinator.state.phase))，已算出布局的屏幕 \(layoutDisplayIDs().count) 块，"
+                    + "网格 \(coordinator.state.grids.count) 屏（陈旧标记=\(coordinator.state.gridsAreStale)），"
+                    + "活跃流 \(coordinator.capture.activeStreamCount) 路",
                check: "P0-7 多显示器覆盖")
         manual("P0-7", "跨屏放大", "在副屏放大窗口，确认前景比例按副屏可用区计算、收回后回到副屏原格子。")
     }
@@ -495,6 +503,17 @@ final class P0Probe {
             return
         }
         await restoreOverview()
+        // 放大与收回会把捕获流停掉再重起。在"0 路流"的瞬间取增量快照，present 与帧数必然读到 0，
+        // 那是取证时机而不是链路断了（0.1.6 实测：同一轮 P0-2 有 38 帧，P0-9 却记成 0 路流、present +0）。
+        // 前置条件：总览可见且至少一路流是活的；不满足就记未测并写清缺什么，判据本身（present > 0）不动。
+        let streamsReady = await waitUntil(timeout: 4.0) { self.coordinator.capture.activeStreamCount > 0 }
+        guard streamsReady else {
+            record("P0-9", "真实视图链路", passed: nil,
+                   detail: "总览已可见但 4s 内没有任何活跃捕获流（\(coordinator.capture.activeStreamCount) 路），"
+                        + "此刻的 present/帧增量必然为 0，无法判定真实上屏链路：需在直播流起来时重跑",
+                   check: "P0-9 真实视图链路")
+            return
+        }
         guard let candidate = expandCandidate(),
               let target = panelPoint(for: candidate.identity) else {
             record("P0-9", "真实视图链路", passed: nil,
@@ -521,6 +540,9 @@ final class P0Probe {
             && sendRealBackgroundClick(on: candidate.identity)
         let returned = await waitUntil(timeout: 5.0) { self.coordinator.state.phase == .overview }
         let minimizedAfter = coordinator.state.records.values.filter(\.isMinimized).count
+        // 回到总览后要给重起流与首次合成留出时间，否则"之后"的增量取的是收回瞬间的空档。
+        _ = await waitUntil(timeout: 4.0) { self.coordinator.capture.activeStreamCount > 0 }
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
 
         let diagnosticsAfter = coordinator.rendererDiagnostics
         let frames = totalPublished() - framesBefore
@@ -604,6 +626,33 @@ final class P0Probe {
         await showOverview()
         manual("P0-11", "Cmd-Tab 之后", "放大窗口后按 ⌘Tab 切到别的应用，确认总览自动隐藏；再按快捷键能重新打开，不需要重启 Vistile。")
         manual("P0-11", "对话框不被强关", "在放大窗口里打开一个 Sheet（如另存为），点背景，确认对话框不被强行关掉。")
+    }
+
+    // MARK: - 本轮取证环境自检
+
+    /// 依赖帧的自动项（P0-2 / P0-9 / P0-10 / 性能采样）只有在"这一轮目录真的产过帧"时才谈得上成立。
+    /// 0.1.6 实测过一整轮 0 帧：全目录帧增量 0、present 0、AX 只解析出 15 个窗口里的 5 个，
+    /// 于是 P0-2/P0-3 同时报"失败"。复跑同一台机器、同一个已授权包、同一个命令，这些数字全回来了
+    /// （38 帧 / 15 个窗口全部可解析），说明那一轮是屏幕锁定或显示休眠造成的环境产物，不是产品结论。
+    /// 这一项把"本轮能不能判"写成事实，不改任何一项的判据。
+    private func environmentSelfCheck() async -> String {
+        let records = Array(coordinator.state.records.values)
+        let readable = records.filter { $0.confidence.allowsAXWrite }.count
+        let frames = totalPublished()
+        let streams = coordinator.capture.activeStreamCount
+        let presented = coordinator.rendererDiagnostics.presents
+        let usable = !records.isEmpty && frames > 0
+        let line = "窗口 \(records.count) 个（AX 可解析 \(readable) 个），活跃流 \(streams) 路，"
+            + "本次启动累计捕获帧 \(frames)、累计 present \(presented)"
+        record("环境自检", "本轮是否可判",
+               passed: usable ? true : nil,
+               detail: usable
+                    ? "\(line)：本轮确实观察到画面更新，依赖帧的结论可用"
+                    : "\(line)：本轮全程没有一帧，屏幕锁定或显示休眠时也会这样。"
+                      + "依赖帧的 P0-2/P0-9/P0-10/性能采样 全部不能当产品结论，请在唤醒状态下重跑",
+               check: "运行环境自检")
+        return usable ? "本轮有帧可判（\(line)）"
+                      : "本轮全程 0 帧，依赖帧的结论作废、需唤醒后重跑（\(line)）"
     }
 
     // MARK: - 真实事件派发
