@@ -6,9 +6,9 @@
 
 ## 必须先知道的三件事
 
-1. **P0 能力门禁（P0-1…P0-11）没有通过，而且已经有两条真实失败。** 在装有权限的机器上跑第一批探针（正式版 0.1.1+2，17 个窗口）：`P0-1` 同进程 AX 索引不唯一（同一应用两个窗口解析到同一个索引），`P0-3` 提升被点窗口时把同应用的兄弟窗口一起提了上来。其余 7 个自动项通过（遮挡窗口继续收帧、键盘归目标应用、身份沿用、双屏承载、退出事务 0 条等）。人工与录屏项一律还是「未测」，见 [Docs/Acceptance.md](Docs/Acceptance.md)。
-2. **兼容矩阵只有「关联」这一列有了数据。** [Docs/Compatibility.md](Docs/Compatibility.md) 里 12 个真实应用的关联=通过，其余格子（捕获、移动、resize、层级、Sheet、恢复）仍然全是「未测」——包括 Safari、Finder、Office 与全屏应用。未测不等于可用。
-3. **性能数字只有本机一条样本，且其中一条明显不可信。** [Docs/Performance.md](Docs/Performance.md) 里的预算是设计值；授权态那一次记录 CPU 0.2（17 路流），这个数当不了结论，必须用 Activity Monitor / Instruments 对照。
+1. **P0 能力门禁（P0-1…P0-11）没有通过，还剩一条真实失败。** 同一个正式版包上跑了两轮：0.1.1+2 有两条失败（P0-1 同进程 AX 索引不唯一、P0-3 提升被点窗口时把同应用兄弟一起提上来）；装上含 R09–R11 的 0.1.3+4 后自动项从 9 条扩到 13 条，结果 **12 通过 / 1 失败**，失败的就是 `P0-1`——同一个应用里两个窗口仍然解析到同一个 AX 索引。`P0-3` 这轮换到 Chrome 上通过（目标 #11→#8，兄弟 #12→#12 没被带动），**但 Code 那一格没被复测**（探针每次只选一个放大目标），所以不能宣布它已修好。人工与录屏项一律还是「未测」，见 [Docs/Acceptance.md](Docs/Acceptance.md)。
+2. **兼容矩阵只有「关联」与「层级」两列有了部分数据。** [Docs/Compatibility.md](Docs/Compatibility.md) 里 12 个真实应用的关联=通过；层级在 Chrome、UGit 上通过、在 Code 上失败，其余格子（捕获、移动、resize、Sheet）仍然全是「未测」——包括 Safari、Finder、Office 与全屏应用。未测不等于可用。
+3. **性能数字只有本机两条样本，且其中 CPU 那一条明显不可信。** [Docs/Performance.md](Docs/Performance.md) 里的预算是设计值；授权态两轮记录 CPU 0.2 / 0.3（十几路流），这个数当不了结论，必须用 Activity Monitor / Instruments 对照。帧数那条也要看口径：报告里的"帧 322 张/3.0s"是所有流合计，不是屏幕帧率。
 
 ## 本版（0.1.3）相对 0.1.2 的变化
 
@@ -16,6 +16,8 @@
 
 - **P0 探针跑完会真的退出了。** 0.1.2 及更早的包在未授权态写完报告后进程不退出：主线程停在 `-[NSApplication terminate:]` 里等 `applicationShouldTerminate` 的 reply，而 reply 只能靠主队列排空送达，此时主线程正被那个 drain 占着。退出请求改从 run loop 观察点发出，实测从"挂死"变成 40 秒跑完并自行退出。普通使用路径的退出不受影响（菜单栏退出、Apple 事件 `quit` 都正常）。
 - **验收命令改成跑正式安装的包**：`open -n -g -W --env VISTILE_P0_MODE=1 /Applications/Vistile.app`。屏幕录制与辅助功能记在签名身份上，Developer ID 包和仓库里的 Debug 产物在 TCC 看来是两个不同的 App；文档里所有探针步骤都已经换成前者。
+- **覆盖安装确实不需要重新授权（这条是 0.1.3 发布后实测的）**：0.1.1→0.1.3 覆盖装进 `/Applications` 后直接跑探针，没有再弹权限窗，P0-0 仍回「屏幕录制=true，辅助功能=true」。升级不会逼用户重授一次。
+- **拿到第二批授权态客观证据**：13 条自动项里 P0-9（真实点击→放大→真实背景点击→回总览，同期 present +13、捕获帧 +17、GPU 错误 +0）、P0-10（12 路流、2s 内 163 帧回调期间层级改写 0 次）、P0-11（背景点击不留令牌，随后外部激活正常退出总览）第一次跑通并记录到进程内事实。
 
 ## 0.1.2 相对 0.1.1 的行为变化
 
@@ -44,6 +46,7 @@
 下载后可以自己复核（不需要任何额外工具）：
 
 ```bash
+shasum -a 256 Vistile_v0.1.3_macos_arm64.dmg   # 期望 0bfb9a52712e2fa954700402606468ae19bef9b6cb7cf5ca556900a1fea760de（1380791 字节）
 hdiutil attach Vistile_v0.1.3_macos_arm64.dmg
 xcrun stapler validate "/Volumes/"*/Vistile.app      # 期望 The validate action worked!
 codesign -dvvv "/Volumes/"*/Vistile.app 2>&1 | grep -E "Authority=Developer ID|flags=0x"
@@ -51,9 +54,11 @@ hdiutil detach "/Volumes/"*
 xcrun stapler validate Vistile_v0.1.3_macos_arm64.dmg   # 镜像外的那个 .dmg 自己也要有票据
 ```
 
-覆盖安装即可升级：屏幕录制与辅助功能记在签名身份上，同一个 Developer ID 换版本不需要重新授权（**0.1.2→0.1.3 这一步本身还没实测**，见已知限制）。
+覆盖安装即可升级：屏幕录制与辅助功能记在签名身份上，同一个 Developer ID 换版本不需要重新授权。这一条在 0.1.1→0.1.3 的覆盖安装上实测过（没再弹权限窗，探针的 P0-0 仍回两项 true）。
 
-上一版（0.1.2）的产物已按上面的步骤两台机器核对过：CI runner（Gatekeeper 评估开启的干净 arm64 机器）上 `spctl --status` 是 `assessments enabled`，对构建产物和挂载出来的 app 都回 `accepted / source=Notarized Developer ID`；本机从 Release 页重新下载后，dmg 与镜像里的 `Vistile.app` 票据都 `The staple and validate action worked!`，证书链 `Developer ID Application: Guofeng Liu (U8U443D7ZL)` → Apple Root CA，`flags=0x10000(runtime)`，`lipo -archs` 只有 `arm64`，`Info.plist` 是 `0.1.2 / 3`，本地哈希与 GitHub 资产接口回报的 digest 相同（`sha256 f9d1d9786dc7cb0d…537a0c201`，1380316 字节）；Apple 侧公证成对出现（`.notarization.zip` 在前、`.dmg` 在后，两条 `Accepted`）。**你自己的 Mac 第一次安装体验仍未测**——权限授予流程、是否被系统二次确认，都要真机才知道；开发机这边 `spctl` 评估是关掉的，测不出这一层。
+本版（0.1.3）的产物已按上面的步骤核对过：本机从 Release 页重新下载得到 `Vistile_v0.1.3_macos_arm64.dmg`，**1380791 字节**、`sha256 0bfb9a52712e2fa954700402606468ae19bef9b6cb7cf5ca556900a1fea760de`，与 GitHub 资产接口回报的 `digest` 逐字节相同；挂载后 dmg 与镜像里的 `Vistile.app` 票据都 `The staple and validate action worked!`，`codesign --verify --deep --strict` 回 `valid on disk` + `satisfies its Designated Requirement`，证书链 `Developer ID Application: Guofeng Liu (U8U443D7ZL)` → Apple Root CA，`flags=0x10000(runtime)`，`lipo -archs` 只有 `arm64`，`Info.plist` 是 `0.1.3 / 4`；发布那次（run 38866800228）的 CI runner 上 `spctl --status` 是 `assessments enabled`，对构建产物和挂载出来的 app 都回 `accepted / source=Notarized Developer ID`。公证在 runner 日志里成对：`.notarization.zip` 07:24:32 `Accepted` 在前、`.dmg` 07:25:02 `Accepted` 在后。**你自己的 Mac 第一次安装体验仍未测**——权限授予流程、是否被系统二次确认，都要真机才知道；开发机这边 `spctl` 评估是关掉的，测不出这一层。
+
+上一版（0.1.2，1380316 字节、`sha256 f9d1d9786dc7cb0d…537a0c201`）同法核对过，Apple 侧 `notarytool history` 里也是成对出现（`.notarization.zip` 在前、`.dmg` 在后，两条 `Accepted`）。
 
 ## 构建与测试
 
@@ -84,7 +89,9 @@ open --env VISTILE_P0_MODE=1 build/Build/Products/Debug/Vistile.app
 ## 已知限制
 
 - 展开真实窗口后前台 App 的键盘归属、Sheet 与子窗口的跟随、多显示器混合 DPI 下的拖拽，均未经真机确认。
-- 探针新增的 P0-9（真实事件链路与 present）、P0-10（层级改写频率与策略迁移）、P0-11（背景点击令牌不吞后续激活）三项目前只在代码与宿主测试里有证据，还没在授过权限的真机上跑出结论。
+- **P0-1「同进程 AX 索引不唯一」是已知未修的真缺陷**：0.1.1 与 0.1.3 两轮探针都在 17 窗口目录里复现（同一应用两个窗口解析到同一个 AX 索引）。它动摇的是"画面与窗口一一对应"的客观保证，当前版本对这种情况没有任何补救。
+- **P0-3「只提升被点窗口」在 Code 上的失败还没有被复测**：0.1.3 那轮探针的放大目标落到了 Chrome，Chrome 通过；Code 那一格仍是 0.1.1 的失败结论。
+- **P0-9 / P0-10 / P0-11 已在授过权限的正式版上跑出结论**（0.1.3+4，13 条自动项 12 通过）。同一次运行里 P0-9 说真实点击确实转接到了视图，P0-4 却记"协调器没有恰好收到一次卡片动作"——两处观测点相反，疑似总览刚打开、布局未落定的时序问题，还没定位；键盘归属的最终结论仍属人工项。
 - 菜单栏图标已按系统图标的视觉大小重绘，但它在真实菜单栏里的观感仍未经截图确认。
 - 最小化与隐藏的窗口不参与实时预览；点最小化卡片会真的把它解除最小化，收回后不会自动放回 Dock。
 - 无应用内更新、无更新检查、无 App Store 分发；界面文案只有简体中文。

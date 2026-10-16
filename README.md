@@ -12,7 +12,7 @@
 git clone https://github.com/misswell/Vistile.git
 ```
 
-Release 页当前版本 `v0.1.2` 附带 GitHub Actions 产出的 **Developer ID 签名 + Apple 公证 + 已装订** `.dmg`（`Vistile_v0.1.2_macos_arm64.dmg`，arm64，1380316 字节，`sha256 f9d1d9786dc7cb0d…537a0c201`，与 GitHub 资产接口回报的 digest 逐字节相同）。从 Release 页重新下载的字节已实测：挂载后 dmg 与镜像里的 `Vistile.app` 都回 `The staple and validate action worked!`，`Identifier=com.misswell.Vistile`、`Authority=Developer ID Application: Guofeng Liu (U8U443D7ZL)` 一路走到 Apple Root CA，`flags=0x10000(runtime)`，`lipo -archs` 只有 `arm64`，`Info.plist` 是 `0.1.2 / 3`；发布那次的 runner 上 Gatekeeper 评估是开启的，`spctl` 两处都回 `accepted / source=Notarized Developer ID`。Apple 侧公证记录成对出现（`Vistile_v0.1.2_notarization.zip` 06:52:45 → `Vistile_v0.1.2_macos_arm64.dmg` 06:53:11，两条 `Accepted`）。`v0.1.1` 同样签名并公证过、仍挂在 Release 页；`v0.1.0` 那条只有 Apple Development 签名、未公证，只在本机可用。
+Release 页当前版本 `v0.1.3` 附带 GitHub Actions 产出的 **Developer ID 签名 + Apple 公证 + 已装订** `.dmg`（`Vistile_v0.1.3_macos_arm64.dmg`，arm64，1380791 字节，`sha256 0bfb9a52712e2fa954700402606468ae19bef9b6cb7cf5ca556900a1fea760de`，与 GitHub 资产接口回报的 digest 逐字节相同）。从 Release 页重新下载的字节已实测：挂载后 dmg 与镜像里的 `Vistile.app` 都回 `The staple and validate action worked!`，`codesign --verify --deep --strict` 回 `valid on disk` + `satisfies its Designated Requirement`，`Identifier=com.misswell.Vistile`、`Authority=Developer ID Application: Guofeng Liu (U8U443D7ZL)` 一路走到 Apple Root CA，`flags=0x10000(runtime)`，`lipo -archs` 只有 `arm64`，`Info.plist` 是 `0.1.3 / 4`；发布那次的 runner 上 Gatekeeper 评估是开启的，`spctl` 两处都回 `accepted / source=Notarized Developer ID`。公证成对：`.notarization.zip` 07:24:32 `Accepted` 在前、`.dmg` 07:25:02 `Accepted` 在后（这一对取自 run 日志，Apple 侧 `notarytool history` 需要 issuer id，本机没取到）。`/Applications/Vistile.app` 里的二进制与镜像里那个 `sha256` 相同（`5d91c359ef435aab…16a26141`），所以 P0 探针跑的就是发布字节。上一版 `v0.1.2`（1380316 字节，`sha256 f9d1d978…c201`）同样签名并公证过、仍挂在 Release 页；`v0.1.1` 也一样；`v0.1.0` 那条只有 Apple Development 签名、未公证，只在本机可用。
 
 > 公证解决的是「别人能不能装」。P0 功能验收、跨应用兼容矩阵仍然没通过、仍然未测——见下面两句，别把票据当成质量证明。
 
@@ -49,8 +49,8 @@ xcodebuild -project Vistile.xcodeproj -scheme Vistile \
 # 1) 改版本号。CI 的一致性守卫读的是 Support/Info.plist，标签对不上它就直接红；
 #    测试壳要一起改，否则两处说的不是一件事。NSHumanReadableCopyright 里那句
 #    "Vistile <版本号> — …" 是纯文本，别忘了顺手改（旧值曾写着"未签名公证"）。
-#    线上已发布到 0.1.2 / CFBundleVersion 3，下一版从这里往上加。
-VERSION=0.1.3 BUILD=4
+#    线上已发布到 0.1.3 / CFBundleVersion 4，下一版从这里往上加。
+VERSION=0.1.4 BUILD=5
 for f in Support/Info.plist Support/UITestHarness-Info.plist; do
   /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$f"
   /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$f"
@@ -110,7 +110,7 @@ SIGNING_IDENTITY="Apple Development: <你的身份>" RELEASE_TAG=v9.9.9-selfchec
   bash .github/scripts/build_sign_notarize.sh
 ```
 
-`RELEASE_TAG` 别照抄线上已有的版本号：它直接决定 `release/` 里那个 dmg 的文件名，用 `v0.1.2` 自检会产出一个和线上发布包同名、字节却不同的文件，隔几天回头看会误当「这版已经发过了」。这条我自己踩过，现在 `verify` 任务在手动触发却用真实版本时会打警告。
+`RELEASE_TAG` 别照抄线上已有的版本号：它直接决定 `release/` 里那个 dmg 的文件名，用 `v0.1.3`（当前线上最新）自检会产出一个和线上发布包同名、字节却不同的文件，隔几天回头看会误当「这版已经发过了」。这条我自己踩过（干跑那次的 `v0.1.1` 与真实发布字节完全不同），现在 `verify` 任务在手动触发却用真实版本时会打警告。
 
 它明确跳过 `notarytool` 与依赖公证票据的复核，**跑通不等于公证过**；本机用的 `Apple Development` 身份也不会被算作签名链证据——脚本会在日志里直说「签名链不是 Developer ID Application」。
 
@@ -164,6 +164,8 @@ open -n -g -W --env VISTILE_P0_MODE=1 /Applications/Vistile.app
 ```
 
 **探针要跑在你已经授权过的那个包上。** 屏幕录制与辅助功能记在签名身份上：`/Applications/Vistile.app`（Developer ID + 公证）和仓库里 `build/Build/Products/Debug/Vistile.app`（Apple Development）在 TCC 看来是两个不同的 App，跑后者会再弹一次授权。所以正式验收只用上面这条命令；Debug 产物只在愿意重新授权的机器上用。
+
+同 Developer ID 的覆盖安装**不需要重新授权**（0.1.1→0.1.3 实测：装完直接跑探针，P0-0 仍回「屏幕录制=true，辅助功能=true」），所以升级版本不会逼用户再点一次权限。
 
 探针跑完自动退出（0.1.3 起；0.1.2 及更早的包会写完报告后挂住不退出，见 [Docs/Compatibility.md](Docs/Compatibility.md) §1），产物写在 `~/Desktop/Vistile Diagnostics/`：
 
