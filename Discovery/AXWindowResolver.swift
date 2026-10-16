@@ -104,6 +104,20 @@ final class AXWindowResolver: @unchecked Sendable {
         }
     }
 
+    /// 该窗口是否挂着需要用户处理的 Sheet（方案 §8.2.4）：只读公开属性，不做任何关闭动作。
+    /// 公开 SDK 里没有 "AXSheets" 这个属性（实测 AppKit 窗口的属性表里不存在）；
+    /// 真实的公开事实是：附着的 sheet 会作为窗口的一个 child 出现、role 为 AXSheet。
+    /// 读不到一律按"没有"回答：不能因为读不到就替产品宣称阻塞，也不能拿它当拒绝的理由。
+    func hasAttachedSheet(element: AXUIElement) async -> Bool {
+        await executor.submit {
+            guard let children = self.copy(element, kAXChildrenAttribute) as? [AXUIElement] else { return false }
+            for child in children where self.string(child, kAXRoleAttribute) == NSAccessibility.Role.sheet.rawValue {
+                return true
+            }
+            return false
+        }
+    }
+
     private func snapshot(of element: AXUIElement, index: Int) -> AXWindowSnapshot {
         AXWindowSnapshot(index: index,
                          frame: frame(of: element),

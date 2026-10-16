@@ -118,6 +118,13 @@ public struct WindowRecord: Hashable, Sendable {
         return Double(frame.width) / Double(frame.height)
     }
 
+    /// 搜索过滤的唯一规则：总览与工作台两栏共用，标题或应用名包含查询词即算命中（方案 §5.5.5）。
+    public func matches(searchQuery: String) -> Bool {
+        searchQuery.isEmpty
+            || title.localizedCaseInsensitiveContains(searchQuery)
+            || applicationName.localizedCaseInsensitiveContains(searchQuery)
+    }
+
     /// 跨会话顺序记忆用的稳定键；标题改动不应该重排格子，但需要能记住"曾经的位置"。
     public var memoryKey: String {
         let normalizedTitle = title

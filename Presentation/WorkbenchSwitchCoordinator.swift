@@ -41,6 +41,9 @@ final class WorkbenchSwitchCoordinator {
     private(set) var didTimeOut = false
     /// 同一次动作只补偿一次：超时与失败路径可能都走到补偿，不能重复写窗口。
     private var didRollback = false
+    /// 本次动作真正动过的窗口：补偿只允许写这些身份（方案 §8.3）。
+    /// 被拦在准备/校验阶段的动作一个窗口都没动，回滚不许把仍在主区的 A 拉走。
+    private var touched: Set<WindowIdentity> = []
 
     init(catalog: WindowCatalog,
          writer: GeometryWriting,
@@ -76,10 +79,16 @@ final class WorkbenchSwitchCoordinator {
             switch plan.kind {
             case .enteringWorkbench:
                 let started = Date()
-                var outcome = await self.placeMain(plan.identity,
+                var outcome: WorkbenchStepOutcome
+                if await self.catalog.hasBlockingSheet(identity: plan.identity) {
+                    // 选中的窗口挂着用户还没处理的对话框：不动它，也不进 L 型（方案 §8.2.4、§10.4）。
+                    outcome = .rejected(self.sheetRefusal(identity: plan.identity))
+                } else {
+                    outcome = await self.placeMain(plan.identity,
                                                    targetFrame: plan.targetFrame,
                                                    token: plan.token,
                                                    activate: true).step
+                }
                 outcome = self.enforceDeadline(outcome)
                 self.metrics.measure("工作台:进入主区",
                                      milliseconds: Date().timeIntervalSince(started) * 1000,
@@ -125,16 +134,18 @@ final class WorkbenchSwitchCoordinator {
                                      context: intent.source.displayName)
             }
 
-            // prepare：事务与句柄事实先核对，缺任何一项都不写窗口（方案 §8.2.3）。
-            let prepared = self.prepare(intent: intent)
+            // prepare：事务、句柄与模态事实先核对，缺任何一项都不写窗口（方案 §8.2.3、§8.2.4）。
+            let prepared = await self.prepare(intent: intent)
             self.report(step: .prepare, outcome: prepared, identity: intent.to, token: token)
             guard await self.proceedOrRollback(plan, after: prepared, token: token) else { return }
 
             // moveToMain：B 进主区。读回为准，应用按自身约束返回也算继续（要写进事实）。
-            let moved = self.enforceDeadline(await self.placeMain(intent.to,
-                                                                  targetFrame: plan.mainTargetFrame,
-                                                                  token: token,
-                                                                  activate: false).step)
+            let movePlacement = await self.placeMain(intent.to,
+                                                     targetFrame: plan.mainTargetFrame,
+                                                     token: token,
+                                                     activate: false)
+            if movePlacement.geometry != nil { self.touched.insert(intent.to) }
+            let moved = self.enforceDeadline(movePlacement.step)
             self.report(step: .moveToMain, outcome: moved, identity: intent.to, token: token)
             guard await self.proceedOrRollback(plan, after: moved, token: token) else { return }
 
@@ -149,7 +160,9 @@ final class WorkbenchSwitchCoordinator {
             // restorePrevious：A 回它原来的 slot 位置。写回后同应用兄弟窗口可能被顶到前面，要再确认一次。
             var restoreOutcome: WorkbenchStepOutcome = .succeeded(readBack: nil)
             if let from = intent.from, let resting = plan.restingTargetFrame {
-                restoreOutcome = await self.placeMain(from, targetFrame: resting, token: token, activate: false).step
+                let restorePlacement = await self.placeMain(from, targetFrame: resting, token: token, activate: false)
+                if restorePlacement.geometry != nil { self.touched.insert(from) }
+                restoreOutcome = restorePlacement.step
                 if !restoreOutcome.isFailure, from.processID == intent.to.processID {
                     // 同进程里改 A 的几何会把它带到兄弟窗口之前：把 B 再提到前台一次（方案 §17 同应用多窗口）。
                     let recheck = await self.focus.activateAndRaise(intent.to)
@@ -222,7 +235,7 @@ final class WorkbenchSwitchCoordinator {
         }
     }
 
-    private func prepare(intent: WorkbenchSwitchIntent) -> WorkbenchStepOutcome {
+    private func prepare(intent: WorkbenchSwitchIntent) async -> WorkbenchStepOutcome {
         guard permissions.status.isComplete else { return .rejected("权限已收回，未写入任何窗口") }
         for identity in [intent.to, intent.from].compactMap({ $0 }) {
             guard catalog.record(for: identity) != nil else {
@@ -232,7 +245,16 @@ final class WorkbenchSwitchCoordinator {
                 return .rejected("几何事务未落盘（\(identity.journalKey)），拒绝写入")
             }
         }
+        // A 挂着用户还没处理的对话框：不擅自关闭，也不动任何窗口（方案 §8.2.4、§10.4）。
+        if let from = intent.from, await catalog.hasBlockingSheet(identity: from) {
+            return .rejected(sheetRefusal(identity: from))
+        }
         return .succeeded(readBack: nil)
+    }
+
+    private func sheetRefusal(identity: WindowIdentity) -> String {
+        let name = catalog.record(for: identity)?.applicationName ?? "该应用"
+        return "请先处理当前对话框（\(name)）"
     }
 
     /// 把真实窗口送到目标 frame（可同时带到前台）。返回的是读回事实，不是"我以为到位"。
@@ -357,16 +379,19 @@ final class WorkbenchSwitchCoordinator {
         }
     }
 
-    /// 交换失败：逆序补偿 A 与 B，然后报告 mainSwitchFailed（placement 不提交）。
+    /// 交换失败：只逆序补偿这次真正动过的窗口，然后报告 mainSwitchFailed（placement 不提交）。
+    /// 准备阶段被拦下时一个窗口都没动：A 必须保持主窗口不动（方案 §8.3）。
     /// 同一次动作只补偿一次；超时与步骤失败可能先后到达。
     private func rollback(_ plan: WorkbenchSwitchPlan, reason: String) async {
         guard !didRollback else { return }
         didRollback = true
         recorder.note("工作台交换回滚：\(reason)")
-        if let from = plan.intent.from {
+        if let from = plan.intent.from, touched.contains(from) {
             await restoreQuietly(from, note: "交换回滚：原主窗口")
         }
-        await restoreQuietly(plan.intent.to, note: "交换回滚：目标窗口")
+        if touched.contains(plan.intent.to) {
+            await restoreQuietly(plan.intent.to, note: "交换回滚：目标窗口")
+        }
         onEvent?(.mainSwitchFailed(token: plan.intent.token, reason: reason))
     }
 
@@ -416,6 +441,7 @@ final class WorkbenchSwitchCoordinator {
         deadline = Date().addingTimeInterval(Self.switchDeadline)
         didTimeOut = false
         didRollback = false
+        touched = []
         watchdog?.cancel()
         watchdog = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(Self.switchDeadline * 1_000_000_000))

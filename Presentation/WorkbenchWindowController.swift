@@ -143,16 +143,23 @@ final class WorkbenchWindowController {
         topRailView.update(snapshot: presentation.snapshot,
                            cards: presentation.topCards,
                            emptySlots: presentation.emptySlots,
+                           searchQuery: searchQuery,
                            renderer: renderer,
                            mailboxes: mailboxProvider)
         sideRailView.update(snapshot: presentation.snapshot,
                             cards: presentation.sideCards,
                             emptySlots: presentation.emptySlots,
+                            searchQuery: searchQuery,
                             renderer: renderer,
                             mailboxes: mailboxProvider)
 
+        // 「可见 n」必须如实反映此刻屏幕上的卡片：筛选掉的整格已经不在栏里（方案 §5.5.5）。
+        // 主区是真实窗口，不会因为筛选消失，仍然计入。
+        let railVisible = presentation.cards.filter { card in
+            card.isVisible && card.record.matches(searchQuery: searchQuery)
+        }.count
         toolbar.update(side: presentation.side,
-                       visibleCount: presentation.visibleCount,
+                       visibleCount: railVisible + (presentation.mainRecord != nil ? 1 : 0),
                        totalCount: presentation.totalCount,
                        query: searchQuery,
                        hint: hint)

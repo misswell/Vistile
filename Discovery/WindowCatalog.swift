@@ -32,6 +32,13 @@ protocol CatalogAXSource {
 
 extension AXWindowResolver: CatalogAXSource {}
 
+/// 模态 Sheet 检查协议：生产按"窗口 child 里有没有 role=AXSheet"读公开属性，宿主测试注入固定事实（方案 §8.2.4）。
+protocol CatalogSheetSource {
+    func hasAttachedSheet(element: AXUIElement) async -> Bool
+}
+
+extension AXWindowResolver: CatalogSheetSource {}
+
 /// 屏幕事实来源：生产读 NSScreen，宿主测试注入固定显示器（方案 §15.1）。
 /// 恢复判定要看"原显示器是否还活着"，让它依赖真实桌面就没法做确定性回归。
 protocol DisplayInfoSource {
@@ -68,6 +75,7 @@ final class WindowCatalog {
     private let axSource: CatalogAXSource
     private let contentSource: CatalogContentSource
     private let displaySource: DisplayInfoSource
+    private let sheetSource: CatalogSheetSource
     private let ownProcessID = ProcessInfo.processInfo.processIdentifier
     /// 自己的总览/动画窗口统一排除，阻止无限镜像（方案 §6.9）。
     private var ownWindowIDs: Set<UInt32> = []
@@ -111,11 +119,13 @@ final class WindowCatalog {
          resolver: AXWindowResolver = AXWindowResolver(),
          axSource: CatalogAXSource? = nil,
          contentSource: CatalogContentSource = ScreenCaptureContentSource(),
-         displaySource: DisplayInfoSource = ScreenDisplaySource()) {
+         displaySource: DisplayInfoSource = ScreenDisplaySource(),
+         sheetSource: CatalogSheetSource? = nil) {
         self.permissions = permissions
         self.axSource = axSource ?? resolver
         self.contentSource = contentSource
         self.displaySource = displaySource
+        self.sheetSource = sheetSource ?? resolver
         self.mapper = CoordinateMapper(displays: displaySource.displayInfos())
     }
 
@@ -217,6 +227,13 @@ final class WindowCatalog {
 
     /// 只有目录明确回报"这一轮捕获列表里也没有"才算确认销毁（方案 §8.3）。
     func isConfirmedGone(_ identity: WindowIdentity) -> Bool { confirmedGone.contains(identity) }
+
+    /// 该窗口此刻是否挂着需要用户处理的 Sheet（方案 §8.2.4）。
+    /// 句柄或事实读不到时按"没有"回答：拒绝写入必须基于确凿事实，不能靠猜。
+    func hasBlockingSheet(identity: WindowIdentity) async -> Bool {
+        guard let record = records[identity], let ax = axEntry(for: record) else { return false }
+        return await sheetSource.hasAttachedSheet(element: ax.element)
+    }
 
     /// 显示器配置变化后重建映射（方案 §12）。
     func rebuildDisplayMapping() {

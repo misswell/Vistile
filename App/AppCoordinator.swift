@@ -674,9 +674,7 @@ final class AppCoordinator {
     }
 
     private func matchesSearch(_ record: WindowRecord) -> Bool {
-        state.searchQuery.isEmpty
-            || record.title.localizedCaseInsensitiveContains(state.searchQuery)
-            || record.applicationName.localizedCaseInsensitiveContains(state.searchQuery)
+        record.matches(searchQuery: state.searchQuery)
     }
 
     private func captureTargets() -> [CaptureTarget] {
@@ -1086,6 +1084,11 @@ final class AppCoordinator {
 
     private func handle(_ event: AXWindowEvent) {
         metrics.increment("ax.notification")
+        // 同应用换了前台窗口（菜单栏 / Mission Control / Dock）：受控窗口不再是前台时必须核对（方案 §14）。
+        if event.name == kAXFocusedWindowChangedNotification || event.name == kAXMainWindowChangedNotification,
+           let target = state.phase.controlledTarget, target.processID == event.processID {
+            verifyControlledWindowIsFrontmost(target)
+        }
         guard let record = catalog.record(forAXElement: event.element, processID: event.processID) else {
             // 元素对不上身份时不猜是哪个窗口，直接要一次目录。
             scheduleStructuralRefresh()
@@ -1116,6 +1119,28 @@ final class AppCoordinator {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
     }
 
+    /// 受控应用在前台时的核对：受控窗口不再是前台窗口、或身份无法确认时，安全退出工作台
+    /// （方案 §14：不得只比较 PID 就当没发生变化）。交换与模式过渡在途时不插话——
+    /// 那时候前台归属由执行器自己的写入读回判定，否则我们自己的唤起会被误读成用户离开。
+    private func verifyControlledWindowIsFrontmost(_ target: WindowIdentity) {
+        guard state.workbench.modeTransition == .idle, !state.workbench.mainSwitch.isBusy else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            let focused = await self.resolver.focusedWindow(pid: target.processID)
+            // 读回后复核：会话、受控目标与"静止"都可能已经变了。
+            guard self.state.phase.isVisible, self.state.phase.controlledTarget == target,
+                  self.state.workbench.modeTransition == .idle,
+                  !self.state.workbench.mainSwitch.isBusy else { return }
+            if let focused,
+               let record = self.catalog.record(forAXElement: focused.element, processID: target.processID),
+               record.identity == target {
+                // 受控窗口确实在前台：我们自己的唤起，或用户点回了主窗口。
+                return
+            }
+            self.dispatch(.focusLost(origin: .unknown))
+        }
+    }
+
     // MARK: - 计时器与系统事件
 
     private func scheduleReconcile(_ interval: TimeInterval) {
@@ -1133,8 +1158,12 @@ final class AppCoordinator {
             guard let self, self.state.phase.isVisible else { return }
             let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
             if app?.bundleIdentifier == Bundle.main.bundleIdentifier { return }
-            // 唤起受控目标应用是本次会话自己的动作，不是用户离开。
-            if let target = self.state.phase.controlledTarget, target.processID == app?.processIdentifier { return }
+            // 受控应用的激活可能是我们自己的动作，也可能是用户选中了它的兄弟窗口：
+            // 必须读回前台窗口的身份再判定，不能只比 PID 就当没发生（方案 §14）。
+            if let target = self.state.phase.controlledTarget, target.processID == app?.processIdentifier {
+                self.verifyControlledWindowIsFrontmost(target)
+                return
+            }
             self.dispatch(.focusLost(origin: .otherApplication(bundleID: app?.bundleIdentifier)))
         }
         observe(workspace, NSWorkspace.activeSpaceDidChangeNotification) { [weak self] _ in

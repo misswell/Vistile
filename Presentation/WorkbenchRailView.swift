@@ -115,9 +115,12 @@ final class WorkbenchRailView: NSView {
     }
 
     /// 按冻结投影重建这一条栏的几何与装饰层；画面重绘由新帧或几何变化驱动。
+    /// 搜索过滤只影响视图：不匹配的卡片整格退场（与总览同一条规则），
+    /// 其余卡片的逻辑 slot、格子几何与滚动偏移都不变（方案 §5.5.5、§6.1）。
     func update(snapshot: WorkbenchLayoutSnapshot,
                 cards: [WorkbenchCard],
                 emptySlots: [RailSlotID],
+                searchQuery: String,
                 renderer: OverviewRenderer,
                 mailboxes: (WindowIdentity) -> FrameMailbox<MetalFrame>?) {
         let oldGeometry = slotRects
@@ -129,8 +132,10 @@ final class WorkbenchRailView: NSView {
             .filter { $0.rail == rail }
             .compactMap { slot in
                 guard let cell = snapshot.rect(for: slot), let content = snapshot.contentRect(for: slot) else { return nil }
+                let card = bySlot[slot]
+                if let card, !card.record.matches(searchQuery: searchQuery) { return nil }
                 return SlotGeometry(slot: slot,
-                                    identity: bySlot[slot]?.identity,
+                                    identity: card?.identity,
                                     cellRect: viewRect(cell),
                                     contentRect: viewRect(content))
             }
@@ -274,6 +279,29 @@ final class WorkbenchRailView: NSView {
     /// 可见的卡片格数：宿主测试与诊断用，证明"可见 n"不是编的。
     var visibleCardCount: Int {
         slotRects.filter { $0.identity != nil && $0.cellRect.intersects(bounds) }.count
+    }
+
+    /// VoiceOver 需要读到的卡片事实：位置按这一条栏此刻看得见的第几张，
+    /// 状态取目录里的真实捕获阶段，动作与点击走同一条路径（方案 §13）。
+    var accessibilityCardDescriptors: [CardAccessibilityDescriptor] {
+        let railName = rail == .top ? "顶栏" : "侧栏"
+        var position = 0
+        return slotRects.compactMap { entry in
+            guard let identity = entry.identity, entry.cellRect.intersects(bounds) else { return nil }
+            position += 1
+            let record = lastCards[entry.slot]?.record
+            let screenRect = window?.convertToScreen(entry.cellRect) ?? entry.cellRect
+            let slot = entry.slot
+            return CardAccessibilityDescriptor(
+                screenRect: screenRect,
+                applicationName: record?.applicationName ?? "未知应用",
+                title: record?.title ?? "",
+                statusText: CardAccessibilityBuilder.statusText(record?.capture),
+                roleDescription: "\(railName)卡片 \(position)",
+                actionName: "切换到主工作区",
+                activate: { [weak self] in self?.onAction?(.cardClicked(slot: slot, identity: identity)) }
+            )
+        }
     }
 
     // MARK: - 输入

@@ -25,10 +25,11 @@ struct FakeDisplaySource: DisplayInfoSource {
 }
 
 /// 候选窗口与 AX 句柄来源。句柄是用假 PID 创建的应用元素，系统里并不存在这些进程。
-final class FakeCatalogSource: CatalogContentSource, CatalogAXSource, @unchecked Sendable {
+final class FakeCatalogSource: CatalogContentSource, CatalogAXSource, CatalogSheetSource, @unchecked Sendable {
     private let lock = NSLock()
     private var windowFrames: [WindowIdentity: CGRect] = [:]
     private var elements: [WindowIdentity: AXUIElement] = [:]
+    private var sheets: Set<WindowIdentity> = []
     /// 置为 false 复现"这一代 AX 句柄读不到"。
     var publishesAX = true
     /// AX 侧的最小化事实由写入器持有（应用是唯一真相），目录只是读它。
@@ -65,6 +66,19 @@ final class FakeCatalogSource: CatalogContentSource, CatalogAXSource, @unchecked
     func element(for identity: WindowIdentity) -> AXUIElement? {
         lock.lock(); defer { lock.unlock() }
         return elements[identity]
+    }
+
+    /// 让某个窗口"挂着需要用户处理的 Sheet"（方案 §8.2.4）。
+    func setSheet(_ hasSheet: Bool, for identity: WindowIdentity) {
+        lock.lock()
+        if hasSheet { sheets.insert(identity) } else { sheets.remove(identity) }
+        lock.unlock()
+    }
+
+    func hasAttachedSheet(element: AXUIElement) async -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        guard let identity = elements.first(where: { CFEqual($0.value, element) })?.key else { return false }
+        return sheets.contains(identity)
     }
 
     func load() async -> CatalogContentResult {

@@ -97,7 +97,8 @@ final class WorkbenchSwitchTests: XCTestCase {
         catalog = WindowCatalog(permissions: permissions,
                                 axSource: catalogSource,
                                 contentSource: catalogSource,
-                                displaySource: FakeDisplaySource(displays: [HostFixtures.display]))
+                                displaySource: FakeDisplaySource(displays: [HostFixtures.display]),
+                                sheetSource: catalogSource)
         for index in minimized {
             let identity = HostFixtures.identity(index)
             if let element = catalogSource.element(for: identity) {
@@ -242,14 +243,15 @@ final class WorkbenchSwitchTests: XCTestCase {
         XCTAssertTrue(committedTokens().isEmpty, "写入被拒绝却宣布交换完成，就是假成功")
         XCTAssertEqual(stepEvents().last?.step, .moveToMain)
         XCTAssertFalse(try XCTUnwrap(stepEvents().last).outcome.allowsContinue)
-        XCTAssertEqual(writer.writtenFrames,
-                       [plan.mainTargetFrame, FakeCatalogSource.frame(for: 0)],
-                       "只允许一次被拒的目标写入加一次原主补偿：多写一次就是乱写窗口")
+        XCTAssertEqual(writer.writtenFrames, [plan.mainTargetFrame],
+                       "只允许一次被拒的目标写入：A 从没被这次动作动过，补偿不许写它")
         let bFrame = await writer.currentFrame(of: try element(of: b))
         let aFrame = await writer.currentFrame(of: try element(of: a))
         XCTAssertEqual(bFrame, FakeCatalogSource.frame(for: 1), "被拒绝的写入不能留下半截几何")
-        XCTAssertEqual(aFrame, FakeCatalogSource.frame(for: 0), "失败后原主窗口必须回到原几何")
-        XCTAssertTrue(store.unfinished.isEmpty, "两边都已回到原几何，补偿完成后事务才算结束")
+        XCTAssertEqual(aFrame, dockedRect(for: a), "B 写入失败时 A 保持主窗口，不许被拉走（方案 §8.3）")
+        XCTAssertEqual(store.entry(for: a)?.state.requiresRestore, true,
+                       "A 仍是主窗口：事务保留，退出时还要还原它的原几何")
+        XCTAssertNil(store.entry(for: b), "B 一步都没动、也在原几何上，事务按事实结算")
     }
 
     // MARK: - H05 原主写回失败：留痕、不假成功、目标补偿到位
@@ -371,7 +373,81 @@ final class WorkbenchSwitchTests: XCTestCase {
                       "原因必须指向日志问题：\(failureReasons())")
         XCTAssertEqual(stepEvents().map(\.step), [.prepare], "准备阶段就该拦住，不该走到写入")
         XCTAssertNil(store.entry(for: b), "B 本来就没有记录，也不该被这次失败补出记录")
-        XCTAssertTrue(store.unfinished.isEmpty, "A 从未离开原几何，按事实结算")
+        XCTAssertEqual(store.entry(for: a)?.state.requiresRestore, true,
+                       "准备阶段一个窗口都没动：A 的事务原样留给退出恢复路径（方案 §8.3）")
+    }
+
+    // MARK: - H13 对话框阻塞：挂着 Sheet 的窗口不许被写
+
+    func testModalSheetOnCurrentMainBlocksSwitchAndNeverWrites() async throws {
+        let plan = try await beginHappyPath()
+        catalogSource.setSheet(true, for: a)
+
+        coordinator.perform(plan)
+        await pendingUntil { !self.failureReasons().isEmpty }
+        await pendingUntil { !self.coordinator.isBusy }
+
+        XCTAssertTrue(committedTokens().isEmpty, "对话框还挂着，交换不许宣布完成")
+        XCTAssertEqual(stepEvents().map(\.step), [.prepare], "准备阶段就该拦住，不许走到写入")
+        XCTAssertEqual(writer.totalWrites, 0, "有对话框的窗口一个字节都不许写（方案 §8.2.4）")
+        XCTAssertTrue(failureReasons().contains { $0.contains("请先处理当前对话框") },
+                      "原因必须指向对话框：\(failureReasons())")
+        let aFrame = await writer.currentFrame(of: try element(of: a))
+        let bFrame = await writer.currentFrame(of: try element(of: b))
+        XCTAssertEqual(aFrame, dockedRect(for: a), "被拦住的交换不许动主区窗口")
+        XCTAssertEqual(bFrame, FakeCatalogSource.frame(for: 1), "B 留在原格")
+        XCTAssertEqual(store.entry(for: a)?.state.requiresRestore, true,
+                       "A 仍是主窗口：事务保留，退出时还要还原它的原几何")
+        XCTAssertEqual(Set(store.unfinished.map(\.journalKey)), Set([a.journalKey, b.journalKey]),
+                       "一个窗口都没动过：两边的事务按原样留给恢复路径收尾")
+    }
+
+    // MARK: - H13 进入路径：目标挂着 Sheet 时不进 L 型
+
+    func testEnteringWorkbenchWithSheetOnTargetIsRefusedWithoutWrites() async throws {
+        await startWorkbench(minimized: [])
+        store = makeStore()
+        store.apply(workbenchTransaction(a, planned: dockedRect(for: a)))
+        if let element = catalogSource.element(for: a) {
+            writer.setInitialFrame(FakeCatalogSource.frame(for: 0), for: element)
+        }
+        startRecovery()
+        try startCoordinator()
+        catalogSource.setSheet(true, for: a)
+
+        let token = TransitionToken(generation: 9)
+        let plan = WorkbenchTransitionPlan(kind: .enteringWorkbench,
+                                           token: token,
+                                           identity: a,
+                                           displayID: displayID,
+                                           snapshot: fixture.snapshot,
+                                           targetFrame: dockedRect(for: a),
+                                           animationFrom: nil,
+                                           animationTo: fixture.layout.mainRect,
+                                           railHandoffs: [],
+                                           animationMS: 240,
+                                           presentation: fixture.presentation)
+        coordinator.perform(plan)
+        await pendingUntil { self.events.contains { event in
+            if case .workbenchTransitionFinished = event { return true }
+            return false
+        } }
+        await pendingUntil { !self.coordinator.isBusy }
+
+        let result = events.compactMap { event -> WorkbenchStepOutcome? in
+            if case let .workbenchTransitionFinished(_, kind, result) = event, kind == .enteringWorkbench {
+                return result
+            }
+            return nil
+        }.first
+        guard case let .rejected(reason)? = result else {
+            return XCTFail("挂着对话框的窗口必须被拒绝进入，实际：\(String(describing: result))")
+        }
+        XCTAssertTrue(reason.contains("请先处理当前对话框"), "原因必须指向对话框：\(reason)")
+        XCTAssertEqual(writer.totalWrites, 0, "拒绝发生在写入之前：一个字节都不许写（方案 §8.2.4）")
+        let aFrame = await writer.currentFrame(of: try element(of: a))
+        XCTAssertEqual(aFrame, FakeCatalogSource.frame(for: 0), "被拒绝的进入不许动窗口几何")
+        XCTAssertTrue(store.unfinished.isEmpty, "窗口没动过，事务按事实结清，退出时不做无谓恢复")
     }
 
     // MARK: - H06/H19 在途卡住与取消：迟到的回调不许改变任何东西
@@ -443,14 +519,14 @@ final class WorkbenchSwitchTests: XCTestCase {
         await pendingUntil(timeout: 4) { !self.coordinator.isBusy }
 
         XCTAssertEqual(writer.writtenFrames,
-                       [plan.mainTargetFrame, FakeCatalogSource.frame(for: 0), FakeCatalogSource.frame(for: 1)],
-                       "超时补偿按逆序写回两个窗口，且只补一次")
+                       [plan.mainTargetFrame, FakeCatalogSource.frame(for: 1)],
+                       "超时只补这一次真正动过的 B，且只补一次；A 没被动过就不许写")
         XCTAssertTrue(failureReasons().contains { $0.contains("未收敛") },
                       "失败原因必须写明是超时收敛问题：\(failureReasons())")
         XCTAssertTrue(committedTokens().isEmpty)
         let aFrame = await writer.currentFrame(of: try element(of: a))
         let bFrame = await writer.currentFrame(of: try element(of: b))
-        XCTAssertEqual(aFrame, FakeCatalogSource.frame(for: 0))
+        XCTAssertEqual(aFrame, dockedRect(for: a), "超时回滚后 A 保持主窗口（方案 §8.3）")
         XCTAssertEqual(bFrame, FakeCatalogSource.frame(for: 1))
     }
 

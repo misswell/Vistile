@@ -40,7 +40,7 @@ final class WorkbenchRailViewTests: XCTestCase {
 
     // MARK: - 组装
 
-    private func sync(top: CGFloat = 0, side: CGFloat = 0) {
+    private func sync(top: CGFloat = 0, side: CGFloat = 0, query: String = "") {
         let snapshot = fixture.snapshot
             .scrolling(rail: .top, to: top)
             .scrolling(rail: .side, to: side)
@@ -51,7 +51,7 @@ final class WorkbenchRailViewTests: XCTestCase {
                           renderer: renderer,
                           mailboxProvider: { _ in nil },
                           showsTitles: true,
-                          searchQuery: "",
+                          searchQuery: query,
                           hint: nil)
     }
 
@@ -297,6 +297,98 @@ final class WorkbenchRailViewTests: XCTestCase {
         guard case .toggleSide = actions.last else {
             return XCTFail("侧栏按钮必须走方向切换：\(actions)")
         }
+    }
+
+    // MARK: - 搜索过滤：总览与两栏共用同一条规则（方案 §5.5.5）
+
+    func testSearchQueryHidesNonMatchingRailCardsFromHitTesting() throws {
+        let hiddenSlot = topSlot(0)
+        let keptSlot = topSlot(1)
+        let hiddenCenter = try XCTUnwrap(controller.topRail.cellCenter(for: hiddenSlot))
+        sync(query: "App3")
+
+        let top = controller.topRail
+        XCTAssertNil(top.cellCenter(for: hiddenSlot), "被过滤的卡片不许留下任何命中几何")
+        XCTAssertNil(top.hitTestCard(at: hiddenCenter), "旧位置必须落空，不许点到看不见的卡片")
+        XCTAssertEqual(top.visibleCardCount, 1, "「可见 n」只数过滤后还在的卡片")
+        XCTAssertEqual(controller.sideRail.visibleCardCount, 0, "侧栏卡片按同一条规则一起过滤")
+
+        let countText = controller.toolbarView.subviews.compactMap { ($0 as? NSTextField)?.stringValue }
+            .first { $0.hasPrefix("可见") }
+        XCTAssertEqual(countText, "可见 2 / 共 4", "工具栏计数只含过滤后可见的卡片，主区窗口永远算一个")
+
+        try send(.leftMouseDown, to: top, at: hiddenCenter)
+        try send(.leftMouseUp, to: top, at: hiddenCenter)
+        XCTAssertTrue(actions.isEmpty, "被过滤卡片的位置点下去什么都不该发生：\(actions)")
+
+        let keptCenter = try XCTUnwrap(top.cellCenter(for: keptSlot), "命中的卡片必须仍可点")
+        try send(.leftMouseDown, to: top, at: keptCenter)
+        try send(.leftMouseUp, to: top, at: keptCenter)
+        XCTAssertEqual(actions.count, 1)
+        guard case let .railCardClicked(slot, identity) = actions.first else {
+            return XCTFail("可见卡片点击必须走选择路径：\(actions)")
+        }
+        XCTAssertEqual(slot, keptSlot)
+        XCTAssertEqual(identity, try XCTUnwrap(fixture.placement.occupant(at: keptSlot)))
+
+        // 清空查询后完全恢复：过滤只是视图层的一次重投影，slot 与滚动偏移从未变过。
+        sync()
+        XCTAssertEqual(top.visibleCardCount, 2)
+        XCTAssertNotNil(top.cellCenter(for: hiddenSlot))
+    }
+
+    // MARK: - H13/§13 无障碍：两栏卡片可被朗读与激活
+
+    func testRailAccessibilityExposesCardsAsButtonsAndActivationRoutesThroughClick() throws {
+        let top = controller.topRail
+        XCTAssertFalse(top.isAccessibilityElement(), "栏本身是容器，不是一个元素")
+        XCTAssertEqual(top.accessibilityRole(), .group)
+        XCTAssertEqual(top.accessibilityLabel(), "工作台顶栏")
+        XCTAssertEqual(controller.sideRail.accessibilityLabel(), "工作台侧栏")
+
+        let children = try XCTUnwrap(top.accessibilityChildren())
+        XCTAssertEqual(children.count, 2, "顶栏两张卡片各暴露一个元素")
+        let first = try XCTUnwrap(children.first as? CardAccessibilityElement)
+        XCTAssertEqual(first.accessibilityRole(), .button)
+        XCTAssertEqual(first.accessibilityRoleDescription(), "顶栏卡片 1", "位置按可见顺序朗读")
+        XCTAssertEqual(first.accessibilityLabel(), "App2，窗口 2，实时画面",
+                       "朗读必须包含应用、窗口名与真实捕获状态")
+
+        let customActions = try XCTUnwrap(first.accessibilityCustomActions())
+        XCTAssertEqual(customActions.map(\.name), ["切换到主工作区"], "可操作性要朗读出真实动作")
+        let action = try XCTUnwrap(customActions.first)
+        XCTAssertIdentical(action.target, first, "动作必须指向这个卡片元素")
+        // 等价于 VoiceOver 触发这个动作：走与点击完全相同的一条路径。
+        XCTAssertTrue(first.activateFromAccessibility(), "命名动作必须报告执行成功")
+        XCTAssertEqual(actions.count, 1, "无障碍激活必须只产生一次动作：\(actions)")
+        guard case let .railCardClicked(slot, identity) = actions.first else {
+            return XCTFail("无障碍激活必须走卡片选择路径：\(actions)")
+        }
+        XCTAssertEqual(slot, topSlot(0))
+        XCTAssertEqual(identity, try XCTUnwrap(fixture.placement.occupant(at: topSlot(0))))
+
+        let sideChildren = try XCTUnwrap(controller.sideRail.accessibilityChildren())
+        XCTAssertEqual(sideChildren.count, 1)
+        let sideFirst = try XCTUnwrap(sideChildren.first as? CardAccessibilityElement)
+        XCTAssertEqual(sideFirst.accessibilityRoleDescription(), "侧栏卡片 1")
+
+        // VO-Space（按钮角色的标准激活）走同一条路径：不做看得见按不动的假按钮。
+        actions.removeAll()
+        XCTAssertTrue(sideFirst.accessibilityPerformPress())
+        XCTAssertEqual(actions.count, 1)
+        guard case let .railCardClicked(_, pressedIdentity) = actions.first else {
+            return XCTFail("VO-Space 必须走卡片选择路径：\(actions)")
+        }
+        XCTAssertEqual(pressedIdentity, try XCTUnwrap(fixture.placement.occupant(at: sideSlot(0))))
+
+        // 过滤后的位置编号按此刻可见的第几张重排，不暴露被过滤掉的空位。
+        actions.removeAll()
+        sync(query: "App3")
+        let filtered = try XCTUnwrap(top.accessibilityChildren())
+        XCTAssertEqual(filtered.count, 1)
+        let only = try XCTUnwrap(filtered.first as? CardAccessibilityElement)
+        XCTAssertEqual(only.accessibilityRoleDescription(), "顶栏卡片 1")
+        XCTAssertTrue(try XCTUnwrap(only.accessibilityLabel()).contains("App3"))
     }
 
     // MARK: - H12 捕获需求的投影事实

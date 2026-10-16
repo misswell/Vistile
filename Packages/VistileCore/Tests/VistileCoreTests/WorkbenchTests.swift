@@ -776,6 +776,20 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertNil(state.workbench.placement.main)
     }
 
+    // MARK: - 搜索过滤规则（总览与两栏共用同一条）
+
+    func testSearchRuleMatchesTitleAndApplicationName() {
+        var record = Fixtures.records(1)[0]
+        record.title = "季度报告 — 草稿"
+        record.applicationName = "Preview"
+
+        XCTAssertTrue(record.matches(searchQuery: ""), "空查询不过滤任何窗口")
+        XCTAssertTrue(record.matches(searchQuery: "季度"))
+        XCTAssertTrue(record.matches(searchQuery: "preview"), "应用名匹配且大小写不敏感")
+        XCTAssertTrue(record.matches(searchQuery: "草稿"))
+        XCTAssertFalse(record.matches(searchQuery: "safari"))
+    }
+
     // MARK: - W20 过渡打断
 
     func testW20InterruptedTransitionNeverCommitsStaleTokens() throws {

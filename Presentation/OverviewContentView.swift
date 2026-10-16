@@ -239,9 +239,7 @@ final class OverviewContentView: NSView {
     }
 
     private func matchesSearch(_ record: WindowRecord) -> Bool {
-        searchQuery.isEmpty
-            || record.title.localizedCaseInsensitiveContains(searchQuery)
-            || record.applicationName.localizedCaseInsensitiveContains(searchQuery)
+        record.matches(searchQuery: searchQuery)
     }
 
     private func applyChrome(_ chrome: CardChrome, entry: SlotGeometry, record: WindowRecord?) {
@@ -557,23 +555,11 @@ final class OverviewContentView: NSView {
                 screenRect: screenRect,
                 applicationName: record?.applicationName ?? "未知应用",
                 title: record?.title ?? "",
-                statusText: Self.accessibilityStatus(record?.capture),
-                slotIndex: entry.slot.index,
+                statusText: CardAccessibilityBuilder.statusText(record?.capture),
+                roleDescription: "总览卡片 \(entry.slot.index + 1)",
+                actionName: "展开窗口",
                 activate: { [weak self] in self?.onAction?(.cardClicked(entry.identity)) }
             )
-        }
-    }
-
-    /// 状态描述必须与实际能力一致：轮询、最小化、无权限都不能说成实时。
-    private static func accessibilityStatus(_ capture: CapturePhase?) -> String {
-        switch capture {
-        case .live: return "实时画面"
-        case .starting: return "正在启动实时画面"
-        case let .lowFrequency(interval): return "低频更新，间隔 \(interval) 毫秒"
-        case .pausedMinimized: return "已最小化，画面暂停"
-        case .permissionMissing: return "缺少屏幕录制权限，无画面"
-        case .notCapturable: return "该窗口不允许捕获"
-        case .idle, .none: return "尚未取得画面"
         }
     }
 }
