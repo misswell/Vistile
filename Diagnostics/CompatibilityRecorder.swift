@@ -9,12 +9,85 @@ final class CompatibilityRecorder {
     private let queue = DispatchQueue(label: "com.misswell.Vistile.recorder", qos: .utility)
 
     init(fileName: String = "capability-report") {
-        let base = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        outputDirectory = base.appendingPathComponent("Vistile Diagnostics", isDirectory: true)
+        self.fileName = fileName
+        outputDirectory = Self.resolvedOutputDirectory()
         report = CapabilityReport(systemVersion: Self.systemVersion,
                                   hardware: Self.hardwareDescription,
                                   appVersion: Self.appVersion)
+    }
+
+    private let fileName: String
+
+    /// 诊断输出的落点。
+    /// 两个都要防的事故：
+    /// 1. `init(fileName:)` 以前没被使用，落盘名硬编码成 "capability-report"——宿主测试传进来的
+    ///    `host-test-<uuid>` 因此也写进了桌面上那份正式报告。2026-10-16 16:25 一轮测试把 0.1.4 的
+    ///    原始报告覆盖成了只含合成窗口（App9000）的样例，14:46 那次同样如此；文档里的 0.1.4 数字只剩转录。
+    /// 2. 测试进程不该往用户桌面写任何东西。
+    /// 规则：显式 `VISTILE_DIAGNOSTICS_DIR` 优先；测试承载写临时目录；其余才是桌面。
+    private static func resolvedOutputDirectory() -> URL {
+        let env = ProcessInfo.processInfo.environment
+        if let override = env["VISTILE_DIAGNOSTICS_DIR"], !override.isEmpty {
+            return URL(fileURLWithPath: (override as NSString).expandingTildeInPath, isDirectory: true)
+        }
+        let isTestProcess = env["VISTILE_TEST_HOST"] == "1"
+            || env["VISTILE_DIAGNOSTICS_TEMP"] == "1"
+            || NSClassFromString("XCTestCase") != nil
+        if isTestProcess {
+            return URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+                .appendingPathComponent("Vistile Diagnostics", isDirectory: true)
+        }
+        let base = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        return base.appendingPathComponent("Vistile Diagnostics", isDirectory: true)
+    }
+
+    /// 探针启动前把上一轮的报告与清单挪进 `_archive/<版本-时间>/`，避免新一轮就地覆盖证据。
+    /// 返回归档目录；没有旧文件时返回 nil。
+    @discardableResult
+    func archivePreviousRun(fileName: String = "P0-acceptance-checklist.md") -> URL? {
+        let manager = FileManager.default
+        let names = ["\(self.fileName).md", "\(self.fileName).json", fileName]
+        let existing = names.map { outputDirectory.appendingPathComponent($0) }
+            .filter { manager.fileExists(atPath: $0.path) }
+        guard !existing.isEmpty else { return nil }
+        let destination = outputDirectory
+            .appendingPathComponent("_archive", isDirectory: true)
+            .appendingPathComponent(archiveName(), isDirectory: true)
+        do {
+            try manager.createDirectory(at: destination, withIntermediateDirectories: true)
+            for url in existing {
+                let target = destination.appendingPathComponent(url.lastPathComponent)
+                try? manager.removeItem(at: target)
+                try manager.moveItem(at: url, to: target)
+            }
+            return destination
+        } catch {
+            note("上一轮报告归档失败（\(error.localizedDescription)），本轮将就地覆盖 \(fileName)")
+            return nil
+        }
+    }
+
+    /// 归档目录名带上"那一份报告自己是哪个构建、什么时候生成的"，
+    /// 而不是当前这个构建——否则三轮之后的归档根本分不出先后。
+    private func archiveName() -> String {
+        let json = outputDirectory.appendingPathComponent("\(fileName).json")
+        var label = "unknown-build"
+        let attributes = try? FileManager.default.attributesOfItem(atPath: json.path)
+        var date = (attributes?[.modificationDate] as? Date) ?? Date()
+        if let data = try? Data(contentsOf: json),
+           let old = try? CapabilityReport.decode(data) {
+            label = old.appVersion.replacingOccurrences(of: " ", with: "-")
+            date = old.generatedAt
+        }
+        return "\(label)-\(Self.archiveStamp(date))"
+    }
+
+    private static func archiveStamp(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd-HHmmss"
+        return formatter.string(from: date)
     }
 
     static let systemVersion: String = {
@@ -130,15 +203,13 @@ final class CompatibilityRecorder {
     private func persistLocked() -> URL? {
         try? FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
         report.generatedAt = Date()
-        let json = outputDirectory.appendingPathComponent("\(reportName()).json")
-        let markdown = outputDirectory.appendingPathComponent("\(reportName()).md")
+        let json = outputDirectory.appendingPathComponent("\(fileName).json")
+        let markdown = outputDirectory.appendingPathComponent("\(fileName).md")
         guard let data = try? report.encoded() else { return nil }
         try? data.write(to: json, options: .atomic)
         try? report.markdown().write(to: markdown, atomically: true, encoding: .utf8)
         return markdown
     }
-
-    private func reportName() -> String { "capability-report" }
 
     var markdownText: String {
         queue.sync { report.markdown() }
