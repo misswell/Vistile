@@ -31,7 +31,11 @@ public enum SessionReducer {
         case let .windowClosed(identity):
             var effects: [SessionEffect] = [.stopCapture([identity])]
             state.records.removeValue(forKey: identity)
+            // 关闭只让原格变空：其余格子的矩形与占用关系不动（方案 §8.2）。
             state.slots.release(identity)
+            for (displayID, grid) in state.grids where grid.cell(for: identity) != nil {
+                state.grids[displayID]?.unbind(identity)
+            }
             if let target = state.phase.controlledTarget, target == identity {
                 // 目标已销毁：没有可恢复的 frame，只清理事务与捕获。
                 state.transactions.removeValue(forKey: identity)
@@ -47,8 +51,11 @@ public enum SessionReducer {
 
         case .displaysChanged:
             guard state.phase.isVisible, state.recoveryDestination == nil else { return [] }
+            // 屏幕集合变了，旧的冻结几何不再适用：先结束受控聚焦，再安全重建（方案 §8.2、§9.1）。
+            state.gridsAreStale = true
             if state.hasPendingGeometryRestore { return recoverToHidden(&state, destination: .hidden) }
             return [startDiscoveryEffect(&state, reason: .displaysChanged)]
+
 
         default:
             return nil
@@ -287,7 +294,8 @@ public enum SessionReducer {
             return [startDiscoveryEffect(&state, reason: .reconcile)]
 
         case .organizeRequested:
-            state.slots.organize()
+            // 整理是唯一会重排的用户动作：重新选一次行列，并把待整理窗口全部放进格子。
+            rebuildGrids(&state)
             let remaining = state.slots.pending.count
             return remaining > 0 ? [.presentHint(.newWindowsAvailable(remaining))] : []
 
@@ -296,7 +304,14 @@ public enum SessionReducer {
             return []
 
         case let .cardDragged(from, to):
+            guard state.slots.identity(at: from) != nil, state.slots.identity(at: to) != nil else { return [] }
             state.slots.swap(from, to)
+            // 交换的是占用关系，格子矩形留在原地；record.slot 必须一起改（方案 §8.2）。
+            for (displayID, grid) in state.grids {
+                guard let lhs = grid.localCellIndex(of: from), let rhs = grid.localCellIndex(of: to) else { continue }
+                state.grids[displayID]?.swapCells(lhs, rhs)
+            }
+            state.syncRecordSlots()
             return []
 
         case let .policyChanged(policy):
@@ -304,7 +319,10 @@ public enum SessionReducer {
             return []
 
         case let .settingsChanged(density):
+            state.policy.density = density
             state.style = OverviewStyle.style(density)
+            // 用户明确修改密度属于允许重排的事件。
+            if state.phase.isVisible { rebuildGrids(&state) }
             return []
 
         case .permissionRestored:
@@ -357,7 +375,7 @@ public enum SessionReducer {
         state.isExitPending = false
         state.pendingTarget = nil
         state.pendingDiscovery = nil
-        state.slots = SlotRegistry(capacity: state.slots.capacity, orderPreference: state.slots.orderPreference)
+        state.resetForHiddenSession()
         return [.cancelReconcile, .hideOverview, .stopAllCapture, .setKeyboardFocus(.none)]
     }
 
@@ -519,7 +537,7 @@ public enum SessionReducer {
             state.phase = .hidden
             state.isExitPending = false
             state.keyboardFocus = .none
-            state.slots = SlotRegistry(capacity: state.slots.capacity, orderPreference: state.slots.orderPreference)
+            state.resetForHiddenSession()
             let settled = state.transactions.values.filter { !$0.state.requiresRestore }.map(\.identity)
             for identity in settled { state.transactions.removeValue(forKey: identity) }
             effects.append(.clearJournal(sessionID: state.sessionID, settledIdentities: settled))
@@ -546,7 +564,7 @@ public enum SessionReducer {
         state.pendingTarget = nil
         state.pendingDiscovery = nil
         state.keyboardFocus = .none
-        state.slots = SlotRegistry(capacity: state.slots.capacity, orderPreference: state.slots.orderPreference)
+        state.resetForHiddenSession()
         var effects: [SessionEffect] = [.cancelReconcile, .stopAllCapture, .hideOverview, .setKeyboardFocus(.none)]
         if case let .hiddenAfterPermissionLost(kind) = destination {
             effects.append(.presentHint(.permissionMissing(kind)))
@@ -603,11 +621,12 @@ public enum SessionReducer {
         state.catalogGeneration = max(state.catalogGeneration, request.generation)
 
         let incoming = Set(records.map { $0.identity })
-        var newlyCapturable: [WindowIdentity] = []
+        var queued: [WindowRecord] = []
 
         for record in records {
             if state.records[record.identity] == nil {
-                state.slots.assign(record.identity, memoryKey: record.memoryKey)
+                // 新窗口只允许进空格：格子矩形不会因为它的到来而移动（方案 §8.2）。
+                queued.append(record)
             }
             // slot 不因标题更新或源窗口调整尺寸而改变。
             var merged = record
@@ -617,22 +636,31 @@ public enum SessionReducer {
                 merged.slot = previous.slot ?? merged.slot
             }
             state.records[record.identity] = merged
-            if merged.slot != nil, merged.capture == .idle || merged.capture == .closed {
-                newlyCapturable.append(record.identity)
-            }
         }
+
+        // 排队窗口在合并完记录后放置：此时它可能已经能被前一格接受。
+        for record in queued { placeRecord(&state, record) }
+        state.syncRecordSlots()
 
         for identity in Array(state.records.keys) where !incoming.contains(identity) {
             // 关闭的窗口原 slot 成为占位，后面的窗口不依次前移。
             state.slots.release(identity)
+            for (displayID, grid) in state.grids where grid.cell(for: identity) != nil {
+                state.grids[displayID]?.unbind(identity)
+            }
             state.records.removeValue(forKey: identity)
+        }
+        // 放置完再判定：新卡片必须先有格子才谈得上启动捕获（方案 §8.2）。
+        let newlyCapturable = state.records.values.compactMap { record -> WindowIdentity? in
+            guard record.slot != nil, record.capture == .idle else { return nil }
+            return record.identity
         }
 
         var effects: [SessionEffect] = []
         switch state.phase {
         case .preparing:
-            // 初次进入按已有记忆顺序，否则按应用分组 + 稳定发现顺序。
-            state.slots.rebuild(from: records)
+            // 初次进入：用原算法选一次行列，之后冻结（方案 §8.1）。
+            rebuildGrids(&state)
             let ordered = state.recordsInSlotOrder
             effects.append(.showOverview(displayID: ordered.first?.displayID))
             effects.append(.startCapture(ordered.map { $0.identity }, generation: request.generation))
@@ -640,15 +668,133 @@ public enum SessionReducer {
             state.phase = .overview
             state.keyboardFocus = .overview
         case .overview, .focused, .expanding, .collapsing, .switching:
-            // 总览显示期间行列结构冻结，只补充新发现的空 slot。
+            // 显示器变化后的第一次目录回来才重建网格；其余任何事件都不重排（方案 §8.2）。
+            if state.gridsAreStale { rebuildGrids(&state) }
             if !newlyCapturable.isEmpty {
                 effects.append(.startCapture(newlyCapturable, generation: request.generation))
             }
-            let queued = state.slots.pending.count
-            if queued > 0 { effects.append(.presentHint(.newWindowsAvailable(queued))) }
+            let waiting = state.slots.pending.count
+            if waiting > 0 { effects.append(.presentHint(.newWindowsAvailable(waiting))) }
         default:
             break
         }
         return effects
     }
+
+    // MARK: - 网格放置与重建
+
+    /// 把一个窗口放进网格：优先它自己那屏的空格，其次任意一屏的空格，都没有才进待整理。
+    /// 绝不扩容、绝不移动已有卡片（方案 §8.2）。
+    private static func placeRecord(_ state: inout SessionState, _ record: WindowRecord) {
+        for displayID in preferredDisplayOrder(for: record, state: state) {
+            if state.grids[displayID] == nil {
+                // 这一屏还没有网格（打开时它上面没有窗口）：新建网格不会移动任何已有卡片。
+                guard state.displays.contains(where: { $0.id == displayID }) else { continue }
+                state.grids[displayID] = freshGrid(state,
+                                                   displayID: displayID,
+                                                   entries: [(identity: record.identity, memoryKey: record.memoryKey,
+                                                             size: record.frame.size)],
+                                                   startingSlot: state.gridCapacity)
+            }
+            guard let grid = state.grids[displayID] else { continue }
+            // 新建的网格已经把它放进第一格，其余屏取自己的第一个空格。
+            let alreadyPlaced = grid.cell(for: record.identity) != nil
+            guard let slot = alreadyPlaced ? grid.cell(for: record.identity)?.slot : grid.firstVacantSlot else { continue }
+            state.slots.capacity = max(state.slots.capacity, state.gridCapacity)
+            guard state.slots.occupy(record.identity, memoryKey: record.memoryKey, at: slot) else {
+                if alreadyPlaced { state.grids[displayID]?.unbind(record.identity) }
+                continue
+            }
+            if alreadyPlaced { return }
+            // 绑定失败必须撤销登记，否则会出现"有 slot 但没有格子"的隐形窗口。
+            guard state.grids[displayID]?.bind(slot: slot, identity: record.identity) == true else {
+                state.slots.release(record.identity)
+                continue
+            }
+            return
+        }
+        state.slots.enqueuePending(record)
+    }
+
+    /// 自己那屏优先，其余屏按显示器顺序补位；不在 state.displays 里的屏一律不放。
+    private static func preferredDisplayOrder(for record: WindowRecord, state: SessionState) -> [UInt32] {
+        let known = state.displays.map(\.id)
+        guard known.contains(record.displayID) else { return known }
+        return [record.displayID] + known.filter { $0 != record.displayID }
+    }
+
+    /// 明确允许重排的事件才走这里：初次打开、整理、密度变化、显示器配置变化（方案 §8.2）。
+    static func rebuildGrids(_ state: inout SessionState) {
+        state.layoutRevision += 1
+        state.gridsAreStale = false
+        let ordered = layoutOrder(Array(state.records.values), preference: state.slots.orderPreference)
+        let memoryKeys = Dictionary(uniqueKeysWithValues: ordered.map { ($0.identity, $0.memoryKey) })
+        var grids: [UInt32: DisplayGridSnapshot] = [:]
+        var occupied: [(slot: SlotID, identity: WindowIdentity, memoryKey: String)] = []
+        var capacity = 0
+        var placed: Set<WindowIdentity> = []
+        var nextSlot = 0
+        for display in state.displays {
+            let entries = ordered.filter { $0.displayID == display.id }.map {
+                (identity: $0.identity, memoryKey: $0.memoryKey, size: $0.frame.size)
+            }
+            guard !entries.isEmpty else { continue }
+            // 全局 slot 按"位置"连续：每屏从上一屏的格子总数接着编号，
+            // 所以副屏的本地 0 号格是全局稀疏编号。
+            let grid = freshGrid(state, displayID: display.id, entries: entries,
+                                 startingSlot: nextSlot, revision: state.layoutRevision)
+            grids[display.id] = grid
+            capacity += grid.capacity
+            nextSlot += grid.capacity
+            for cell in grid.cells {
+                guard let slot = cell.slot, let identity = cell.identity else { continue }
+                occupied.append((slot, identity, memoryKeys[identity] ?? ""))
+                placed.insert(identity)
+            }
+        }
+        var registry = SlotRegistry(capacity: capacity, orderPreference: state.slots.orderPreference)
+        let waiting = ordered.filter { !placed.contains($0.identity) }
+        registry.adopt(capacity: capacity, occupied: occupied,
+                       pending: waiting.map {
+                           SlotRegistry.PendingWindow(identity: $0.identity, memoryKey: $0.memoryKey,
+                                                      applicationName: $0.applicationName, title: $0.title)
+                       })
+        state.grids = grids
+        state.slots = registry
+        state.syncRecordSlots()
+    }
+
+    /// 一屏一份新网格：行列由原算法决定一次，之后格子矩形不再参与优化。
+    private static func freshGrid(_ state: SessionState,
+                                  displayID: UInt32,
+                                  entries: [(identity: WindowIdentity, memoryKey: String, size: CGSize)],
+                                  startingSlot: Int? = nil,
+                                  revision: Int? = nil) -> DisplayGridSnapshot {
+        let display = state.displays.first { $0.id == displayID }
+        let placements = entries.enumerated().map { pair in
+            GridPlacement(localIndex: pair.offset,
+                          slot: SlotID(index: (startingSlot ?? state.slots.capacity) + pair.offset),
+                          identity: pair.element.identity,
+                          size: pair.element.size)
+        }
+        return DisplayGridSnapshot(displayID: displayID,
+                                   layoutRevision: revision ?? state.layoutRevision,
+                                   visibleFrame: display?.visibleFrame ?? .zero,
+                                   style: state.style,
+                                   placements: placements,
+                                   startingSlot: startingSlot ?? 0)
+    }
+
+    /// 排布顺序：记忆位置优先，其次应用名 + 稳定身份，保证同样输入得到同样网格。
+    private static func layoutOrder(_ records: [WindowRecord], preference: [String: Int]) -> [WindowRecord] {
+        records.sorted { lhs, rhs in
+            let lRank = preference[lhs.memoryKey] ?? Int.max
+            let rRank = preference[rhs.memoryKey] ?? Int.max
+            if lRank != rRank { return lRank < rRank }
+            if lhs.applicationName != rhs.applicationName { return lhs.applicationName < rhs.applicationName }
+            if lhs.identity.processID != rhs.identity.processID { return lhs.identity.processID < rhs.identity.processID }
+            return lhs.identity.windowID < rhs.identity.windowID
+        }
+    }
 }
+

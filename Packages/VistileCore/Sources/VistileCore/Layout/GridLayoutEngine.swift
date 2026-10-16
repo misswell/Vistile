@@ -131,21 +131,47 @@ public enum GridLayoutEngine {
                weights: weights)
     }
 
+    /// 紧凑路径：第 i 个源进第 i 格，位置随窗口数量变化。
+    /// 总览显示期间不走这里，走 DisplayGridSnapshot（方案 §8.1）。
     public static func layout(sources: [GridSource],
                               availableRect: CGRect,
                               style: OverviewStyle = .standard,
                               weights: LayoutWeights = LayoutWeights()) -> GridLayout {
-        let count = sources.count
+        let geometry = geometry(sourceSizes: sources.map(\.size),
+                                availableRect: availableRect,
+                                style: style,
+                                weights: weights)
+        let placements = sources.enumerated().map {
+            GridPlacement(localIndex: $0.offset, slot: $0.element.slot, identity: nil, size: $0.element.size)
+        }
+        return layout(geometry: geometry, placements: placements)
+    }
+
+    /// 只跑一次行列优化，给出可以冻结下来的几何，空格矩形一并给出。
+    public static func geometry(sourceSizes: [CGSize],
+                                availableRect: CGRect,
+                                style: OverviewStyle = .standard,
+                                weights: LayoutWeights = LayoutWeights()) -> GridGeometry {
+        let count = sourceSizes.count
         let usable = usableArea(in: availableRect, style: style)
         guard count > 0, usable.width > 1, usable.height > 1 else {
-            return GridLayout(columns: 0, rows: 0, cellSize: .zero, availableRect: availableRect,
-                              cards: [], emptyCells: 0, score: 0, isReadable: true, areaEfficiency: 0)
+            return GridGeometry(columns: 0,
+                                rows: 0,
+                                cellSize: .zero,
+                                usable: usable,
+                                availableRect: availableRect,
+                                style: style,
+                                cellCount: 0,
+                                emptyCells: 0,
+                                score: 0,
+                                areaEfficiency: 0,
+                                isReadable: true)
         }
 
         var best: Candidate?
         for columns in 1...count {
             guard let candidate = evaluate(columns: columns,
-                                           sources: sources,
+                                           sourceSizes: sourceSizes,
                                            usable: usable,
                                            style: style,
                                            weights: weights) else { continue }
@@ -157,10 +183,33 @@ public enum GridLayoutEngine {
         }
 
         guard let winner = best else {
-            // 极端狭长屏（连 1 列都放不下标题条）时退化为单列可缩放布局，保证不越界。
-            return fallbackLayout(sources: sources, usable: usable, style: style, availableRect: availableRect)
+            // 极端狭长屏（连 1 列都放不下标题条）时退化为单列，保证不越界。
+            return fallbackGeometry(count: count, usable: usable, style: style, availableRect: availableRect)
         }
-        return winner.layout(sources: sources, usable: usable, style: style, availableRect: availableRect)
+        return winner.geometry(usable: usable, style: style, availableRect: availableRect, count: count)
+    }
+
+    /// 由冻结几何 + 每格内容生成渲染布局：格子位置由调用方决定，这里只算矩形。
+    public static func layout(geometry: GridGeometry, placements: [GridPlacement]) -> GridLayout {
+        let cards: [GridCard] = placements.compactMap { placement in
+            guard let cellRect = geometry.cellRect(at: placement.localIndex),
+                  let contentRect = geometry.contentRect(at: placement.localIndex) else { return nil }
+            let image = aspectFitRect(sourceSize: placement.size, in: contentRect)
+            return GridCard(slot: placement.slot,
+                            cellRect: cellRect,
+                            contentRect: contentRect,
+                            imageRect: image.rect,
+                            scale: image.scale)
+        }
+        return GridLayout(columns: geometry.columns,
+                          rows: geometry.rows,
+                          cellSize: geometry.cellSize,
+                          availableRect: geometry.availableRect,
+                          cards: cards,
+                          emptyCells: geometry.emptyCells,
+                          score: geometry.score,
+                          isReadable: geometry.isReadable,
+                          areaEfficiency: geometry.areaEfficiency)
     }
 
     /// 判定给定窗口数在当前屏上是否仍达到可读尺寸。
@@ -170,10 +219,10 @@ public enum GridLayoutEngine {
                                   style: OverviewStyle = .standard,
                                   weights: LayoutWeights = LayoutWeights()) -> Bool {
         guard count > 0 else { return true }
-        return layout(sourceSizes: Array(sourceSizes.prefix(count)),
-                      availableRect: availableRect,
-                      style: style,
-                      weights: weights).isReadable
+        return geometry(sourceSizes: Array(sourceSizes.prefix(count)),
+                        availableRect: availableRect,
+                        style: style,
+                        weights: weights).isReadable
     }
 
     private struct Candidate {
@@ -185,41 +234,27 @@ public enum GridLayoutEngine {
         let areaEfficiency: Double
         let isReadable: Bool
 
-        func layout(sources: [GridSource], usable: CGRect, style: OverviewStyle, availableRect: CGRect) -> GridLayout {
-            var cards: [GridCard] = []
-            cards.reserveCapacity(sources.count)
-            for (i, source) in sources.enumerated() {
-                let row = i / columns
-                let column = i % columns
-                let cellRect = CGRect(x: usable.minX + CGFloat(column) * (cellSize.width + style.gap),
-                                      y: usable.minY + CGFloat(row) * (cellSize.height + style.gap),
-                                      width: cellSize.width,
-                                      height: cellSize.height)
-                let contentHeight = max(0, cellRect.height - style.titleHeight)
-                let contentRect = CGRect(x: cellRect.minX, y: cellRect.minY + style.titleHeight,
-                                         width: cellRect.width, height: contentHeight)
-                let image = aspectFitRect(sourceSize: source.size, in: contentRect)
-                cards.append(GridCard(slot: source.slot, cellRect: cellRect, contentRect: contentRect,
-                                      imageRect: image.rect, scale: image.scale))
-            }
-            return GridLayout(columns: columns,
-                              rows: rows,
-                              cellSize: cellSize,
-                              availableRect: availableRect,
-                              cards: cards,
-                              emptyCells: emptyCells,
-                              score: score,
-                              isReadable: isReadable,
-                              areaEfficiency: areaEfficiency)
+        func geometry(usable: CGRect, style: OverviewStyle, availableRect: CGRect, count: Int) -> GridGeometry {
+            GridGeometry(columns: columns,
+                         rows: rows,
+                         cellSize: cellSize,
+                         usable: usable,
+                         availableRect: availableRect,
+                         style: style,
+                         cellCount: rows * columns,
+                         emptyCells: rows * columns - count,
+                         score: score,
+                         areaEfficiency: areaEfficiency,
+                         isReadable: isReadable)
         }
     }
 
     private static func evaluate(columns: Int,
-                                 sources: [GridSource],
+                                 sourceSizes: [CGSize],
                                  usable: CGRect,
                                  style: OverviewStyle,
                                  weights: LayoutWeights) -> Candidate? {
-        let count = sources.count
+        let count = sourceSizes.count
         let rows = Int((Double(count) / Double(columns)).rounded(.up))
         let cellWidth = (usable.width - CGFloat(columns - 1) * style.gap) / CGFloat(columns)
         let cellHeight = (usable.height - CGFloat(rows - 1) * style.gap) / CGFloat(rows)
@@ -228,9 +263,9 @@ public enum GridLayoutEngine {
         let cellSize = CGSize(width: cellWidth, height: cellHeight)
         let contentHeight = cellHeight - style.titleHeight
         var previewArea: CGFloat = 0
-        for source in sources {
-            let scale = min(cellWidth / max(source.size.width, 1), contentHeight / max(source.size.height, 1))
-            previewArea += (source.size.width * scale) * (source.size.height * scale)
+        for size in sourceSizes {
+            let scale = min(cellWidth / max(size.width, 1), contentHeight / max(size.height, 1))
+            previewArea += (size.width * scale) * (size.height * scale)
         }
         let availableArea = usable.width * usable.height
         guard availableArea > 0 else { return nil }
@@ -266,22 +301,23 @@ public enum GridLayoutEngine {
         return lhs.columns < rhs.columns
     }
 
-    private static func fallbackLayout(sources: [GridSource], usable: CGRect, style: OverviewStyle, availableRect: CGRect) -> GridLayout {
-        let rows = sources.count
+    private static func fallbackGeometry(count: Int,
+                                         usable: CGRect,
+                                         style: OverviewStyle,
+                                         availableRect: CGRect) -> GridGeometry {
+        let rows = count
         let cellHeight = max(1, (usable.height - CGFloat(max(0, rows - 1)) * style.gap) / CGFloat(max(rows, 1)))
-        var cards: [GridCard] = []
-        for (i, source) in sources.enumerated() {
-            let cellRect = CGRect(x: usable.minX, y: usable.minY + CGFloat(i) * (cellHeight + style.gap),
-                                  width: usable.width, height: cellHeight)
-            let contentRect = CGRect(x: cellRect.minX, y: cellRect.minY + min(style.titleHeight, cellRect.height),
-                                     width: cellRect.width, height: max(0, cellRect.height - style.titleHeight))
-            let image = aspectFitRect(sourceSize: source.size, in: contentRect)
-            cards.append(GridCard(slot: source.slot, cellRect: cellRect, contentRect: contentRect,
-                                  imageRect: image.rect, scale: image.scale))
-        }
-        return GridLayout(columns: 1, rows: rows, cellSize: CGSize(width: usable.width, height: cellHeight),
-                          availableRect: availableRect, cards: cards, emptyCells: 0, score: 0,
-                          isReadable: false, areaEfficiency: 0)
+        return GridGeometry(columns: 1,
+                            rows: rows,
+                            cellSize: CGSize(width: usable.width, height: cellHeight),
+                            usable: usable,
+                            availableRect: availableRect,
+                            style: style,
+                            cellCount: rows,
+                            emptyCells: 0,
+                            score: 0,
+                            areaEfficiency: 0,
+                            isReadable: false)
     }
 
     private static func usableArea(in rect: CGRect, style: OverviewStyle) -> CGRect {

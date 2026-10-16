@@ -154,6 +154,11 @@ public struct SessionState: Sendable {
     public var trustedInteraction: InteractionToken?
     /// 显示器 -> 该屏可用区，由宿主写入后供 reducer 决策使用。
     public var displays: [DisplayInfo] = []
+    /// 每屏一份冻结网格（方案 §8.1）：行列与格子矩形只在明确允许重排的事件后重建。
+    public var grids: [UInt32: DisplayGridSnapshot] = [:]
+    public var layoutRevision: Int = 0
+    /// 显示器配置变化后标脏：等下一次目录回来再重建，不用旧的窗口事实排格。
+    public var gridsAreStale = false
 
     public init() {}
 
@@ -161,6 +166,35 @@ public struct SessionState: Sendable {
         slots.slots.compactMap { content in
             content.identity.flatMap { records[$0] }
         }
+    }
+
+    /// 所有屏格子之和：registry 容量只能由布局重建写入（方案 §8.2）。
+    public var gridCapacity: Int { grids.values.reduce(0) { $0 + $1.capacity } }
+
+    public func gridCell(for identity: WindowIdentity) -> (displayID: UInt32, cell: GridCell)? {
+        for (displayID, grid) in grids {
+            if let cell = grid.cell(for: identity) { return (displayID, cell) }
+        }
+        return nil
+    }
+
+    public func cellRect(for identity: WindowIdentity) -> CGRect? {
+        grids[displayID(of: identity) ?? 0]?.rect(of: identity)
+    }
+
+    /// record.slot、registry、grid 三处占用关系必须一次写完。
+    public mutating func syncRecordSlots() {
+        for (identity, var record) in records {
+            record.slot = slots.slot(for: identity)
+            records[identity] = record
+        }
+    }
+
+    /// 会话结束：冻结网格不再有意义，但跨会话的顺序偏好要保留（方案 §8.2）。
+    public mutating func resetForHiddenSession() {
+        grids = [:]
+        gridsAreStale = false
+        slots = SlotRegistry(capacity: slots.capacity, orderPreference: slots.orderPreference)
     }
 
     public func record(for identity: WindowIdentity) -> WindowRecord? {

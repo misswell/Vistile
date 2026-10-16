@@ -42,13 +42,23 @@ struct ScreenDisplaySource: DisplayInfoSource {
     func displayInfos() -> [DisplayInfo] { DisplayReader.displayInfos() }
 }
 
+/// 一次目录发布的完整事实（方案 §8.3）：新增/更新、确定销毁、暂时读不到分开表达，
+/// 避免"以 .closed 记录伪装删除"和"从 records 里悄悄消失"两套生命周期并存。
+struct CatalogUpdate {
+    let upserts: [WindowRecord]
+    /// 本轮确认不存在的窗口：调用方必须走统一的 .windowClosed 路径。
+    let removals: [WindowIdentity]
+    /// 仍在但读不到 AX 句柄的窗口：卡片保留，不能当成关闭。
+    let transientUnavailable: [WindowIdentity]
+}
+
 /// 窗口目录：发现、身份、一对一关联、显示归属与保守的 Space 判定（方案 §6）。
 /// 记录与句柄表只在主 Actor 上成组发布，捕获层与几何层读到的永远是同一代次。
 @MainActor
 final class WindowCatalog {
     /// 发布必须携带本次查询对应的请求：旧会话/旧请求的结果不得进入当前状态机（方案 §5.2）。
     /// request 为 nil 表示这次发布不属于任何会话请求（例如启动恢复前的目录建立）。
-    var onRecords: (([WindowRecord], DiscoveryRequest?) -> Void)?
+    var onRecords: ((CatalogUpdate, DiscoveryRequest?) -> Void)?
     /// 失败同样是"这一次请求有结果"：必须让 in-flight 解锁，不能只靠成功路径（方案 §5.2）。
     var onFailure: ((DiscoveryRequest?, DiscoveryFailure) -> Void)?
     var onStatus: ((String) -> Void)?
@@ -62,6 +72,8 @@ final class WindowCatalog {
     /// 自己的总览/动画窗口统一排除，阻止无限镜像（方案 §6.9）。
     private var ownWindowIDs: Set<UInt32> = []
     private(set) var records: [WindowIdentity: WindowRecord] = [:]
+    /// 确认销毁过的身份：恢复执行器据此把事务结算为"窗口已消失"，而不是无限重试。
+    private(set) var confirmedGone: Set<WindowIdentity> = []
     /// 显示器事实与捕获权限无关，启动就有值：不能因为一次查询失败就连屏幕都"看不见"。
     private(set) var mapper: CoordinateMapper
 
@@ -160,8 +172,8 @@ final class WindowCatalog {
         switch result {
         case .published(let output):
             publish(output)
-            if requests.isEmpty { onRecords?(output.records, nil) }
-            for request in requests { onRecords?(output.records, request) }
+            if requests.isEmpty { onRecords?(output.update, nil) }
+            for request in requests { onRecords?(output.update, request) }
         case .degraded(let output, let failure):
             publish(output)
             report(failure: failure, requests: requests)
@@ -192,10 +204,19 @@ final class WindowCatalog {
         generation = max(generation, output.generation)
         scWindows = output.scWindows
         axEntries = output.axEntries
-        // 上一轮已确认关闭的身份不再累积。
-        records = records.filter { $0.value.capture != .closed }
-        for record in output.records { records[record.identity] = record }
+        // 确定销毁的身份从目录消失并被记住；再次出现即撤销该结论。
+        for identity in output.update.removals {
+            records.removeValue(forKey: identity)
+            confirmedGone.insert(identity)
+        }
+        for record in output.update.upserts {
+            records[record.identity] = record
+            confirmedGone.remove(record.identity)
+        }
     }
+
+    /// 只有目录明确回报"这一轮捕获列表里也没有"才算确认销毁（方案 §8.3）。
+    func isConfirmedGone(_ identity: WindowIdentity) -> Bool { confirmedGone.contains(identity) }
 
     /// 显示器配置变化后重建映射（方案 §12）。
     func rebuildDisplayMapping() {
@@ -203,7 +224,7 @@ final class WindowCatalog {
     }
 
     struct CatalogOutput {
-        let records: [WindowRecord]
+        let update: CatalogUpdate
         let generation: UInt64
         let reason: DiscoveryReason
         /// 句柄表与记录同代次发布，消费方不会拿到跨代次的窗口对象。
@@ -255,27 +276,30 @@ final class WindowCatalog {
             }
         }
 
-        // 本轮未再出现的旧身份：只有"AX 也读不到且捕获列表也没有"才判为关闭。
-        for (identity, stale) in records where !seen.contains(identity) && stale.capture != .closed {
+        // 本轮未再出现的旧身份：只有"捕获列表也没有"才判为确定销毁。
+        var removals: [WindowIdentity] = []
+        var transientUnavailable: [WindowIdentity] = []
+        for (identity, stale) in records where !seen.contains(identity) {
             let stillTracked = inputs.snapshots.contains { $0.identity == identity }
             if !stillTracked, stale.capture != .permissionMissing {
-                var closed = stale
-                closed.capture = .closed
-                closed.sessionGeneration = nextGeneration
-                output.append(closed)
+                removals.append(identity)
             } else {
                 // 读不到不等于消失：保留原记录，只更新代次，卡片继续显示最后一帧。
                 var kept = stale
                 kept.sessionGeneration = nextGeneration
                 output.append(kept)
+                transientUnavailable.append(identity)
             }
         }
 
-        let catalogOutput = CatalogOutput(records: output,
-                                         generation: nextGeneration,
-                                         reason: reason,
-                                         scWindows: inputs.scWindows,
-                                         axEntries: freshAX)
+        let catalogOutput = CatalogOutput(update: CatalogUpdate(upserts: output,
+                                                                removals: removals,
+                                                                transientUnavailable: transientUnavailable),
+                                          generation: nextGeneration,
+                                          reason: reason,
+                                          scWindows: inputs.scWindows,
+                                          axEntries: freshAX)
+
         // 没有任何一个候选窗口通过筛选：要说"没有可用的窗口"，不能显示空白面板当作成功（方案 §5.2）。
         if seen.isEmpty, reason == .shortcut {
             return .degraded(catalogOutput, .emptyCatalog)
@@ -286,13 +310,15 @@ final class WindowCatalog {
     private func permissionMissingOutput(generation: UInt64,
                                          reason: DiscoveryReason) -> CatalogOutput? {
         var updated: [WindowRecord] = []
-        for (_, record) in records where record.capture != .closed {
+        for (_, record) in records {
             var copy = record
             copy.capture = .permissionMissing
             copy.sessionGeneration = generation
             updated.append(copy)
         }
-        return updated.isEmpty ? nil : CatalogOutput(records: updated,
+        return updated.isEmpty ? nil : CatalogOutput(update: CatalogUpdate(upserts: updated,
+                                                                           removals: [],
+                                                                           transientUnavailable: []),
                                                      generation: generation,
                                                      reason: reason,
                                                      scWindows: [:],

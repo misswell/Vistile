@@ -95,9 +95,11 @@ final class AppCoordinator {
     func start() {
         catalog.isExcludedBundle = { [weak self] bundleID in self?.settings.isExcluded(bundleID) ?? false }
         // 结果必须原样带回它对应的那一次请求：旧会话/旧请求的目录不得进入当前状态机（方案 §5.2）。
-        catalog.onRecords = { [weak self] records, request in
+        catalog.onRecords = { [weak self] update, request in
             guard let self, let request else { return }
-            self.dispatch(.catalogUpdated(request: request, records: records))
+            // 确定销毁先走统一的 .windowClosed，再合并本轮记录：只有一套关闭窗口生命周期（方案 §8.3）。
+            for identity in update.removals { self.dispatch(.windowClosed(identity)) }
+            self.dispatch(.catalogUpdated(request: request, records: update.upserts))
         }
         // 失败也要解锁 in-flight，否则一次查询失败会把总览永久卡在准备中。
         catalog.onFailure = { [weak self] request, failure in
@@ -241,12 +243,13 @@ final class AppCoordinator {
     }
 
     private func handleEvent(_ event: SessionEvent) {
-        if case let .catalogUpdated(_, records) = event {
-            // 方案 §2.6：所有符合条件窗口都要有格子。容量随目录增长，绝不静默只留"最近 N 个"。
-            state.slots.capacity = max(state.slots.capacity, records.count)
-        }
         // 显示器事实不属于任何事件：目标屏判定与"这一屏还在不在"都由它决定（方案 §12）。
+        let previousDisplays = Set(state.displays.map(\.id))
         state.displays = catalog.mapper.displays
+        // 屏幕集合与状态里不一致就直接标脏：显示器通知可能晚于目录结果到达（方案 §9.1）。
+        if state.phase.isVisible, previousDisplays != Set(state.displays.map(\.id)) {
+            state.gridsAreStale = true
+        }
         metrics.increment("event")
         let effects = SessionReducer.reduce(&state, event)
         for effect in effects {
@@ -369,25 +372,22 @@ final class AppCoordinator {
         }
     }
 
-    /// 每屏一份布局；全局 slot 编号不因分屏而改变含义（方案 §8、§12）。
+    /// 每屏一份渲染布局：格子矩形来自冻结网格，只有 imageRect 随源尺寸变化（方案 §8.1）。
     private func rebuildLayouts() {
         layouts.removeAll()
         cardRects.removeAll()
-        for display in catalog.mapper.displays {
-            let sources = state.recordsInSlotOrder.compactMap { record -> GridSource? in
-                guard record.displayID == display.id, let slot = record.slot else { return nil }
-                return GridSource(slot: slot, size: record.frame.size)
+        for (displayID, grid) in state.grids {
+            var sizes: [WindowIdentity: CGSize] = [:]
+            for identity in grid.occupiedIdentities {
+                if let record = state.records[identity] { sizes[identity] = record.frame.size }
             }
-            guard !sources.isEmpty else { continue }
-            let layout = GridLayoutEngine.layout(sources: sources,
-                                                 availableRect: display.visibleFrame,
-                                                 style: state.style)
-            layouts[display.id] = layout
+            let layout = grid.layout(for: sizes)
+            layouts[displayID] = layout
             for card in layout.cards {
                 guard let identity = state.slots.identity(at: card.slot) else { continue }
                 cardRects[identity] = card.cellRect
             }
-            if !layout.isReadable, !hasWarnedTinyThumbnails, state.phase.isVisible {
+            if !grid.isReadable, !hasWarnedTinyThumbnails, state.phase.isVisible {
                 hasWarnedTinyThumbnails = true
                 present(.thumbnailTooSmall)
             }
@@ -478,8 +478,14 @@ final class AppCoordinator {
             catalog.forgetOwnWindow(id: controller.windowNumber)
             controllers.removeValue(forKey: displayID)
         }
-        for display in displays where controllers[display.id] == nil {
-            let controller = OverviewWindowController(display: display, metal: metal)
+        for display in displays {
+            if let controller = controllers[display.id] {
+                // 同一块屏的尺寸/倍率变化要落到面板、内容视图与 drawableSize：
+                // 只更新 catalog.mapper 不等于展示已更新（方案 §9.1）。
+                controller.updateDisplay(display, mapper: catalog.mapper)
+                continue
+            }
+            let controller = OverviewWindowController(display: display, mapper: catalog.mapper, metal: metal)
             controller.onAction = { [weak self] action in self?.handle(action) }
             controller.onFirstClick = { [weak self] in
                 // 只统计"第一下就落在总览上"的事实，不在这里改状态。
@@ -504,8 +510,6 @@ final class AppCoordinator {
         for (displayID, controller) in controllers where controller.isVisible {
             guard layouts[displayID] != nil else { continue }
             controller.contentView.redraw(using: renderer,
-                                          records: state.records,
-                                          frameByID: { [weak self] in self?.state.records[$0]?.frame },
                                           mailboxes: { [weak self] identity in self?.capture.mailbox(for: identity) },
                                           force: false)
         }

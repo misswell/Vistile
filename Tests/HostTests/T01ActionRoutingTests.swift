@@ -20,7 +20,7 @@ final class T01ActionRoutingTests: XCTestCase {
         try super.setUpWithError()
         metal = try HostFixtures.metalContext()
         renderer = try HostFixtures.renderer(metal: metal)
-        controller = OverviewWindowController(display: HostFixtures.display, metal: metal)
+        controller = OverviewWindowController(display: HostFixtures.display, mapper: HostFixtures.mapper, metal: metal)
         recorder = ActionRecorder()
         controller.onAction = { [weak recorder] action in recorder?.record(action) }
         let built = HostFixtures.layout()

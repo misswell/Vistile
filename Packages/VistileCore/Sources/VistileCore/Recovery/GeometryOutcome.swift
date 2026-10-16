@@ -122,15 +122,21 @@ public enum WindowLiveness: Hashable, Sendable {
         self == .closedWindow || self == .processExited
     }
 
-    public init(record: WindowRecord?, processIsSameInstance: Bool) {
+    public init(record: WindowRecord?,
+                processIsSameInstance: Bool,
+                isConfirmedGone: Bool = false) {
         if !processIsSameInstance {
             self = .processExited
-        } else if let record {
-            self = record.capture == .closed ? .closedWindow : .alive
+        } else if isConfirmedGone {
+            // "确认销毁"是目录给出的事实，不是"记录没了"的猜测（方案 §8.3）。
+            self = .closedWindow
+        } else if record != nil {
+            self = .alive
         } else {
             self = .unknown(reason: "目录中没有该窗口记录")
         }
     }
+
 }
 
 /// 逐条恢复结果：批次"处理完毕"与"全部恢复成功"是两件事（方案 §6.4）。

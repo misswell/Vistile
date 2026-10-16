@@ -31,7 +31,7 @@ struct CaptureTarget: Hashable {
         self.isPriority = isPriority
         isMinimized = record.isMinimized || record.capture == .pausedMinimized
         switch record.capture {
-        case .notCapturable, .closed, .permissionMissing: isCapturable = false
+        case .notCapturable, .permissionMissing: isCapturable = false
         default: isCapturable = record.restriction != .protectedContent
         }
     }

@@ -20,7 +20,7 @@ final class T02MetalPresentationTests: XCTestCase {
         try super.setUpWithError()
         metal = try HostFixtures.metalContext()
         renderer = try HostFixtures.renderer(metal: metal)
-        controller = OverviewWindowController(display: HostFixtures.display, metal: metal)
+        controller = OverviewWindowController(display: HostFixtures.display, mapper: HostFixtures.mapper, metal: metal)
         let built = HostFixtures.layout()
         layout = built.layout
         records = built.records
@@ -149,7 +149,7 @@ final class T02MetalPresentationTests: XCTestCase {
     func testZeroSizedViewSubmitsNothing() {
         let orphan = OverviewContentView(frame: NSRect(origin: .zero, size: .zero), metal: metal)
         let before = renderer.diagnostics()
-        orphan.redraw(using: renderer, records: records, frameByID: { _ in nil }, mailboxes: { _ in nil }, force: true)
+        orphan.redraw(using: renderer, mailboxes: { _ in nil }, force: true)
         let after = renderer.diagnostics()
         XCTAssertEqual(after.draws, before.draws + 1)
         XCTAssertEqual(after.presents, before.presents)

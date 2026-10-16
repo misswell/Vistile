@@ -62,13 +62,18 @@ final class RecoveryCoordinator {
         guard permissionsReady else {
             return item(entry, .notAttempted(permissionsMissingReason), name)
         }
+        let isConfirmedGone = catalog.isConfirmedGone(entry.identity)
         guard let record = catalog.record(for: entry.identity) else {
-            return item(entry, .notAttempted("目录中还没有该窗口的记录，无法确认它是否仍存在"), name)
+            // 目录确认销毁与"还没来得及记录"是两件事：前者可以直接结算，后者必须保留事务（方案 §6.4、§8.3）。
+            return item(entry, isConfirmedGone ? .windowGone
+                                               : .notAttempted("目录中还没有该窗口的记录，无法确认它是否仍存在"), name)
         }
         let liveness = WindowLiveness(record: record,
                                       processIsSameInstance: processIdentity.isSameInstance(
                                         processID: entry.identity.processID,
-                                        startIdentity: entry.identity.processStartIdentity))
+                                        startIdentity: entry.identity.processStartIdentity),
+                                      isConfirmedGone: isConfirmedGone)
+
         guard let ax = catalog.axEntry(for: record) else {
             // 句柄读不到属于"事实不足"，不是窗口消失：事务必须保留（方案 §6.4）。
             let outcome: RestoreOutcome = liveness.isConfirmedGone ? .windowGone : .notAttempted("辅助功能句柄暂不可用")

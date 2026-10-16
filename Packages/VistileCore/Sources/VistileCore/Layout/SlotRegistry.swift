@@ -74,6 +74,19 @@ public struct SlotRegistry: Hashable, Sendable {
         return SlotID(index: slots.count - 1)
     }
 
+    /// 占据指定位置：网格与登记表必须指向同一个格子，所以 slot 由网格给出，
+    /// 这里只判定"这个位置是否可用"（方案 §8.2）。
+    @discardableResult
+    public mutating func occupy(_ identity: WindowIdentity, memoryKey: String, at slot: SlotID) -> Bool {
+        guard slot.index >= 0, slot.index < capacity else { return false }
+        if let existing = self.slot(for: identity) { return existing == slot }
+        while slots.count < capacity { slots.append(.vacant) }
+        guard slot.index < slots.count, slots[slot.index].identity == nil else { return false }
+        slots[slot.index] = .occupied(identity, memoryKey: memoryKey)
+        pending.removeAll { $0.identity == identity }
+        return true
+    }
+
     /// 窗口关闭：原位成为占位，后面的窗口不依次前移。
     public mutating func release(_ identity: WindowIdentity) {
         if let index = slots.firstIndex(where: { $0.identity == identity }) {
@@ -145,5 +158,32 @@ public struct SlotRegistry: Hashable, Sendable {
                                          applicationName: record.applicationName, title: record.title))
         }
         persistOrder()
+    }
+
+    /// 布局重建后写回最终占用（方案 §8.2）：容量等于格子总数，没排进格子的窗口进入待整理。
+    /// 调用方必须紧接着把 record.slot 同步成这里的 slot，两边不能各说各话。
+    public mutating func adopt(capacity: Int,
+                               occupied: [(slot: SlotID, identity: WindowIdentity, memoryKey: String)],
+                               pending: [PendingWindow]) {
+        self.capacity = max(capacity, occupied.count)
+        let highest = occupied.map { $0.slot.index }.max() ?? -1
+        var table = Array(repeating: SlotContent.vacant, count: max(highest + 1, occupied.count))
+        for entry in occupied { table[entry.slot.index] = .occupied(entry.identity, memoryKey: entry.memoryKey) }
+        slots = table
+        self.pending = pending
+        persistOrder()
+    }
+
+    /// 待整理队列的展示信息来自记录本身：数量提示不能显示成空条目。
+    public mutating func replacePending(_ items: [PendingWindow]) {
+        pending = items
+    }
+
+    public mutating func enqueuePending(_ record: WindowRecord) {
+        guard !pending.contains(where: { $0.identity == record.identity }) else { return }
+        pending.append(PendingWindow(identity: record.identity,
+                                     memoryKey: record.memoryKey,
+                                     applicationName: record.applicationName,
+                                     title: record.title))
     }
 }

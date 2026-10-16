@@ -23,6 +23,13 @@ enum HostFixtures {
                                      backingScale: 2,
                                      isPrimary: true)
 
+    /// 单屏 fixture 的映射表：控制器现在要求完整显示器表，测试必须显式给出基准。
+    static var mapper: CoordinateMapper { CoordinateMapper(displays: [display]) }
+
+    static func display(id: UInt32, cgFrame: CGRect, scale: CGFloat, isPrimary: Bool) -> DisplayInfo {
+        DisplayInfo(id: id, frame: cgFrame, visibleFrame: cgFrame, backingScale: scale, isPrimary: isPrimary)
+    }
+
     static func identity(_ index: Int) -> WindowIdentity {
         WindowIdentity(processID: 700 + Int32(index), processStartIdentity: 1, windowID: UInt32(9_000 + index))
     }

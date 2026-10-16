@@ -208,11 +208,11 @@ final class OverviewContentView: NSView {
         // 同一格子里画面矩形改变（源窗口 resize、标题条开关）也必须重绘，
         // 只比较 cellRect 会让比例已经变样的画面继续留在旧视口上。
         let geometryChanged = slotRects != oldGeometry
-        redraw(using: renderer, records: records, frameByID: frameByID, mailboxes: mailboxes, force: geometryChanged)
+        redraw(using: renderer, mailboxes: mailboxes, force: geometryChanged)
     }
 
     private func identityAt(_ slot: SlotID, records: [WindowIdentity: WindowRecord]) -> WindowIdentity? {
-        records.values.first { $0.slot == slot && $0.capture != .closed && matchesSearch($0) }?.identity
+        records.values.first { $0.slot == slot && matchesSearch($0) }?.identity
     }
 
     private func matchesSearch(_ record: WindowRecord) -> Bool {
@@ -248,7 +248,6 @@ final class OverviewContentView: NSView {
         case .pausedMinimized: return "已最小化"
         case .permissionMissing: return "无录屏权限"
         case let .notCapturable(reason): return reason.isEmpty ? "不可捕获" : reason
-        case .closed: return "已关闭"
         case .live: return nil
         case .starting: return "启动中"
         case .idle, .none: return nil
@@ -258,8 +257,6 @@ final class OverviewContentView: NSView {
     // MARK: - 绘制
 
     func redraw(using renderer: OverviewRenderer,
-               records: [WindowIdentity: WindowRecord],
-               frameByID: (WindowIdentity) -> CGRect?,
                mailboxes: (WindowIdentity) -> FrameMailbox<MetalFrame>?,
                force: Bool = false) {
         let sources = slotRects.map { ($0.identity, mailboxes($0.identity)) }.compactMap { identity, mailbox in
@@ -273,15 +270,11 @@ final class OverviewContentView: NSView {
         var cards: [CardDraw] = []
         var placeholders: [(rect: CGRect, tint: SIMD4<Float>)] = []
         for entry in slotRects {
-            let record = records[entry.identity]
             // 等比例画面：格子均匀但比例不同时留白由底色填补，绝不裁切。
-            let tint = record?.capture == .closed
-                ? SIMD4<Float>(0.11, 0.11, 0.12, 1)
-                : SIMD4<Float>(0.09, 0.09, 0.10, 1)
-            placeholders.append((rect: entry.cellRect, tint: tint))
+            placeholders.append((rect: entry.cellRect, tint: SIMD4<Float>(0.09, 0.09, 0.10, 1)))
             cards.append(CardDraw(identity: entry.identity,
                                   imageRect: entry.imageRect,
-                                  opacity: record?.capture == .closed ? 0 : 1,
+                                  opacity: 1,
                                   frame: nil))
         }
         renderer.draw(layer: metalLayer,
@@ -557,7 +550,6 @@ final class OverviewContentView: NSView {
         case .pausedMinimized: return "已最小化，画面暂停"
         case .permissionMissing: return "缺少屏幕录制权限，无画面"
         case .notCapturable: return "该窗口不允许捕获"
-        case .closed: return "窗口已关闭"
         case .idle, .none: return "尚未取得画面"
         }
     }

@@ -11,25 +11,22 @@ final class OverviewWindowController {
     let contentView: OverviewContentView
     var onAction: ((OverviewContentView.Action) -> Void)?
 
-    private let display: DisplayInfo
+    private var display: DisplayInfo
+    private var mapper: CoordinateMapper
     /// 键盘是否真的落到了内容视图：面板成为 key 不等于方向键/Esc 有人接。
     private(set) var keyboardAccepted = false
 
-    init(display: DisplayInfo, metal: MetalContext) {
+    init(display: DisplayInfo, mapper: CoordinateMapper, metal: MetalContext) {
         self.display = display
+        self.mapper = mapper
         displayID = display.id
         // 面板 frame 用 AppKit 坐标；领域层坐标是 CG 全局，两者换算只发生在这里。
-        let mapper = CoordinateMapper(displays: [display])
-        let appKitVisible = mapper.cgToAppKit(display.visibleFrame)
+        let appKitVisible = Self.appKitFrame(for: display, mapper: mapper)
         panel = OverviewPanel(contentRect: appKitVisible)
         contentView = OverviewContentView(frame: CGRect(origin: .zero, size: appKitVisible.size), metal: metal)
         panel.contentView = contentView
         panel.contentView?.autoresizingMask = [.width, .height]
-        contentView.configure(style: .standard,
-                              showsTitles: true,
-                              accent: .controlAccentColor,
-                              cgOrigin: display.visibleFrame.origin,
-                              scale: display.backingScale)
+        applyDisplayConfiguration()
         // R01：视图事件只有一条出口——转接到控制器，再由协调层进状态机。
         // 不在每次 updateLayout 重复绑定，也不让视图直接持有协调器。
         contentView.onAction = { [weak self] action in
@@ -37,8 +34,37 @@ final class OverviewWindowController {
         }
     }
 
+    /// 控制器最终 frame 的计算入口。传入的 mapper 必须覆盖全部显示器：
+    /// CG→AppKit 翻转以主屏高度为基准，单屏 mapper 会把副屏翻成 y=0（方案 §9.1）。
+    static func appKitFrame(for display: DisplayInfo, mapper: CoordinateMapper) -> CGRect {
+        mapper.cgToAppKit(display.visibleFrame)
+    }
+
+    /// 显示器新增/移除由调用方重建控制器；这里只处理同一块屏的几何或倍率变化。
+    func updateDisplay(_ display: DisplayInfo, mapper: CoordinateMapper) {
+        guard display.id == displayID else { return }
+        guard display.visibleFrame != self.display.visibleFrame || display.backingScale != self.display.backingScale else { return }
+        self.display = display
+        self.mapper = mapper
+        let frame = Self.appKitFrame(for: display, mapper: mapper)
+        // 面板、内容视图、倍率、drawableSize 必须一起改，否则画面按旧基准解释。
+        panel.setFrame(frame, display: isVisible)
+        contentView.frame = CGRect(origin: .zero, size: frame.size)
+        applyDisplayConfiguration()
+    }
+
+    private func applyDisplayConfiguration() {
+        contentView.configure(style: .standard,
+                              showsTitles: true,
+                              accent: .controlAccentColor,
+                              cgOrigin: display.visibleFrame.origin,
+                              scale: display.backingScale)
+    }
+
     var isVisible: Bool { panel.isVisible }
     var frameInCG: CGRect { display.visibleFrame }
+    /// 面板实际落在屏幕上的 AppKit frame：宿主测试用它验证翻转结果，而不是只看 mapper 往返。
+    var appKitPanelFrame: CGRect { panel.frame }
     /// 自己的窗口编号要交给目录排除，否则总览会镜像总览（方案 §6.9）。
     var windowNumber: UInt32 { UInt32(max(0, panel.windowNumber)) }
     var onFirstClick: (() -> Void)? {

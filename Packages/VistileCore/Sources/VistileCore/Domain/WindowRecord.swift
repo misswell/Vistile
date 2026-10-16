@@ -32,7 +32,6 @@ public enum CapturePhase: Hashable, Sendable {
     case pausedMinimized
     case permissionMissing
     case notCapturable(String)
-    case closed
 }
 
 /// 受限类型分级（方案 §3.3）。
@@ -125,10 +124,6 @@ public struct WindowRecord: Hashable, Sendable {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
         return "\((bundleID ?? applicationName).lowercased())|\(normalizedTitle)"
-    }
-
-    public var isAlive: Bool {
-        capture != .closed
     }
 }
 
