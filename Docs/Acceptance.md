@@ -368,8 +368,45 @@ ls "$TMPDIR/Vistile Diagnostics/" | grep -c '^host-test-'          # 期望 > 0�
   `testFlightFactsWithoutInputAnchorAreMarkedNotAnchored`（方案 §20.2 首帧锚点与"回调≠呈现"）、
   `WorkbenchTests.testTransitionFlightFactsSeparatePresentsFromTicks`（缺口算式 `ticks − presentedFrames`）。
 - 跳过的仍是同一条 `T01ActionRoutingTests.testKeyboardFocusReallyLandsOnContentView`（宿主取不到前台激活，按方案 §22 不计为成功）。
+- **本轮核对时改正了 14 处行号漂移**：`WorkbenchTests.swift` 里 A15/A19/A20/A21/A26/A27/A28/A29/A30/A31/A32/A33/A36/A42 那 14 行的锚点比实际早了 18–20 行
+  （本轮在同文件前部追加了首帧事实用例，行号整体后移）。测试本身一直都在、名字也没变，是文档的锚点旧了。
+  可复跑的核对（16:23 全仓 154 条行锚链接、45 条带符号名的全部命中，0 处失配）：
+
+  ```bash
+  cd "$(git rev-parse --show-toplevel)"
+  python3 - <<'PY'
+  import re, os, glob
+  bad=[]; tot=0; named=0; cache={}
+  for f in glob.glob('Docs/**/*.md', recursive=True)+['README.md']:
+      d=os.path.dirname(f) or '.'
+      for i,L in enumerate(open(f).read().splitlines(),1):
+          for m in re.finditer(r'\]\((\.\./[^)#]+)#L(\d+)\)', L):
+              real=os.path.normpath(os.path.join(d,m.group(1))); ln=int(m.group(2)); tot+=1
+              if not os.path.isfile(real): bad.append((f,i,real,'missing')); continue
+              ls=cache.setdefault(real, open(real).read().splitlines())
+              if ln>len(ls): bad.append((f,i,real,f'L{ln}>{len(ls)}')); continue
+              nm=re.match(r'\s*`([A-Za-z_][A-Za-z0-9_]{6,})`', L[m.end():])
+              if nm:
+                  named+=1
+                  if nm.group(1) not in '\n'.join(ls[max(0,ln-6):ln+5]): bad.append((f,i,real,nm.group(1)))
+  print(f'links={tot} named={named} problems={len(bad)}')
+  [print('  ',b) for b in bad[:20]]
+  PY
+  ```
 
 写法约定（方案 §18 原文要求）：测试名可调整；用可控 gate、fake clock 与可核对动作序列，不加真实 sleep 赌时序；每条断言外部结果或稳定不变量，不只镜像内部实现。下表「覆盖测试」给的是断言真正落点，多对一的行把共用例都列出。
+
+「A01–A42 每条都有用例」这一句怎么自己复核（16:22 跑过，42 条全部命中，无 `MISS`）：
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
+for i in $(seq -w 1 42); do
+  grep -rqIo "\bA$i\b" Packages/VistileCore/Tests Tests || echo "MISS A$i"
+done
+```
+
+命中的是测试源码里对该编号的引用注释；每条引用旁边就是它自己的断言，所以这条只能证明"编号没漏"，
+不能证明"断言充分"——充分性要看下表第三列给的具体测试名与行号。
 
 | 编号 | 注入/操作 → 必须断言 | 覆盖测试 | 结果 |
 | --- | --- | --- | --- |
@@ -387,34 +424,34 @@ ls "$TMPDIR/Vistile Diagnostics/" | grep -c '^host-test-'          # 期望 > 0�
 | A12 | 回滚成功留在工作台 → A 会话事务仍待最终恢复，不能被 drop | [WorkbenchSwitchTests.swift:430](../Tests/HostTests/WorkbenchSwitchTests.swift#L430) `testPreviousMainRestoreFailureIsReportedAndKeepsJournal`；同一条不变量另在 :749/:836/:888/:1104 四个用例里各自断言 | 通过 |
 | A13 | 首次 journal prepare 失败再重试 → 无 AX、busy 清理、第二次能进入 | [WorkbenchSwitchTests.swift:590](../Tests/HostTests/WorkbenchSwitchTests.swift#L590) `testJournalPrepareFailureBlocksWritesAndRetryProceeds`＋[WorkbenchTests.swift:1818](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L1818) | 通过 |
 | A14 | A/B 批量第二条失败 → 原子失败、无 AX、无半套交换 | [WorkbenchSwitchTests.swift:630](../Tests/HostTests/WorkbenchSwitchTests.swift#L630) `testBatchPrepareIsAtomicWhenSecondMutationFails`＋[WorkbenchTests.swift:1845](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L1845) | 通过 |
-| A15 | 返回日志失败 → 原主与轨道不变、无飞行/恢复 | [WorkbenchTests.swift:1875](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L1875) `testReturnPrepareFailureKeepsMainRailAndStartsNoFlight` | 通过 |
+| A15 | 返回日志失败 → 原主与轨道不变、无飞行/恢复 | [WorkbenchTests.swift:1875](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L1893) `testReturnPrepareFailureKeepsMainRailAndStartsNoFlight` | 通过 |
 | A16 | 原位置纠正落盘失败 → 后续零几何写入 | [WorkbenchSwitchTests.swift:656](../Tests/HostTests/WorkbenchSwitchTests.swift#L656) `testOriginalCorrectionFailureRefusesEveryGeometryWrite` | 通过 |
 | A17 | observed 落盘失败 → 停后续步骤，真实写入有补偿义务 | [WorkbenchSwitchTests.swift:680](../Tests/HostTests/WorkbenchSwitchTests.swift#L680) `testObservedFactPersistFailureRollsBackAndStopsBeforeCommit`＋[WorkbenchTests.swift:1907](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L1907) | 通过 |
 | A18 | 异步 prepare 完成时会话已取消 → 不启动旧操作 | [WorkbenchSwitchTests.swift:713](../Tests/HostTests/WorkbenchSwitchTests.swift#L713) `testStaleOperationContextStartsNoWrite`＋[WorkbenchTests.swift:1949](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L1949) | 通过 |
-| A19 | 跨屏移动后原屏仍在 → 恢复 originalDisplay 而非当前屏 | [WorkbenchTests.swift:1973](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L1973) `testCrossDisplayMoveRestoresOriginalDisplayNotCurrentOne` | 通过 |
-| A20 | 原屏拔除/分辨率变化 → 合法回退目标、原因、结算一致 | [WorkbenchTests.swift:1998](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L1998) `testOriginalDisplayResizeAndUnplugGiveLegalDowngradeWithMatchingSettlement` | 通过 |
-| A21 | 用户 override 跨屏 → 选 override 对应屏，不夹错屏 | [WorkbenchTests.swift:2042](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2042) `testUserOverridePicksTheDisplayThatActuallyContainsIt` | 通过 |
+| A19 | 跨屏移动后原屏仍在 → 恢复 originalDisplay 而非当前屏 | [WorkbenchTests.swift:1973](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L1991) `testCrossDisplayMoveRestoresOriginalDisplayNotCurrentOne` | 通过 |
+| A20 | 原屏拔除/分辨率变化 → 合法回退目标、原因、结算一致 | [WorkbenchTests.swift:1998](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2016) `testOriginalDisplayResizeAndUnplugGiveLegalDowngradeWithMatchingSettlement` | 通过 |
+| A21 | 用户 override 跨屏 → 选 override 对应屏，不夹错屏 | [WorkbenchTests.swift:2042](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2060) `testUserOverridePicksTheDisplayThatActuallyContainsIt` | 通过 |
 | A22 | constrained 但完全位于主区 → 可提交，保留实际读回 | [WorkbenchSwitchTests.swift:804](../Tests/HostTests/WorkbenchSwitchTests.swift#L804) `testConstrainedReadBackInsideMainIsRecordedAndSubmitted` | 通过 |
 | A23 | constrained 覆盖栏 → 有界纠正或补偿，不提交 | [WorkbenchSwitchTests.swift:836](../Tests/HostTests/WorkbenchSwitchTests.swift#L836) `testConstrainedReadBackOutsideMainIsCorrectedOnceAndThenCompensated` | 通过 |
 | A24 | 固定尺寸可移动、能容纳 → 只写 position，不写 size | [WorkbenchSwitchTests.swift:355](../Tests/HostTests/WorkbenchSwitchTests.swift#L355) `testFixedSizedWindowToFitIsMovedWithoutAnySizeWrite` | 通过 |
 | A25 | 固定尺寸太大/位置不可写 → 明确拒绝，原主与轨道不变 | [WorkbenchSwitchTests.swift:380](../Tests/HostTests/WorkbenchSwitchTests.swift#L380) `testConfirmedUnsizableWindowIsRefusedWithoutWrites` | 通过 |
-| A26 | 关闭 A、B 无历史事务 → prepare→写入→激活→提交顺序完整 | [WorkbenchTests.swift:2079](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2079) `testAutoPromotionAfterClosingMainRunsPrepareWriteActivateCommitInOrder` | 通过 |
-| A27 | 替补 journal/AX/激活分别失败 → B 留 slot、主区空、可手动选 C | [WorkbenchTests.swift:2110](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2110) `testFailedPromotionLeavesCandidateInSlotAndKeepsMainSelectable` | 通过 |
-| A28 | 自动替补同时用户选择 C → 最新手动意图生效，无无限排队 | [WorkbenchTests.swift:2184](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2184) `testManualSelectionDuringPromotionArmingWins` | 通过 |
-| A29 | 总览网格已满后新增 B → 无 gridCell 仍入 L 尾部，其他位置不动 | [WorkbenchTests.swift:2229](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2229) `testWindowBeyondGridCapacityStillEntersRailTail` | 通过 |
-| A30 | 标题更新/目录顺序改变 → 已有 occupant 不动 | [WorkbenchTests.swift:2263](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2263) `testTitleUpdateAndCatalogReorderNeverMoveOccupants` | 通过 |
-| A31 | 返回总览后再选原 A → 两栏非零偏移保留 | [WorkbenchTests.swift:2287](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2287) `testScrollOffsetsSurviveReturnAndReentry` | 通过 |
-| A32 | 返回后选轨道 B → A/B 正确交换、偏移保留 | [WorkbenchTests.swift:2316](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2316) `testRailSelectionAfterReturnSwapsAndKeepsOffsets` | 通过 |
-| A33 | 关闭内容或改变栏尺寸 → 只按合法范围 clamp | [WorkbenchTests.swift:2336](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2336) `testRailSizeAndContentShrinkClampToLegalRange` | 通过 |
+| A26 | 关闭 A、B 无历史事务 → prepare→写入→激活→提交顺序完整 | [WorkbenchTests.swift:2079](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2097) `testAutoPromotionAfterClosingMainRunsPrepareWriteActivateCommitInOrder` | 通过 |
+| A27 | 替补 journal/AX/激活分别失败 → B 留 slot、主区空、可手动选 C | [WorkbenchTests.swift:2110](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2128) `testFailedPromotionLeavesCandidateInSlotAndKeepsMainSelectable` | 通过 |
+| A28 | 自动替补同时用户选择 C → 最新手动意图生效，无无限排队 | [WorkbenchTests.swift:2184](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2202) `testManualSelectionDuringPromotionArmingWins` | 通过 |
+| A29 | 总览网格已满后新增 B → 无 gridCell 仍入 L 尾部，其他位置不动 | [WorkbenchTests.swift:2229](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2247) `testWindowBeyondGridCapacityStillEntersRailTail` | 通过 |
+| A30 | 标题更新/目录顺序改变 → 已有 occupant 不动 | [WorkbenchTests.swift:2263](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2281) `testTitleUpdateAndCatalogReorderNeverMoveOccupants` | 通过 |
+| A31 | 返回总览后再选原 A → 两栏非零偏移保留 | [WorkbenchTests.swift:2287](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2305) `testScrollOffsetsSurviveReturnAndReentry` | 通过 |
+| A32 | 返回后选轨道 B → A/B 正确交换、偏移保留 | [WorkbenchTests.swift:2316](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2334) `testRailSelectionAfterReturnSwapsAndKeepsOffsets` | 通过 |
+| A33 | 关闭内容或改变栏尺寸 → 只按合法范围 clamp | [WorkbenchTests.swift:2336](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2354) `testRailSizeAndContentShrinkClampToLegalRange` | 通过 |
 | A34 | 可见/离屏混合超过预算 → 可见优先，离屏不阻止可见恢复直播 | [CaptureRunTests.swift:352](../Packages/VistileCore/Tests/VistileCoreTests/CaptureRunTests.swift#L352) `offscreenTargetsNeitherTakeSlotsNorBlockRestore` | 通过 |
 | A35 | 连续滚动 → 启停次数受控、最后可见集合调度正确 | [T08T09CaptureLifecycleTests.swift:284](../Tests/HostTests/T08T09CaptureLifecycleTests.swift#L284) `testScrollingSettlesOnTheLastVisibleSetWithoutRestartingCards`＋:257 `testRapidSizeDeltasCoalesceIntoLatestIntent`（滚动用例先钉住分母：滑过的每张卡片都起过一条流） | 通过 |
-| A36 | 工作台过渡中尺寸更新 → 延后重配，取消/停止仍立即有效 | [WorkbenchTests.swift:2368](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2368) `testSizeUpdateDuringTransitionDefersReconfigurationAndCancelIsImmediate` | 通过 |
+| A36 | 工作台过渡中尺寸更新 → 延后重配，取消/停止仍立即有效 | [WorkbenchTests.swift:2368](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2386) `testSizeUpdateDuringTransitionDefersReconfigurationAndCancelIsImmediate` | 通过 |
 | A37 | 旧捕获 run 回调迟到 → 不污染新 mailbox、资源计数不增 | [T08T09CaptureLifecycleTests.swift:175](../Tests/HostTests/T08T09CaptureLifecycleTests.swift#L175) `testLateCallbacksAfterStopAllCannotTouchTheNewRun` | 通过 |
 | A38 | 无响应 AX 到退出期限 → 等待有界、日志保留、无新恢复写入 | [T05T07GeometryTransactionTests.swift:460](../Tests/HostTests/T05T07GeometryTransactionTests.swift#L460) `testDeadlineDuringUnresponsiveRestoreKeepsJournalAndStartsNoFurtherWrite`（fake clock，`HostClock` 推进到期限）＋:523 `testTerminationWaitResolvesOnceWithWhicheverArrivesFirst` | 通过；**应用级 2s 真实上限属实机项（§19 M14），本轮未测** |
 | A39 | 两种退出入口重复触发 → 仅一恢复所有者、一次终止回调 | [WorkbenchEntryTests.swift:266](../Tests/HostTests/WorkbenchEntryTests.swift#L266) `testTwoQuitEntriesLeaveOneRecoveryOwnerAndOneTerminationCallback`（真 `AppCoordinator`：两个链入口＋状态机 `.restoreAll` 抢同一窗口，断言原 frame 只写一次、窗口回原位、日志清空、收尾一次）＋[T05T07GeometryTransactionTests.swift:523](../Tests/HostTests/T05T07GeometryTransactionTests.swift#L523)＋[TransitionSceneTests.swift:692](../Tests/HostTests/TransitionSceneTests.swift#L692)（retreat 走取消那一路，终止回调正好一个） | 通过 |
 | A40 | 动画中连点/退出 → 从当前呈现值接续，旧完成不提交 | [TransitionSceneTests.swift:459](../Tests/HostTests/TransitionSceneTests.swift#L459) `testInterruptContinuesFromPresentedRect` | 通过 |
 | A41 | reduceMotion → 同样几何与焦点结果，缩短/减少位移 | [TransitionSceneTests.swift:405](../Tests/HostTests/TransitionSceneTests.swift#L405) `testReduceMotionStaysFadeOnly`＋:1148 `testReduceMotionPresentsTheSameEndpointsWithoutAnyFlight`（承载层实测：中点已完整落位，终点/参与集合/焦点与完整动效逐项相同） | 通过；肉眼降级观感仍需录屏（§19 M13） |
-| A42 | 成功交换与往返组合循环 → placement 唯一、无漏窗、无 busy 悬挂、无未解释恢复义务 | [WorkbenchTests.swift:2416](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2416) `testRandomOperationSequencePreservesInvariants`（固定种子，失败打印种子与动作序列） | 通过；实机长跑由 §19 M03/M12 承担，本轮未测 |
+| A42 | 成功交换与往返组合循环 → placement 唯一、无漏窗、无 busy 悬挂、无未解释恢复义务 | [WorkbenchTests.swift:2416](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2434) `testRandomOperationSequencePreservesInvariants`（固定种子，失败打印种子与动作序列） | 通过；实机长跑由 §19 M03/M12 承担，本轮未测 |
 
 42 条都有自动用例且全部通过；A38/A41/A42 的实机那一半按方案要求单列未测，不合并成"全通过"。
 
