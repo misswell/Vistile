@@ -931,3 +931,24 @@ shasum -a 256 "/Volumes/Vistile v0.1.13/Vistile.app/Contents/MacOS/Vistile"   # 
 
 **未测**：菜单弹窗与真实 GitHub 下载的一次真实桌面手工验收（网络、系统弹窗、浏览器下载路径）；
 自动检查在真实发布节奏下的行为。自动回归只证明决策与接缝，不证明 UI 交互。
+
+### 12.8 0.1.14 发布字节核对与安装（2026-10-18 01:13）
+
+- 发布页：<https://github.com/misswell/Vistile/releases/tag/v0.1.14>（`prerelease=true`，仓库既有约定）。
+- 标签 / 提交：`v0.1.14` → `a9f0043`（代码提交 `bc23e6a`：C10 修复 + D01 更新通道；`a9f0043`：版本 0.1.14/28）。
+- CI run [`39052451300`](https://github.com/misswell/Vistile/actions/runs/39052451300) success；
+  Release run [`39052455211`](https://github.com/misswell/Vistile/actions/runs/39052455211) success。
+- 发布资产：`Vistile_v0.1.14_macos_arm64.dmg`，**2,420,239 字节**，
+  `sha256 63efc196434fd165748eae93c5c5386b49ae2bc5218068143fb89f0854cb2738`——与 `gh release view` 的 asset digest 一致。
+- dmg 内包体：`Vistile.app/Contents/MacOS/Vistile` = `sha256 f3f16de53dc9871bdf7f98ad2ac48bac8a494162ae31627133c0754bc3e53568`，
+  `0.1.14 / 28`，`arm64`；`codesign --verify --deep --strict` 通过、`TeamIdentifier=U8U443D7ZL`、
+  `xcrun stapler validate` 通过、`spctl -a -t exec -vv` = `accepted` / `source=Notarized Developer ID`。
+- **已安装到 `/Applications`**：装前把 0.1.13 移到 `/tmp/Vistile-0.1.13-backup.app`（未删），
+  `ditto` 安装后实测二进制哈希与 dmg 内一致（`f3f16de5…e53568`），并已重启应用。
+- **真机复测状态**：C10 的原始操作序列（进入工作台 → 切换一次 → 再点任意卡片与按钮）在 0.1.14 上
+  **尚未复跑**；D01 的菜单弹窗与真实下载同样**未做手工验收**。两者都需要用户在下一次交互里确认，
+  不能拿自动回归代替。
+- 更新通道真实网络冒烟（只验接口，不是 UI）：本机带
+  `User-Agent: Vistile/0.1.14` + `Accept: application/vnd.github+json` 请求
+  `https://api.github.com/repos/misswell/Vistile/releases?per_page=20` → **HTTP 200**、15 条 release、
+  `v0.1.14` 在首位且资产/大小与发布页一致。说明真实响应可被 `GitHubRelease` DTO 解码（解码本身由核心用例覆盖）。
