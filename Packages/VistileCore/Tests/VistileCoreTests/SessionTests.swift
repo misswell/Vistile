@@ -45,11 +45,25 @@ private func expandFrame(_ effects: [SessionEffect]) -> CGRect? {
     return nil
 }
 
-private func journaled(_ effects: [SessionEffect]) -> WindowTransaction? {
+/// 日志写入请求里的"落盘条目"：展开路径用无 operationID 的追加通道（方案 §6.2）。
+private func journaledMutations(_ effects: [SessionEffect]) -> [JournalMutation] {
+    var out: [JournalMutation] = []
     for effect in effects {
-        if case let .writeJournal(transaction) = effect { return transaction }
+        if case let .updateJournal(request) = effect { out.append(request.mutation) }
+    }
+    return out
+}
+
+private func journaled(_ effects: [SessionEffect]) -> WindowTransaction? {
+    for mutation in journaledMutations(effects) {
+        if case let .upsert(transaction) = mutation { return transaction }
     }
     return nil
+}
+
+/// 条目按"移除"处理（窗口已销毁），不是"已结算清理"。
+private func journalRemovals(_ effects: [SessionEffect]) -> [WindowIdentity] {
+    journaledMutations(effects).compactMap { if case let .remove(identity) = $0 { return identity }; return nil }
 }
 
 private func containsEffect(_ effects: [SessionEffect], _ predicate: (SessionEffect) -> Bool) -> Bool {
@@ -108,7 +122,7 @@ struct SessionReducerTests {
     func journalPrecedesExpand() {
         var (state, list) = overview(count: 3)
         let effects = Fixtures.dispatch(&state, .cardClicked(list[1].identity))
-        let journalIndex = effects.firstIndex { if case .writeJournal = $0 { return true }; return false }
+        let journalIndex = effects.firstIndex { if case .updateJournal = $0 { return true }; return false }
         let expandIndex = effects.firstIndex { if case .expand = $0 { return true }; return false }
         #expect(journalIndex != nil)
         #expect(expandIndex != nil)
@@ -402,7 +416,7 @@ struct SessionReducerTests {
         let closeEffects = Fixtures.dispatch(&state, .windowClosed(list[0].identity))
         #expect(state.phase == .overview)
         #expect(state.transactions.isEmpty)
-        #expect(containsEffect(closeEffects) { if case .dropJournal = $0 { return true }; return false })
+        #expect(journalRemovals(closeEffects) == [list[0].identity])
     }
 
     @Test("点击背景期间的其他应用切换不触发退出")
@@ -625,7 +639,8 @@ struct SessionReducerTests {
         #expect(state.transactions[b]?.state == .failed)
         #expect(state.transactions[b]?.restoreAttempts == 1)
         // 失败项要重新落盘，成功项从 journal 移除。
-        #expect(containsEffect(effects) { if case .writeJournal = $0 { return true }; return false })
+        #expect(journaledMutations(effects).contains { if case .upsert(let t) = $0 { return t.identity == b }; return false })
+        #expect(Set(journalRemovals(effects)) == [])
 
         effects = Fixtures.dispatch(&state, .restoreCompleted(batchToken))
         #expect(state.phase == .hidden)

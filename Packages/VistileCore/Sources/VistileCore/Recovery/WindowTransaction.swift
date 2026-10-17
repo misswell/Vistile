@@ -40,6 +40,12 @@ public struct WindowTransaction: Hashable, Sendable {
     public var provisionalDisplayID: UInt32?
     /// 聚焦期间用户主动拖动/缩放后的尺寸（方案 §10.4）。
     public var userOverrideFrame: CGRect?
+    /// 本次操作的**写入前实读**（方案 §6.2）：与 `originalFrame` 是两个独立事实。
+    /// 会话 original 用于最终退出；操作 before 用于此次失败补偿，可以是 A 当前所在的主区位置。
+    public var operationBeforeFrame: CGRect?
+    public var operationBeforeDisplayID: UInt32?
+    /// 这些 before 事实属于哪一次操作：迟到回执与补偿必须能对上。
+    public var operationID: UUID?
     public var state: TransactionState
     public var restoreAttempts: Int
     public var failureReason: String?
@@ -61,6 +67,9 @@ public struct WindowTransaction: Hashable, Sendable {
         self.lastProvisionalFrame = nil
         self.provisionalDisplayID = nil
         self.userOverrideFrame = nil
+        self.operationBeforeFrame = nil
+        self.operationBeforeDisplayID = nil
+        self.operationID = nil
         self.state = .prepared
         self.restoreAttempts = 0
         self.failureReason = nil
@@ -114,11 +123,13 @@ public struct WindowTransaction: Hashable, Sendable {
     }
 
     /// 写入阶段失败：不消耗恢复重试次数，但事务仍需恢复。
-    public func markingWriteFailed(_ reason: String) -> WindowTransaction {
+    /// `observedFrame` 是这次尝试的真实读回。有读回就记读回——它是"窗口到底动没动"的唯一依据（方案 §6.4）；
+    /// 读不到才退回计划值，表示结果未知，恢复必须保守核对。
+    public func markingWriteFailed(_ reason: String, observedFrame: CGRect? = nil) -> WindowTransaction {
         var copy = self
         copy.state = .failed
         copy.failureReason = reason
-        if copy.lastProvisionalFrame == nil { copy.lastProvisionalFrame = copy.plannedFrame }
+        copy.lastProvisionalFrame = observedFrame ?? copy.lastProvisionalFrame ?? copy.plannedFrame
         return copy
     }
 
@@ -152,10 +163,31 @@ public struct WindowTransaction: Hashable, Sendable {
         return copy
     }
 
+    /// 记下本次操作的写入前实读（方案 §6.2）。会话 original 一个字节都不动：
+    /// 不能为了回滚 A 而改写 journal.originalFrame。
+    public func markingOperationBefore(frame: CGRect?,
+                                       displayID: UInt32?,
+                                       operationID: UUID) -> WindowTransaction {
+        var copy = self
+        copy.operationBeforeFrame = frame
+        copy.operationBeforeDisplayID = displayID
+        copy.operationID = operationID
+        return copy
+    }
+
+    /// 有操作前快照才有补偿依据；缺它时失败只能转入显式恢复状态（方案 §6.4）。
+    public var hasOperationBefore: Bool { operationBeforeFrame != nil }
+
     /// 恢复目标：默认回到进入前尺寸；用户选择保留时回到手动尺寸。
+    /// 这是**会话退出**的唯一目标，补偿路径不得借用（方案 §6.2）。
     public func restoreTargetFrame(preserveUserGeometry: Bool) -> CGRect {
         if preserveUserGeometry, let override = userOverrideFrame { return override }
         return originalFrame
+    }
+
+    /// 操作补偿的目标：回到本操作写入前的实际位置；没有快照时才退回会话 original。
+    public func compensationTargetFrame() -> CGRect? {
+        operationBeforeFrame ?? originalFrame
     }
 
     /// 用于判断"当前 frame 是否还是我们上次写的那个"的所有候选值。
@@ -180,6 +212,7 @@ extension WindowTransaction: Codable {
         case sessionID, identity, bundleID, originalFrame, originalDisplayID
         case plannedFrame, plannedDisplayID, lastProvisionalFrame, provisionalDisplayID
         case userOverrideFrame, state, restoreAttempts, failureReason, created
+        case operationBeforeFrame, operationBeforeDisplayID, operationID
     }
 
     /// 旧日志没有 plannedFrame 等新字段时按缺省兼容；无法识别的旧状态走保守路径，
@@ -196,6 +229,10 @@ extension WindowTransaction: Codable {
         lastProvisionalFrame = try container.decodeIfPresent(CGRect.self, forKey: .lastProvisionalFrame)
         provisionalDisplayID = try container.decodeIfPresent(UInt32.self, forKey: .provisionalDisplayID)
         userOverrideFrame = try container.decodeIfPresent(CGRect.self, forKey: .userOverrideFrame)
+        // 老版本日志没有操作快照：按会话原位置安全恢复即可，不得解码失败（方案 §6.2）。
+        operationBeforeFrame = try container.decodeIfPresent(CGRect.self, forKey: .operationBeforeFrame)
+        operationBeforeDisplayID = try container.decodeIfPresent(UInt32.self, forKey: .operationBeforeDisplayID)
+        operationID = try container.decodeIfPresent(UUID.self, forKey: .operationID)
         restoreAttempts = try container.decodeIfPresent(Int.self, forKey: .restoreAttempts) ?? 0
         let rawState = try container.decodeIfPresent(String.self, forKey: .state)
         let storedReason = try container.decodeIfPresent(String.self, forKey: .failureReason)
@@ -213,6 +250,53 @@ extension WindowTransaction: Codable {
 public enum JournalAction: Hashable, Sendable {
     case upsert(WindowTransaction)
     case remove(sessionID: UUID)
+}
+
+/// 一次操作需要的日志变更（方案 §7.1）。批量 prepare 要么整体落盘、要么整体不落盘，
+/// 不允许出现"B 已持久化、A 失败却卡住"的中间业务状态。
+public enum JournalMutation: Hashable, Sendable {
+    case upsert(WindowTransaction)
+    case remove(WindowIdentity)
+    /// 写前实读纠正推测原位置：纠正失败必须拒绝本次写入（方案 §7.3）。
+    case correctOriginal(WindowIdentity, frame: CGRect, displayID: UInt32)
+}
+
+/// 异步 prepare 请求：宿主持久化成功后回报 journalPrepared(context)。
+/// 上下文是唯一的身份判据——会话、代次、操作、过渡令牌、操作类型必须整体对上，
+/// 旧会话迟到的成功回执不得启动新会话的写入（方案 §7.1、§7.5）。
+public struct JournalPrepareRequest: Hashable, Sendable, Identifiable {
+    public let context: GeometryOperationContext
+    public let mutations: [JournalMutation]
+    /// 受影响窗口：prepare 失败时 reducer 按它收口，不能只看一个 controlledTarget。
+    public let affectedIdentities: [WindowIdentity]
+
+    public init(context: GeometryOperationContext,
+                mutations: [JournalMutation],
+                affectedIdentities: [WindowIdentity]) {
+        self.context = context
+        self.mutations = mutations
+        self.affectedIdentities = affectedIdentities
+    }
+
+    public var id: UUID { context.operationID }
+    public var sessionID: UUID { context.sessionID }
+    public var operationID: UUID { context.operationID }
+    public var transitionToken: TransitionToken { context.transitionToken }
+}
+
+/// 真实写入之后追加的日志更新（读回事实、纠正 observed frame）。
+/// 它失败说明"确实写过"，只能触发操作补偿，不能按未写入处理（方案 §7.2）。
+public struct JournalUpdateRequest: Hashable, Sendable {
+    /// 属于哪一次操作；nil 只用于工作台之外的旧展开路径（那里没有操作级补偿）。
+    public let operationID: UUID?
+    public let identity: WindowIdentity
+    public let mutation: JournalMutation
+
+    public init(operationID: UUID? = nil, identity: WindowIdentity, mutation: JournalMutation) {
+        self.operationID = operationID
+        self.identity = identity
+        self.mutation = mutation
+    }
 }
 
 /// 崩溃恢复用的事务日志（方案 §10.5）。原子写入由宿主完成，这里只负责内容与判定。
@@ -234,6 +318,10 @@ public struct SessionJournal: Hashable, Sendable, Codable {
             merged.lastProvisionalFrame = transaction.lastProvisionalFrame ?? existing.lastProvisionalFrame
             merged.provisionalDisplayID = transaction.provisionalDisplayID ?? existing.provisionalDisplayID
             merged.userOverrideFrame = transaction.userOverrideFrame ?? existing.userOverrideFrame
+            // 补偿依据同样只增不替：一条"只更新了状态"的记录不得把操作前快照抹成 nil（方案 §6.2）。
+            merged.operationBeforeFrame = transaction.operationBeforeFrame ?? existing.operationBeforeFrame
+            merged.operationBeforeDisplayID = transaction.operationBeforeDisplayID ?? existing.operationBeforeDisplayID
+            merged.operationID = transaction.operationID ?? existing.operationID
             merged.state = transaction.state
             merged.restoreAttempts = transaction.restoreAttempts
             merged.failureReason = transaction.failureReason
@@ -241,6 +329,26 @@ public struct SessionJournal: Hashable, Sendable, Codable {
         } else {
             entries[transaction.journalKey] = transaction
         }
+    }
+
+    /// 原子批量应用（方案 §7.1）：先在副本上算完，任何一条不成立就整体不生效。
+    /// 宿主的持久化服务用它替换内存快照，半套批次不可能存在。
+    @discardableResult
+    public mutating func applying(_ mutations: [JournalMutation]) -> Bool {
+        var copy = self
+        for mutation in mutations {
+            switch mutation {
+            case let .upsert(transaction):
+                copy.apply(transaction)
+            case let .remove(identity):
+                copy.remove(identity)
+            case let .correctOriginal(identity, frame, displayID):
+                guard let entry = copy.entries[identity.journalKey], entry.hasSpeculativeOriginal else { return false }
+                copy.entries[identity.journalKey] = entry.withCorrectedOriginal(frame: frame, displayID: displayID)
+            }
+        }
+        self = copy
+        return true
     }
 
     public mutating func markRestored(_ identity: WindowIdentity) {
@@ -294,8 +402,10 @@ public struct SessionJournal: Hashable, Sendable, Codable {
 }
 
 public enum RecoveryDecision: Hashable, Sendable {
-    case restore(to: CGRect)
-    case clampAndRestore(to: CGRect)
+    /// 按规划好的唯一落点写回：原因说明这是精确原屏、原屏内夹取，还是原屏消失后的备用屏。
+    case restore(to: RestoreDestination)
+    /// 原屏已消失、窗口已在合法备用位且无需写入：这是降级结果，不是"已按原样恢复"（方案 §8）。
+    case settleDegraded(destination: RestoreDestination)
     case skipAlreadyRestored
     case skipProcessRestarted
     case skipWindowGone
@@ -306,16 +416,16 @@ public enum RecoveryDecision: Hashable, Sendable {
     case deferRestore(reason: String)
 
     public var shouldWriteAX: Bool {
-        switch self {
-        case .restore, .clampAndRestore: return true
-        default: return false
-        }
+        if case .restore = self { return true }
+        return false
     }
 
     /// 不写 AX 时的确定性结论；需要写入的由读回结果决定。
     public var settledOutcome: RestoreOutcome? {
         switch self {
-        case .restore, .clampAndRestore: return nil
+        case .restore: return nil
+        case let .settleDegraded(destination):
+            return .settledDegraded(readBack: destination.targetFrame, displayID: destination.targetDisplayID)
         case .skipAlreadyRestored, .skipNeverWritten: return .alreadyAtOriginal
         case .skipProcessRestarted, .skipWindowGone: return .windowGone
         case let .skipUserMoved(current): return .userMoved(current: current)
@@ -326,7 +436,8 @@ public enum RecoveryDecision: Hashable, Sendable {
 
     public var frame: CGRect? {
         switch self {
-        case let .restore(to: to), let .clampAndRestore(to: to): return to
+        case let .restore(to: destination), let .settleDegraded(destination: destination):
+            return destination.targetFrame
         case let .skipPreserveUserGeometry(keep: keep): return keep
         default: return nil
         }
@@ -335,6 +446,7 @@ public enum RecoveryDecision: Hashable, Sendable {
 
 /// 保守恢复判定：收回、退出、崩溃恢复共用同一套规则（方案 §6.5）。
 /// 只有同一进程身份、窗口确认存活、且当前 frame 仍接近"计划写入/实际写入"的值才自动恢复。
+/// 落点由 `RestorePlanner` 一次算好传入：这里不再按当前所在屏二次夹取（方案 §8）。
 public enum RecoveryPlanner {
     /// 自动重试上限：达到后停止擅自写入，但原始恢复信息必须保留（方案 §6.4）。
     public static let autoRestoreAttemptLimit = 3
@@ -342,8 +454,7 @@ public enum RecoveryPlanner {
     public static func decide(entry: WindowTransaction,
                               currentFrame: CGRect?,
                               liveness: WindowLiveness,
-                              isOriginalDisplayLive: Bool,
-                              clampedFrame: CGRect?,
+                              destination: RestoreDestination?,
                               preserveUserGeometry: Bool) -> RecoveryDecision {
         guard entry.state.requiresRestore else {
             return entry.state == .prepared ? .skipNeverWritten : .skipAlreadyRestored
@@ -367,6 +478,13 @@ public enum RecoveryPlanner {
         if WindowTransaction.framesClose(currentFrame, entry.originalFrame, tolerance: 2) {
             return .skipAlreadyRestored
         }
+        guard let destination else {
+            return .deferRestore(reason: "原始屏与备用屏都读不到可用区，无法确定恢复落点")
+        }
+        // 已经在规划落点上：降级落点要说清"这是备用屏的结果"，不能报成精确恢复（方案 §8）。
+        if WindowTransaction.framesClose(currentFrame, destination.targetFrame, tolerance: 2) {
+            return destination.isDowngraded ? .settleDegraded(destination: destination) : .skipAlreadyRestored
+        }
         // planned 状态还没有读回值：用"计划写入的 frame"作为同样合法的判据。
         let candidates = entry.writtenFrameCandidates
         guard !candidates.isEmpty else {
@@ -376,10 +494,6 @@ public enum RecoveryPlanner {
         guard candidates.contains(where: { WindowTransaction.framesClose(currentFrame, $0, tolerance: 4) }) else {
             return .skipUserMoved(current: currentFrame)
         }
-        if isOriginalDisplayLive {
-            return .restore(to: entry.originalFrame)
-        }
-        guard let clampedFrame else { return .skipUserMoved(current: currentFrame) }
-        return .clampAndRestore(to: clampedFrame)
+        return .restore(to: destination)
     }
 }

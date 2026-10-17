@@ -74,8 +74,19 @@ public enum SessionEvent: Hashable, Sendable {
     case windowGeometryChangedExternally(WindowIdentity, CGRect, source: GeometryChangeSource)
     /// AX 写入与读回结果必须回报给状态机，函数返回成功不等于到位（方案 §6 末）。
     case geometryWriteFinished(GeometryWriteResult)
-    /// 日志没能落盘：不得继续写 AX（方案 §6.2）。
-    case journalWriteFailed(WindowIdentity, String)
+    // MARK: 操作级日志（方案 §7.1）
+    // 日志状态必须按操作上下文对账：只看 `phase.controlledTarget == failedIdentity`
+    // 会把"A 的日志失败"当成"B 的日志失败"，从而留下半套交换。
+    /// 该操作的日志已原子落盘：只有这个事件才允许启动几何写入。
+    case journalPrepared(context: GeometryOperationContext)
+    /// prepare 失败：一次 AX 都没写，按操作类型落回原状态（方案 §7.2）。
+    case journalPreparationFailed(context: GeometryOperationContext,
+                                  identities: [WindowIdentity],
+                                  reason: String)
+    /// 真实写入之后的日志更新失败：不能按"未写入"处理，必须停止后续步骤并补偿（方案 §7.2）。
+    case journalUpdateFailed(context: GeometryOperationContext,
+                             identity: WindowIdentity,
+                             reason: String)
 
     case captureStarted(WindowIdentity, generation: UInt64)
     case captureFirstFrame(WindowIdentity, Date)
@@ -100,7 +111,14 @@ public enum SessionEvent: Hashable, Sendable {
     /// A/B 交换的每一步单独回报；placement 只在 commit 时提交（方案 §8.2）。
     case mainSwitchStepFinished(WorkbenchSwitchStepResult)
     case mainSwitchCommitted(token: TransitionToken)
-    case mainSwitchFailed(token: TransitionToken, reason: String)
+    /// 交换失败并已补偿：补偿事实必须完整（各身份处置 + 谁被激活），
+    /// 缺事实或补偿不全时 reducer 只能转入 recoveryRequired，不能假装 `.focused(A)`（方案 §6.4）。
+    case mainSwitchFailed(token: TransitionToken, reason: String, compensation: WorkbenchCompensationResult?)
+    /// 自动替补的事实回报（方案 §10）：几何与激活都成立才提交 B 为主，否则 B 留在原 slot、主区继续空。
+    case promotionFinished(context: GeometryOperationContext,
+                           identity: WindowIdentity,
+                           geometry: WorkbenchStepOutcome,
+                           activated: Bool)
     /// 拖动分隔线中的实时预览：只改本机布局投影，不写任何外部窗口（方案 §11.2）。
     case workbenchRailSizePreview(topHeight: CGFloat?, sideWidth: CGFloat?)
     /// 用户拖动分隔线后的两条栏尺寸偏好；写盘只在拖动结束（方案 §11.2）。
@@ -148,10 +166,17 @@ public enum SessionEffect: Hashable, Sendable {
     case stopAllCapture
     case showOverview(displayID: UInt32?)
     case hideOverview
-    case writeJournal(WindowTransaction)
+    // MARK: 日志（方案 §7.1、§7.4）
+    // 两条持久化通道各自只做一件事：prepare 是"写 AX 之前的批量准入"，
+    // update 是"已发生事实的追加"。旧的逐条同步写盘入口不再存在，主线程不得等磁盘。
+    /// 原子批量落盘：整个批次要么都持久化、要么都不持久化；成功回执才允许启动几何写入。
+    case prepareJournal(JournalPrepareRequest)
+    /// 追加一条日志事实（写后读回、纠正 original、结算清理）。
+    case updateJournal(JournalUpdateRequest)
     /// 只清理指定会话中已经结束的条目，其他会话的未完成记录必须留下（方案 §6.4）。
     case clearJournal(sessionID: UUID, settledIdentities: [WindowIdentity])
-    case dropJournal(WindowIdentity)
+    /// 排空某次操作的在途几何：隐藏/退出入口必须发出，普通操作许可随之撤销（方案 §5.2）。
+    case drainGeometry(GeometryOperationContext)
     /// 展开目标由 reducer 算好并先写进日志，宿主只负责写它给的那个 frame（方案 §6.2）。
     case expand(WindowIdentity, targetFrame: CGRect, token: TransitionToken, animationMS: Int)
     case collapse(WindowIdentity, token: TransitionToken, animationMS: Int)
@@ -173,7 +198,8 @@ public enum SessionEffect: Hashable, Sendable {
     /// 布局/占用/偏移变化后的重投影：宿主据此重排卡片、命中与帧路由。
     case updateWorkbenchLayout(WorkbenchPresentation)
     /// 主窗口几何微调（侧栏切换、分隔线收敛）：节流写入并读回，不改变 placement（方案 §11.2）。
-    case settleMainFrame(WindowIdentity, targetFrame: CGRect, token: TransitionToken, animationMS: Int)
+    /// 带操作上下文：布局调整同样先落盘再写 AX，隐藏时必须排空（方案 §7.1、§7.2）。
+    case settleMainFrame(WindowIdentity, targetFrame: CGRect, context: GeometryOperationContext, animationMS: Int)
     case setKeyboardFocus(KeyboardFocus)
     /// 用户显式整理或 pin 后的跨会话轨道记忆：只含应用级键，不含窗口标题（方案 §16）。
     case persistWorkbenchRailMemory(orderPreference: [String: Int], pinnedKeys: Set<String>)

@@ -1,6 +1,7 @@
 import AppKit
 import CoreGraphics
 import Foundation
+import QuartzCore
 import ScreenCaptureKit
 import VistileCore
 
@@ -111,8 +112,8 @@ final class WindowCatalog {
 
     func axEntryAfterReview(for record: WindowRecord, reason: DiscoveryReason = .windowEvent) async -> AXWindowEntry? {
         if let entry = axEntry(for: record) { return entry }
-        let deadline = Date().addingTimeInterval(Self.axConfirmBudget)
-        while Date() < deadline {
+        let deadline = CACurrentMediaTime() + Self.axConfirmBudget
+        while CACurrentMediaTime() < deadline {
             await refreshAndWait(reason: reason)
             if let fresh = self.record(for: record.identity), let entry = axEntry(for: fresh) {
                 return entry

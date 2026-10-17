@@ -214,87 +214,166 @@ final class WorkbenchDividerTests: XCTestCase {
                       "新的拖动第一次移动立即可写")
     }
 
-    // MARK: - H08 设备级事实：串行执行，最终尺寸不被旧写入覆盖
+    // MARK: - H08/A07 设备级事实：串行执行，最终尺寸不被旧写入覆盖
+
+    /// A07 前半（方案 §18 A07）：连续分隔线调整时，未执行的排队只留最新那一项，
+    /// 且最后一次结算的目标获胜。"隐藏后无迟到微调"那半见
+    /// `testRapidSettlesKeepOnlyTheNewestPendingAndHideLeavesNoLateNudge`。
 
     func testSettleSerializesWritesAndFinalFrameWins() async throws {
-        let permissions = FakePermissions()
-        let catalogSource = FakeCatalogSource()
-        let writer = FakeGeometryWriter()
-        let settings = SettingsModel(defaults: transientDefaults())
-        let recorder = CompatibilityRecorder(fileName: "workbench-divider-test-\(UUID().uuidString)")
-        let journalDirectory = try makeScratchDirectory()
-        let store = WindowJournalStore(fileName: "session-journal.json",
-                                       sessionID: sessionID,
-                                       baseDirectory: journalDirectory)
-        let processIdentity = FakeProcessIdentity()
-
-        catalogSource.addWindows([0])
-        let catalog = WindowCatalog(permissions: permissions,
-                                    axSource: catalogSource,
-                                    contentSource: catalogSource,
-                                    displaySource: FakeDisplaySource(displays: [HostFixtures.display]))
-        await catalog.refreshAndWait(reason: .reconcile)
-        let recovery = RecoveryCoordinator(store: store,
-                                           writer: writer,
-                                           catalog: catalog,
-                                           settings: settings,
-                                           permissions: permissions,
-                                           processIdentity: processIdentity)
-
+        let rig = try await makeRig()
         let a = HostFixtures.identity(0)
-        let element = try XCTUnwrap(catalogSource.element(for: a))
+        let element = try XCTUnwrap(rig.catalogSource.element(for: a))
         let initial = FakeCatalogSource.frame(for: 0)
-        writer.setInitialFrame(initial, for: element)
-        store.apply(WindowTransaction(sessionID: sessionID,
-                                      identity: a,
-                                      bundleID: "com.test.app\(a.windowID)",
-                                      originalFrame: initial,
-                                      originalDisplayID: HostFixtures.display.id)
-            .markingPlanned(frame: initial, displayID: HostFixtures.display.id)
-            .markingWritten(readBack: initial, displayID: HostFixtures.display.id))
-
-        let focus = FocusCoordinator(catalog: catalog,
-                                     metal: metal,
-                                     writer: writer,
-                                     store: store,
-                                     settings: settings,
-                                     metrics: .shared,
-                                     recorder: recorder,
-                                     recovery: recovery,
-                                     permissions: permissions)
-        let coordinator = WorkbenchSwitchCoordinator(catalog: catalog,
-                                                     writer: writer,
-                                                     store: store,
-                                                     recovery: recovery,
-                                                     focus: focus,
-                                                     permissions: permissions,
-                                                     metrics: .shared,
-                                                     recorder: recorder)
-        var events: [SessionEvent] = []
-        coordinator.onEvent = { events.append($0) }
-        coordinator.directive = { _ in .proceed }
+        rig.writer.setInitialFrame(initial, for: element)
+        try await rig.prime(transactionFor: a, original: initial)
 
         // 拖动里相邻两次结算：第一次写入被卡在途中，第二次（更靠近松手值）随即排队。
-        let first = initial.insetBy(dx: 40, dy: 20)
-        let second = first.offsetBy(dx: -30, dy: 30)
+        // `mainRect` 跟着每次结算自己的目标走——生产里 effect 发出前布局投影已更新（AppCoordinator.settleRects），
+        // 写入方式仍由 `MainPlacementPolicy` 从主区实读算出，用例不另抄坐标。
+        let layout = HostWorkbench.fixture(count: 1).layout
+        let first = layout.mainRect.insetBy(dx: 40, dy: 20)
+        let second = first.insetBy(dx: 20, dy: 10)
         let token1 = TransitionToken(generation: 1)
         let token2 = TransitionToken(generation: 2)
-        writer.gatesNextWrite = true
-        coordinator.settle(a, targetFrame: first, displayID: HostFixtures.display.id, token: token1)
-        await pendingUntil { writer.isBlockedInWrite }
-        coordinator.settle(a, targetFrame: second, displayID: HostFixtures.display.id, token: token2)
-        XCTAssertEqual(writer.totalWrites, 0, "第一次写入还没回来，第二次只能排队")
-        writer.openGate()
+        rig.writer.setInitialFrame(layout.mainRect, for: element)
+        rig.writer.gatesNextWrite = true
+        rig.coordinator.settle(a, targetFrame: first, displayID: HostFixtures.display.id, token: token1,
+                               mainRect: first, topRailRect: layout.topRailRect, sideRailRect: layout.sideRailRect)
+        await pendingUntil { rig.writer.isBlockedInWrite }
+        rig.coordinator.settle(a, targetFrame: second, displayID: HostFixtures.display.id, token: token2,
+                               mainRect: second, topRailRect: layout.topRailRect, sideRailRect: layout.sideRailRect)
+        XCTAssertEqual(rig.writer.totalWrites, 0, "第一次写入还没回来，第二次只能排队")
+        rig.writer.openGate()
 
-        await pendingUntil { self.geometryResults(events).count == 2 }
-        XCTAssertEqual(writer.writtenFrames, [first, second], "两次写入按发起顺序串行执行")
-        let settled = await writer.currentFrame(of: element)
+        await pendingUntil { self.geometryResults(rig.events).count == 2 }
+        XCTAssertEqual(rig.writer.writtenFrames, [first, second], "两次写入按发起顺序串行执行")
+        let settled = await rig.writer.currentFrame(of: element)
         XCTAssertEqual(settled, second, "设备上的最终几何 = 最后一次结算的目标：旧写入不覆盖它")
-        XCTAssertEqual(geometryResults(events).map(\.token), [token1, token2], "每次结算各有自己的令牌回报")
-        XCTAssertEqual(geometryResults(events).map(\.targetFrame), [first, second])
+        XCTAssertEqual(geometryResults(rig.events).map(\.token), [token1, token2], "每次结算各有自己的令牌回报")
+        XCTAssertEqual(geometryResults(rig.events).map(\.targetFrame), [first, second])
 
         // 迟到的旧令牌读回不得清掉在途写入：reducer 的令牌守卫由核心 W23 覆盖，这里断言事件如实分开。
-        coordinator.cancel()
+        rig.coordinator.cancel()
+    }
+
+    // MARK: - A07（方案 §18 A07）：连续分隔线调整再隐藏
+
+    /// 一路快速结算里，未执行的排队只能留下最新那一项；隐藏之后不得再有迟到微调写进窗口服务器。
+    /// 判据取写入器实际落过的 frame 序列——这是设备事实，不是内部计数器。
+    func testRapidSettlesKeepOnlyTheNewestPendingAndHideLeavesNoLateNudge() async throws {
+        let rig = try await makeRig()
+        let a = HostFixtures.identity(0)
+        let element = try XCTUnwrap(rig.catalogSource.element(for: a))
+        let initial = FakeCatalogSource.frame(for: 0)
+        rig.writer.setInitialFrame(initial, for: element)
+        try await rig.prime(transactionFor: a, original: initial)
+
+        let layout = HostWorkbench.fixture(count: 1).layout
+        rig.writer.setInitialFrame(layout.mainRect, for: element)
+
+        // 第一次卡在"AX 调用还没开始"，随后四次连着进来：同 identity 的未执行计划 latest-wins。
+        let inFlight = layout.mainRect.insetBy(dx: 40, dy: 20)
+        rig.writer.gatesNextWrite = true
+        rig.coordinator.settle(a, targetFrame: inFlight, displayID: HostFixtures.display.id,
+                               token: TransitionToken(generation: 1),
+                               mainRect: inFlight, topRailRect: layout.topRailRect, sideRailRect: layout.sideRailRect)
+        await pendingUntil { rig.writer.isBlockedInWrite }
+
+        var newest = inFlight
+        for step in 1...4 {
+            newest = newest.insetBy(dx: -10, dy: -5)
+            rig.coordinator.settle(a, targetFrame: newest, displayID: HostFixtures.display.id,
+                                   token: TransitionToken(generation: UInt64(step + 1)),
+                                   mainRect: newest, topRailRect: layout.topRailRect, sideRailRect: layout.sideRailRect)
+        }
+        XCTAssertEqual(rig.writer.totalWrites, 0, "在途那次没回来之前，四次排队一次都不许动窗口")
+
+        rig.writer.openGate()
+        await pendingUntil { self.geometryResults(rig.events).count == 2 }
+        XCTAssertEqual(rig.writer.writtenFrames, [inFlight, newest],
+                       "四次拖动只有最新那一项落地：中间的必须被合并掉，不是被依次执行")
+        let afterCoalescing = rig.writer.totalWrites
+        let frameAfterCoalescing = await rig.writer.currentFrame(of: element)
+        XCTAssertEqual(frameAfterCoalescing, newest, "设备上的尺寸 = 最新意图")
+
+        // 隐藏（取消屏障）落在"下一次结算刚排上队、还没开始"这一刻。
+        let hiddenTarget = newest.insetBy(dx: -10, dy: -5)
+        rig.writer.gatesNextWrite = true
+        rig.coordinator.settle(a, targetFrame: hiddenTarget, displayID: HostFixtures.display.id,
+                               token: TransitionToken(generation: 6),
+                               mainRect: hiddenTarget, topRailRect: layout.topRailRect, sideRailRect: layout.sideRailRect)
+        await pendingUntil { rig.writer.isBlockedInWrite }
+        rig.coordinator.cancel()
+        rig.writer.openGate()
+        await pendingUntil(timeout: 4) { !rig.coordinator.isBusy }
+
+        XCTAssertEqual(rig.writer.totalWrites, afterCoalescing,
+                       "隐藏后还有新的 AX 几何写入：迟到微调没被撤销屏障挡住")
+        let frameAfterHide = await rig.writer.currentFrame(of: element)
+        XCTAssertEqual(frameAfterHide, frameAfterCoalescing,
+                       "隐藏后设备上的尺寸必须停在隐藏前那一步")
+    }
+
+    // MARK: - A06（方案 §18 A06）：旧队列积压后开启新会话
+
+    /// 队列里还压着未执行的写入时会话换代：旧命令一律作废，且不能把新会话拖成永久失速。
+    func testSessionAdoptionWhileBacklogIsQueuedDiscardsOldCommands() async throws {
+        let rig = try await makeRig()
+        let a = HostFixtures.identity(0)
+        let element = try XCTUnwrap(rig.catalogSource.element(for: a))
+        let initial = FakeCatalogSource.frame(for: 0)
+        rig.writer.setInitialFrame(initial, for: element)
+        try await rig.prime(transactionFor: a, original: initial)
+
+        let layout = HostWorkbench.fixture(count: 1).layout
+        rig.writer.setInitialFrame(layout.mainRect, for: element)
+
+        let inFlight = layout.mainRect.insetBy(dx: 40, dy: 20)
+        rig.writer.gatesNextWrite = true
+        rig.coordinator.settle(a, targetFrame: inFlight, displayID: HostFixtures.display.id,
+                               token: TransitionToken(generation: 1),
+                               mainRect: inFlight, topRailRect: layout.topRailRect, sideRailRect: layout.sideRailRect)
+        await pendingUntil { rig.writer.isBlockedInWrite }
+        // 积压：在途还没回来，又排进两笔。
+        let queued = inFlight.insetBy(dx: -10, dy: -5)
+        rig.coordinator.settle(a, targetFrame: queued, displayID: HostFixtures.display.id,
+                               token: TransitionToken(generation: 2),
+                               mainRect: queued, topRailRect: layout.topRailRect, sideRailRect: layout.sideRailRect)
+        XCTAssertEqual(rig.writer.totalWrites, 0)
+
+        // 新会话接管：代次推进后，队列里那两笔属于旧会话。
+        rig.scheduler.adopt(sessionID: UUID(), epoch: rig.scheduler.sessionEpoch + 1)
+        rig.writer.openGate()
+        await pendingUntil(timeout: 4) { !rig.writer.isBlockedInWrite }
+
+        XCTAssertEqual(rig.writer.writtenFrames, [],
+                       "换代后旧命令不许复活：一笔都不许落到窗口服务器上")
+        let frameAfterAdoption = await rig.writer.currentFrame(of: element)
+        XCTAssertEqual(frameAfterAdoption, layout.mainRect,
+                       "原窗口几何一个字节都没被旧队列改过")
+
+        // 新会话没被旧积压卡死：同一条链路仍能受理新结算。
+        let fresh = layout.mainRect.insetBy(dx: -20, dy: -20)
+        rig.coordinator.settle(a, targetFrame: fresh, displayID: HostFixtures.display.id,
+                               token: TransitionToken(generation: 3),
+                               mainRect: fresh, topRailRect: layout.topRailRect, sideRailRect: layout.sideRailRect)
+        await pendingUntil(timeout: 4) { rig.writer.totalWrites > 0 }
+        XCTAssertEqual(rig.writer.writtenFrames, [fresh], "新会话的第一笔照常执行")
+    }
+
+    /// 装配一条从交换协调器到写入器的真实链路：目录、日志、调度器、恢复、焦点全部是生产类型，
+    /// 只有 AX 与几何写入是替身。三条用例共用，避免同一处接线在三份拷贝里各自漂移。
+    private func makeRig(windowCount: Int = 1) async throws -> DividerRig {
+        let rig = DividerRig(sessionID: sessionID,
+                             metal: metal,
+                             journalDirectory: try makeScratchDirectory(),
+                             defaults: transientDefaults(),
+                             windowCount: windowCount)
+        await rig.catalog.refreshAndWait(reason: .reconcile)
+        rig.coordinator.directive = { _ in .proceed }
+        rig.coordinator.onEvent = { event in rig.events.append(event) }
+        return rig
     }
 
     private func geometryResults(_ events: [SessionEvent]) -> [GeometryWriteResult] {
@@ -329,5 +408,86 @@ final class WorkbenchDividerTests: XCTestCase {
         }
         testDefaultsSuites.append(name)
         return defaults
+    }
+}
+
+/// 分隔线结算链路的真实装配：目录、日志、调度器、恢复、焦点、交换协调器都是生产类型，
+/// 只有 AX 与几何写入用替身（面板一律摆屏外，不碰用户桌面）。
+@MainActor
+final class DividerRig {
+    let catalogSource: FakeCatalogSource
+    let writer: FakeGeometryWriter
+    let catalog: WindowCatalog
+    let store: WindowJournalStore
+    let scheduler: GeometryOperationScheduler
+    let recovery: RecoveryCoordinator
+    let focus: FocusCoordinator
+    let coordinator: WorkbenchSwitchCoordinator
+    var events: [SessionEvent] = []
+
+    init(sessionID: UUID,
+         metal: MetalContext,
+         journalDirectory: URL,
+         defaults: UserDefaults,
+         windowCount: Int) {
+        let permissions = FakePermissions()
+        let catalogSource = FakeCatalogSource()
+        let writer = FakeGeometryWriter()
+        catalogSource.addWindows(Array(0..<windowCount))
+        let catalog = WindowCatalog(permissions: permissions,
+                                    axSource: catalogSource,
+                                    contentSource: catalogSource,
+                                    displaySource: FakeDisplaySource(displays: [HostFixtures.display]))
+        let store = WindowJournalStore(fileName: "session-journal.json",
+                                       sessionID: sessionID,
+                                       baseDirectory: journalDirectory)
+        let scheduler = HostScheduler.make(sessionID: sessionID)
+        let settings = SettingsModel(defaults: defaults)
+        let recorder = CompatibilityRecorder(fileName: "workbench-divider-test-\(UUID().uuidString)")
+        let recovery = RecoveryCoordinator(store: store,
+                                           writer: writer,
+                                           catalog: catalog,
+                                           settings: settings,
+                                           permissions: permissions,
+                                           processIdentity: FakeProcessIdentity(),
+                                           scheduler: scheduler)
+        let focus = FocusCoordinator(catalog: catalog,
+                                     metal: metal,
+                                     writer: writer,
+                                     store: store,
+                                     settings: settings,
+                                     metrics: .shared,
+                                     recorder: recorder,
+                                     recovery: recovery,
+                                     permissions: permissions,
+                                     scheduler: scheduler)
+        let coordinator = WorkbenchSwitchCoordinator(catalog: catalog,
+                                                     writer: writer,
+                                                     store: store,
+                                                     recovery: recovery,
+                                                     focus: focus,
+                                                     permissions: permissions,
+                                                     metrics: .shared,
+                                                     recorder: recorder,
+                                                     scheduler: scheduler)
+        self.catalogSource = catalogSource
+        self.writer = writer
+        self.catalog = catalog
+        self.store = store
+        self.scheduler = scheduler
+        self.recovery = recovery
+        self.focus = focus
+        self.coordinator = coordinator
+    }
+
+    /// 结算要求该窗口已有事务（方案 §10.2：写前必须存在恢复记录）。用会话原位置把它备好。
+    func prime(transactionFor identity: WindowIdentity, original: CGRect) async throws {
+        await store.apply(WindowTransaction(sessionID: scheduler.sessionID,
+                                            identity: identity,
+                                            bundleID: "com.test.app\(identity.windowID)",
+                                            originalFrame: original,
+                                            originalDisplayID: HostFixtures.display.id)
+            .markingPlanned(frame: original, displayID: HostFixtures.display.id)
+            .markingWritten(readBack: original, displayID: HostFixtures.display.id))
     }
 }

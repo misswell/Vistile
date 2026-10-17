@@ -15,6 +15,7 @@ final class T14OrderingAndNativeInputTests: XCTestCase {
     private var catalogSource: FakeCatalogSource!
     private var processIdentity: FakeProcessIdentity!
     private var writer: FakeGeometryWriter!
+    private lazy var scheduler = HostScheduler.make(sessionID: sessionID)
     private var catalog: WindowCatalog!
     private var settings: SettingsModel!
     private var journalDirectory: URL!
@@ -200,10 +201,10 @@ final class T14OrderingAndNativeInputTests: XCTestCase {
         await catalog.refreshAndWait(reason: .reconcile)
         XCTAssertEqual(catalog.record(for: identity)?.allowsGeometryControl, true,
                        "窗口必须被判为可控，否则走不到前景化这一步")
-        return (try startFocus(identity: identity), identity)
+        return (try await startFocus(identity: identity), identity)
     }
 
-    private func startFocus(identity: WindowIdentity) throws -> FocusCoordinator {
+    private func startFocus(identity: WindowIdentity) async throws -> FocusCoordinator {
         let store = WindowJournalStore(fileName: "session-journal.json",
                                        sessionID: sessionID,
                                        baseDirectory: journalDirectory)
@@ -213,15 +214,16 @@ final class T14OrderingAndNativeInputTests: XCTestCase {
                                           catalog: catalog,
                                           settings: settings,
                                           permissions: permissions,
-                                          processIdentity: processIdentity)
+                                          processIdentity: processIdentity,
+                                          scheduler: scheduler)
         if let element = catalogSource.element(for: identity) {
             writer.setInitialFrame(FakeCatalogSource.frame(for: 0), for: element)
         }
-        store.apply(WindowTransaction(sessionID: sessionID,
-                                      identity: identity,
-                                      bundleID: "com.test.app\(identity.windowID)",
-                                      originalFrame: FakeCatalogSource.frame(for: 0),
-                                      originalDisplayID: displayID)
+        await store.apply(WindowTransaction(sessionID: sessionID,
+                                           identity: identity,
+                                           bundleID: "com.test.app\(identity.windowID)",
+                                           originalFrame: FakeCatalogSource.frame(for: 0),
+                                           originalDisplayID: displayID)
             .markingPlanned(frame: expandedFrame, displayID: displayID))
         let metal = try HostFixtures.metalContext()
         return FocusCoordinator(catalog: catalog,
@@ -232,7 +234,8 @@ final class T14OrderingAndNativeInputTests: XCTestCase {
                                 metrics: .shared,
                                 recorder: CompatibilityRecorder(fileName: "host-test-\(UUID().uuidString)"),
                                 recovery: recovery,
-                                permissions: permissions)
+                                permissions: permissions,
+                                scheduler: scheduler)
     }
 
     private func pendingUntil(timeout: TimeInterval = 2, _ condition: @MainActor () -> Bool) async {

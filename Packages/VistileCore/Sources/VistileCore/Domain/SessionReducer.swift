@@ -31,6 +31,7 @@ public enum SessionReducer {
         case let .windowClosed(identity):
             var effects: [SessionEffect] = [.stopCapture([identity])]
             state.records.removeValue(forKey: identity)
+            state.discoverySequence.removeValue(forKey: identity)
             // 关闭只让原格变空：其余格子的矩形与占用关系不动（方案 §8.2）。
             state.slots.release(identity)
             for (displayID, grid) in state.grids where grid.cell(for: identity) != nil {
@@ -41,7 +42,10 @@ public enum SessionReducer {
                 // 进行中的代理画面必须先停下：它飞的是这个窗口的位置与快照（方案 §12.2）。
                 effects.append(.cancelTransition)
                 state.transactions.removeValue(forKey: identity)
-                effects.append(.dropJournal(identity))
+                // 窗口没了：日志条目按"移除"处理，不是"已结算清理"（那种只清不需要恢复的条目）。
+                effects.append(.updateJournal(JournalUpdateRequest(operationID: nil,
+                                                                   identity: identity,
+                                                                   mutation: .remove(identity))))
                 state.pendingTarget = nil
                 state.phase = .overview
                 state.keyboardFocus = .overview
@@ -197,20 +201,27 @@ public enum SessionReducer {
             // from 为空的交换没有 switching 阶段，补偿结果只能凭 mainSwitch 的意图令牌对上（方案 §8.3）。
             guard state.phase.token == token || state.workbench.mainSwitch.intent?.token == token else { return [] }
             var effects: [SessionEffect] = []
+            var settled: [WindowIdentity] = []
             for item in items {
                 guard var transaction = state.transactions[item.identity] else { continue }
                 if item.outcome.isSettled {
                     transaction = transaction.markingSettled(item.outcome)
                     state.transactions[item.identity] = transaction
-                    effects.append(.dropJournal(item.identity))
+                    // 只有确认结算的条目才允许请求清理；未成功的必须留在日志里（方案 §6.4、§7.3）。
+                    settled.append(item.identity)
                 } else {
                     transaction = transaction.markingFailed(item.outcome.message)
                     state.transactions[item.identity] = transaction
-                    effects.append(.writeJournal(transaction))
+                    effects.append(.updateJournal(JournalUpdateRequest(operationID: transaction.operationID,
+                                                                        identity: item.identity,
+                                                                        mutation: .upsert(transaction))))
                 }
                 if item.outcome.isFailure {
                     effects.append(.presentHint(.restoreFailed(item.applicationName)))
                 }
+            }
+            if !settled.isEmpty {
+                effects.append(.clearJournal(sessionID: state.sessionID, settledIdentities: settled))
             }
             return effects
 
@@ -255,14 +266,6 @@ public enum SessionReducer {
         case let .geometryWriteFinished(result):
             return applyWriteResult(&state, result)
 
-        case let .journalWriteFailed(identity, reason):
-            guard state.phase.controlledTarget == identity, state.phase.token != nil else { return [] }
-            // 还没有任何 AX 写入：直接退回总览，事务原样保留给退出兜底核对。
-            state.phase = .overview
-            state.keyboardFocus = .overview
-            state.pendingTarget = nil
-            return [.setKeyboardFocus(.overview), .presentHint(.journalWriteFailed(reason))]
-
         case let .windowGeometryChangedExternally(identity, frame, source):
             guard var record = state.records[identity] else { return [] }
             record.frame = frame
@@ -274,7 +277,10 @@ public enum SessionReducer {
             transaction = transaction.withUserOverride(frame)
             state.transactions[identity] = transaction
             // state 改了但 journal 没同步，恢复执行器就读不到用户尺寸（方案 §6.5）。
-            return [.writeJournal(transaction)]
+            // 这是"已发生事实的追加"，不是准入：准入在操作启动前已经做过。
+            return [.updateJournal(JournalUpdateRequest(operationID: transaction.operationID,
+                                                        identity: identity,
+                                                        mutation: .upsert(transaction)))]
 
         case let .captureStarted(identity, generation):
             guard var record = state.records[identity], generation == record.sessionGeneration else { return [] }
@@ -372,6 +378,9 @@ public enum SessionReducer {
             return beginCollapse(&state, target)
         case .recovering:
             return []
+        case .recoveryRequired:
+            // 快捷键是安全退出入口：几何不可信时也必须能走，绝不能把用户关死（方案 §6.4、§15）。
+            return exitToHidden(&state)
         }
     }
 
@@ -420,6 +429,9 @@ public enum SessionReducer {
             return []
         case .hidden, .recovering:
             return []
+        case let .recoveryRequired(_, reason):
+            // 未能恢复一致：新的选择只会叠加写入，必须先把这一次收口（方案 §15）。
+            return [.presentHint(.workbenchSwitchFailed(reason))]
         }
     }
 
@@ -446,6 +458,10 @@ public enum SessionReducer {
     }
 
     private static func beginExpand(_ state: inout SessionState, _ target: WindowIdentity) -> [SessionEffect] {
+        // 几何不可信时不再叠加写入：只允许重试补偿或安全退出（方案 §6.4、§15）。
+        guard state.workbench.recoveryRequired == nil else {
+            return [.presentHint(.workbenchSwitchFailed(state.workbench.recoveryRequired!.reason))]
+        }
         guard let record = state.records[target] else { return [.presentHint(.cannotLocateWindow)] }
         // 未确定唯一身份不得写 AX（方案 §7 不变量）。
         guard record.allowsAutoFocus else {
@@ -458,8 +474,11 @@ public enum SessionReducer {
         let token = state.nextTransitionToken()
         var effects: [SessionEffect] = []
         // 修改意图先落盘，宿主确认写盘成功后才允许动 AX（方案 §6.2）。
+        // 旧展开路径没有操作级补偿，用无 operationID 的追加通道；工作台路径一律走批量 prepare。
         if let transaction = ensureTransaction(&state, target: target, planned: planned, displayID: display.id) {
-            effects.append(.writeJournal(transaction))
+            effects.append(.updateJournal(JournalUpdateRequest(operationID: nil,
+                                                               identity: target,
+                                                               mutation: .upsert(transaction))))
         }
         effects.append(.expand(target, targetFrame: planned, token: token,
                                animationMS: state.policy.animationMS(isExpand: true, style: state.style)))
@@ -484,6 +503,9 @@ public enum SessionReducer {
     }
 
     private static func beginSwitch(_ state: inout SessionState, from: WindowIdentity, to: WindowIdentity) -> [SessionEffect] {
+        guard state.workbench.recoveryRequired == nil else {
+            return [.presentHint(.workbenchSwitchFailed(state.workbench.recoveryRequired!.reason))]
+        }
         guard state.records[to] != nil, state.records[to]?.allowsAutoFocus == true else {
             return beginCollapse(&state, from)
         }
@@ -498,7 +520,9 @@ public enum SessionReducer {
             effects.append(.restoreGeometry(from, token: token))
         }
         if let transaction = ensureTransaction(&state, target: to, planned: planned, displayID: display.id) {
-            effects.append(.writeJournal(transaction))
+            effects.append(.updateJournal(JournalUpdateRequest(operationID: nil,
+                                                               identity: to,
+                                                               mutation: .upsert(transaction))))
         }
         effects.append(.expand(to, targetFrame: planned, token: token,
                                animationMS: state.policy.animationMS(isExpand: true, style: state.style)))
@@ -514,20 +538,30 @@ public enum SessionReducer {
                                   target: WindowIdentity,
                                   planned: CGRect,
                                   displayID: UInt32) -> WindowTransaction? {
-        if let existing = state.transactions[target], existing.state.requiresRestore {
-            let updated = existing.markingPlanned(frame: planned, displayID: displayID)
-            state.transactions[target] = updated
-            return updated
+        guard let transaction = preparedTransaction(state, target: target, planned: planned, displayID: displayID) else {
+            return nil
         }
-        guard let record = state.records[target] else { return nil }
-        let transaction = WindowTransaction(sessionID: state.sessionID,
-                                            identity: target,
-                                            bundleID: record.bundleID,
-                                            originalFrame: record.frame,
-                                            originalDisplayID: record.displayID)
-            .markingPlanned(frame: planned, displayID: displayID)
         state.transactions[target] = transaction
         return transaction
+    }
+
+    /// 只算不写：本次操作要落盘的事务在 `journalPrepared` 之前绝不进内存（方案 §7.1）。
+    /// 否则会出现"事务已改、日志没落"的中间态：prepare 失败后这条记录既不是事实也没被持久化。
+    /// 操作前快照由调用方用 `markingOperationBefore` 补上——那是补偿依据，不能在这里猜。
+    static func preparedTransaction(_ state: SessionState,
+                                    target: WindowIdentity,
+                                    planned: CGRect,
+                                    displayID: UInt32) -> WindowTransaction? {
+        if let existing = state.transactions[target], existing.state.requiresRestore {
+            return existing.markingPlanned(frame: planned, displayID: displayID)
+        }
+        guard let record = state.records[target] else { return nil }
+        return WindowTransaction(sessionID: state.sessionID,
+                                 identity: target,
+                                 bundleID: record.bundleID,
+                                 originalFrame: record.frame,
+                                 originalDisplayID: record.displayID)
+            .markingPlanned(frame: planned, displayID: displayID)
     }
 
     static func targetDisplay(for record: WindowRecord, state: SessionState) -> DisplayInfo? {
@@ -550,9 +584,21 @@ public enum SessionReducer {
         state.pendingTarget = nil
         state.trustedInteraction = nil
         state.pendingDiscovery = nil
+        // 先取排空清单：preparing 中的意图一次 AX 都没写，撤掉即可；已放出的操作必须等写入收敛（方案 §5.2）。
+        let drains = state.pendingDrainEffects
+        // 取消屏障落在状态上：代次加一次之后，旧会话的迟到回执与新令牌一起失效，
+        // 宿主把这份身份下发给调度器，普通写入此后连准入都拿不到（方案 §5.1、§15）。
+        state.sessionEpoch &+= 1
+        state.workbench.armed = nil
+        state.workbench.runningOperation = nil
+        state.workbench.activeContext = nil
+        state.workbench.switchCorrection = nil
+        var activity = state.workbench.transitionActivity
+        activity.cancellationRequested = true
+        state.workbench.transitionActivity = activity
         let identities = state.transactions.values.filter { $0.state.requiresRestore }
             .sorted { $0.created < $1.created }.map(\.identity)
-        var effects: [SessionEffect] = [.cancelReconcile, .hideOverview, .hideWorkbench, .stopAllCapture]
+        var effects: [SessionEffect] = drains + [.cancelReconcile, .hideOverview, .hideWorkbench, .stopAllCapture]
         guard !identities.isEmpty else {
             state.phase = .hidden
             state.isExitPending = false
@@ -604,7 +650,7 @@ public enum SessionReducer {
         }
         guard var transaction = state.transactions[result.identity] else { return [] }
         guard state.phase.token == result.token else {
-            // 过期结果不改状态：宿主必须已经做了补偿恢复。
+            // 过期结果不改状态：写入事实已经发生，事务必须留在 state 与 journal 里等恢复（方案 §5.2）。
             return []
         }
         switch result.outcome {
@@ -613,14 +659,25 @@ public enum SessionReducer {
         case let .constrained(readBack):
             transaction = transaction.markingWritten(readBack: readBack, displayID: result.displayID,
                                                      note: result.outcome.message)
+        case let .cancelled(wroteSize, wrotePosition, readBack):
+            // 许可中途撤销：部分写入同样是"改过"，按已写入处理，恢复义务不能因此消失（方案 §5.2）。
+            transaction = (wroteSize || wrotePosition)
+                ? transaction.markingWritten(readBack: readBack, displayID: result.displayID,
+                                             note: result.outcome.message)
+                : transaction.markingWriteFailed(result.outcome.message)
         case .rejected, .unreadable:
             transaction = transaction.markingWriteFailed(result.outcome.message)
         case .targetGone:
             state.transactions.removeValue(forKey: result.identity)
-            return [.dropJournal(result.identity), .presentHint(.cannotLocateWindow)]
+            return [.updateJournal(JournalUpdateRequest(operationID: result.operationID,
+                                                        identity: result.identity,
+                                                        mutation: .remove(result.identity))),
+                    .presentHint(.cannotLocateWindow)]
         }
         state.transactions[result.identity] = transaction
-        return [.writeJournal(transaction)]
+        return [.updateJournal(JournalUpdateRequest(operationID: result.operationID,
+                                                    identity: result.identity,
+                                                    mutation: .upsert(transaction)))]
     }
 
     // MARK: - 目录合并
@@ -654,6 +711,11 @@ public enum SessionReducer {
                 // 新窗口只允许进空格：格子矩形不会因为它的到来而移动（方案 §8.2）。
                 queued.append(record)
             }
+            // 首次发现序号只登记一次：之后的标题更新、目录重排都不能改它（方案 §11）。
+            if state.discoverySequence[record.identity] == nil {
+                state.recordSequence += 1
+                state.discoverySequence[record.identity] = state.recordSequence
+            }
             // slot 不因标题更新或源窗口调整尺寸而改变。
             var merged = record
             merged.slot = state.slots.slot(for: record.identity)
@@ -674,6 +736,7 @@ public enum SessionReducer {
             for (displayID, grid) in state.grids where grid.cell(for: identity) != nil {
                 state.grids[displayID]?.unbind(identity)
             }
+            state.discoverySequence.removeValue(forKey: identity)
             state.records.removeValue(forKey: identity)
         }
         // 放置完再判定：新卡片必须先有格子才谈得上启动捕获（方案 §8.2）。

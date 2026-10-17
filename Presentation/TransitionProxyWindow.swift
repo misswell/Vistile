@@ -33,7 +33,9 @@ final class TransitionProxyView: NSView {
     private var renderer: OverviewRenderer?
     private var heldFrame: MetalFrame?
     private var ticker: Timer?
-    private var startDate = Date()
+    /// 动画起点用单调时钟（方案 §20.2）：`Date()` 是墙钟，NTP 步进或用户改表会把进行中的动画
+    /// 一次性推完或拉回去——那正好是 §16 要排除的"回跳"，不能让计时器自己制造它。
+    private var startStamp = CACurrentMediaTime()
     private var duration: TimeInterval = 0.24
     private var startRect: CGRect = .zero
     private var endRect: CGRect = .zero
@@ -103,7 +105,7 @@ final class TransitionProxyView: NSView {
         endRect = viewRect(destination)
         currentAnimationRect = startRect
         currentRectInCG = source
-        startDate = Date()
+        startStamp = CACurrentMediaTime()
         duration = max(0.016, TimeInterval(durationMS) / 1000)
         self.startAlpha = startAlpha
         self.endAlpha = endAlpha
@@ -125,7 +127,7 @@ final class TransitionProxyView: NSView {
     private var animationMode: AnimationMode = .scale
 
     private func tick() {
-        let elapsed = Date().timeIntervalSince(startDate)
+        let elapsed = CACurrentMediaTime() - startStamp
         let progress = min(1, elapsed / duration)
         let eased = easeInOut(progress)
         // fade：矩形固定在终点，只有 alpha 变化；"声称淡化"就必须真的改 alpha。

@@ -40,6 +40,43 @@ final class FakeCatalogSource: CatalogContentSource, CatalogAXSource, CatalogShe
     /// AX 侧的最小化事实由写入器持有（应用是唯一真相），目录只是读它。
     var minimizedReader: ((WindowIdentity) -> Bool)?
     private var pendingSwap: [WindowIdentity: AXUIElement] = [:]
+    /// 目录查询停在"捕获/AX 已发起、还没回来"这一刻：制造无响应目录下的取消（方案 §18 A01）。
+    private var armedLoadGate = false
+    private var pendingLoadResume: CheckedContinuation<Void, Never>?
+
+    /// 下一次 `load()` 停在轮询起点，直到 `openCatalogLoadGate()`。
+    var gatesNextCatalogLoad: Bool {
+        get { lock.lock(); defer { lock.unlock() }; return armedLoadGate }
+        set {
+            lock.lock(); armedLoadGate = newValue; lock.unlock()
+        }
+    }
+
+    var isBlockedInCatalogLoad: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return pendingLoadResume != nil
+    }
+
+    func openCatalogLoadGate() {
+        lock.lock()
+        let resume = pendingLoadResume
+        pendingLoadResume = nil
+        armedLoadGate = false
+        lock.unlock()
+        resume?.resume()
+    }
+
+    private func waitForCatalogLoad() async {
+        lock.lock()
+        guard armedLoadGate else { lock.unlock(); return }
+        lock.unlock()
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            lock.lock()
+            armedLoadGate = false
+            pendingLoadResume = continuation
+            lock.unlock()
+        }
+    }
 
     /// 下一次 AX 读取时把该身份的句柄换成 `element`。
     func swapElementOnNextRead(_ identity: WindowIdentity, to element: AXUIElement) {
@@ -99,6 +136,7 @@ final class FakeCatalogSource: CatalogContentSource, CatalogAXSource, CatalogShe
     }
 
     func load() async -> CatalogContentResult {
+        await waitForCatalogLoad()
         lock.lock()
         axBlockedThisRound = axUnavailableRounds > 0
         if axBlockedThisRound { axUnavailableRounds -= 1 }
@@ -176,10 +214,20 @@ final class FakeGeometryWriter: GeometryWriting, @unchecked Sendable {
     enum Script {
         /// 接受写入，读回等于目标。
         case accepts
-        /// 应用按自身约束改了尺寸：有读回但偏离目标。
+        /// 应用按自身约束改了尺寸，读回**仍在请求矩形内**：方案 §9.2 的"受限但合格"。
+        case constrainsInside
+        /// 应用按自身约束改了尺寸并把窗口顶出主区：方案 §9.2 的"受限且越界"。
         case constrains
         /// AX 写入报错，frame 保持不变。
         case rejects
+    }
+
+    /// 写入里的两个停止点：门的位置决定了取消能拦住哪一半。
+    enum Gate {
+        /// 命令已排到队列头、AX 调用还没开始：这一半取消后必须**零写入**。
+        case entry
+        /// 尺寸已经落笔、位置还没写：这一半取消后必须回报**部分事实**。
+        case position
     }
 
     private let lock = NSLock()
@@ -193,7 +241,8 @@ final class FakeGeometryWriter: GeometryWriting, @unchecked Sendable {
     private var unminimizeCount = 0
     /// 动作序列：断言"先解除最小化，再写几何"这类顺序，而不是只看最终状态。
     private var actions: [String] = []
-    private var gateRequested = false
+    private var armedGates: Set<Gate> = []
+    private var pendingGate: Gate?
     private var pendingResume: CheckedContinuation<Void, Never>?
     /// 写入发起那一刻的旁路观察：用于断言"日志已落盘，才轮到写 AX"。
     var onWillWrite: ((Write) -> Void)?
@@ -211,11 +260,20 @@ final class FakeGeometryWriter: GeometryWriting, @unchecked Sendable {
         lock.unlock()
     }
 
-    /// true 时下一次 `apply` 停在写入内部，直到 `openGate()`。
+    /// true 时下一次写入停在"AX 调用还没开始"这一刻，直到 `openGate()`。
     var gatesNextWrite: Bool {
-        get { lock.lock(); defer { lock.unlock() }; return gateRequested }
-        set { lock.lock(); gateRequested = newValue; lock.unlock() }
+        get { lock.lock(); defer { lock.unlock() }; return armedGates.contains(.entry) }
+        set { arm(.entry, newValue) }
     }
+
+    /// true 时下一次 `apply` 停在"尺寸已写、位置还没写"这一刻：制造真实的部分写入。
+    var gatesPositionWrite: Bool {
+        get { lock.lock(); defer { lock.unlock() }; return armedGates.contains(.position) }
+        set { arm(.position, newValue) }
+    }
+
+    /// 现在卡在哪一扇门上；没卡住时为 nil。
+    var blockedGate: Gate? { lock.lock(); defer { lock.unlock() }; return pendingGate }
 
     var isBlockedInWrite: Bool {
         lock.lock(); defer { lock.unlock() }
@@ -226,63 +284,259 @@ final class FakeGeometryWriter: GeometryWriting, @unchecked Sendable {
         lock.lock()
         let resume = pendingResume
         pendingResume = nil
-        gateRequested = false
+        pendingGate = nil
+        armedGates.removeAll()
         lock.unlock()
         resume?.resume()
+    }
+
+    private func arm(_ gate: Gate, _ value: Bool) {
+        lock.lock()
+        if value { armedGates.insert(gate) } else { armedGates.remove(gate) }
+        lock.unlock()
+    }
+
+    // MARK: 写前事实读取的挂起点
+
+    /// 写前两趟实读也可以无响应：取消必须拦得住"读还没回来"这一刻（方案 §18 A02/A03）。
+    enum ReadGate: Hashable {
+        /// 写前实读 frame 已发起、还没回来
+        case currentFrame
+        /// 可移动/可尺寸能力查询已发起、还没回来
+        case writeability
+    }
+
+    private var armedReadGates: Set<ReadGate> = []
+    private var pendingReadGate: ReadGate?
+    private var pendingReadResume: CheckedContinuation<Void, Never>?
+
+    /// true 时下一次写前实读停在"AX 读取已发起、还没回来"这一刻，直到 `openReadGate()`。
+    var gatesNextFrameRead: Bool {
+        get { lock.lock(); defer { lock.unlock() }; return armedReadGates.contains(.currentFrame) }
+        set { arm(.currentFrame, newValue) }
+    }
+
+    /// true 时下一次能力查询停在"AX 读取已发起、还没回来"这一刻。
+    var gatesNextWriteabilityRead: Bool {
+        get { lock.lock(); defer { lock.unlock() }; return armedReadGates.contains(.writeability) }
+        set { arm(.writeability, newValue) }
+    }
+
+    /// 现在卡在哪一趟读上；没卡住时为 nil。
+    var blockedReadGate: ReadGate? { lock.lock(); defer { lock.unlock() }; return pendingReadGate }
+
+    var isBlockedInRead: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return pendingReadResume != nil
+    }
+
+    func openReadGate() {
+        lock.lock()
+        let resume = pendingReadResume
+        pendingReadResume = nil
+        pendingReadGate = nil
+        armedReadGates.removeAll()
+        lock.unlock()
+        resume?.resume()
+    }
+
+    private func arm(_ gate: ReadGate, _ value: Bool) {
+        lock.lock()
+        if value { armedReadGates.insert(gate) } else { armedReadGates.remove(gate) }
+        lock.unlock()
+    }
+
+    private func waitForReadGate(_ gate: ReadGate) async {
+        lock.lock()
+        guard armedReadGates.contains(gate) else { lock.unlock(); return }
+        lock.unlock()
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            lock.lock()
+            armedReadGates.remove(gate)
+            pendingReadGate = gate
+            pendingReadResume = continuation
+            lock.unlock()
+        }
     }
 
     // MARK: GeometryWriting
 
     func currentFrame(of element: AXUIElement) async -> CGRect? {
+        await waitForReadGate(.currentFrame)
         lock.lock(); defer { lock.unlock() }
         return frames[Self.key(of: element)]
     }
 
     /// 写前事实读取的替身结论：可以脚本化成"可写 / 读到不可写 / 读不到"。
+    /// 全局值只作默认：按元素设置才造得出"B 不接受尺寸、A 照常可写"这种真实混合形态。
     var writeability: GeometryWriteability = .writeable
+    private var writeabilityByElement: [Int: GeometryWriteability] = [:]
 
-    func geometryWriteability(element: AXUIElement) async -> GeometryWriteability {
-        lock.lock(); defer { lock.unlock() }
-        return writeability
+    func setWriteability(_ value: GeometryWriteability, for element: AXUIElement?) {
+        lock.lock()
+        if let element { writeabilityByElement[Self.key(of: element)] = value } else { writeability = value }
+        lock.unlock()
     }
 
-    func apply(frame target: CGRect, element: AXUIElement) async -> GeometryWriteReport {
-        let key = Self.key(of: element)
-        await waitForGateIfNeeded()
-        onWillWrite?(Write(frame: target))
+    func geometryWriteability(element: AXUIElement) async -> GeometryWriteability {
+        await waitForReadGate(.writeability)
+        lock.lock(); defer { lock.unlock() }
+        return writeabilityByElement[Self.key(of: element)] ?? writeability
+    }
 
+    func apply(frame target: CGRect, element: AXUIElement, permit: GeometryWritePermit) async -> GeometryWriteReport {
+        let key = Self.key(of: element)
+        let clamped = target.standardized
+        // 落笔前查许可：入队之后才被撤销的命令，一次 AX 写入都不许发生（方案 §5.2）。
+        guard permit.isGranted else {
+            return Self.cancelledReport(target: clamped, before: nil, wroteSize: false, wrotePosition: false)
+        }
+        await waitForGate(.entry)
+        guard permit.isGranted else {
+            return Self.cancelledReport(target: clamped, before: nil, wroteSize: false, wrotePosition: false)
+        }
+
+        // 尺寸：这一次调用真的发起了跨进程写入。
         lock.lock()
         let before = frames[key]
         let script = scripts[key] ?? defaultScript
-        writeLog.append(Write(frame: target))
+        writeLog.append(Write(frame: clamped))
         actions.append("写")
+        if script != .rejects { frames[key] = CGRect(origin: (before ?? clamped).origin, size: clamped.size) }
+        lock.unlock()
+        onWillWrite?(Write(frame: clamped))
+
+        await waitForGate(.position)
+        guard permit.isGranted else {
+            // 尺寸已经改掉、位置还没写：按真实部分事实回报，让补偿照着它回位。
+            lock.lock(); let partial = frames[key]; lock.unlock()
+            return Self.cancelledReport(target: clamped, before: before,
+                                        wroteSize: true, wrotePosition: false, readBack: partial)
+        }
+
         let success = Int(AXError.success.rawValue)
         let failure = Int(AXError.failure.rawValue)
-        var readBack = target
-        var outcome = GeometryOutcome.exact(readBack: target)
+        var readBack = clamped
+        var outcome = GeometryOutcome.exact(readBack: clamped)
         var sizeError = success
         var positionError = success
+        lock.lock()
         switch script {
         case .accepts:
-            break
-        case .constrains:
-            readBack = target.offsetBy(dx: 30, dy: 30)
+            frames[key] = clamped
+        case .constrainsInside:
+            // 位置照写，尺寸按应用自己的上限收 60pt：读回小于目标但完全落在主区内。
+            readBack = CGRect(x: clamped.minX, y: clamped.minY,
+                              width: max(1, clamped.width - 60), height: max(1, clamped.height - 60))
             outcome = .constrained(readBack: readBack)
+            frames[key] = readBack
+        case .constrains:
+            readBack = clamped.offsetBy(dx: 30, dy: 30)
+            outcome = .constrained(readBack: readBack)
+            frames[key] = readBack
         case .rejects:
-            readBack = before ?? target
+            readBack = before ?? clamped
             outcome = .rejected(.sizeWrite(code: failure))
             sizeError = failure
             positionError = failure
         }
-        if script != .rejects { frames[key] = readBack }
         lock.unlock()
 
-        return GeometryWriteReport(target: target,
+        return GeometryWriteReport(target: clamped,
                                    frameBeforeWrite: before,
                                    sizeWriteError: sizeError,
                                    positionWriteError: positionError,
                                    readBack: readBack,
-                                   outcome: outcome)
+                                   outcome: outcome,
+                                   didWriteSize: true,
+                                   didWritePosition: true)
+    }
+
+    /// 仅移动路径：只写位置，尺寸用写前实读值（方案 §9.1）。
+    func applyPosition(_ origin: CGPoint,
+                       element: AXUIElement,
+                       permit: GeometryWritePermit) async -> GeometryWriteReport {
+        let key = Self.key(of: element)
+        guard permit.isGranted else {
+            return Self.cancelledReport(target: CGRect(origin: origin, size: .zero), before: nil,
+                                        wroteSize: false, wrotePosition: false)
+        }
+        await waitForGate(.entry)
+        guard permit.isGranted else {
+            return Self.cancelledReport(target: CGRect(origin: origin, size: .zero), before: nil,
+                                        wroteSize: false, wrotePosition: false)
+        }
+
+        let success = Int(AXError.success.rawValue)
+        let failure = Int(AXError.failure.rawValue)
+        var size = CGSize.zero
+        var before: CGRect?
+        var readBack: CGRect?
+        var outcome = GeometryOutcome.unreadable
+        var positionError = success
+        lock.lock()
+        if let current = frames[key] {
+            before = current
+            size = current.size
+            let moved = CGRect(origin: origin, size: current.size)
+            switch scripts[key] ?? defaultScript {
+            case .accepts, .constrainsInside:
+                // 仅移动路径没有尺寸可约束：两种脚本在这里都是"位置照写、读回一致"。
+                frames[key] = moved
+                readBack = moved
+                outcome = .exact(readBack: moved)
+            case .constrains:
+                let constrained = moved.offsetBy(dx: 30, dy: 30)
+                frames[key] = constrained
+                readBack = constrained
+                outcome = .constrained(readBack: constrained)
+            case .rejects:
+                readBack = current
+                outcome = .rejected(.positionWrite(code: failure))
+                positionError = failure
+            }
+        }
+        writeLog.append(Write(frame: CGRect(origin: origin, size: size)))
+        actions.append("移")
+        lock.unlock()
+        let written = Write(frame: CGRect(origin: origin, size: size))
+        onWillWrite?(written)
+
+        return GeometryWriteReport(target: CGRect(origin: origin, size: size),
+                                   frameBeforeWrite: before,
+                                   sizeWriteError: success,
+                                   positionWriteError: positionError,
+                                   readBack: readBack,
+                                   outcome: outcome,
+                                   didWriteSize: false,
+                                   didWritePosition: true)
+    }
+
+    /// 取消后的回报：没写的那一侧错误码记"未执行"，写过的一侧与读回事实原样保留。
+    private static func cancelledReport(target: CGRect,
+                                        before: CGRect?,
+                                        wroteSize: Bool,
+                                        wrotePosition: Bool,
+                                        readBack: CGRect? = nil) -> GeometryWriteReport {
+        GeometryWriteReport(target: target, frameBeforeWrite: before,
+                            sizeWriteError: wroteSize ? Int(AXError.success.rawValue) : Int(AXError.cannotComplete.rawValue),
+                            positionWriteError: wrotePosition ? Int(AXError.success.rawValue) : Int(AXError.cannotComplete.rawValue),
+                            readBack: readBack,
+                            outcome: .cancelled(wroteSize: wroteSize, wrotePosition: wrotePosition, readBack: readBack),
+                            didWriteSize: wroteSize, didWritePosition: wrotePosition)
+    }
+
+    private func waitForGate(_ gate: Gate) async {
+        lock.lock()
+        guard armedGates.contains(gate) else { lock.unlock(); return }
+        lock.unlock()
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            lock.lock()
+            armedGates.remove(gate)
+            pendingGate = gate
+            pendingResume = continuation
+            lock.unlock()
+        }
     }
 
     func raise(element: AXUIElement) async -> Bool {
@@ -294,13 +548,45 @@ final class FakeGeometryWriter: GeometryWriting, @unchecked Sendable {
         lock.lock()
         focuses += 1
         // 读回的是"应用当前认为的 focused window"：可以是被兄弟窗口占着。
-        focusedByPID[Int(Self.pid(of: element))] = siblingKeepsFocus ? Self.sibling : element
+        let key = Self.key(of: element)
+        let call = (focusCalls[key] ?? 0) + 1
+        focusCalls[key] = call
+        let held = siblingKeepsFocus
+            || siblingHoldsFocusFor.contains(key)
+            || (siblingHoldsFocusFromCall[key].map { call >= $0 } ?? false)
+        focusedByPID[Int(Self.pid(of: element))] = held ? Self.sibling : element
         lock.unlock()
         return true
     }
 
     /// 置位后：写焦点成功，但读回永远是另一个元素（同应用兄弟窗口仍在前面的情形）。
     var siblingKeepsFocus = false
+    /// 前景化失败要能只落在某一个窗口上：方案 §18 A08 是"目标窗口自己前景化失败"，
+    /// 而补偿阶段还要把原主重新提到前面——全局置位会把这两次混成一次，判据就不成立了。
+    private var siblingHoldsFocusFor: Set<Int> = []
+    /// 同一窗口的第 n 次前景化起才失败：A09 要的就是"首次前景确认通过、写回原主后复核失败"。
+    private var siblingHoldsFocusFromCall: [Int: Int] = [:]
+    private var focusCalls: [Int: Int] = [:]
+
+    /// 只让这个句柄的前景读回被兄弟窗口占住（`fromCall` 表示从第几次前景化开始）。
+    func setSiblingHoldingFocus(_ value: Bool, for element: AXUIElement, fromCall: Int? = nil) {
+        lock.lock()
+        let key = Self.key(of: element)
+        if value {
+            if let fromCall { siblingHoldsFocusFromCall[key] = fromCall } else { siblingHoldsFocusFor.insert(key) }
+        } else {
+            siblingHoldsFocusFor.remove(key)
+            siblingHoldsFocusFromCall.removeValue(forKey: key)
+        }
+        lock.unlock()
+    }
+
+    /// 该句柄到现在为止被前景化过几次：测试用它确认失败真的落在预期的那一次上。
+    func focusCallCount(for element: AXUIElement) -> Int {
+        lock.lock(); defer { lock.unlock() }
+        return focusCalls[Self.key(of: element)] ?? 0
+    }
+
     private var focusedByPID: [Int: AXUIElement] = [:]
     /// 前景化判定读过几次 focused window：测试用它等"读回这一步真的发生了"。
     private var focusedReads = 0
@@ -380,17 +666,6 @@ final class FakeGeometryWriter: GeometryWriting, @unchecked Sendable {
     var totalWrites: Int { recordedWrites.count }
     var raiseCount: Int { lock.lock(); defer { lock.unlock() }; return raises }
     var focusCount: Int { lock.lock(); defer { lock.unlock() }; return focuses }
-
-    private func waitForGateIfNeeded() async {
-        lock.lock()
-        guard gateRequested else { lock.unlock(); return }
-        lock.unlock()
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            lock.lock()
-            pendingResume = continuation
-            lock.unlock()
-        }
-    }
 
     private static func key(of element: AXUIElement) -> Int { Int(CFHash(element)) }
 }

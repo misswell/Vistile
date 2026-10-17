@@ -347,16 +347,69 @@ struct CaptureModePlannerTests {
         #expect(third.streamsToStop.isEmpty)
     }
 
+    /// A34（方案 §18 A34、§13.1）：可见/离屏混合时，离屏既不占直播名额，也不挡住可见卡片恢复直播。
+    @Test("可见/离屏混合超过预算：离屏不占名额，也不挡住可见卡片恢复直播")
+    func offscreenTargetsNeitherTakeSlotsNorBlockRestore() {
+        // 2 张可见 + 20 张离屏：目标总数 22 远超软上限 4，但真正想要直播的只有 2 张。
+        // 把离屏算进预算就是这个缺陷的原形：可见卡片会被永久锁在轮询档。
+        var demands: [CaptureDemand] = (1...2).map { demand($0, visibility: .visible) }
+        demands += (3...22).map { demand($0, visibility: .offscreen) }
+
+        let plan = CaptureModePlanner.plan(demands: demands,
+                                           liveStreams: [],
+                                           polledIntervals: [:],
+                                           streamSoftLimit: 4,
+                                           thermal: .nominal)
+        #expect(plan.overBudget == false, "占预算的目标只有 2 个：离屏数量不得制造超预算")
+        for index in 1...2 {
+            #expect(plan.mode(for: window(index)) == .live, "可见卡片 \(index) 必须拿到直播名额")
+        }
+        for index in 3...22 {
+            let mode = plan.mode(for: window(index))
+            #expect(mode != .live, "离屏 \(index) 不该占直播名额")
+            #expect(mode == .poll(intervalMilliseconds: 2_000) || mode == .paused,
+                    "离屏按 1–2 秒轮询档处理，实际 \(String(describing: mode))")
+        }
+        #expect(Set(plan.streamsToStart) == Set((1...2).map { window($0) }))
+
+        // 同一批离屏仍在场：先前被压住的可见卡片要能回到实时，判据只看占预算的那部分。
+        let wasPolled = window(1)
+        let restore = CaptureModePlanner.plan(demands: demands,
+                                              liveStreams: ids([2]),
+                                              polledIntervals: [wasPolled: 1_000],
+                                              streamSoftLimit: 4,
+                                              thermal: .nominal)
+        #expect(restore.mode(for: wasPolled) == .live, "有 20 张离屏在场也要能恢复直播")
+        #expect(restore.streamsToStart.contains(wasPolled))
+        #expect(restore.streamsToStop.isEmpty)
+
+        // 反过来：可见卡片自己超过软上限时，才轮到低优先级卡片让路（等级顺序不能反过来）。
+        let crowded: [CaptureDemand] = (1...6).map { demand($0, visibility: .visible) }
+            + (7...22).map { demand($0, visibility: .offscreen) }
+        let tight = CaptureModePlanner.plan(demands: crowded,
+                                            liveStreams: [],
+                                            polledIntervals: [:],
+                                            streamSoftLimit: 4,
+                                            thermal: .nominal)
+        #expect(tight.overBudget, "6 张可见 > 软上限 4：这才叫超预算")
+        let liveIdentities = crowded.filter { tight.mode(for: $0.identity) == .live }.map(\.identity)
+        #expect(liveIdentities.count == 4)
+        #expect(Set(liveIdentities).isSubset(of: Set((1...6).map { window($0) })),
+                "名额只发给可见档：离屏排在可见之后，绝不插队")
+    }
+
     private func demand(_ index: Int,
                         isPriority: Bool = false,
                         isMinimized: Bool = false,
                         isCapturable: Bool = true,
+                        visibility: CaptureVisibility = .fallback,
                         fps: Int = 15,
                         width: Int = 320) -> CaptureDemand {
         CaptureDemand(identity: window(index),
                       isCapturable: isCapturable,
                       isMinimized: isMinimized,
                       isPriority: isPriority,
+                      visibility: visibility,
                       currentFPS: fps,
                       currentPixelWidth: width)
     }

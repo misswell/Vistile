@@ -1,6 +1,7 @@
 import AppKit
 import CoreGraphics
 import Foundation
+import QuartzCore
 import ScreenCaptureKit
 import VistileCore
 
@@ -13,6 +14,48 @@ enum CaptureFact: Hashable, Sendable {
     case budgetApplied(Int)
 }
 
+/// 一张卡片为什么需要画面（方案 §13.1 的捕获需求分级）。
+///
+/// 名称上刻意带 `Target`：核心层的等级枚举由 `CaptureDemand` 承载（`CaptureVisibility`），
+/// 宿主这一层只描述"这张卡此刻属于哪一档"，映射集中在一个扩展里，避免两边同名互相遮蔽。
+enum CaptureTargetVisibility: Hashable, Sendable {
+    /// 飞行交接的参与者：短期最高优先级，结束即释放额外优先级。
+    case transition
+    /// 此刻在视口里的卡片：balanced 实时档。
+    case visible
+    /// 相邻一屏以内的预取：低频预热，滚动进来时已经有缓存帧。
+    case prefetch
+    /// 远离视口：保留最后一帧，按资源压力降频或暂停。
+    case offscreen
+    /// 隐藏、锁屏、会话结束：不占流也不轮询。
+    case paused
+
+    /// 默认档（未显式分级时按可见卡片处理）。
+    static let fallback: CaptureTargetVisibility = .visible
+
+    /// 需求等级越高越该先拿到直播名额（方案 §13.1 的固定顺序）。
+    var rank: Int {
+        switch self {
+        case .transition: return 0
+        case .visible: return 1
+        case .prefetch: return 2
+        case .offscreen: return 3
+        case .paused: return 4
+        }
+    }
+
+    /// 交给核心层的等级（方案 §13.1：`CaptureDemand.visibility`，Core 侧同名枚举）。
+    var coreVisibility: CaptureVisibility {
+        switch self {
+        case .transition: return .transition
+        case .visible: return .visible
+        case .prefetch: return .prefetch
+        case .offscreen: return .offscreen
+        case .paused: return .paused
+        }
+    }
+}
+
 /// 一个待捕获目标：卡片几何与源窗口尺寸决定输出像素，不常驻原生全分辨率。
 struct CaptureTarget: Hashable {
     let identity: WindowIdentity
@@ -22,13 +65,20 @@ struct CaptureTarget: Hashable {
     let isPriority: Bool
     let isMinimized: Bool
     let isCapturable: Bool
+    /// 这一档从哪来：过渡参与者 > 可见 > 邻近预取 > 离屏（方案 §13.1）。
+    let visibility: CaptureTargetVisibility
 
-    init(record: WindowRecord, cellWidth: CGFloat, backingScale: CGFloat, isPriority: Bool) {
+    init(record: WindowRecord,
+         cellWidth: CGFloat,
+         backingScale: CGFloat,
+         isPriority: Bool,
+         visibility: CaptureTargetVisibility = .fallback) {
         identity = record.identity
         self.cellWidth = cellWidth
         self.backingScale = backingScale
         sourceSize = CGSize(width: record.frame.width, height: record.frame.height)
         self.isPriority = isPriority
+        self.visibility = visibility
         isMinimized = record.isMinimized || record.capture == .pausedMinimized
         switch record.capture {
         case .notCapturable, .permissionMissing: isCapturable = false
@@ -117,13 +167,21 @@ final class CaptureCoordinator {
     /// 过渡交接前的一次性刷新：同一身份最多一个请求在途（方案 §10.6）。
     private var refreshInFlight: Set<WindowIdentity> = []
     private var appliedAction: [WindowIdentity: BudgetAction] = [:]
-    private var lastConfigurationChange: [WindowIdentity: Date] = [:]
+    private var lastConfigurationChange: [WindowIdentity: TimeInterval] = [:]
     private var desiredTargets: [WindowIdentity: CaptureTarget] = [:]
     private var currentTier: CaptureTier = .balanced
     /// 本轮代次：stopAll 立刻推进，旧 run 的一切回调从此不被消费（方案 §7.3）。
     private var round = CaptureRoundToken(0)
     private let sampleQueue: DispatchQueue
     private let singleFrame: @MainActor (WindowIdentity, StreamConfig) async -> SingleFrameOutcome
+
+    /// 合并后的尺寸重配请求：一个显示周期内到达的多次 delta 只兑现最后一次（方案 §13.2）。
+    /// 每个 identity 至多一条，天然 latest-wins；过渡期间留在表里，取消或过渡结束立刻兑现。
+    private var pendingReconfigurations: [WindowIdentity: StreamConfig] = [:]
+    private var reconfigurationCycleScheduled = false
+    /// 一个"显示周期"的投递方式。生产用下一个主队列周期；宿主测试注入手动 gate，
+    /// 用显式周期数证明"滚动 50 个 delta 只重配 1 次"，不靠真实 sleep 碰时序（方案 §18 A35）。
+    var displayCycleScheduler: ((@escaping () -> Void) -> Void)?
 
     var thermalState: ThermalState {
         switch ProcessInfo.processInfo.thermalState {
@@ -184,6 +242,8 @@ final class CaptureCoordinator {
     var activeStreamCount: Int { runs.count }
     var queuedStartCount: Int { pendingStarts.count }
     var polledCount: Int { pollTimers.count }
+    /// 合并中的尺寸重配数量（方案 §13.2）：连续滚动几十个 delta 也只应留下每身份一条。
+    var pendingReconfigurationCount: Int { pendingReconfigurations.count }
     /// 逻辑已失效：不再有待启动、没有存活的一轮。
     var isLogicallyIdle: Bool { runs.isEmpty && pendingStarts.isEmpty && reaping.isEmpty }
     var liveCount: Int { runs.values.filter { $0.run.phase == .running || $0.run.phase == .starting }.count }
@@ -232,7 +292,10 @@ final class CaptureCoordinator {
     // MARK: - 同步目标集合
 
     /// 先决定模式，再执行启动/重配置/停止（方案 §7.5）。
-    func sync(targets: [CaptureTarget], tier: CaptureTier, isAnimating: Bool) {
+    ///
+    /// `activity` 是三路过渡事实合并后的统一判据（方案 §13.2）：它只延后"可合并的尺寸重配"，
+    /// 启动、停止、释放、取消一律立即执行——否则动画期间资源根本放不掉。
+    func sync(targets: [CaptureTarget], tier: CaptureTier, activity: TransitionActivity) {
         currentTier = tier
         desiredTargets = Dictionary(targets.map { ($0.identity, $0) }, uniquingKeysWith: { first, _ in first })
         let roundToken = round
@@ -241,6 +304,10 @@ final class CaptureCoordinator {
         for identity in Array(mailboxes.keys) where desiredTargets[identity] == nil && runs[identity] == nil {
             releaseWindow(identity)
         }
+        // 目标消失即作废它的待重配意图：不留"给已释放窗口改配置"的过期请求。
+        for identity in Array(pendingReconfigurations.keys) where desiredTargets[identity] == nil {
+            pendingReconfigurations.removeValue(forKey: identity)
+        }
 
         let liveStreams = Set(runs.keys)
         let demands = targets.map { target in
@@ -248,6 +315,8 @@ final class CaptureCoordinator {
                           isCapturable: target.isCapturable,
                           isMinimized: target.isMinimized,
                           isPriority: target.isPriority,
+                          // 可见性档位决定直播名额顺序（方案 §13.1）；用户 priority 在同档内生效。
+                          visibility: target.visibility.coreVisibility,
                           currentFPS: runs[target.identity]?.run.config.fps ?? tier.targetFPS,
                           currentPixelWidth: runs[target.identity]?.run.config.pixelWidth ?? tier.maxPixelWidth)
         }
@@ -257,18 +326,19 @@ final class CaptureCoordinator {
                                            streamSoftLimit: streamSoftLimit,
                                            thermal: thermalState)
 
-        // 1. 停：不再需要直播流的一律收敛，先让出并发额度。
+        // 1. 停：不再需要直播流的一律收敛，先让出并发额度。停止不受过渡状态抑制。
         for identity in plan.streamsToStop where runs[identity] != nil {
+            pendingReconfigurations.removeValue(forKey: identity)
             terminate(identity: identity)
         }
         // 2. 留：模式没变的存量只做配置对齐，不重建流。
         for target in targets where plan.mode(for: target.identity) == .live && runs[target.identity] != nil {
             appliedAction[target.identity] = plan.actions[target.identity] ?? .keep
-            reconfigureIfNeeded(target, tier: tier, isAnimating: isAnimating)
+            reconfigureIfNeeded(target, tier: tier, activity: activity)
         }
         // 3. 轮询：只在计划要求的间隔上刷新，绝不再顺手启动直播流。
         reconcilePolling(plan: plan, round: roundToken)
-        // 4. 起：按并发上限排队，过期项直接跳过。
+        // 4. 起：按并发上限排队，过期项直接跳过。启动同样不受过渡状态抑制。
         pendingStarts = plan.streamsToStart.map {
             PendingStart(identity: $0, runID: CaptureRunID(), round: roundToken)
         }
@@ -277,21 +347,75 @@ final class CaptureCoordinator {
             let degraded = plan.actions.values.filter { if case .keep = $0 { return false }; return true }.count
             if degraded > 0 { onFact?(.budgetApplied(degraded)) }
         }
+        // 一个显示周期只兑现一次合并后的重配（方案 §13.2：滚动几十个 delta 也只停启一次）。
+        scheduleReconfigurationFlush(round: roundToken)
     }
 
-    private func reconfigureIfNeeded(_ target: CaptureTarget, tier: CaptureTier, isAnimating: Bool) {
+    /// 记录一次尺寸重配意图并按 latest-wins 合并；真正下发在下一个显示周期（方案 §13.2）。
+    private func reconfigureIfNeeded(_ target: CaptureTarget, tier: CaptureTier, activity: TransitionActivity) {
         guard let entry = runs[target.identity] else { return }
         let candidate = config(for: target, tier: tier)
-        let elapsed = Date().timeIntervalSince(lastConfigurationChange[target.identity] ?? .distantPast)
-        guard candidate != entry.run.config, !isAnimating, elapsed >= 0.25 else { return }
-        lastConfigurationChange[target.identity] = Date()
+        guard candidate != entry.run.config else {
+            pendingReconfigurations.removeValue(forKey: target.identity)
+            return
+        }
+        // 抑制的只有"可延后的重配"；取消已请求时立刻当作不抑制，释放不被动画拖住。
+        // 判据仍走核心层那条统一规则（动画中 + 250ms 节流），宿主不另立一套。
+        let elapsed = CACurrentMediaTime() - (lastConfigurationChange[target.identity] ?? 0)
+        guard entry.run.config.needsReconfiguration(to: candidate,
+                                                    elapsedSinceLastChange: elapsed,
+                                                    isAnimating: activity.blocksGeometryReconfiguration) else {
+            pendingReconfigurations[target.identity] = candidate
+            return
+        }
+        pendingReconfigurations.removeValue(forKey: target.identity)
+        applyReconfiguration(identity: target.identity, candidate: candidate, in: entry)
+    }
+
+    private func applyReconfiguration(identity: WindowIdentity, candidate: StreamConfig, in entry: Entry) {
+        lastConfigurationChange[identity] = CACurrentMediaTime()
         let run = entry.run
-        let identity = target.identity
         Task { [weak self] in
             let ok = await run.update(configuration: candidate)
             guard let self, !ok, let message = run.lastError else { return }
             self.deliver(identity: identity, runID: entry.runID) { self.onFact?(.failed(identity, message)) }
         }
+    }
+
+    /// 把本轮合并出的重配意图投递到下一个显示周期；已排过的周期不重复排。
+    private func scheduleReconfigurationFlush(round roundToken: CaptureRoundToken) {
+        guard !pendingReconfigurations.isEmpty, !reconfigurationCycleScheduled else { return }
+        reconfigurationCycleScheduled = true
+        let body: () -> Void = { [weak self] in
+            MainActor.assumeIsolated { self?.flushPendingReconfigurations(round: roundToken) }
+        }
+        if let displayCycleScheduler { displayCycleScheduler(body) } else { DispatchQueue.main.async(execute: body) }
+    }
+
+    /// 兑现合并后的重配：一个显示周期一次，每个身份只写最后一次意图（方案 §13.2）。
+    /// 取消/停止路径会直接调它，因此"延后"永远不会变成"不释放"。
+    func flushPendingReconfigurations(round roundToken: CaptureRoundToken? = nil) {
+        reconfigurationCycleScheduled = false
+        if let roundToken, roundToken != round {
+            // 这一轮已经作废（stopAll/退出）：意图连同旧配置请求一起丢弃。
+            pendingReconfigurations.removeAll()
+            return
+        }
+        guard !pendingReconfigurations.isEmpty else { return }
+        let batch = pendingReconfigurations
+        pendingReconfigurations.removeAll()
+        for (identity, candidate) in batch.sorted(by: { $0.key.journalKey < $1.key.journalKey }) {
+            guard let entry = runs[identity], desiredTargets[identity] != nil else { continue }
+            guard candidate != entry.run.config else { continue }
+            let elapsed = CACurrentMediaTime() - (lastConfigurationChange[identity] ?? 0)
+            guard elapsed >= 0.25 else {
+                // 节流未过：留到下一个周期，不丢掉这份最新意图。
+                pendingReconfigurations[identity] = candidate
+                continue
+            }
+            applyReconfiguration(identity: identity, candidate: candidate, in: entry)
+        }
+        if !pendingReconfigurations.isEmpty { scheduleReconfigurationFlush(round: round) }
     }
 
     private func config(for target: CaptureTarget, tier: CaptureTier) -> StreamConfig {
@@ -352,7 +476,7 @@ final class CaptureCoordinator {
         runs[target.identity] = entry
         // 新的一轮登记后，旧回调立刻失去对外发事实的资格（方案 §7.2 第五条）。
         latestRun[target.identity] = pending.runID
-        lastConfigurationChange[target.identity] = Date()
+        lastConfigurationChange[target.identity] = CACurrentMediaTime()
         wireCallbacks(of: run, entry: entry)
         onFact?(.started(target.identity, pending.runID))
         entry.startTask = Task { [weak self] in
@@ -416,6 +540,8 @@ final class CaptureCoordinator {
     /// 从集合移除之前先标为 stopping，并把这一轮放进收敛表（方案 §7.2 第四条）。
     private func terminate(identity: WindowIdentity) {
         guard let entry = runs.removeValue(forKey: identity) else { return }
+        // 流都没了就没有"延后的重配"可言：意图必须一起丢掉，否则新流会被旧意图改写。
+        pendingReconfigurations.removeValue(forKey: identity)
         reaping[entry.runID] = entry
         stopPolling(identity)
         polledIntervals.removeValue(forKey: identity)
@@ -437,6 +563,9 @@ final class CaptureCoordinator {
         desiredTargets.removeAll()
         pendingStarts.removeAll()
         inFlightStarts.removeAll()
+        // 停止/取消从不延后：合并中的重配意图随本轮一起作废（方案 §13.2）。
+        pendingReconfigurations.removeAll()
+        reconfigurationCycleScheduled = false
         for identity in Array(runs.keys) { terminate(identity: identity) }
         for identity in Array(pollTimers.keys) { stopPolling(identity) }
         if releasingMailboxes {
@@ -566,7 +695,12 @@ final class CaptureCoordinator {
         guard refreshInFlight.insert(identity).inserted else { return nil }
         defer { refreshInFlight.remove(identity) }
         guard let record = catalog.record(for: identity) else { return nil }
-        let target = CaptureTarget(record: record, cellWidth: cellWidth, backingScale: backingScale, isPriority: true)
+        let target = CaptureTarget(record: record,
+                                   cellWidth: cellWidth,
+                                   backingScale: backingScale,
+                                   isPriority: true,
+                                   // 交接前刷新的就是"飞行参与者"：按最高档取图（方案 §13.1）。
+                                   visibility: .transition)
         let base = StreamConfig.build(cellWidth: cellWidth,
                                       backingScale: backingScale,
                                       sourceSize: target.sourceSize,

@@ -28,7 +28,20 @@ public enum FocusGeometry {
                       height: rect.height)
     }
 
+    /// 尺寸放得下时返回**真实原尺寸**的居中矩形，放不下返回 nil。
+    /// 只有这条判据能保证"保留原尺寸"不是把尺寸裁小之后的说辞（方案 §9.1）。
+    public static func centeredOriginalRect(in container: CGRect, size: CGSize?) -> CGRect? {
+        guard let size, size.width > 0, size.height > 0 else { return nil }
+        guard size.width <= container.width, size.height <= container.height else { return nil }
+        return CGRect(x: container.midX - size.width / 2,
+                      y: container.midY - size.height / 2,
+                      width: size.width,
+                      height: size.height)
+    }
+
+    /// 总览聚焦路径的兜底：容器小于窗口时按容器夹取，此时不得宣称"保留原尺寸"。
     private static func centeredOriginal(in visibleFrame: CGRect, size: CGSize?) -> CGRect {
+        if let fits = centeredOriginalRect(in: visibleFrame, size: size) { return fits }
         guard let size, size.width > 0, size.height > 0 else { return visibleFrame }
         let width = min(size.width, visibleFrame.width)
         let height = min(size.height, visibleFrame.height)

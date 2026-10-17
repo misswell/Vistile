@@ -38,6 +38,10 @@ final class TransitionCarrierView: NSView {
     private var renderer: OverviewRenderer?
     private var originInCG = CGPoint.zero
     private(set) var scene: TransitionScene?
+    /// 本段场景自带的令牌（`play` 时绑定，`stopNow` 时清空）。
+    /// 完成回调必须回报它，不能在回调时刻去读协调器的"当前令牌"——
+    /// 那已经是新场景的令牌，旧场景的迟到完成会替新场景提交状态（方案 §16.2）。
+    private(set) var playingToken: TransitionToken?
 
     private struct CardState {
         var start: CGRect
@@ -74,6 +78,15 @@ final class TransitionCarrierView: NSView {
     private var lastTickAt: CFTimeInterval = 0
     /// 本段场景飞行期间的帧间隔样本（ms）；播放结束按场景给出 P95 与掉帧事实（方案 §20.3）。
     private var frameIntervalsMS: [Double] = []
+    /// 首帧延迟的锚点：真实输入的时刻（方案 §20.2）。用 play() 自己的进入时间会把
+    /// "点击后卡在目录复核里几百毫秒才起动画"这段洗掉。
+    private var firstPresentAnchor: CFTimeInterval = 0
+    /// 锚点是否来自真实输入（false = 没有前置点击，按 play() 进入时刻算）。
+    private var anchorIsRealInput = false
+    /// 本段开始时渲染器的 present 计数，用于算出这一段真正呈现了多少帧。
+    private var presentsAtSceneStart = 0
+    private var firstPresentDelayMS: Double?
+    private var tickCount = 0
     private var rearmTimer: Timer?
     private var holdLabelTimer: Timer?
     private var holdDeadlineTimer: Timer?
@@ -81,10 +94,12 @@ final class TransitionCarrierView: NSView {
     private let holdBadge = CALayer()
     private let holdLabel = CATextLayer()
 
-    var onReachedEnd: (() -> Void)?
-    var onFinished: (() -> Void)?
+    var onReachedEnd: ((TransitionToken) -> Void)?
+    var onFinished: ((TransitionToken) -> Void)?
     /// 一段飞行的帧间隔统计（方案 §20.3）：每次过渡结束后给一次，供诊断与降级决策。
     var onFlightStats: ((TransitionScene.Kind, FrameIntervalStats) -> Void)?
+    /// 一段飞行的呈现事实（方案 §20.2）：首帧延迟与实际 present 次数，每次飞行到位给一次。
+    var onFlightFacts: ((TransitionScene.Kind, TransitionFlightFacts) -> Void)?
 
     var isPlaying: Bool { phase == .playing }
     var isHolding: Bool { phase == .holding }
@@ -124,9 +139,12 @@ final class TransitionCarrierView: NSView {
     // MARK: - 播放
 
     /// 播放一段场景。起点优先取"此刻屏幕上的呈现矩形"（打断续接），其次才是计划起点（方案 §10.4）。
-    func play(_ scene: TransitionScene, sources: [WindowIdentity: MetalFrame]) {
+    /// - Parameter anchorAt: 真实输入时刻（单调时钟），只用于首帧延迟；不给就按本方法进入时刻算。
+    func play(_ scene: TransitionScene, sources: [WindowIdentity: MetalFrame], anchorAt: CFTimeInterval? = nil) {
         let interrupting = phase != .idle
         self.scene = scene
+        // 令牌与场景一起绑定：之后的每个回调都只报这个令牌，绝不在回调时刻回看协调器状态（方案 §16.2）。
+        self.playingToken = scene.token
         states.removeAll()
         drawOrder = []
         focusIdentity = nil
@@ -156,6 +174,11 @@ final class TransitionCarrierView: NSView {
         duration = max(0.016, TimeInterval(scene.durationMS) / 1000)
         lastProgress = 0
         frameIntervalsMS.removeAll()
+        firstPresentAnchor = anchorAt ?? CACurrentMediaTime()
+        anchorIsRealInput = anchorAt != nil
+        firstPresentDelayMS = nil
+        tickCount = 0
+        presentsAtSceneStart = renderer?.diagnostics().presents ?? 0
         metalLayer.opacity = 1
         phase = .playing
         startTimestamp = CACurrentMediaTime()
@@ -204,6 +227,7 @@ final class TransitionCarrierView: NSView {
         states.removeAll()
         scene = nil
         focusIdentity = nil
+        playingToken = nil
     }
 
     private func finishNow() {
@@ -212,7 +236,10 @@ final class TransitionCarrierView: NSView {
         hideHoldIndicator()
         phase = .idle
         metalLayer.opacity = 1
-        onFinished?()
+        // 只报本段场景自己的令牌：这一刻协调器可能已经在放下一段（方案 §16.2）。
+        let token = playingToken
+        playingToken = nil
+        if let token { onFinished?(token) }
     }
 
     // MARK: - 时钟
@@ -228,6 +255,7 @@ final class TransitionCarrierView: NSView {
         let now = timestamp
         switch phase {
         case .playing:
+            tickCount += 1
             // 第一个 tick 没有参考间隔；其余按真实到帧时间记样本（方案 §20.3）。
             if previousTick > 0 {
                 frameIntervalsMS.append((timestamp - previousTick) * 1000)
@@ -238,10 +266,19 @@ final class TransitionCarrierView: NSView {
             if progress >= 1 {
                 phase = .holding
                 stopClock()
-                if let scene, let stats = FrameIntervalStats.measure(frameIntervalsMS) {
-                    onFlightStats?(scene.kind, stats)
+                // 呈现事实只算这一段：tick 次数与 present 增量并列报告，谁也不替谁（方案 §20.2）。
+                if let scene {
+                    let presented = (renderer?.diagnostics().presents ?? 0) - presentsAtSceneStart
+                    onFlightFacts?(scene.kind, TransitionFlightFacts(firstPresentDelayMS: firstPresentDelayMS,
+                                                                     ticks: tickCount,
+                                                                     presentedFrames: presented,
+                                                                     anchoredAtRealInput: anchorIsRealInput))
+                    if let stats = FrameIntervalStats.measure(frameIntervalsMS) {
+                        onFlightStats?(scene.kind, stats)
+                    }
                 }
-                onReachedEnd?()
+                // 到位事件也只属于本段场景：协调器据此判断它是否仍然是当前令牌（方案 §16.2）。
+                if let token = playingToken { onReachedEnd?(token) }
                 // 宿主可能在这一刻就完成交接（返回总览：总览面板显示后立刻淡出）。
                 if phase == .holding { scheduleHoldChecks() }
             }
@@ -391,6 +428,10 @@ final class TransitionCarrierView: NSView {
                       placeholders: placeholders,
                       viewBounds: bounds,
                       scale: max(1, metalLayer.contentsScale))
+        // 首帧延迟只在"渲染器真的 present 出去"的那一刻记：draw 调用与 tick 回调都不算反馈（方案 §20.2）。
+        if firstPresentDelayMS == nil, renderer.diagnostics().presents > presentsAtSceneStart {
+            firstPresentDelayMS = max(0, (CACurrentMediaTime() - firstPresentAnchor) * 1000)
+        }
     }
 
     /// 载具视图没有把 bounds 传给图层就没有任何可见像素。
@@ -490,8 +531,13 @@ final class ModeTransitionCoordinator {
     var onSceneReachedEnd: ((TransitionToken) -> Void)?
     /// 承载层完全消失（淡出结束/被丢弃）。
     var onSceneFinished: ((TransitionToken) -> Void)?
+    /// 取消收尾完成（方案 §13.2、§16.2）：retreat/cancelAll 之后承载层真正下屏的那一刻。
+    /// 只有这条回调能把"取消已生效"告诉捕获层与调度器；发起取消不等于取消完成。
+    var onSceneCancellationFinished: ((TransitionToken) -> Void)?
     /// 飞行帧事实（方案 §20.3）：P95 帧间隔与掉帧，每次过渡结束报告一次。
     var onSceneStats: ((TransitionScene.Kind, FrameIntervalStats) -> Void)?
+    /// 呈现事实（方案 §20.2）：首帧延迟 + tick/present 对照，每次飞行到位报告一次。
+    var onSceneFacts: ((TransitionScene.Kind, TransitionFlightFacts) -> Void)?
 
     private let metal: MetalContext
     private var carriers: [UInt32: TransitionCarrierWindow] = [:]
@@ -499,12 +545,28 @@ final class ModeTransitionCoordinator {
     private(set) var activeKind: TransitionScene.Kind?
     private var activeDisplayID: UInt32?
     private var confirmed = false
+    /// 已请求取消但承载层还没真正下屏：这段窗口期内任何"延后"都必须立刻失效（方案 §13.2）。
+    private var cancellationRequested = false
 
     init(metal: MetalContext) {
         self.metal = metal
     }
 
     var isPresenting: Bool { activeToken != nil }
+
+    /// 模式过渡这一路的活动事实（方案 §13.2）：合并进捕获层的统一 TransitionActivity。
+    /// 取消已请求时 `blocksGeometryReconfiguration` 自然为 false——延后不再拖住释放。
+    var activity: TransitionActivity {
+        TransitionActivity(modeTransition: activeToken != nil, cancellationRequested: cancellationRequested)
+    }
+
+    /// 当前实际呈现的矩形/透明度（CG 全局，方案 §16.2）：新场景与代理收尾都必须从它接续。
+    func presentedRect(for identity: WindowIdentity) -> CGRect? { activeCarrierView?.presentedRect(for: identity) }
+    func presentedAlpha(for identity: WindowIdentity) -> CGFloat? { activeCarrierView?.presentedAlpha(for: identity) }
+
+    /// 承载层是否已经彻底不在屏幕上：隐藏/退出的收敛判据之一。
+    var isIdle: Bool { activeToken == nil && carriers.values.allSatisfy { $0.carrierView.isIdle } }
+
     /// 返回总览的飞行（或保持）是否还占着屏幕：宿主据此推迟总览面板与两栏的交替。
     var isReturnPresenting: Bool { activeToken != nil && activeKind == .returning }
     /// 当前场景要求栏里藏起来的卡片：静止副本与动画副本不许同时出现。
@@ -519,7 +581,8 @@ final class ModeTransitionCoordinator {
     /// 只读观察点：某一屏的承载窗口实例（测试据此断言同一屏的连续播放复用同一个窗口）。
     func carrierWindow(for displayID: UInt32) -> TransitionCarrierWindow? { carriers[displayID] }
 
-    func play(_ scene: TransitionScene) {
+    /// - Parameter anchorAt: 真实输入时刻（单调时钟），只用于首帧延迟打点（方案 §20.2）。
+    func play(_ scene: TransitionScene, anchorAt: CFTimeInterval? = nil) {
         guard let facts = displayFacts?(scene.displayID) else { return }
         if let old = activeDisplayID, old != scene.displayID {
             stopCarrier(old, emittingFinished: true)
@@ -536,7 +599,9 @@ final class ModeTransitionCoordinator {
         activeKind = scene.kind
         activeDisplayID = scene.displayID
         confirmed = false
-        window.carrierView.play(scene, sources: sources)
+        // 新场景已经开始播放：上一轮的"取消中"标记到此结束（方案 §13.2）。
+        cancellationRequested = false
+        window.carrierView.play(scene, sources: sources, anchorAt: anchorAt)
     }
 
     /// 飞行中到位的画面源（例如主窗口的一次性新帧）。
@@ -556,10 +621,12 @@ final class ModeTransitionCoordinator {
     /// 失败/取消：尽快收掉承载层，真实窗口的补偿由执行器负责（方案 §10.4）。
     func retreat(_ token: TransitionToken) {
         guard activeToken == token else { return }
+        cancellationRequested = true
         activeCarrierView?.beginFade(durationMS: 90)
     }
 
     func retreatActive() {
+        cancellationRequested = true
         activeCarrierView?.beginFade(durationMS: 90)
     }
 
@@ -570,13 +637,25 @@ final class ModeTransitionCoordinator {
     }
 
     /// 整段会话消失（隐藏、权限丢失、退出）：立即收掉，不留透明命中层。
+    /// 取消是"发起"，下屏才是"完成"：两者之间仍算忙，退出/隐藏的排空判据要用完成回调（方案 §5.4、§13.2）。
     func cancelAll() {
-        for id in Array(carriers.keys) { stopCarrier(id, emittingFinished: false) }
+        let cancelledToken = activeToken
+        cancellationRequested = activeToken != nil
+        for id in Array(carriers.keys) {
+            carriers[id]?.carrierView.stopNow()
+            carriers[id]?.level = .normal
+            carriers[id]?.orderOut(nil)
+        }
         carriers.removeAll()
         activeToken = nil
         activeKind = nil
         activeDisplayID = nil
         confirmed = false
+        // 承载层已确定下屏：把取消完成告知宿主，让捕获重配与过渡占位一起失效。
+        if let cancelledToken {
+            cancellationRequested = false
+            onSceneCancellationFinished?(cancelledToken)
+        }
     }
 
     /// 屏幕集合变化：被拔掉的屏不再保留承载层。
@@ -602,29 +681,38 @@ final class ModeTransitionCoordinator {
             return existing
         }
         let created = TransitionCarrierWindow(screenFrame: facts.appKitFrame, metal: metal)
-        created.carrierView.onReachedEnd = { [weak self] in
-            guard let self, let token = self.activeToken else { return }
+        // 回调令牌由场景自己带来（不是回调时刻的 activeToken）：
+        // 只有仍然是当前场景的回调才允许提交状态，过期场景的完成一律丢弃（方案 §16.2）。
+        created.carrierView.onReachedEnd = { [weak self] token in
+            guard let self, self.activeToken == token else { return }
             // 进入/交换：真实窗口已验证，到点即可交接（返回总览由宿主揭示流程驱动）。
             if self.confirmed, self.activeKind != .returning {
                 self.activeCarrierView?.beginFade()
             }
             self.onSceneReachedEnd?(token)
         }
-        created.carrierView.onFinished = { [weak self] in
-            guard let self, let token = self.activeToken else { return }
+        created.carrierView.onFinished = { [weak self] token in
+            guard let self else { return }
+            // 承载层下屏属于物理事实：即使场景已过期也要把窗口收掉，
+            // 但状态提交（令牌清空、揭示、取消完成）只认当前场景（方案 §16.2）。
+            if let window = self.carriers[displayID] {
+                window.level = .normal
+                window.orderOut(nil)
+            }
+            guard self.activeToken == token else { return }
             self.activeToken = nil
             self.activeKind = nil
             self.activeDisplayID = nil
             self.confirmed = false
-            if let window = self.carriers[displayID] {
-                window.level = .normal
-                window.orderOut(nil)
-                _ = window
-            }
-            self.onSceneFinished?(token)
+            let wasCancelling = self.cancellationRequested
+            self.cancellationRequested = false
+            if wasCancelling { self.onSceneCancellationFinished?(token) } else { self.onSceneFinished?(token) }
         }
         created.carrierView.onFlightStats = { [weak self] kind, stats in
             self?.onSceneStats?(kind, stats)
+        }
+        created.carrierView.onFlightFacts = { [weak self] kind, facts in
+            self?.onSceneFacts?(kind, facts)
         }
         carriers[displayID] = created
         return created
@@ -641,6 +729,10 @@ final class ModeTransitionCoordinator {
         activeKind = nil
         activeDisplayID = nil
         confirmed = false
-        if emittingFinished, let token { onSceneFinished?(token) }
+        if emittingFinished, let token {
+            let wasCancelling = cancellationRequested
+            cancellationRequested = false
+            if wasCancelling { onSceneCancellationFinished?(token) } else { onSceneFinished?(token) }
+        }
     }
 }

@@ -44,6 +44,9 @@ public enum SessionPhase: Hashable, Sendable {
     case switching(from: WindowIdentity, to: WindowIdentity, token: TransitionToken)
     /// 只有一个"正在恢复"状态，且带明确目的地；不再有 suspended 这种多义状态。
     case recovering(destination: RecoveryDestination, token: TransitionToken)
+    /// 补偿不完整后的显式状态（方案 §6.4、§15）：面板仍在，但主窗口几何与焦点不再可信，
+    /// 不得冒充正常的 `.focused`；只接受重试或安全退出。
+    case recoveryRequired(target: WindowIdentity, reason: String)
 
     /// recovering 属于拆台阶段：面板已隐藏、捕获已停，只剩几何恢复。
     public var isVisible: Bool {
@@ -58,6 +61,7 @@ public enum SessionPhase: Hashable, Sendable {
         switch self {
         case let .expanding(target, _), let .focused(target), let .collapsing(target, _): return target
         case let .switching(_, to, _): return to
+        case let .recoveryRequired(target, _): return target
         default: return nil
         }
     }
@@ -140,6 +144,10 @@ public struct SessionState: Sendable {
     public var catalogGeneration: UInt64 = 0
     public var requestCounter: UInt64 = 0
     public var transitionGeneration: UInt64 = 0
+    /// 会话代次：与 sessionID 一起构成操作上下文的准入判据（方案 §5.3）。
+    public var sessionEpoch: UInt64 = 0
+    /// 目录合并按此给新窗口编号：首次发现顺序是稳定排序的并列裁决依据（方案 §11）。
+    public var recordSequence: Int = 0
     public var keyboardFocus: KeyboardFocus = .none
     /// latest-wins：过渡期间只保留最后一个目标请求。
     public var pendingTarget: WindowIdentity?
@@ -161,6 +169,9 @@ public struct SessionState: Sendable {
     public var trustedInteraction: InteractionToken?
     /// 显示器 -> 该屏可用区，由宿主写入后供 reducer 决策使用。
     public var displays: [DisplayInfo] = []
+    /// 首次发现序号：稳定排序的并列裁决依据（方案 §11）。
+    /// 与目录返回顺序无关：标题更新、目录重排都不能改变它，已占位的窗口因此不会移动。
+    public var discoverySequence: [WindowIdentity: Int] = [:]
     /// 每屏一份冻结网格（方案 §8.1）：行列与格子矩形只在明确允许重排的事件后重建。
     public var grids: [UInt32: DisplayGridSnapshot] = [:]
     public var layoutRevision: Int = 0
@@ -215,6 +226,25 @@ public struct SessionState: Sendable {
         transitionGeneration += 1
         return TransitionToken(generation: transitionGeneration)
     }
+
+    /// 为一次几何操作生成上下文：会话、代次、操作与过渡令牌一次绑定（方案 §5.3）。
+    /// 所有普通操作与补偿都必须带它，迟到回执按它整体判定，不能只比一个持续增加的 generation。
+    public mutating func nextOperationContext(kind: GeometryOperationKind,
+                                              token: TransitionToken) -> GeometryOperationContext {
+        GeometryOperationContext(sessionID: sessionID,
+                                 sessionEpoch: sessionEpoch,
+                                 operationID: UUID(),
+                                 transitionToken: token,
+                                 kind: kind)
+    }
+
+    /// 会话结束前必须撤销的在途操作：preparing 意图与已放出的写入都要排空（方案 §5.2）。
+    public var pendingDrainEffects: [SessionEffect] {
+        workbench.pendingDrainContexts.map { SessionEffect.drainGeometry($0) }
+    }
+
+    /// 显式"未能恢复一致"的唯一判定入口。
+    public var isRecoveryRequired: Bool { workbench.recoveryRequired != nil }
 
     /// 发现请求同时带会话身份与请求代次；只看 catalogGeneration 不足以判定异步有效性。
     mutating func nextDiscoveryRequest(reason: DiscoveryReason) -> DiscoveryRequest {

@@ -17,13 +17,52 @@ final class WorkbenchTests: XCTestCase {
         return (state, list)
     }
 
+    // MARK: - 日志闸门（方案 §7.1）
+
+    /// 每一笔会动真实窗口几何的操作都先 `.prepareJournal`，几何 effect 寄存在 armed 操作里；
+    /// 只有宿主确认落盘成功（`.journalPrepared(context:)`）才一次放出。
+    /// 测试里补上这条确认，断言看到的序列就仍是"落盘之后的真实写入序列"。
+    @discardableResult
+    private func confirmJournal(_ state: inout SessionState, _ effects: [SessionEffect]) -> [SessionEffect] {
+        var pending = effects
+        var releasedAll: [SessionEffect] = []
+        while !pending.isEmpty {
+            let effect = pending.removeFirst()
+            guard case let .prepareJournal(request) = effect else {
+                releasedAll.append(effect)
+                continue
+            }
+            // 落盘请求本身不含几何写入；确认后放行的 effect 可能又带一次 prepare，继续展开。
+            pending.insert(contentsOf: Fixtures.dispatch(&state, .journalPrepared(context: request.context)), at: 0)
+        }
+        return releasedAll
+    }
+
+    /// 只走到"等落盘确认"为止：不确认，返回原始 effect。
+    @discardableResult
+    private func prepareOnly(_ state: inout SessionState, _ effects: [SessionEffect]) -> JournalPrepareRequest? {
+        for effect in effects {
+            if case let .prepareJournal(request) = effect { return request }
+        }
+        return nil
+    }
+
+    // MARK: - 流程骨架
+
+    /// 派发事件并把日志闸门走到"已确认"为止。
+    @discardableResult
+    private func dispatchConfirmed(_ state: inout SessionState, _ event: SessionEvent) -> [SessionEffect] {
+        let raw = Fixtures.dispatch(&state, event)
+        return confirmJournal(&state, raw)
+    }
+
     @discardableResult
     private func select(_ state: inout SessionState, fromOverview target: WindowIdentity) -> [SessionEffect] {
         guard let slot = state.gridCell(for: target)?.cell.slot else {
             XCTFail("目标不在冻结网格里")
             return []
         }
-        return Fixtures.dispatch(&state, .overviewCardSelected(identity: target,
+        return dispatchConfirmed(&state, .overviewCardSelected(identity: target,
                                                               slot: slot,
                                                               revision: state.layoutRevision))
     }
@@ -35,9 +74,9 @@ final class WorkbenchTests: XCTestCase {
             XCTFail("没有进行中的模式过渡")
             return []
         }
-        return Fixtures.dispatch(&state, .workbenchTransitionFinished(token: token,
-                                                                      kind: .enteringWorkbench,
-                                                                      result: result))
+        return dispatchConfirmed(&state, .workbenchTransitionFinished(token: token,
+                                                                     kind: .enteringWorkbench,
+                                                                     result: result))
     }
 
     /// 走到工作台落地态：主窗口 = target。返回进入过程与落地两组 effect。
@@ -53,7 +92,7 @@ final class WorkbenchTests: XCTestCase {
             XCTFail("身份不在轨道上")
             return []
         }
-        return Fixtures.dispatch(&state, .railCardSelected(slot: slot, identity: identity))
+        return dispatchConfirmed(&state, .railCardSelected(slot: slot, identity: identity))
     }
 
     /// 报告交换的每一步并提交。
@@ -61,33 +100,80 @@ final class WorkbenchTests: XCTestCase {
     private func completeSwitch(_ state: inout SessionState, token: TransitionToken) -> [SessionEffect] {
         var effects: [SessionEffect] = []
         for step in WorkbenchSwitchStep.allCases {
-            effects += Fixtures.dispatch(&state, .mainSwitchStepFinished(
+            effects += dispatchConfirmed(&state, .mainSwitchStepFinished(
                 WorkbenchSwitchStepResult(token: token,
                                           step: step,
                                           outcome: .succeeded(readBack: nil),
                                           identity: nil)))
         }
-        effects += Fixtures.dispatch(&state, .mainSwitchCommitted(token: token))
+        effects += dispatchConfirmed(&state, .mainSwitchCommitted(token: token))
         return effects
     }
 
     /// 走一次目录回调：注入新窗口等事实必须从发现请求进来。
-    private func updateCatalog(_ state: inout SessionState, records: [WindowRecord]) throws {
+    @discardableResult
+    private func updateCatalog(_ state: inout SessionState, records: [WindowRecord]) throws -> [SessionEffect] {
         let effects = Fixtures.dispatch(&state, .reconcileTick)
         let request = try XCTUnwrap(Fixtures.discoverRequest(effects))
-        _ = Fixtures.dispatch(&state, .catalogUpdated(request: request, records: records))
+        return dispatchConfirmed(&state, .catalogUpdated(request: request, records: records))
     }
 
     @discardableResult
     private func returnToOverview(_ state: inout SessionState, success: Bool = true) throws -> WorkbenchTransitionPlan {
-        let effects = Fixtures.dispatch(&state, .returnToOverviewRequested)
+        let effects = dispatchConfirmed(&state, .returnToOverviewRequested)
         let plan = try XCTUnwrap(returnPlan(effects))
-        _ = Fixtures.dispatch(&state, .workbenchTransitionFinished(token: plan.token,
-                                                                   kind: .returningOverview,
-                                                                   result: success ? .succeeded(readBack: nil)
-                                                                                   : .rejected("测试注入失败")))
+        _ = dispatchConfirmed(&state, .workbenchTransitionFinished(token: plan.token,
+                                                                  kind: .returningOverview,
+                                                                  result: success ? .succeeded(readBack: nil)
+                                                                                  : .rejected("测试注入失败")))
         return plan
     }
+
+    /// 交换失败后回报补偿事实：宿主已经按操作前快照逆序回位。
+    @discardableResult
+    private func reportSwitchFailure(_ state: inout SessionState,
+                                     token: TransitionToken,
+                                     reason: String,
+                                     compensation: WorkbenchCompensationResult?) -> [SessionEffect] {
+        dispatchConfirmed(&state, .mainSwitchFailed(token: token, reason: reason, compensation: compensation))
+    }
+
+    /// prepare 失败回执：一次 AX 都没写。
+    @discardableResult
+    private func rejectPrepare(_ state: inout SessionState,
+                               _ request: JournalPrepareRequest,
+                               reason: String = "测试注入：日志写入失败") -> [SessionEffect] {
+        dispatchConfirmed(&state, .journalPreparationFailed(context: request.context,
+                                                            identities: request.affectedIdentities,
+                                                            reason: reason))
+    }
+
+    /// 写后落盘失败回执：事实已经发生。
+    @discardableResult
+    private func rejectUpdate(_ state: inout SessionState,
+                              _ request: JournalPrepareRequest,
+                              identity: WindowIdentity,
+                              reason: String = "测试注入：写后落盘失败") -> [SessionEffect] {
+        dispatchConfirmed(&state, .journalUpdateFailed(context: request.context,
+                                                      identity: identity,
+                                                      reason: reason))
+    }
+
+    /// 主窗口读回收口（布局结算与交换中的有界修正共用这条通道）。
+    @discardableResult
+    private func reportWrite(_ state: inout SessionState,
+                             _ packet: SettlePacket,
+                             outcome: GeometryOutcome) -> [SessionEffect] {
+        dispatchConfirmed(&state, .geometryWriteFinished(GeometryWriteResult(identity: packet.identity,
+                                                                            token: packet.context.transitionToken,
+                                                                            operationID: packet.context.operationID,
+                                                                            targetFrame: packet.target,
+                                                                            displayID: state.workbench.activeDisplayID ?? 1,
+                                                                            outcome: outcome,
+                                                                            context: packet.context)))
+    }
+
+
 
     // MARK: - effect 取值
 
@@ -126,17 +212,49 @@ final class WorkbenchTests: XCTestCase {
         }
     }
 
+    /// 主区结算包：目标 frame 与它所属的操作上下文（令牌在上下文里）。
+    private typealias SettlePacket = (identity: WindowIdentity, target: CGRect, context: GeometryOperationContext)
+
+    /// 日志里出现的写前事务：批量 prepare 的条目与写后追加的条目都算。
     private func journalWrites(_ effects: [SessionEffect]) -> [WindowTransaction] {
+        var result: [WindowTransaction] = []
+        for effect in effects {
+            switch effect {
+            case let .prepareJournal(request):
+                for mutation in request.mutations {
+                    if case let .upsert(transaction) = mutation { result.append(transaction) }
+                }
+            case let .updateJournal(request):
+                if case let .upsert(transaction) = request.mutation { result.append(transaction) }
+            default:
+                break
+            }
+        }
+        return result
+    }
+
+    private func prepareRequests(_ effects: [SessionEffect]) -> [JournalPrepareRequest] {
         effects.compactMap {
-            if case let .writeJournal(transaction) = $0 { return transaction }
+            if case let .prepareJournal(request) = $0 { return request }
             return nil
         }
     }
 
-    private func settlePackets(_ effects: [SessionEffect]) -> [(identity: WindowIdentity, target: CGRect, token: TransitionToken)] {
+    private func journalRemovals(_ effects: [SessionEffect]) -> [WindowIdentity] {
+        var result: [WindowIdentity] = []
+        for effect in effects {
+            if case let .updateJournal(request) = effect,
+               case let .remove(identity) = request.mutation {
+                result.append(identity)
+            }
+        }
+        return result
+    }
+
+    private func settlePackets(_ effects: [SessionEffect]) -> [SettlePacket] {
         effects.compactMap {
-            if case let .settleMainFrame(identity, targetFrame, token, _) = $0 {
-                return (identity, targetFrame, token)
+            if case let .settleMainFrame(identity, targetFrame, context, _) = $0 {
+                return (identity, targetFrame, context)
             }
             return nil
         }
@@ -162,12 +280,23 @@ final class WorkbenchTests: XCTestCase {
         hints(effects).contains { if case .workbenchTransitionFailed = $0 { return true } else { return false } }
     }
 
+    /// 条目已结算：journal 只清理"不需要恢复"的窗口，因此这条 effect 就是"这个身份已经落定"。
     private func hasDropJournal(_ effects: [SessionEffect], identity: WindowIdentity) -> Bool {
         effects.contains {
-            if case let .dropJournal(dropped) = $0 { return dropped == identity }
+            if case let .clearJournal(_, settled) = $0 { return settled.contains(identity) }
             return false
         }
     }
+
+    private func hasSettleEffects(_ effects: [SessionEffect]) -> Bool {
+        !settlePackets(effects).isEmpty || effects.contains {
+            if case .beginMainSwitch = $0 { return true }
+            if case .enterWorkbench = $0 { return true }
+            if case .returnToOverview = $0 { return true }
+            return false
+        }
+    }
+
 
     // MARK: - W01 / W02 几何
 
@@ -255,19 +384,32 @@ final class WorkbenchTests: XCTestCase {
         let snapshotBefore = state.workbench.snapshot
         let bSlot = try XCTUnwrap(state.workbench.placement.slot(of: b))
 
-        let effects = selectRail(&state, identity: b)
+        // 落盘请求就是这次操作的全部对外动作：确认之前一条 AX 写入都不许发出去。
+        let rawSlot = try XCTUnwrap(state.workbench.placement.slot(of: b))
+        let pending = Fixtures.dispatch(&state, .railCardSelected(slot: rawSlot, identity: b))
+        XCTAssertEqual(pending.count, 1, "prepare 之前唯一的 effect 就是落盘请求")
+        let request = try XCTUnwrap(prepareRequests(pending).first)
+        XCTAssertEqual(request.context.kind, .mainSwitch)
+        XCTAssertEqual(Set(request.affectedIdentities), Set([a, b]))
+        XCTAssertEqual(request.mutations.count, 2, "B 的目标与 A 的落点都要先写日志")
+        XCTAssertTrue(journalWrites(pending).allSatisfy { $0.state == .mutationPlanned },
+                      "落盘的是写前事务，不是读回结果")
+        XCTAssertTrue(settlePackets(pending).isEmpty && switchPlan(pending) == nil,
+                      "日志未确认前不得有 AX 写入")
+        XCTAssertNil(state.workbench.activeContext, "操作尚未准入")
+        // 已确认后的序列：只剩这一笔交换写入，排在日志之后。
+        let effects = confirmJournal(&state, pending)
         let plan = try XCTUnwrap(switchPlan(effects))
+        XCTAssertEqual(effects.count, 1, "落盘之后只发一条几何写入")
+        if case .beginMainSwitch = effects.last! {} else {
+            XCTFail("AX 写入必须排在日志之后")
+        }
         XCTAssertEqual(plan.intent.from, a)
         XCTAssertEqual(plan.intent.to, b)
         XCTAssertEqual(plan.restingSlot, bSlot)
         XCTAssertEqual(plan.mainTargetFrame, state.workbench.snapshot?.mainRect, "B 的目标就是主区矩形")
-
-        // 事务必须先于 AX 写入，且只有一条非日志 effect。
-        XCTAssertEqual(journalWrites(effects).count, 2, "B 的目标与 A 的落点都要先写日志")
-        XCTAssertEqual(effects.count, 3)
-        if case .beginMainSwitch = effects.last! {} else {
-            XCTFail("AX 写入必须排在日志之后")
-        }
+        XCTAssertEqual(plan.intent.beforeOperation.writtenOrder, request.affectedIdentities,
+                       "批次顺序就是补偿顺序的依据")
 
         completeSwitch(&state, token: plan.intent.token)
         XCTAssertEqual(state.workbench.placement.main, b)
@@ -279,8 +421,8 @@ final class WorkbenchTests: XCTestCase {
         }
         XCTAssertEqual(state.workbench.placement.members.count, 5)
         XCTAssertEqual(state.workbench.snapshot, snapshotBefore, "交换不改几何投影")
-        XCTAssertEqual(state.workbench.topScrollOffset, 0)
-        XCTAssertEqual(state.workbench.sideScrollOffset, 0)
+        XCTAssertEqual(state.workbench.scrollOffset(rail: .top), 0, "偏移的唯一来源就是投影：交换不引入第二份数值")
+        XCTAssertEqual(state.workbench.scrollOffset(rail: .side), 0)
         XCTAssertTrue(state.workbench.placement.maintainsInvariants)
     }
 
@@ -294,7 +436,8 @@ final class WorkbenchTests: XCTestCase {
 
         let scrolled = Fixtures.dispatch(&state, .railScrolled(rail: .side, offset: 120))
         XCTAssertFalse(presentations(scrolled).isEmpty, "滚动要立即重投影")
-        XCTAssertEqual(state.workbench.sideScrollOffset, 120)
+        XCTAssertEqual(state.workbench.scrollOffset(rail: .side), 120, "偏移落在投影里，不再有第二份独立数值")
+        XCTAssertEqual(state.workbench.snapshot?.sideScrollOffset, 120, "投影与访问器是同一个事实")
         let scrolledSnapshot = try XCTUnwrap(state.workbench.snapshot)
 
         for target in [list[1].identity, list[2].identity] {
@@ -304,7 +447,7 @@ final class WorkbenchTests: XCTestCase {
             XCTAssertEqual(state.workbench.placement.main, target)
             XCTAssertTrue(state.workbench.placement.maintainsInvariants)
             XCTAssertEqual(state.workbench.placement.members.count, 24, "每次交换都不得丢失或复制窗口")
-            XCTAssertEqual(state.workbench.sideScrollOffset, 120, "交换不得重置滚动位置")
+            XCTAssertEqual(state.workbench.scrollOffset(rail: .side), 120, "交换不得重置滚动位置")
             XCTAssertEqual(state.workbench.snapshot, scrolledSnapshot, "交换不改几何投影与滚动")
         }
         XCTAssertEqual(state.workbench.placement.members, Set(list.map(\.identity)))
@@ -543,7 +686,7 @@ final class WorkbenchTests: XCTestCase {
 
         // 跨屏选主：1 号屏的窗口进 2 号屏的主区；A 的落点回到它自己的原始 frame。
         let crossSlot = try XCTUnwrap(state.workbench.placement.slot(of: list[0].identity))
-        let switchEffects = Fixtures.dispatch(&state, .railCardSelected(slot: crossSlot, identity: list[0].identity))
+        let switchEffects = dispatchConfirmed(&state, .railCardSelected(slot: crossSlot, identity: list[0].identity))
         let plan2 = try XCTUnwrap(switchPlan(switchEffects))
         XCTAssertEqual(plan2.displayID, d2.id, "必须显式传活动屏，不能用 B 的原 displayID 推导")
         XCTAssertGreaterThanOrEqual(plan2.mainTargetFrame.minX, d2.visibleFrame.minX)
@@ -651,21 +794,37 @@ final class WorkbenchTests: XCTestCase {
         var (state, list) = openState(count: 6)
         let target = list[0].identity
         let grids = state.grids
-        let entering = select(&state, fromOverview: target)
+        let slot = try XCTUnwrap(state.gridCell(for: target)?.cell.slot)
+        let pending = Fixtures.dispatch(&state, .overviewCardSelected(identity: target,
+                                                                     slot: slot,
+                                                                     revision: state.layoutRevision))
+        let request = try XCTUnwrap(prepareRequests(pending).first)
+        XCTAssertEqual(request.context.kind, .enterWorkbench)
+        XCTAssertEqual(request.affectedIdentities, [target])
+        let transactions = journalWrites(pending)
+        XCTAssertEqual(transactions.count, 1, "写入前必须有事务")
+        XCTAssertEqual(transactions.first?.state, .mutationPlanned)
+        XCTAssertEqual(transactions.first?.operationID, request.context.operationID,
+                       "事务绑的就是这次被准入的操作")
+        XCTAssertNotNil(transactions.first?.operationBeforeFrame, "补偿依据是操作前实读快照")
+        XCTAssertFalse(hasWorkbenchEnter(pending), "落盘确认前不发进入 effect")
+        let entering = confirmJournal(&state, pending)
         let plan = try XCTUnwrap(enterPlan(entering))
         XCTAssertEqual(plan.identity, target)
         XCTAssertEqual(plan.animationFrom, state.cellRect(for: target), "起点必须是冻结总览里的原格子")
         XCTAssertEqual(plan.animationTo, plan.targetFrame)
+        XCTAssertEqual(plan.operationContext, request.context, "进入 effect 带的就是刚落盘的那个操作上下文")
         XCTAssertEqual(plan.railHandoffs.count, 5, "其余 5 个窗口都要有过渡端点")
         for handoff in plan.railHandoffs {
             XCTAssertEqual(handoff.from, state.cellRect(for: handoff.identity))
             XCTAssertEqual(handoff.to, plan.snapshot.rect(for: handoff.slot), "终点必须是对应轨道 slot 的矩形")
         }
-        XCTAssertFalse(journalWrites(entering).isEmpty, "写入前必须有事务")
+        XCTAssertEqual(entering.count, 1, "落盘之后只发一条进入写入")
         if case .enterWorkbench = entering.last! {} else {
             XCTFail("AX 写入必须排在日志之后")
         }
         XCTAssertEqual(state.grids, grids, "进入工作台不改冻结总览")
+        XCTAssertNotNil(state.transactions[target], "确认落盘后事务才进内存")
 
         let finish = finishEntering(&state)
         XCTAssertEqual(state.mode, .workbench)
@@ -710,9 +869,16 @@ final class WorkbenchTests: XCTestCase {
         enterWorkbench(&state, target: target)
         let occupants = state.workbench.placement.occupants
 
-        let effects = Fixtures.dispatch(&state, .returnToOverviewRequested)
+        // 返回同样是"先落盘再写"：批次里记的是主窗口写回的目标与操作前实读。
+        let pendingReturn = Fixtures.dispatch(&state, .returnToOverviewRequested)
+        let returnRequest = try XCTUnwrap(prepareRequests(pendingReturn).first)
+        XCTAssertEqual(returnRequest.context.kind, .returnOverview)
+        XCTAssertEqual(returnRequest.affectedIdentities, [target])
+        XCTAssertTrue(hasSettleEffects(pendingReturn) == false, "落盘确认前不发返回写入")
+        let effects = confirmJournal(&state, pendingReturn)
         let plan = try XCTUnwrap(returnPlan(effects))
         XCTAssertEqual(plan.identity, target)
+        XCTAssertEqual(plan.operationContext, returnRequest.context)
         XCTAssertEqual(plan.targetFrame, list[0].frame, "写回原 restingFrame")
         XCTAssertEqual(plan.animationTo, state.cellRect(for: target), "回到冻结快照里的原格子")
         XCTAssertEqual(plan.railHandoffs.count, 5)
@@ -720,7 +886,7 @@ final class WorkbenchTests: XCTestCase {
             XCTAssertEqual(handoff.to, state.cellRect(for: handoff.identity))
         }
 
-        let finish = Fixtures.dispatch(&state, .workbenchTransitionFinished(token: plan.token,
+        let finish = dispatchConfirmed(&state, .workbenchTransitionFinished(token: plan.token,
                                                                            kind: .returningOverview,
                                                                            result: .succeeded(readBack: nil)))
         XCTAssertEqual(state.mode, .overview)
@@ -1085,6 +1251,24 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertFalse(try XCTUnwrap(FrameIntervalStats.measure(boundary)).meetsTarget)
     }
 
+    /// 呈现事实（方案 §20.2）：present=0 就是没有画面证据，回调多于呈现要能算出缺口，
+    /// present 多于 tick（play 的同步第一帧）不算缺口。
+    func testTransitionFlightFactsSeparatePresentsFromTicks() {
+        let dry = TransitionFlightFacts(firstPresentDelayMS: nil, ticks: 12, presentedFrames: 0,
+                                        anchoredAtRealInput: true)
+        XCTAssertFalse(dry.hasPresentedPixels, "一次 present 都没有，tick 再多也不能当画面证据")
+        XCTAssertEqual(dry.missedPresentFrames, 12)
+
+        let flying = TransitionFlightFacts(firstPresentDelayMS: 8, ticks: 12, presentedFrames: 13,
+                                           anchoredAtRealInput: false)
+        XCTAssertTrue(flying.hasPresentedPixels)
+        XCTAssertEqual(flying.missedPresentFrames, 0, "首帧是 play() 同步画的，present 比 tick 多不是缺口")
+
+        let partial = TransitionFlightFacts(firstPresentDelayMS: 8, ticks: 12, presentedFrames: 9,
+                                            anchoredAtRealInput: true)
+        XCTAssertEqual(partial.missedPresentFrames, 3, "3 个回调没换成帧要能被数出来")
+    }
+
     func testW22MotionLevelDegradesOnBadStreakAndRecoversSlowlyWithHysteresis() throws {
         var controller = MotionLevelController()
         XCTAssertEqual(controller.level, .full, "默认从完整动效开始")
@@ -1270,36 +1454,43 @@ final class WorkbenchTests: XCTestCase {
         }
         XCTAssertNil(state.workbench.mainFrameWrite)
 
-        // 松手：一次结算，目标就是新主区几何；事务计划也更新到新目标。
-        let commit = Fixtures.dispatch(&state, .workbenchRailSizeChanged(topHeight: 150, sideWidth: nil))
+        // 松手：先落盘再结算，目标就是新主区几何；事务计划也更新到新目标。
+        let pendingCommit = Fixtures.dispatch(&state, .workbenchRailSizeChanged(topHeight: 150, sideWidth: nil))
+        let settleRequest = try XCTUnwrap(prepareRequests(pendingCommit).first)
+        XCTAssertEqual(settleRequest.context.kind, .settleLayout)
+        XCTAssertTrue(settlePackets(pendingCommit).isEmpty, "落盘确认前不写真实窗口")
+        let commit = confirmJournal(&state, pendingCommit)
         let settles = settlePackets(commit)
         XCTAssertEqual(settles.count, 1, "松手只结算一次（有界去抖后）")
-        let (identity, target, token) = try XCTUnwrap(settles.first)
+        let (identity, target, context) = try XCTUnwrap(settles.first)
         let layoutAfter = try XCTUnwrap(state.workbench.snapshot?.layout)
         XCTAssertEqual(identity, main)
+        XCTAssertEqual(context, settleRequest.context, "放行的写入带的就是刚落盘的那个操作上下文")
         XCTAssertEqual(target.width, layoutAfter.mainRect.width, accuracy: 0.5, "主窗口目标跟随新主区")
-        XCTAssertEqual(state.workbench.mainFrameWrite?.token, token, "在途写入记下当前令牌")
+        XCTAssertEqual(state.workbench.mainFrameWrite?.token, context.transitionToken, "在途写入记下当前令牌")
         XCTAssertEqual(state.workbench.mainFrameWrite?.identity, main)
         XCTAssertEqual(state.transactions[main]?.plannedFrame, target, "事务计划同步到最终目标")
 
         // 迟到的旧令牌读回：不得清掉在途写入，也不得把旧几何写进事务（H08）。
-        let stale = TransitionToken(generation: token.generation &- 1)
+        let stale = TransitionToken(generation: context.transitionToken.generation &- 1)
         let staleEffects = Fixtures.dispatch(&state, Fixtures.writeResult(main,
                                                                           token: stale,
                                                                           outcome: .exact(readBack: target.offsetBy(dx: 40, dy: 40))))
         XCTAssertTrue(staleEffects.isEmpty, "旧令牌读回必须被忽略")
-        XCTAssertEqual(state.workbench.mainFrameWrite?.token, token, "最终尺寸的在途写入不被旧读回覆盖")
+        XCTAssertEqual(state.workbench.mainFrameWrite?.token, context.transitionToken,
+                       "最终尺寸的在途写入不被旧读回覆盖")
         XCTAssertEqual(state.transactions[main]?.plannedFrame, target, "旧读回不得改写事务目标")
 
         // 同一令牌但换了窗口：同样不认领。
         let foreign = Fixtures.dispatch(&state, Fixtures.writeResult(list[1].identity,
-                                                                     token: token,
+                                                                     token: context.transitionToken,
                                                                      outcome: .exact(readBack: target)))
         XCTAssertTrue(foreign.isEmpty, "令牌对了但身份不对的读回也不认领")
-        XCTAssertEqual(state.workbench.mainFrameWrite?.token, token)
+        XCTAssertEqual(state.workbench.mainFrameWrite?.token, context.transitionToken)
 
         // 当前令牌读回：收口，事务标 verified。
-        let final = Fixtures.dispatch(&state, Fixtures.writeResult(main, token: token, outcome: .exact(readBack: target)))
+        let final = Fixtures.dispatch(&state, Fixtures.writeResult(main, token: context.transitionToken,
+                                                                   outcome: .exact(readBack: target)))
         XCTAssertNil(state.workbench.mainFrameWrite, "完成后清空在途写入")
         XCTAssertEqual(state.transactions[main]?.state, .verified)
         XCTAssertEqual(state.transactions[main]?.plannedFrame, target)
@@ -1473,9 +1664,20 @@ final class WorkbenchTests: XCTestCase {
         let slot = try XCTUnwrap(state.workbench.placement.occupants.keys.sorted().first)
         let identity = try XCTUnwrap(state.workbench.placement.occupant(at: slot))
 
-        let selectEffects = Fixtures.dispatch(&state, .railCardSelected(slot: slot, identity: identity))
-        XCTAssertNotNil(switchPlan(selectEffects), "选择轨道卡片应发起主区交换")
+        // 备料阶段（落盘还没确认）：这次交换的占用还没定，整理必须等待（方案 §7.1、§10.4）。
+        let armedBefore = state.workbench.placement
+        let pending = Fixtures.dispatch(&state, .railCardSelected(slot: slot, identity: identity))
+        let request = try XCTUnwrap(prepareRequests(pending).first)
+        XCTAssertNil(switchPlan(pending), "落盘确认前不得发出交换写入")
+        XCTAssertTrue(Fixtures.dispatch(&state, .organizeRequested).isEmpty, "备料期间不得整理轨道")
+        XCTAssertEqual(state.workbench.placement, armedBefore, "拒绝整理不能顺手改占用")
+
+        // 确认后交换真正开始：busy 期间整理与偏好都拒绝。
+        let selectEffects = confirmJournal(&state, pending)
+        let plan = try XCTUnwrap(switchPlan(selectEffects), "落盘确认后选择轨道卡片应发起主区交换")
+        XCTAssertEqual(plan.intent.operationContext, request.context, "放行的就是刚落盘的那个操作")
         let token = try XCTUnwrap(state.workbench.mainSwitch.intent?.token)
+        XCTAssertEqual(token, plan.intent.token)
         XCTAssertTrue(state.workbench.mainSwitch.isBusy)
 
         let placementDuring = state.workbench.placement
@@ -1507,6 +1709,9 @@ final class WorkbenchTests: XCTestCase {
 
     // MARK: - W25 工作台写入读回必须记回事务（方案 §6.5、§8.2.3）
 
+    /// 恢复落点规划用的"原屏仍在、原 frame 仍在范围内"事实（与 RecoveryCaptureTests 同一夹具）。
+    private static let recoveryVisible = CGRect(x: 0, y: 0, width: 1_920, height: 1_080)
+
     /// 回归背景：进入工作台的停靠写入如果只标记 planned、不记读回，
     /// 返回总览改指原 frame 后恢复判定会看不到"停靠位是产品自己写的"，
     /// 把窗口判成"用户移动过"（skipUserMoved）而放弃写回 —— 窗口永远留在主区。
@@ -1514,9 +1719,13 @@ final class WorkbenchTests: XCTestCase {
         var (state, list) = openState(count: 5)
         let a = list[0].identity
         let originalA = list[0].frame
-        let entering = select(&state, fromOverview: a)
+        let slot = try XCTUnwrap(state.gridCell(for: a)?.cell.slot)
+        let pending = Fixtures.dispatch(&state, .overviewCardSelected(identity: a,
+                                                                     slot: slot,
+                                                                     revision: state.layoutRevision))
+        XCTAssertEqual(journalWrites(pending).map(\.state), [.mutationPlanned], "写前计划先落盘")
+        let entering = confirmJournal(&state, pending)
         let plan = try XCTUnwrap(enterPlan(entering))
-        XCTAssertEqual(journalWrites(entering).map(\.state), [.mutationPlanned], "写前计划先落盘")
 
         // 宿主读回与目标一致：事务必须记下「窗口此刻真的在停靠位」。
         let finish = finishEntering(&state, result: .succeeded(readBack: plan.targetFrame))
@@ -1527,20 +1736,29 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertEqual(journalWrites(finish).map(\.state), [.verified], "读回事实要落盘，不许只活在内存里")
 
         // 返回总览把计划改指原 frame：恢复判定必须认得出停靠位是我们自己写的，写回原 frame。
-        let back = Fixtures.dispatch(&state, .returnToOverviewRequested)
+        let back = dispatchConfirmed(&state, .returnToOverviewRequested)
         let backPlan = try XCTUnwrap(returnPlan(back))
         let planned = try XCTUnwrap(state.transactions[a])
         XCTAssertEqual(planned.plannedFrame, originalA, "计划改指原 restingFrame")
+        // 落点由 RestorePlanner 一次算好（方案 §8）：原屏仍在、原 frame 仍在范围内 → 精确恢复。
+        let destination = try XCTUnwrap(RestorePlanner.plan(entry: planned,
+                                                           originalDisplayIsLive: true,
+                                                           originalVisibleFrame: Self.recoveryVisible,
+                                                           fallbackVisibleFrame: nil))
+        XCTAssertEqual(destination.targetFrame, originalA, "落点就是原 frame，不再二次夹取")
+        XCTAssertEqual(destination.targetDisplayID, 1, "落点仍在原屏")
+        XCTAssertEqual(destination.reason, .exactOnOriginalDisplay)
+        XCTAssertFalse(destination.isDowngraded)
         let decision = RecoveryPlanner.decide(entry: planned, currentFrame: plan.targetFrame,
-                                              liveness: .alive, isOriginalDisplayLive: true,
-                                              clampedFrame: originalA, preserveUserGeometry: false)
-        XCTAssertEqual(decision, .restore(to: originalA),
+                                              liveness: .alive, destination: destination,
+                                              preserveUserGeometry: false)
+        XCTAssertEqual(decision, .restore(to: destination),
                        "停在产品自己写的停靠位，不是「用户移动过」：必须恢复原 frame 而不是放弃")
 
         // 返回落地：写回读回同样记回事务。
-        let landed = Fixtures.dispatch(&state, .workbenchTransitionFinished(token: backPlan.token,
-                                                                            kind: .returningOverview,
-                                                                            result: .succeeded(readBack: originalA)))
+        let landed = dispatchConfirmed(&state, .workbenchTransitionFinished(token: backPlan.token,
+                                                                           kind: .returningOverview,
+                                                                           result: .succeeded(readBack: originalA)))
         XCTAssertEqual(journalWrites(landed).map(\.state), [.verified])
         XCTAssertEqual(state.transactions[a]?.lastProvisionalFrame, originalA)
     }
@@ -1582,129 +1800,932 @@ final class WorkbenchTests: XCTestCase {
         }
 
         // 回滚重试与退出恢复的事实基础：B 停在主区、A 停在停靠位，都要认得出并写回各自原几何。
-        let decisionB = RecoveryPlanner.decide(entry: try XCTUnwrap(state.transactions[b]),
+        let entryB = try XCTUnwrap(state.transactions[b])
+        let destinationB = try XCTUnwrap(RestorePlanner.plan(entry: entryB,
+                                                            originalDisplayIsLive: true,
+                                                            originalVisibleFrame: Self.recoveryVisible,
+                                                            fallbackVisibleFrame: nil))
+        let decisionB = RecoveryPlanner.decide(entry: entryB,
                                                currentFrame: plan.mainTargetFrame, liveness: .alive,
-                                               isOriginalDisplayLive: true, clampedFrame: originalB,
-                                               preserveUserGeometry: false)
-        XCTAssertEqual(decisionB, .restore(to: originalB),
+                                               destination: destinationB, preserveUserGeometry: false)
+        XCTAssertEqual(decisionB, .restore(to: destinationB),
                        "B 停在我们写的目标位：必须放回 B 的原 frame")
-        let decisionA = RecoveryPlanner.decide(entry: try XCTUnwrap(state.transactions[a]),
+        XCTAssertEqual(destinationB.targetFrame, originalB, "B 的回滚/退出落点就是它自己的原 frame")
+        XCTAssertEqual(destinationB.targetDisplayID, 1, "落点仍在原屏，不是窗口当前所在屏")
+
+        let entryA = try XCTUnwrap(state.transactions[a])
+        let destinationA = try XCTUnwrap(RestorePlanner.plan(entry: entryA,
+                                                            originalDisplayIsLive: true,
+                                                            originalVisibleFrame: Self.recoveryVisible,
+                                                            fallbackVisibleFrame: nil))
+        let decisionA = RecoveryPlanner.decide(entry: entryA,
                                                currentFrame: aDock, liveness: .alive,
-                                               isOriginalDisplayLive: true, clampedFrame: originalA,
-                                               preserveUserGeometry: false)
-        XCTAssertEqual(decisionA, .restore(to: originalA),
+                                               destination: destinationA, preserveUserGeometry: false)
+        XCTAssertEqual(decisionA, .restore(to: destinationA),
                        "A 停在进入时写下的停靠位：回滚重试与退出恢复都必须认出来")
+        XCTAssertEqual(destinationA.targetFrame, originalA, "A 的落点是会话原 frame，而不是操作前停靠位")
+        XCTAssertEqual(destinationA.targetDisplayID, 1)
+        // 补偿依据与恢复依据是两个独立事实：A 的操作前快照仍是停靠位。
+        XCTAssertEqual(entryA.operationBeforeFrame, aDock, "补偿按操作前，退出按会话原 frame")
+        XCTAssertEqual(entryA.operationID, plan.intent.operationContext.operationID)
     }
 
-    // MARK: - 随机序列不变量
+    // MARK: - 日志落盘故障族（方案 §18 A13–A18、§7.2、§7.5）
 
-    func testRandomOperationSequencePreservesInvariants() {
-        var rng = SeededGenerator(seed: 0x5EED_2026)
-        var (state, list) = openState(count: 12)
+    /// A13（方案 §7.5）：进入工作台的写前事务没落盘 = 一次 AX 都不写；总线清干净后第二次必须能真正进入。
+    func testEnterPrepareFailureWritesNothingAndRetryProceeds() throws {
+        var (state, list) = openState(count: 4)
+        let a = list[0].identity
+        let transactionsBefore = state.transactions
+        let slot = try XCTUnwrap(state.gridCell(for: a)?.cell.slot)
+        let pending = Fixtures.dispatch(&state, .overviewCardSelected(identity: a, slot: slot,
+                                                                     revision: state.layoutRevision))
+        let request = try XCTUnwrap(prepareOnly(&state, pending))
+        XCTAssertEqual(request.context.kind, .enterWorkbench)
+
+        let effects = rejectPrepare(&state, request, reason: "测试注入：日志目录写不进")
+        XCTAssertFalse(hasWorkbenchEnter(effects), "日志没落盘就不许把窗口搬进主区")
+        XCTAssertFalse(hasSettleEffects(effects), "未准入的操作不能有任何几何写入：\(effects)")
+        XCTAssertNil(state.workbench.armed, "备料必须整套撤销，不许留下等回执的意图")
+        XCTAssertEqual(state.mode, .overview, "进入失败回到总览，不能留下半个 L 型")
+        XCTAssertFalse(state.workbench.modeTransition.isTransitioning, "busy 标记必须清干净")
+        XCTAssertTrue(state.workbench.acceptsNewOrdinaryOperation, "用户还能再选一次（方案 §7.2 表）")
+        XCTAssertEqual(state.transactions, transactionsBefore, "未落盘的事务从不进内存")
+        XCTAssertTrue(hints(effects).contains(.journalWriteFailed("测试注入：日志目录写不进")),
+                      "落盘失败要如实提示：\(hints(effects))")
+
+        enterWorkbench(&state, target: a)
+        XCTAssertEqual(state.mode, .workbench, "第二次落盘成功必须真正进入")
+        XCTAssertEqual(state.workbench.placement.main, a)
+    }
+
+    /// A14（方案 §7.2）：A/B 批量里任何一条落不下去就是整批作废——内存里不能留下半套交换事务。
+    func testBatchPrepareFailureKeepsJournalAndPlacementUntouched() throws {
+        var (state, list) = openState(count: 5)
+        let a = list[0].identity
+        let b = list[1].identity
+        enterWorkbench(&state, target: a)
+        let transactionsBefore = state.transactions
+        let placementBefore = state.workbench.placement
+
+        let slot = try XCTUnwrap(state.workbench.placement.slot(of: b))
+        let pending = Fixtures.dispatch(&state, .railCardSelected(slot: slot, identity: b))
+        let request = try XCTUnwrap(prepareOnly(&state, pending))
+        XCTAssertEqual(request.mutations.count, 2, "B 的目标与 A 的落点必须同批落盘")
+        XCTAssertEqual(Set(request.affectedIdentities), Set([a, b]))
+
+        let effects = rejectPrepare(&state, request)
+        XCTAssertNil(switchPlan(effects), "整批作废时不能只发交换的一半（方案 §7.2）")
+        XCTAssertEqual(state.transactions, transactionsBefore, "半套事务就是下一次补偿读错位置的开始")
+        XCTAssertEqual(state.workbench.placement, placementBefore, "主区与轨道保持操作前事实")
+        XCTAssertEqual(state.workbench.mainSwitch.intent?.to, b, "失败意图留着，供提示与重试定位")
+        XCTAssertFalse(state.workbench.mainSwitch.isBusy)
+        XCTAssertTrue(state.workbench.acceptsNewOrdinaryOperation)
+
+        let retry = selectRail(&state, identity: b)
+        let plan = try XCTUnwrap(switchPlan(retry))
+        completeSwitch(&state, token: plan.intent.token)
+        XCTAssertEqual(state.workbench.placement.main, b, "整批重落后交换照常走完")
+        XCTAssertEqual(state.workbench.placement.occupant(at: slot), a)
+    }
+
+    /// A15（方案 §7.2）：返回总览的写前事务落不下去时工作台原样保留——既不飞行，也不开始恢复。
+    func testReturnPrepareFailureKeepsMainRailAndStartsNoFlight() throws {
+        var (state, list) = openState(count: 4)
+        let a = list[0].identity
+        enterWorkbench(&state, target: a)
+        let placementBefore = state.workbench.placement
+        let transactionsBefore = state.transactions
+        let snapshotBefore = try XCTUnwrap(state.workbench.snapshot)
+
+        let pending = Fixtures.dispatch(&state, .returnToOverviewRequested)
+        let request = try XCTUnwrap(prepareOnly(&state, pending))
+        XCTAssertEqual(request.context.kind, .returnOverview)
+
+        let effects = rejectPrepare(&state, request)
+        XCTAssertNil(returnPlan(effects), "日志没落盘就不许把窗口放飞回原位")
+        XCTAssertFalse(effects.contains {
+            if case .restoreAll = $0 { return true }
+            if case .restoreGeometry = $0 { return true }
+            return false
+        }, "返回失败不得触发任何恢复写入：\(effects)")
+        XCTAssertEqual(state.mode, .workbench, "返回失败留在工作台，不能停在两种都不完整的形态")
+        XCTAssertEqual(state.workbench.placement, placementBefore, "原主与轨道一律不动")
+        XCTAssertEqual(state.transactions, transactionsBefore)
+        XCTAssertEqual(state.workbench.snapshot, snapshotBefore, "几何投影不预留返回结果")
+        XCTAssertFalse(state.workbench.modeTransition.isTransitioning)
+        XCTAssertTrue(state.workbench.acceptsNewOrdinaryOperation)
+
+        try returnToOverview(&state)
+        XCTAssertEqual(state.mode, .overview, "重试返回必须真的走完")
+    }
+
+    /// A17（方案 §7.2 末段、§7.3）：写后事实落不进日志不是"未写入"——停后续步骤、排空在途几何，
+    /// 并把真实写入留下的恢复义务原样保留。
+    func testObservedFactPersistFailureStopsStepsAndKeepsRestoreObligation() throws {
+        var (state, list) = openState(count: 5)
+        let a = list[0].identity
+        let b = list[1].identity
+        enterWorkbench(&state, target: a)
+        let slotB = try XCTUnwrap(state.workbench.placement.slot(of: b))
+        let pending = Fixtures.dispatch(&state, .railCardSelected(slot: slotB, identity: b))
+        let request = try XCTUnwrap(prepareOnly(&state, pending))
+        let plan = try XCTUnwrap(switchPlan(confirmJournal(&state, pending)))
+
+        let step = dispatchConfirmed(&state, .mainSwitchStepFinished(
+            WorkbenchSwitchStepResult(token: plan.intent.token,
+                                      step: .moveToMain,
+                                      outcome: .succeeded(readBack: plan.mainTargetFrame),
+                                      identity: b)))
+        XCTAssertTrue(step.contains { if case .updateJournal = $0 { return true } else { return false } },
+                      "写成功要追加一条已发生的事实：\(step)")
+        XCTAssertEqual(state.transactions[b]?.state.requiresRestore, true,
+                       "写过几何的事务必须欠着恢复，不管日志记没记住（方案 §6.4）")
+
+        let effects = rejectUpdate(&state, request, identity: b, reason: "测试注入：写后落盘失败")
+        XCTAssertTrue(effects.contains {
+            if case .drainGeometry(plan.intent.operationContext) = $0 { return true }
+            return false
+        }, "在途几何按本次操作上下文排空：\(effects)")
+        XCTAssertTrue(state.workbench.mainSwitch.isRollingBack, "写后落盘失败只能进补偿，不能继续提交")
+        XCTAssertTrue(hints(effects).contains(.journalWriteFailed("测试注入：写后落盘失败")))
+
+        let later = dispatchConfirmed(&state, .mainSwitchStepFinished(
+            WorkbenchSwitchStepResult(token: plan.intent.token,
+                                      step: .restorePrevious,
+                                      outcome: .succeeded(readBack: nil),
+                                      identity: a)))
+        XCTAssertTrue(later.isEmpty, "补偿中的后续步骤不许再产生 effect：\(later)")
+        let late = dispatchConfirmed(&state, .mainSwitchCommitted(token: plan.intent.token))
+        XCTAssertTrue(late.isEmpty, "补偿没结算就不许提交：\(late)")
+        XCTAssertEqual(state.workbench.placement.main, a, "主区仍是 A：补偿完成前绝不提交")
+        XCTAssertEqual(state.transactions[b]?.state.requiresRestore, true,
+                       "journal 与事务原样保留，等补偿或退出（方案 §7.2）")
+    }
+
+    /// A18（方案 §5.5、§7.5）：会话取消后代次前进，异步 prepare 的迟到回执不得启动旧操作。
+    func testLateJournalPreparedAfterSessionCancelStartsNoWrite() throws {
+        var (state, list) = openState(count: 4)
+        let a = list[0].identity
+        let slot = try XCTUnwrap(state.gridCell(for: a)?.cell.slot)
+        let pending = Fixtures.dispatch(&state, .overviewCardSelected(identity: a, slot: slot,
+                                                                     revision: state.layoutRevision))
+        let request = try XCTUnwrap(prepareOnly(&state, pending))
+        let epochBefore = state.sessionEpoch
+
+        _ = dispatchConfirmed(&state, .globalShortcut)
+        XCTAssertTrue(state.sessionEpoch > epochBefore, "取消屏障必须真的前进代次（方案 §5.1）")
+        XCTAssertNil(state.workbench.armed, "取消时备料整套撤回")
+        XCTAssertFalse(request.context.matches(sessionID: state.sessionID, epoch: state.sessionEpoch),
+                       "旧上下文在新一代次里不再成立")
+
+        let late = Fixtures.dispatch(&state, .journalPrepared(context: request.context))
+        XCTAssertTrue(late.isEmpty, "旧代次的成功回执不得启动任何写入：\(late)")
+        XCTAssertFalse(hasWorkbenchEnter(late))
+        XCTAssertNotEqual(state.mode, .workbench, "迟到的落盘成功不能把工作台重新拉起来")
+    }
+
+    // MARK: - 跨屏恢复与替补/轨道不变量（方案 §18 A19–A21、A26–A33、A36）
+
+    /// A19（方案 §8）：窗口被搬到另一块屏工作过，恢复落点仍是会话原屏，不是"它此刻在哪块屏"。
+    func testCrossDisplayMoveRestoresOriginalDisplayNotCurrentOne() throws {
+        let second = CGRect(x: 1_920, y: 0, width: 1_440, height: 900)
+        let originalFrame = CGRect(x: 2_000, y: 100, width: 1_280, height: 700)
+        let entry = WindowTransaction(sessionID: UUID(), identity: Fixtures.identity(500, 5_000),
+                                      bundleID: "com.test.app", originalFrame: originalFrame,
+                                      originalDisplayID: 2)
+            .markingPlanned(frame: CGRect(x: 0, y: 100, width: 1_280, height: 700), displayID: 1)
+            .markingVerified(readBack: CGRect(x: 0, y: 100, width: 1_280, height: 700), displayID: 1)
+
+        let destination = try XCTUnwrap(RestorePlanner.plan(entry: entry,
+                                                            originalDisplayIsLive: true,
+                                                            originalVisibleFrame: second,
+                                                            fallbackVisibleFrame: CGRect(x: 0, y: 0, width: 1_920, height: 1_080)))
+        XCTAssertEqual(destination.targetDisplayID, 2, "落屏必须认原屏，不认窗口现在所在的 1 屏")
+        XCTAssertEqual(destination.targetFrame, originalFrame)
+        XCTAssertEqual(destination.reason, .exactOnOriginalDisplay)
+        XCTAssertFalse(destination.isDowngraded)
+        let decision = RecoveryPlanner.decide(entry: entry,
+                                              currentFrame: CGRect(x: 0, y: 100, width: 1_280, height: 700),
+                                              liveness: .alive, destination: destination,
+                                              preserveUserGeometry: false)
+        XCTAssertEqual(decision, .restore(to: destination), "写过产品的位置：必须写回原屏原框")
+    }
+
+    /// A20（方案 §8）：原屏分辨率变化或整块消失时，给出合法回退目标与原因，且结算判定用同一个落点。
+    func testOriginalDisplayResizeAndUnplugGiveLegalDowngradeWithMatchingSettlement() throws {
+        let written = CGRect(x: 40, y: 40, width: 1_280, height: 700)
+        let bigOriginal = CGRect(x: 100, y: 100, width: 1_600, height: 900)
+
+        // (a) 原屏仍在但可用区变小：只在原屏内夹取。
+        let shrunk = WindowTransaction(sessionID: UUID(), identity: Fixtures.identity(501, 5_001),
+                                       bundleID: "com.test.app", originalFrame: bigOriginal,
+                                       originalDisplayID: 1)
+            .markingPlanned(frame: written, displayID: 1)
+            .markingVerified(readBack: written, displayID: 1)
+        let shrunkVisible = CGRect(x: 0, y: 0, width: 1_440, height: 900)
+        let adjusted = try XCTUnwrap(RestorePlanner.plan(entry: shrunk, originalDisplayIsLive: true,
+                                                         originalVisibleFrame: shrunkVisible,
+                                                         fallbackVisibleFrame: CGRect(x: 1_440, y: 0, width: 1_920, height: 1_080),
+                                                         fallbackDisplayID: 2))
+        XCTAssertEqual(adjusted.targetDisplayID, 1, "原屏还在就仍回原屏")
+        XCTAssertEqual(adjusted.reason, .adjustedOnOriginalDisplay)
+        XCTAssertTrue(shrunkVisible.insetBy(dx: -0.5, dy: -0.5).contains(adjusted.targetFrame),
+                      "夹取后必须整块落在新的可用区里：\(adjusted.targetFrame)")
+        XCTAssertEqual(adjusted.targetFrame.size, CGSize(width: 1_440, height: 900),
+                       "尺寸大于可用区时先缩到可用区内")
+        let adjustedDecision = RecoveryPlanner.decide(entry: shrunk, currentFrame: written, liveness: .alive,
+                                                      destination: adjusted, preserveUserGeometry: false)
+        XCTAssertEqual(adjustedDecision, .restore(to: adjusted), "结算用的就是这一个落点")
+
+        // (b) 原屏被拔除：只能落进有明确身份的备用屏。
+        let unplugged = try XCTUnwrap(RestorePlanner.plan(entry: shrunk, originalDisplayIsLive: false,
+                                                          originalVisibleFrame: nil,
+                                                          fallbackVisibleFrame: shrunkVisible,
+                                                          fallbackDisplayID: 7))
+        XCTAssertEqual(unplugged.targetDisplayID, 7, "回退屏身份必须来自事实，不能猜")
+        XCTAssertEqual(unplugged.reason, .originalDisplayUnavailable)
+        XCTAssertTrue(unplugged.isDowngraded, "原屏没保住就是降级，报告不得写精确恢复")
+        XCTAssertTrue(shrunkVisible.insetBy(dx: -0.5, dy: -0.5).contains(unplugged.targetFrame))
+        XCTAssertEqual(RecoveryPlanner.decide(entry: shrunk, currentFrame: written, liveness: .alive,
+                                             destination: unplugged, preserveUserGeometry: false),
+                       .restore(to: unplugged))
+
+        // (c) 没有任何合法备用区：宁可不写，也不把窗口丢到坐标 (0,0) 之外。
+        XCTAssertNil(RestorePlanner.plan(entry: shrunk, originalDisplayIsLive: false,
+                                        originalVisibleFrame: nil, fallbackVisibleFrame: nil))
+    }
+
+    /// A21（方案 §8 规则 4）：用户明确保留的位置按它自己的矩形选屏，不能夹到别的屏上。
+    func testUserOverridePicksTheDisplayThatActuallyContainsIt() throws {
+        let first = CGRect(x: 0, y: 0, width: 1_920, height: 1_080)
+        let second = CGRect(x: 1_920, y: 0, width: 1_440, height: 900)
+        let override = CGRect(x: 2_000, y: 120, width: 1_200, height: 700)
+        let entry = WindowTransaction(sessionID: UUID(), identity: Fixtures.identity(502, 5_002),
+                                      bundleID: "com.test.app",
+                                      originalFrame: CGRect(x: 40, y: 40, width: 1_200, height: 700),
+                                      originalDisplayID: 1)
+            .markingPlanned(frame: CGRect(x: 0, y: 100, width: 1_200, height: 700), displayID: 1)
+            .markingVerified(readBack: CGRect(x: 0, y: 100, width: 1_200, height: 700), displayID: 1)
+            .withUserOverride(override)
+
+        let destination = try XCTUnwrap(RestorePlanner.plan(entry: entry, originalDisplayIsLive: true,
+                                                            originalVisibleFrame: first,
+                                                            fallbackVisibleFrame: second,
+                                                            fallbackDisplayID: 2))
+        XCTAssertEqual(destination.targetDisplayID, 2, "override 整个矩形在 2 屏上，落屏就必须是 2")
+        XCTAssertEqual(destination.targetFrame, override, "用户保留的位置一个坐标都不许重算")
+        XCTAssertEqual(destination.reason, .overrideOnDisplay)
+        XCTAssertEqual(entry.restoreTargetFrame(preserveUserGeometry: true), override,
+                       "补偿/退出取的都是同一个 override")
+
+        // override 不在任何已知屏内：与矩形相交最多的那块屏夹取，不夹错屏。
+        // (3200,200) 起、宽 1000：只有副屏（x 1920…3360）与它相交，原屏相交为 0。
+        let stray = CGRect(x: 3_200, y: 200, width: 1_000, height: 600)
+        let strayed = try XCTUnwrap(RestorePlanner.plan(entry: entry.withUserOverride(stray),
+                                                       originalDisplayIsLive: true,
+                                                       originalVisibleFrame: first,
+                                                       fallbackVisibleFrame: second,
+                                                       fallbackDisplayID: 2))
+        XCTAssertEqual(strayed.targetDisplayID, 2, "副屏与 stray 相交更多：必须选副屏，不能盲用目录里的 1 屏")
+        XCTAssertTrue(second.insetBy(dx: -0.5, dy: -0.5).contains(strayed.targetFrame),
+                      "夹取结果必须整块落在选中的屏里：\(strayed.targetFrame)")
+    }
+
+    /// A26（方案 §10）：关掉主窗口后的自动替补是一次完整操作——建事务→落盘→写入→激活→提交，
+    /// 替补窗口没有历史事务也要走完整顺序，并从原 slot 移除。
+    func testAutoPromotionAfterClosingMainRunsPrepareWriteActivateCommitInOrder() throws {
+        var (state, list) = openState(count: 4)
+        let a = list[0].identity
+        let b = list[1].identity
+        enterWorkbench(&state, target: a)
+        XCTAssertNil(state.transactions[b]?.lastProvisionalFrame)
+        let bSlot = try XCTUnwrap(state.workbench.placement.slot(of: b))
+        XCTAssertEqual(state.workbench.placement.occupant(at: bSlot), b, "B 一开始就占着自己的格")
+
+        let closed = Fixtures.dispatch(&state, .windowClosed(a))
+        XCTAssertEqual(prepareRequests(closed).count, 1, "替补的写前事务必须先整批落盘")
+        let request = try XCTUnwrap(prepareRequests(closed).first)
+        XCTAssertEqual(request.context.kind, .promoteCandidate)
+        XCTAssertFalse(hasSettleEffects(closed), "落盘确认之前一条 AX 都不许发")
+
+        let released = confirmJournal(&state, closed)
+        let plan = try XCTUnwrap(switchPlan(released))
+        XCTAssertTrue(plan.intent.isPromotion)
+        XCTAssertNil(plan.intent.from, "旧主已经关闭：替补没有 from")
+        XCTAssertEqual(plan.intent.to, b)
+        XCTAssertEqual(plan.mainTargetFrame, state.workbench.snapshot?.mainRect)
+
+        completeSwitch(&state, token: plan.intent.token)
+        XCTAssertEqual(state.workbench.placement.main, b, "替补提交后成为主窗口")
+        XCTAssertNil(state.workbench.placement.slot(of: b), "提交必须同时把它从原 slot 移除")
+        XCTAssertTrue(state.workbench.placement.maintainsInvariants)
+        XCTAssertEqual(state.workbench.placement.members.count, 3)
+    }
+
+    /// A27（方案 §10、§18）：替补在日志/写入/激活任一环节失败，只要补偿事实把候选送回操作前位置，
+    /// 结果都必须是「候选留 slot、主区空、还能手动选 C」——不能因为失败本身就把会话锁进 recoveryRequired。
+    func testFailedPromotionLeavesCandidateInSlotAndKeepsMainSelectable() throws {
+        // (a) 落盘失败：一次都不写，主区空、B 还在原格。
+        var (s1, list1) = openState(count: 4)
+        let b1 = list1[1].identity
+        enterWorkbench(&s1, target: list1[0].identity)
+        let bSlot1 = try XCTUnwrap(s1.workbench.placement.slot(of: b1))
+        let closed1 = Fixtures.dispatch(&s1, .windowClosed(list1[0].identity))
+        let request1 = try XCTUnwrap(prepareRequests(closed1).first)
+        let failed1 = rejectPrepare(&s1, request1)
+        XCTAssertFalse(hasSettleEffects(failed1), "落盘没成功就不许开始替补写入：\(failed1)")
+        XCTAssertNil(s1.workbench.placement.main, "主区继续空")
+        XCTAssertEqual(s1.workbench.placement.occupant(at: bSlot1), b1, "B 留在原 slot")
+        XCTAssertNil(s1.workbench.recoveryRequired, "一次 AX 都没写，几何没有任何未知：不该要求恢复")
+        XCTAssertTrue(s1.workbench.acceptsNewOrdinaryOperation, "还能再手动选别人")
+        let manual1 = selectRail(&s1, identity: list1[2].identity)
+        let manualPlan1 = try XCTUnwrap(switchPlan(manual1))
+        completeSwitch(&s1, token: manualPlan1.intent.token)
+        XCTAssertEqual(s1.workbench.placement.main, list1[2].identity, "手动选择 C 必须能真正接管主区")
+
+        // (b) 写入阶段失败 + (c) 激活阶段失败：补偿按操作前事实回位后，同样收口成"主区空、可再选"。
+        for kind in [WorkbenchSwitchStep.moveToMain, .activateMain] {
+            var (state, list) = openState(count: 4)
+            let b = list[1].identity
+            enterWorkbench(&state, target: list[0].identity)
+            let bSlot = try XCTUnwrap(state.workbench.placement.slot(of: b))
+            let closed = Fixtures.dispatch(&state, .windowClosed(list[0].identity))
+            let plan = try XCTUnwrap(switchPlan(confirmJournal(&state, closed)))
+            XCTAssertTrue(plan.intent.isPromotion)
+            // B 从未被写过：操作前事实就是目录里的真实矩形，补偿回位按它核对。
+            let before = try XCTUnwrap(plan.intent.beforeOperation.entry(for: b))
+            XCTAssertEqual(before.compensationTarget, list[1].frame,
+                           "候选没动过：补偿落点必须等于它此刻的真实位置")
+            _ = dispatchConfirmed(&state, .mainSwitchStepFinished(WorkbenchSwitchStepResult(
+                token: plan.intent.token, step: kind,
+                outcome: .rejected("测试注入：\(kind) 失败"), identity: b)))
+            let effects = reportSwitchFailure(&state, token: plan.intent.token,
+                                              reason: "测试注入：\(kind) 失败",
+                                              compensation: WorkbenchCompensationResult(
+                                                  items: [WorkbenchCompensationResult.Item(
+                                                    identity: b, action: .restoredTo(frame: list[1].frame),
+                                                    displayID: nil)],
+                                                  activatedMain: nil))
+            XCTAssertFalse(hasSettleEffects(effects), "补偿之后不许再写：\(effects)")
+            XCTAssertNil(state.workbench.placement.main, "替补不提交：主区还是空的")
+            XCTAssertEqual(state.workbench.placement.occupant(at: bSlot), b, "B 回到并保持它的 slot")
+            XCTAssertNil(state.workbench.recoveryRequired, "\(kind) 失败但事实齐全：几何没有未知")
+            XCTAssertTrue(state.workbench.acceptsNewOrdinaryOperation)
+            let manual = selectRail(&state, identity: list[2].identity)
+            let manualPlan = try XCTUnwrap(switchPlan(manual))
+            completeSwitch(&state, token: manualPlan.intent.token)
+            XCTAssertEqual(state.workbench.placement.main, list[2].identity,
+                           "\(kind) 失败后手动选 C 必须真正接管主区")
+            // 归位不等于义务结清：B 的事务仍欠退出时的恢复（方案 §6.4）。
+            XCTAssertEqual(state.transactions[b]?.state.requiresRestore, true)
+        }
+
+        // (d) 补偿自己也被拒绝：落点未知，必须转入 recoveryRequired 并拒绝新的普通操作（方案 §15）。
+        var (s4, list4) = openState(count: 4)
+        let b4 = list4[1].identity
+        enterWorkbench(&s4, target: list4[0].identity)
+        let closed4 = Fixtures.dispatch(&s4, .windowClosed(list4[0].identity))
+        let plan4 = try XCTUnwrap(switchPlan(confirmJournal(&s4, closed4)))
+        let refused = reportSwitchFailure(&s4, token: plan4.intent.token, reason: "测试注入：回位被拒",
+                                          compensation: WorkbenchCompensationResult(
+                                              items: [WorkbenchCompensationResult.Item(
+                                                identity: b4, action: .refused(reason: "测试注入：AX 拒绝"),
+                                                displayID: nil)],
+                                              activatedMain: nil))
+        XCTAssertNotNil(s4.workbench.recoveryRequired, "补偿失败就是几何不可信：\(refused)")
+        let blocked = selectRail(&s4, identity: list4[2].identity)
+        XCTAssertFalse(hasSettleEffects(blocked), "recoveryRequired 之下新的几何操作一律不准入：\(blocked)")
+    }
+
+    /// A28（方案 §10、§15）：自动替补还在落盘时用户点了 C——最新手动意图生效，不出现两条并发通道。
+    func testManualSelectionDuringPromotionArmingWins() throws {
+        var (state, list) = openState(count: 4)
+        let a = list[0].identity, b = list[1].identity, c = list[2].identity
+        enterWorkbench(&state, target: a)
+        let bSlot = try XCTUnwrap(state.workbench.placement.slot(of: b))
+        let closed = Fixtures.dispatch(&state, .windowClosed(a))
+        let promotion = try XCTUnwrap(prepareRequests(closed).first)
+        XCTAssertEqual(promotion.context.kind, .promoteCandidate)
+        XCTAssertNotNil(state.workbench.armed, "替补正等着落盘确认")
+
+        let manualEffects = selectRail(&state, identity: c)
+        let manualPlan = try XCTUnwrap(switchPlan(manualEffects))
+        XCTAssertEqual(manualPlan.intent.to, c, "后到的手动选择优先：还没写入的自动替补让位")
+        XCTAssertNotNil(state.workbench.placement.slot(of: b), "让位期间 B 一步都没被写过")
+        completeSwitch(&state, token: manualPlan.intent.token)
+        XCTAssertEqual(state.workbench.placement.main, c)
+        XCTAssertEqual(state.workbench.placement.occupant(at: bSlot), b, "让位不等于搬家：B 一直没动")
+        XCTAssertNil(state.workbench.pendingRailSelection, "最新意图已经落地，不许留下排队")
+
+        // 迟到的替补落盘回执必须整体作废，不能再启一次写入。
+        let late = Fixtures.dispatch(&state, .journalPrepared(context: promotion.context))
+        XCTAssertTrue(late.isEmpty, "旧操作上下文的成功回执不得启动任何写入：\(late)")
+        XCTAssertEqual(state.workbench.placement.main, c)
+
+        // 另一半（方案 §10 第 291 行）：替补已经放出写入通道，这时点 C —— B 先收敛，再执行最新手动选择。
+        var (s2, list2) = openState(count: 4)
+        enterWorkbench(&s2, target: list2[0].identity)
+        let released = Fixtures.dispatch(&s2, .windowClosed(list2[0].identity))
+        let promotion2 = try XCTUnwrap(prepareRequests(released).first)
+        let releasedEffects = confirmJournal(&s2, [ .prepareJournal(promotion2) ])
+        let promotionPlan = try XCTUnwrap(switchPlan(releasedEffects))
+        XCTAssertTrue(s2.workbench.mainSwitch.isBusy, "替补已进入写入通道")
+        let queued = selectRail(&s2, identity: list2[2].identity)
+        XCTAssertTrue(queued.isEmpty, "已写过的 B 不许被顶掉：这一笔只能排队，不能开第二条通道：\(queued)")
+        XCTAssertEqual(s2.workbench.pendingRailSelection?.identity, list2[2].identity, "只保留最新目标")
+        let converged = completeSwitch(&s2, token: promotionPlan.intent.token)
+        let followUp = try XCTUnwrap(switchPlan(converged))
+        XCTAssertEqual(followUp.intent.to, list2[2].identity, "B 收敛后立刻执行等着的手动选择")
+        XCTAssertNil(s2.workbench.pendingRailSelection, "队列必须被消费掉，不许无限排队")
+        completeSwitch(&s2, token: followUp.intent.token)
+        XCTAssertEqual(s2.workbench.placement.main, list2[2].identity)
+    }
+
+    /// A29（方案 §6.2、§10.2）：总览格子已经排满时新增的窗口没有 gridCell，
+    /// 但仍要进 L 型尾部，其他位置一律不动。
+    func testWindowBeyondGridCapacityStillEntersRailTail() throws {
+        var (state, list) = openState(count: 5)
         enterWorkbench(&state, target: list[0].identity)
+        let capacity = state.slots.capacity
+        XCTAssertGreaterThan(capacity, 5, "夹具屏幕至少要有可用的格子")
+        let before = state.workbench.placement.occupants
+        // 把总览格子填满，再多出来的窗口就没有 gridCell。
+        var extra = list
+        for index in 0..<(capacity + 3) {
+            extra.append(Fixtures.record(Int32(1_000 + index), UInt32(20_000 + index),
+                                         frame: CGRect(x: 60, y: 60, width: 1_280, height: 800),
+                                         title: "溢出 \(index)", app: "Overflow\(index)",
+                                         puid: UInt64(20_000 + index)))
+        }
+        try updateCatalog(&state, records: extra)
+
+        let overflowed = extra.last!.identity
+        XCTAssertNil(state.gridCell(for: overflowed), "格子满了就是满了：不能谎报一个 gridCell")
+        let slot = try XCTUnwrap(state.workbench.placement.slot(of: overflowed),
+                                 "没有格子的窗口也必须进 L 型，不能悄悄隐藏")
+        let maxOrdinal = before.keys.filter { $0.rail == slot.rail }.map(\.ordinal).max() ?? 0
+        let appendedCount = state.workbench.placement.occupants.count
+        XCTAssertGreaterThanOrEqual(slot.ordinal, maxOrdinal, "溢出只落在轨道尾部")
+        XCTAssertEqual(state.workbench.placement.main, list[0].identity, "新窗口不得抢主")
+        for (occupiedSlot, identity) in before {
+            XCTAssertEqual(state.workbench.placement.occupant(at: occupiedSlot), identity,
+                           "已有占用不得因为新增而重排")
+        }
+        XCTAssertEqual(appendedCount, before.count + capacity + 3,
+                       "新增的每一个窗口都要有归属：一个都不许悄悄丢掉")
+        XCTAssertTrue(state.workbench.placement.maintainsInvariants)
+    }
+
+    /// A30（方案 §6.2）：标题更新、目录顺序变化都只是展示事实，绝不能搬动已占位的窗口。
+    func testTitleUpdateAndCatalogReorderNeverMoveOccupants() throws {
+        var (state, list) = openState(count: 6)
+        enterWorkbench(&state, target: list[0].identity)
+        let before = state.workbench.placement.occupants
+
+        let renamed = list.map { record -> WindowRecord in
+            var copy = record
+            copy.title = "改名 \(record.identity.windowID)"
+            return copy
+        }
+        try updateCatalog(&state, records: Array(renamed.reversed()))
+        let after = state.workbench.placement.occupants
+        XCTAssertEqual(after.count, before.count)
+        for (slot, identity) in before {
+            XCTAssertEqual(after[slot], identity, "标题/顺序变化不得搬动 occupant")
+        }
+        XCTAssertEqual(state.workbench.placement.main, list[0].identity)
+        XCTAssertEqual(state.records[list[0].identity]?.title, "改名 \(list[0].identity.windowID)",
+                       "标题事实要真的更新，否则这条断言只是空转")
+    }
+
+    /// A31（方案 §12）：滚动偏移的唯一来源是投影——返回总览再选回原 A，上次离开时的非零偏移还在。
+    /// 顶栏容量按 floor 恰好容得下自己的卡片（WorkbenchLayoutEngine.capacity），可滚内容恒为 0：
+    /// 溢出全部落在侧栏滚动轨道，所以"非零偏移保留"这一条只能由侧栏证明。
+    func testScrollOffsetsSurviveReturnAndReentry() throws {
+        var (state, list) = openState(count: 24)
+        enterWorkbench(&state, target: list[0].identity)
+        let snapshot = try XCTUnwrap(state.workbench.snapshot)
+        XCTAssertGreaterThan(snapshot.layout.maxSideScroll, 0, "24 窗时侧栏必须真的可滚动")
+        XCTAssertEqual(snapshot.layout.maxTopScroll, 0, "顶栏没有超出视口的内容：它本来就不该能滚")
+        _ = Fixtures.dispatch(&state, .railScrolled(rail: .top, offset: 80))
+        XCTAssertEqual(state.workbench.scrollOffset(rail: .top), 0, "越界偏移按合法范围 clamp，不许写进投影")
+        _ = Fixtures.dispatch(&state, .railScrolled(rail: .side, offset: 120))
+        XCTAssertEqual(state.workbench.scrollOffset(rail: .side), 120)
+
+        try returnToOverview(&state)
+        XCTAssertEqual(state.mode, .overview)
+        enterWorkbench(&state, target: list[0].identity)
+        XCTAssertEqual(state.workbench.scrollOffset(rail: .side), 120, "返回再进入必须带回上次离开的偏移")
+        XCTAssertEqual(state.workbench.snapshot?.sideScrollOffset, 120, "偏移仍然只有投影这一个来源")
+
+        // 内容变少后重入：带回来的偏移按新布局 clamp，不出现悬空的滚动位置。
+        let trimmed = Array(list.dropLast(20))
+        try updateCatalog(&state, records: trimmed)
+        try returnToOverview(&state)
+        enterWorkbench(&state, target: trimmed[0].identity)
+        let clamped = state.workbench.scrollOffset(rail: .side)
+        let reentered = try XCTUnwrap(state.workbench.snapshot)
+        XCTAssertLessThanOrEqual(clamped, reentered.layout.maxSideScroll)
+        XCTAssertGreaterThanOrEqual(clamped, 0)
+    }
+
+    /// A32（方案 §8、§12）：返回总览后选轨道里的 B——A/B 正确交换，滚动偏移一位不动。
+    func testRailSelectionAfterReturnSwapsAndKeepsOffsets() throws {
+        var (state, list) = openState(count: 20)
+        let a = list[0].identity, b = list[1].identity
+        enterWorkbench(&state, target: a)
+        _ = Fixtures.dispatch(&state, .railScrolled(rail: .side, offset: 90))
+        try returnToOverview(&state)
+        enterWorkbench(&state, target: a)
+        let bSlot = try XCTUnwrap(state.workbench.placement.slot(of: b))
+        let sideOffset = state.workbench.scrollOffset(rail: .side)
+        XCTAssertGreaterThan(sideOffset, 0, "重进入后侧栏应带着非零偏移")
+
+        let effects = selectRail(&state, identity: b)
+        let plan = try XCTUnwrap(switchPlan(effects))
+        completeSwitch(&state, token: plan.intent.token)
+        XCTAssertEqual(state.workbench.placement.main, b, "B 进主区")
+        XCTAssertEqual(state.workbench.placement.occupant(at: bSlot), a, "A 回到 B 原来的格")
+        XCTAssertEqual(state.workbench.scrollOffset(rail: .side), sideOffset, "交换不重置侧栏偏移")
+    }
+
+    /// A33（方案 §11.2）：内容变少或栏尺寸被拖出范围时，只按合法范围 clamp，不产生负主区。
+    func testRailSizeAndContentShrinkClampToLegalRange() throws {
+        var (state, list) = openState(count: 4)
+        enterWorkbench(&state, target: list[0].identity)
+        _ = dispatchConfirmed(&state, .workbenchRailSizeChanged(topHeight: 150, sideWidth: 240))
+        let style = WorkbenchStyle()
+        let clamped = try XCTUnwrap(state.workbench.snapshot?.layout)
+        XCTAssertEqual(clamped.topRailRect.height, min(150, style.topHeightRange.upperBound), accuracy: 0.001)
+        XCTAssertEqual(clamped.sideRailRect.width, min(240, style.sideWidthRange.upperBound), accuracy: 0.001)
+
+        // 拖出上下界：投影只到边界为止。
+        _ = dispatchConfirmed(&state, .workbenchRailSizeChanged(topHeight: -500, sideWidth: 9_999))
+        let bounded = try XCTUnwrap(state.workbench.snapshot?.layout)
+        XCTAssertEqual(bounded.topRailRect.height, style.topHeightRange.lowerBound, accuracy: 0.001,
+                       "负值 clamp 到下界，不能把顶栏拖没")
+        XCTAssertEqual(bounded.sideRailRect.width, style.sideWidthRange.upperBound, accuracy: 0.001)
+        XCTAssertGreaterThanOrEqual(bounded.mainRect.width, style.minimumMainSize.width)
+        XCTAssertGreaterThanOrEqual(bounded.mainRect.height, style.minimumMainSize.height)
+        XCTAssertFalse(bounded.isDegenerate)
+
+        // 内容关闭到只剩主窗口：布局投影仍合法，两栏尺寸不变。
+        for record in list.dropFirst() {
+            _ = Fixtures.dispatch(&state, .windowClosed(record.identity))
+        }
+        let afterClose = try XCTUnwrap(state.workbench.snapshot?.layout)
+        XCTAssertEqual(afterClose.topRailRect.height, bounded.topRailRect.height, accuracy: 0.001,
+                       "关闭内容不重算栏尺寸偏好")
+        XCTAssertFalse(afterClose.isDegenerate)
+        XCTAssertTrue(state.workbench.placement.maintainsInvariants)
+    }
+
+    /// A36（方案 §13.2）：过渡进行中的尺寸更新一律延后，不留半套重配；
+    /// 延后的那一次在过渡收敛时真的落地；取消/停止仍然立即生效。
+    func testSizeUpdateDuringTransitionDefersReconfigurationAndCancelIsImmediate() throws {
+        var (state, list) = openState(count: 4)
+        let a = list[0].identity
+        _ = select(&state, fromOverview: a)
+        XCTAssertTrue(state.workbench.modeTransition.isTransitioning, "进入过渡在途")
+        let snapshotBefore = try XCTUnwrap(state.workbench.snapshot)
+
+        let deferred = Fixtures.dispatch(&state, .workbenchRailSizeChanged(topHeight: 160, sideWidth: 248))
+        XCTAssertTrue(deferred.isEmpty, "过渡中不接受栏尺寸落地：\(deferred)")
+        XCTAssertEqual(state.workbench.snapshot, snapshotBefore, "投影一个字节都不许变")
+        XCTAssertTrue(state.workbench.railSizeRecomputePending, "延后不等于丢掉：这一笔要攒着等收敛")
+        XCTAssertFalse(state.workbench.acceptsNewOrdinaryOperation, "过渡期间普通几何操作一律不准入")
+
+        // 过渡收敛：攒下的尺寸在这一次算清，主区跟着新 mainRect 走。
+        let converged = finishEntering(&state)
+        XCTAssertFalse(state.workbench.railSizeRecomputePending, "攒下的重配必须被消费掉")
+        let style = WorkbenchStyle()
+        let afterConverge = try XCTUnwrap(state.workbench.snapshot?.layout)
+        XCTAssertEqual(afterConverge.topRailRect.height, min(160, style.topHeightRange.upperBound), accuracy: 0.001,
+                       "延后的尺寸在收敛这一刻落地，不是丢掉")
+        let settle = try XCTUnwrap(settlePackets(converged).first,
+                                   "新 mainRect 要按日志闸门先落盘再写：\(converged)")
+        XCTAssertEqual(settle.target, afterConverge.mainRect, "落地写的就是收敛后的新主区矩形")
+        XCTAssertEqual(settle.identity, a)
+
+        // 取消/停止不等过渡收敛：立即排空在途操作并前进代次。
+        let epochBefore = state.sessionEpoch
+        let cancelled = dispatchConfirmed(&state, .displaysChanged)
+        XCTAssertTrue(state.sessionEpoch > epochBefore, "取消屏障立即前进代次（方案 §5.1）")
+        XCTAssertNil(state.workbench.armed)
+        XCTAssertNil(state.workbench.activeContext)
+        XCTAssertTrue(state.gridsAreStale, "屏幕集合变了，旧的冻结几何不再适用")
+        XCTAssertTrue(cancelled.contains { if case .hideWorkbench = $0 { return true } else { return false } },
+                      "过渡中的尺寸变化要立刻撤下面板：\(cancelled)")
+        XCTAssertTrue(state.workbench.transitionActivity.cancellationRequested,
+                      "取消标记当场生效，宿主据此拆掉飞行中的过渡")
+    }
+
+    // MARK: - 随机序列不变量（方案 §18 A42）
+
+    /// 一轮随机动作：做了什么、发出了哪些 effect。
+    private struct RandomAction {
+        let label: String
+        let effects: [SessionEffect]
+    }
+
+    /// 成功交换与往返的组合循环必须始终保持：placement 唯一、无漏窗、无 busy 悬挂、
+    /// 无未解释的恢复义务（方案 §18 A42）。失败时打印种子与完整动作序列，保证可原样复现。
+    func testRandomOperationSequencePreservesInvariants() {
+        let seed: UInt64 = 0x5EED_2026
+        var rng = SeededGenerator(seed: seed)
+        var (state, list) = openState(count: 12)
+        let entering = enterWorkbench(&state, target: list[0].identity)
         XCTAssertEqual(state.mode, .workbench)
 
+        // 宿主侧日志模型：effect 里每一条落盘动作都如实回放。
+        var journal = SessionJournal(sessionID: state.sessionID)
+        var written: [WindowIdentity] = []
+        foldJournal(&journal, written: &written, from: entering, sessionID: state.sessionID)
+
+        var actions: [String] = []
         for step in 0..<200 {
+            let action: RandomAction
             switch Int.random(in: 0..<8, using: &rng) {
-            case 0:
-                selectRandomRailOccupant(&state, rng: &rng)
-            case 1:
-                finishCurrentSwitchIfBusy(&state)
-            case 2:
-                dragRandomSlots(&state, rng: &rng)
-            case 3:
-                let offset = CGFloat(Int.random(in: 0...400, using: &rng))
-                _ = Fixtures.dispatch(&state, .railScrolled(rail: .side, offset: offset))
-            case 4:
-                closeRandomOccupant(&state, rng: &rng)
-            case 5:
-                appendRandomWindow(&state, list: list, rng: &rng)
-            case 6:
-                let side: RailSide = Bool.random(using: &rng) ? .left : .right
-                _ = Fixtures.dispatch(&state, .railSideChanged(side))
-            default:
-                roundTripMode(&state, list: list, rng: &rng)
+            case 0: action = selectRandomRailOccupant(&state, rng: &rng)
+            case 1: action = settlePendingWork(&state)
+            case 2: action = dragRandomSlots(&state, rng: &rng)
+            case 3: action = scrollRandomRail(&state, rng: &rng)
+            case 4: action = closeRandomOccupant(&state, rng: &rng)
+            case 5: action = appendRandomWindow(&state, list: list, rng: &rng)
+            case 6: action = changeRailSide(&state, rng: &rng)
+            default: action = roundTripMode(&state, list: list, rng: &rng)
             }
-            assertWorkbenchInvariants(state, step: step)
+            actions.append("  step\(step): \(action.label)")
+            foldJournal(&journal, written: &written, from: action.effects, sessionID: state.sessionID)
+            let violations = workbenchInvariantViolations(state, step: step, journal: journal, written: written)
+            if !violations.isEmpty {
+                XCTFail("不变量被破坏，可原样复现：seed=0x5EED_2026，停在第 \(step) 步\n"
+                        + violations.joined(separator: "\n") + "\n"
+                        + "动作序列：\n" + actions.joined(separator: "\n"))
+                return
+            }
         }
     }
 
-    private func assertWorkbenchInvariants(_ state: SessionState, step: Int) {
+    private func workbenchInvariantViolations(_ state: SessionState,
+                                              step: Int,
+                                              journal: SessionJournal,
+                                              written: [WindowIdentity]) -> [String] {
+        var violations: [String] = []
         let placement = state.workbench.placement
         let values = Array(placement.occupants.values)
-        XCTAssertTrue(placement.maintainsInvariants, "第 \(step) 步不变量被破坏")
-        XCTAssertEqual(Set(values).count, values.count, "第 \(step) 步出现重复占用")
-        XCTAssertFalse(values.contains(placement.main ?? WindowIdentity(processID: -1, processStartIdentity: 0, windowID: 0)),
-                       "第 \(step) 步主窗口同时出现在轨道上")
-        XCTAssertTrue(placement.members.isSubset(of: Set(state.records.keys)),
-                      "第 \(step) 步轨道上出现已关闭窗口")
-        XCTAssertTrue(placement.members.count <= state.records.count, "第 \(step) 步成员数超出目录")
-        if let main = placement.main {
-            XCTAssertNotNil(state.gridCell(for: main), "第 \(step) 步主窗口没有冻结格子")
+        if !placement.maintainsInvariants { violations.append("第 \(step) 步不变量被破坏") }
+        if Set(values).count != values.count { violations.append("第 \(step) 步出现重复占用") }
+        if let main = placement.main, values.contains(main) {
+            violations.append("第 \(step) 步主窗口同时出现在轨道上")
         }
-        for slot in placement.occupants.keys {
-            XCTAssertNil(state.gridCell(for: placement.occupants[slot]!)?.cell.identity.flatMap {
-                $0 == placement.occupants[slot] ? nil : $0
-            }, "第 \(step) 步轨道与网格指向了不同窗口")
+        if !placement.members.isSubset(of: Set(state.records.keys)) {
+            violations.append("第 \(step) 步轨道上出现已关闭窗口")
+        }
+        if placement.members.count > state.records.count {
+            violations.append("第 \(step) 步成员数超出目录")
+        }
+        // 冻结格子的容量是硬上限：目录装得下时，主窗口必须有格子（返回总览要有落点）；
+        // 装不下时 Core 允许"排队等待格"的窗口进轨道/主区，此时只要求它仍在目录里。
+        if let main = placement.main, state.records.count <= state.gridCapacity,
+           state.gridCell(for: main) == nil {
+            violations.append("第 \(step) 步主窗口没有冻结格子（目录 \(state.records.count) 格子上限 \(state.gridCapacity)）")
+        }
+        for (slot, identity) in placement.occupants {
+            guard let cell = state.gridCell(for: identity) else { continue }
+            if cell.cell.identity != nil, cell.cell.identity != identity {
+                violations.append("第 \(step) 步轨道 \(slot) 与网格指向了不同窗口")
+            }
+        }
+
+        // A42 新增：任何一次真实写入都必须留下恢复义务——内存有义务、日志也在，
+        // 且义务带着可核对的几何事实（写过却什么都没有 = 退出时无法复原）。
+        for identity in written where state.records[identity] != nil {
+            guard let transaction = state.transactions[identity] else {
+                violations.append("第 \(step) 步 \(identity.journalKey) 真实写入后失去恢复义务")
+                continue
+            }
+            if !transaction.state.requiresRestore {
+                violations.append("第 \(step) 步 \(identity.journalKey) 写过但事务不再要求恢复")
+            }
+            if transaction.writtenFrameCandidates.isEmpty {
+                violations.append("第 \(step) 步 \(identity.journalKey) 事务里没有任何几何事实")
+            }
+            guard let entry = journal.entries[identity.journalKey] else {
+                violations.append("第 \(step) 步 \(identity.journalKey) 内存有义务但日志条目缺失")
+                continue
+            }
+            if !entry.state.requiresRestore {
+                violations.append("第 \(step) 步 \(identity.journalKey) 日志条目不再要求恢复，内存却仍视为已写入")
+            }
+        }
+
+        // 未落盘的事务从不进内存（方案 §7.1）。
+        if let armed = state.workbench.armed {
+            for identity in armed.transactions.keys
+            where state.transactions[identity]?.operationID == armed.context.operationID {
+                violations.append("第 \(step) 步 \(identity.journalKey) 还没落盘就进了内存")
+            }
+        }
+        // 在途操作必须自带补偿依据：写过但没有 before 事实，只能靠 recoveryRequired 兜住（方案 §6.4）。
+        if let operation = state.workbench.runningOperation {
+            if operation.hasUnexplainedWrite {
+                violations.append("第 \(step) 步操作 \(operation.context.kind.rawValue) 有写入缺恢复依据")
+            }
+            for identity in operation.writtenOrder {
+                guard let entry = operation.entry(for: identity), entry.didWrite else { continue }
+                if state.transactions[identity]?.state.requiresRestore != true {
+                    violations.append("第 \(step) 步 \(identity.journalKey) 本次操作写过却没有待恢复事务")
+                }
+            }
+        }
+        // 无 busy 悬挂：操作上下文收口时写入事实必须一起收口。
+        if state.workbench.activeContext == nil, state.workbench.runningOperation != nil {
+            violations.append("第 \(step) 步操作已收口但写入事实仍挂在状态上")
+        }
+        if state.workbench.armed == nil, state.workbench.activeContext == nil,
+           state.workbench.mainFrameWrite != nil {
+            violations.append("第 \(step) 步没有在途操作却留着主区写入标记")
+        }
+        if state.workbench.recoveryRequired == nil {
+            XCTAssertFalse(state.workbench.transitionActivity.blocksGeometryReconfiguration
+                            != (state.workbench.armed != nil
+                                || state.workbench.modeTransition.isTransitioning
+                                || state.workbench.mainSwitch.isBusy
+                                || state.workbench.mainFrameWrite != nil),
+                           "第 \(step) 步过渡活动事实与状态脱节")
+        }
+        return violations
+    }
+
+    /// 把 effect 里的落盘动作回放进测试侧日志模型，并维护"写过但还没结算"的身份清单。
+    private func foldJournal(_ journal: inout SessionJournal,
+                             written: inout [WindowIdentity],
+                             from effects: [SessionEffect],
+                             sessionID: UUID) {
+        for effect in effects {
+            switch effect {
+            case let .prepareJournal(request):
+                applyMutations(request.mutations, to: &journal, written: &written)
+            case let .updateJournal(request):
+                applyMutations([request.mutation], to: &journal, written: &written)
+            case let .clearJournal(_, settled):
+                journal.prune(sessionID: sessionID, settledIdentities: settled)
+                // 结算＝恢复义务已完成并写回原位：不再要求"仍留有义务"。
+                written.removeAll { settled.contains($0) }
+            default:
+                break
+            }
         }
     }
 
-    private func selectRandomRailOccupant(_ state: inout SessionState, rng: inout SeededGenerator) {
+    private func applyMutations(_ mutations: [JournalMutation],
+                                to journal: inout SessionJournal,
+                                written: inout [WindowIdentity]) {
+        for mutation in mutations {
+            switch mutation {
+            case let .upsert(transaction):
+                journal.apply(transaction)
+                if transaction.lastProvisionalFrame != nil, !written.contains(transaction.identity) {
+                    written.append(transaction.identity)
+                }
+            case let .remove(identity):
+                journal.remove(identity)
+                written.removeAll { $0 == identity }
+            case let .correctOriginal(identity, frame, displayID):
+                journal.correctOriginal(identity, frame: frame, displayID: displayID)
+            }
+        }
+    }
+
+    private func selectRandomRailOccupant(_ state: inout SessionState, rng: inout SeededGenerator) -> RandomAction {
         let candidates = state.workbench.placement.occupants
             .filter { $0.value != state.workbench.placement.main }
             .sorted { $0.key < $1.key }
-        guard !candidates.isEmpty else { return }
+        guard !candidates.isEmpty else { return RandomAction(label: "无轨道候选", effects: []) }
         let pick = candidates[Int.random(in: 0..<candidates.count, using: &rng)]
-        _ = Fixtures.dispatch(&state, .railCardSelected(slot: pick.key, identity: pick.value))
+        return RandomAction(label: "选轨道卡片 w\(pick.value.windowID)",
+                            effects: selectRail(&state, identity: pick.value))
     }
 
-    private func finishCurrentSwitchIfBusy(_ state: inout SessionState) {
-        guard let token = state.workbench.mainSwitch.intent?.token, state.workbench.mainSwitch.isBusy else { return }
-        completeSwitch(&state, token: token)
+    /// 宿主会做的事：把还没收口的写入/交换收口（读回成功），别让它们永远悬着。
+    private func settlePendingWork(_ state: inout SessionState) -> RandomAction {
+        var effects: [SessionEffect] = []
+        var label = "无待收口"
+        if let write = state.workbench.mainFrameWrite,
+           let planned = state.transactions[write.identity]?.plannedFrame {
+            label = "主区写入读回 w\(write.identity.windowID)"
+            effects += dispatchConfirmed(&state, Fixtures.writeResult(write.identity, token: write.token,
+                                                                      outcome: .exact(readBack: planned),
+                                                                      target: planned))
+        }
+        if let token = state.workbench.mainSwitch.intent?.token, state.workbench.mainSwitch.isBusy {
+            label = "完成交换 t\(token.generation)"
+            effects += completeSwitchWithReadBack(&state, token: token)
+        }
+        return RandomAction(label: label, effects: effects)
     }
 
-    private func dragRandomSlots(_ state: inout SessionState, rng: inout SeededGenerator) {
+    /// 带读回地走完交换的每一步：这样"写过"是真实事实，不变量才有的可查。
+    private func completeSwitchWithReadBack(_ state: inout SessionState, token: TransitionToken) -> [SessionEffect] {
+        guard let intent = state.workbench.mainSwitch.intent else { return [] }
+        var effects: [SessionEffect] = []
+        for step in WorkbenchSwitchStep.allCases {
+            let identity: WindowIdentity?
+            let outcome: WorkbenchStepOutcome
+            switch step {
+            case .prepare:
+                identity = nil
+                outcome = .succeeded(readBack: nil)
+            case .moveToMain:
+                identity = intent.to
+                outcome = .succeeded(readBack: state.transactions[intent.to]?.plannedFrame)
+            case .restorePrevious:
+                identity = intent.from
+                outcome = .succeeded(readBack: intent.from.flatMap { state.transactions[$0]?.plannedFrame })
+            case .activateMain, .commit:
+                identity = nil
+                outcome = .succeeded(readBack: nil)
+            }
+            effects += dispatchConfirmed(&state, .mainSwitchStepFinished(
+                WorkbenchSwitchStepResult(token: token, step: step, outcome: outcome, identity: identity)))
+        }
+        effects += dispatchConfirmed(&state, .mainSwitchCommitted(token: token))
+        return effects
+    }
+
+    private func dragRandomSlots(_ state: inout SessionState, rng: inout SeededGenerator) -> RandomAction {
         let slots = state.workbench.snapshot?.layout.slotOrder ?? []
-        guard slots.count > 1 else { return }
+        guard slots.count > 1 else { return RandomAction(label: "无可拖动 slot", effects: []) }
         let from = slots[Int.random(in: 0..<slots.count, using: &rng)]
         let to = slots[Int.random(in: 0..<slots.count, using: &rng)]
-        _ = Fixtures.dispatch(&state, .railCardDragged(from: from, to: to))
+        return RandomAction(label: "拖动 \(from)→\(to)",
+                            effects: Fixtures.dispatch(&state, .railCardDragged(from: from, to: to)))
     }
 
-    private func closeRandomOccupant(_ state: inout SessionState, rng: inout SeededGenerator) {
+    private func scrollRandomRail(_ state: inout SessionState, rng: inout SeededGenerator) -> RandomAction {
+        let offset = CGFloat(Int.random(in: 0...400, using: &rng))
+        return RandomAction(label: "滚动 \(offset)",
+                            effects: Fixtures.dispatch(&state, .railScrolled(rail: .side, offset: offset)))
+    }
+
+    private func closeRandomOccupant(_ state: inout SessionState, rng: inout SeededGenerator) -> RandomAction {
         let occupants = state.workbench.placement.occupants.values
             .filter { $0 != state.workbench.placement.main }
             .sorted { $0.windowID < $1.windowID }
-        guard !occupants.isEmpty else { return }
-        _ = Fixtures.dispatch(&state, .windowClosed(occupants[Int.random(in: 0..<occupants.count, using: &rng)]))
+        guard !occupants.isEmpty else { return RandomAction(label: "无轨道窗口可关", effects: []) }
+        let closing = occupants[Int.random(in: 0..<occupants.count, using: &rng)]
+        return RandomAction(label: "关闭 w\(closing.windowID)",
+                            effects: dispatchConfirmed(&state, .windowClosed(closing)))
     }
 
-    private func appendRandomWindow(_ state: inout SessionState, list: [WindowRecord], rng: inout SeededGenerator) {
-        guard state.mode == .workbench else { return }
+    private func changeRailSide(_ state: inout SessionState, rng: inout SeededGenerator) -> RandomAction {
+        let side: RailSide = Bool.random(using: &rng) ? .left : .right
+        return RandomAction(label: "换侧 \(side.displayName)",
+                            effects: dispatchConfirmed(&state, .railSideChanged(side)))
+    }
+
+    private func appendRandomWindow(_ state: inout SessionState,
+                                    list: [WindowRecord],
+                                    rng: inout SeededGenerator) -> RandomAction {
+        guard state.mode == .workbench else { return RandomAction(label: "总览态不新增", effects: []) }
         let index = Int.random(in: 0..<10_000, using: &rng)
         let extra = Fixtures.record(800 + Int32(index % 50), UInt32(20_000 + index),
                                     frame: CGRect(x: 80, y: 80, width: 1_100, height: 700),
                                     title: "随机窗口 \(index)", app: "RandomApp")
-        var records = list + Array(state.records.values.filter { !list.map(\.identity).contains($0.identity) })
-        if records.contains(where: { $0.identity == extra.identity }) { return }
+        let known = list.map(\.identity)
+        var records = list + state.records.values.filter { !known.contains($0.identity) }
+        guard !records.contains(where: { $0.identity == extra.identity }) else {
+            return RandomAction(label: "重复窗口不新增", effects: [])
+        }
         records.append(extra)
-        try? updateCatalog(&state, records: records)
+        let effects = (try? updateCatalog(&state, records: records)) ?? []
+        return RandomAction(label: "新增 w\(extra.identity.windowID)", effects: effects)
     }
 
-    private func roundTripMode(_ state: inout SessionState, list: [WindowRecord], rng: inout SeededGenerator) {
-        guard state.mode == .workbench, !state.workbench.mainSwitch.isBusy else { return }
-        let effects = Fixtures.dispatch(&state, .returnToOverviewRequested)
-        guard let plan = returnPlan(effects) else { return }
-        _ = Fixtures.dispatch(&state, .workbenchTransitionFinished(token: plan.token,
-                                                                   kind: .returningOverview,
-                                                                   result: .succeeded(readBack: nil)))
+    private func roundTripMode(_ state: inout SessionState,
+                               list: [WindowRecord],
+                               rng: inout SeededGenerator) -> RandomAction {
+        guard state.mode == .workbench, !state.workbench.mainSwitch.isBusy else {
+            return RandomAction(label: "交换中不往返", effects: [])
+        }
+        let effects = dispatchConfirmed(&state, .returnToOverviewRequested)
+        guard let plan = returnPlan(effects) else {
+            return RandomAction(label: "返回未发起", effects: effects)
+        }
+        var all = effects
+        all += dispatchConfirmed(&state, .workbenchTransitionFinished(token: plan.token,
+                                                                     kind: .returningOverview,
+                                                                     result: .succeeded(readBack: nil)))
         XCTAssertEqual(state.mode, .overview)
         XCTAssertNil(state.workbench.placement.main)
         let candidates = list.map(\.identity).filter { state.gridCell(for: $0) != nil }
-        guard !candidates.isEmpty else { return }
+        guard !candidates.isEmpty else { return RandomAction(label: "回总览后无可选", effects: all) }
         let target = candidates[Int.random(in: 0..<candidates.count, using: &rng)]
-        enterWorkbench(&state, target: target)
+        all += enterWorkbench(&state, target: target)
         XCTAssertEqual(state.mode, .workbench)
+        return RandomAction(label: "往返 w\(target.windowID)", effects: all)
     }
 }
 

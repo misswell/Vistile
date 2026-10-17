@@ -77,6 +77,34 @@ public struct FrameIntervalStats: Hashable, Sendable {
     }
 }
 
+/// 一段过渡飞行的呈现事实（方案 §20.2）：首帧延迟单独记录，回调次数与真实呈现次数分开核对。
+///
+/// displayLink 回调 N 次不代表屏幕换了 N 帧：取不到 drawable、提交失败都只回调不呈现。
+/// 只用帧间隔统计会把"点了但很久没出第一帧"和"整段没有像素"都掩盖掉。
+public struct TransitionFlightFacts: Hashable, Sendable {
+    /// 真实输入 → 第一段画面 present 出去的毫秒数；整段一次都没 present 成功时为 nil。
+    public let firstPresentDelayMS: Double?
+    /// 飞行期间收到的 tick 次数。
+    public let ticks: Int
+    /// 飞行期间渲染器实际 present 出去的帧数（含 play() 同步画的第一帧）。
+    public let presentedFrames: Int
+    /// 首帧延迟是否锚在真实输入上。false 表示没有前置输入（自动替补、探针直接驱动），
+    /// 按动画进入时刻算——这种样本不能混进"点击反馈"的 P95。
+    public let anchoredAtRealInput: Bool
+
+    public init(firstPresentDelayMS: Double?, ticks: Int, presentedFrames: Int, anchoredAtRealInput: Bool) {
+        self.firstPresentDelayMS = firstPresentDelayMS
+        self.ticks = ticks
+        self.presentedFrames = presentedFrames
+        self.anchoredAtRealInput = anchoredAtRealInput
+    }
+
+    /// 一次 present 都没有的过渡不能当画面证据：tick 再多也只是回调。
+    public var hasPresentedPixels: Bool { presentedFrames > 0 }
+    /// 回调多于呈现的差额：>0 说明有 tick 没有换成屏幕上的帧。
+    public var missedPresentFrames: Int { max(0, ticks - presentedFrames) }
+}
+
 /// 动效等级决策（方案 §20.4）：在后续过渡中降级、记录原因、用滞后避免反复抖动。
 ///
 /// 基准等级来自启动事实（系统减少动态效果、采集档位）；低于基准的等级只由

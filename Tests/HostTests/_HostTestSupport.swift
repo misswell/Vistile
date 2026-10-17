@@ -157,6 +157,112 @@ enum HostWorkbench {
     }
 }
 
+/// 手动时钟：预算、超时、期限全部由测试推进，不靠真实睡眠赌时序（方案 §14.4、§15.2）。
+/// 生产调度器用 ContinuousClock，这里把"现在几点"换成一个可推进的计数。
+final class HostClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var nanoseconds: UInt64 = 0
+
+    var stamp: GeometryOperationScheduler.Stamp {
+        lock.lock(); defer { lock.unlock() }
+        return GeometryOperationScheduler.Stamp(nanoseconds: nanoseconds)
+    }
+
+    func advance(_ delta: UInt64) {
+        lock.lock(); nanoseconds += delta; lock.unlock()
+    }
+
+    func advance(seconds delta: Double) {
+        advance(UInt64(max(0, delta) * 1_000_000_000))
+    }
+}
+
+@MainActor
+enum HostScheduler {
+    /// 每个用例一条写入通道：调度器带会话状态，跨用例复用会互相污染（方案 §5.1）。
+    ///
+    /// 建好就开会话并对齐测试自己的 sessionID：相位停在 `.closed` 时任何普通写入都拿不到准入，
+    /// 那正是生产的判据，所以测试必须显式开局。
+    static func make(clock: HostClock? = nil, sessionID: UUID? = nil, epoch: UInt64 = 0) -> GeometryOperationScheduler {
+        let scheduler: GeometryOperationScheduler
+        if let clock {
+            scheduler = GeometryOperationScheduler(now: { clock.stamp })
+        } else {
+            scheduler = GeometryOperationScheduler()
+        }
+        if let sessionID {
+            scheduler.adopt(sessionID: sessionID, epoch: epoch)
+        } else {
+            _ = scheduler.openSession()
+        }
+        return scheduler
+    }
+}
+
+/// 方案 §5.3、§9.1 之后，过渡计划与交换意图必须自带操作上下文、操作前快照和核心层算好的放置路径。
+/// 纯逻辑用例只验证动画端点，但这三份事实不许测试凭空补：上下文每次新建 operationID，
+/// 放置路径走生产同一个 `MainPlacementPolicy.decide`。
+enum HostPlanFacts {
+    static func context(token: TransitionToken,
+                        kind: GeometryOperationKind,
+                        sessionID: UUID = UUID(),
+                        epoch: UInt64 = 1) -> GeometryOperationContext {
+        GeometryOperationContext(sessionID: sessionID,
+                                 sessionEpoch: epoch,
+                                 operationID: UUID(),
+                                 transitionToken: token,
+                                 kind: kind)
+    }
+
+    /// 把计划要写的目标矩形当作可容纳区问一次策略：可调尺寸时得到的就是 `.resizeAndMove(target)`，
+    /// 与 reducer 给出的 `plan.targetFrame` 同源，测试不另写一套结论。
+    static func placement(target: CGRect, currentFrame: CGRect) -> MainPlacementDecision {
+        MainPlacementPolicy.decide(mainRect: target,
+                                   currentFrame: currentFrame,
+                                   isMovable: true,
+                                   isResizable: true)
+    }
+
+    /// 用例只声明"精确占据目标矩形"这条路径时的简写：结论仍由策略算，不手搓枚举。
+    static func placement(target: CGRect) -> MainPlacementDecision {
+        placement(target: target, currentFrame: target)
+    }
+
+    /// 场景用例的交换意图：意图与补偿快照必须共用同一份操作上下文（方案 §5.3、§6.3），
+    /// 分两处手抄就会各数一次 operationID，迟到回执就对不上账了。
+    static func switchIntent(token: TransitionToken,
+                             from: WindowIdentity?,
+                             to: WindowIdentity,
+                             source: WorkbenchSelectionSource,
+                             placementRevision: UInt64,
+                             targetDisplayID: UInt32,
+                             kind: GeometryOperationKind = .mainSwitch,
+                             before: [(identity: WindowIdentity, frame: CGRect)] = []) -> WorkbenchSwitchIntent {
+        let context = context(token: token, kind: kind)
+        return WorkbenchSwitchIntent(token: token,
+                                     from: from,
+                                     to: to,
+                                     source: source,
+                                     placementRevision: placementRevision,
+                                     targetDisplayID: targetDisplayID,
+                                     operationContext: context,
+                                     beforeOperation: operationSnapshot(context: context, before))
+    }
+
+    /// 操作前快照（方案 §6.3）：补偿按它逆序回位，所以身份与写前实读帧必须真实给出。
+    static func operationSnapshot(context: GeometryOperationContext,
+                                  _ entries: [(identity: WindowIdentity, frame: CGRect)]) -> WorkbenchOperationSnapshot {
+        var snapshot = WorkbenchOperationSnapshot(context: context)
+        for entry in entries {
+            snapshot.record(OperationGeometrySnapshot(identity: entry.identity,
+                                                      beforeFrame: entry.frame,
+                                                      beforeDisplayID: HostFixtures.display.id),
+                            writtenStep: true)
+        }
+        return snapshot
+    }
+}
+
 final class ActionRecorder {
     private(set) var actions: [OverviewContentView.Action] = []
     var onEach: ((OverviewContentView.Action) -> Void)?

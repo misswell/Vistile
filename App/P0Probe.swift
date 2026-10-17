@@ -2,6 +2,7 @@ import AppKit
 import CoreGraphics
 import Darwin
 import Foundation
+import QuartzCore
 import VistileCore
 
 /// P0 灰盒探针（方案 §4）。
@@ -19,8 +20,22 @@ final class P0Probe {
     private var checklist: [Item] = []
     /// soak 开始前的真实 frame 基准（P0-16 进入工作台之前取）：收尾用它核对窗口有没有被写漂移。
     private var soakFrameBaseline: [WindowIdentity: CGRect] = [:]
-    /// 三条路径的「点击→落定」墙钟样本（毫秒）：enter / swap / return。
-    private var soakWallTimes: [String: [Double]] = [:]
+    /// 三条路径的「点击→落定」延迟样本（毫秒，单调时钟）：enter / swap / return。
+    private var soakLatencyMS: [String: [Double]] = [:]
+    /// 几何事务对照行（方案 §22）：工作台在途时按 journal 事实逐窗口采样，收尾再与真实 frame 对一次。
+    private var ledgerRows: [LedgerRow] = []
+    /// 曾出现过真实写入读回的窗口：`journalKey → 该窗口的全部几何事实`。
+    /// 收尾判定「退出恢复后确实回到 original」要靠这份名单，不能靠收尾时 journal 里还剩什么
+    /// ——落定的事务会被正常删除，那时已经没有行可对。
+    /// 事实要整份留着：恢复后的对照行同样得给出 before/target/displayID，只留两个 frame 就成不了表。
+    private struct LedgerWrittenFact {
+        let original: CGRect
+        let operationBefore: String
+        let target: String
+        let readBack: CGRect
+        let displayIDs: String
+    }
+    private var ledgerWrittenFacts: [String: LedgerWrittenFact] = [:]
 
     /// 一轮探针跑完后的收尾动作：命令行运行时用它把应用退出，保证一次调用得到一份产物。
     var onFinished: (() -> Void)?
@@ -62,6 +77,7 @@ final class P0Probe {
         // 长跑序列：样本闸门（§19.13 每条路径 ≥100 次）与 §19.11 的 30 分钟资源曲线都走这一轮。
         if let minutes = P0Probe.longRunMinutes() {
             await longRun(minutes: minutes)
+            await p0_19_transactionLedger()
             await p0_18_frameBudget()
             await performanceSample()
             await finishReport()
@@ -85,6 +101,7 @@ final class P0Probe {
         await p0_14_returnToOverview()
         await p0_16_swapSoak()
         await p0_17_roundTrips()
+        await p0_19_transactionLedger()
         await p0_18_frameBudget()
         await performanceSample()
         await finishReport()
@@ -187,12 +204,12 @@ final class P0Probe {
         }
         let before = Dictionary(uniqueKeysWithValues: occluded.map { ($0.identity, coordinator.capture.mailbox(for: $0.identity).publishedCount) })
         let framesA = totalPublished()
-        let started = Date()
+        let started = monotonicNow()
         try? await Task.sleep(nanoseconds: 1_500_000_000)
         let grew = occluded.filter { item in
             self.coordinator.capture.mailbox(for: item.identity).publishedCount > (before[item.identity] ?? 0)
         }
-        let wall = max(0.001, Date().timeIntervalSince(started))
+        let wall = max(0.001, monotonicNow() - started)
         let delta = totalPublished() - framesA
         let detail = "被遮挡窗口 \(occluded.count) 个，其中 \(grew.count) 个在 \(String(format: "%.1f", wall))s 内收到新帧；"
             + "全目录帧增量 \(delta)（约 \(String(format: "%.1f", Double(delta) / wall)) 帧/秒）"
@@ -371,8 +388,8 @@ final class P0Probe {
     /// 连续两次 CGWindowList 读数一致才算稳定；到点仍不稳定就返回最后一次读数。
     private func waitUntilWindowListStable(timeout: TimeInterval = 1.5) async -> [UInt32: Int] {
         var previous = windowOrder()
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
+        let deadline = monotonicNow() + timeout
+        while monotonicNow() < deadline {
             try? await Task.sleep(nanoseconds: 100_000_000)
             let current = windowOrder()
             if current == previous { return current }
@@ -482,11 +499,11 @@ final class P0Probe {
         }
         let minimizedBefore = coordinator.state.records.values.filter(\.isMinimized).count
         let consumed = coordinator.controllers.values.filter { $0.consumesBackgroundClicks() }.count
-        let started = Date()
+        let started = monotonicNow()
         for _ in 0..<100 {
             coordinator.dispatch(.backgroundClicked(interaction: InteractionToken()))
         }
-        let ms = Date().timeIntervalSince(started) * 1000
+        let ms = (monotonicNow() - started) * 1000
         let phase = coordinator.state.phase
         let minimizedAfter = coordinator.state.records.values.filter(\.isMinimized).count
         let passed = consumed == coordinator.controllers.count
@@ -512,6 +529,7 @@ final class P0Probe {
         case .collapsing: return "collapsing"
         case let .switching(_, to, _): return "switching(\(to.journalKey))"
         case let .recovering(destination, _): return "recovering(\(destination))"
+        case .recoveryRequired: return "recoveryRequired"
         }
     }
 
@@ -908,8 +926,8 @@ final class P0Probe {
             manual("P0-13", "交换画面", "两个以上窗口时点顶栏/侧栏的预览：主区换成它，被换下的窗口出现在那张卡片的位置。")
             return
         }
-        let beforeTop = state.workbench.topScrollOffset
-        let beforeSide = state.workbench.sideScrollOffset
+        let beforeTop = state.workbench.scrollOffset(rail: .top)
+        let beforeSide = state.workbench.scrollOffset(rail: .side)
         let beforeOthers = state.workbench.placement.occupants.filter { $0.key != cardB.slot }
         let beforeFrames = beforeOthers.mapValues { state.records[$0]?.frame }
         let bSize = state.records[cardB.identity]?.frame.size
@@ -949,9 +967,9 @@ final class P0Probe {
         if afterOthers != beforeOthers {
             issues.append("其他 slot 占用发生变化（\(beforeOthers.count) → \(afterOthers.count)）")
         }
-        if after.workbench.topScrollOffset != beforeTop || after.workbench.sideScrollOffset != beforeSide {
-            issues.append("滚动偏移被改变（顶 \(beforeTop)→\(after.workbench.topScrollOffset)，"
-                        + "侧 \(beforeSide)→\(after.workbench.sideScrollOffset)）")
+        if after.workbench.scrollOffset(rail: .top) != beforeTop || after.workbench.scrollOffset(rail: .side) != beforeSide {
+            issues.append("滚动偏移被改变（顶 \(beforeTop)→\(after.workbench.scrollOffset(rail: .top))，"
+                        + "侧 \(beforeSide)→\(after.workbench.scrollOffset(rail: .side))）")
         }
         var moved: [String] = []
         for (slot, identity) in beforeOthers {
@@ -986,6 +1004,7 @@ final class P0Probe {
                 facts.append("原主回到进入前位置（偏差 \(P0Probe.pt(deviation))pt）")
             }
         }
+        captureLedger(stage: "工作台在途·P0-13 单次交换后")
         record("P0-13", "主副交换", passed: issues.isEmpty,
                detail: issues.isEmpty
                     ? "真实点击\(cardB.slot.rail == .top ? "顶栏" : "侧栏")卡片 \(cardB.identity.journalKey)：主区切到它、"
@@ -1119,7 +1138,7 @@ final class P0Probe {
         var swaps = 0
         var topClicks = 0
         var sideClicks = 0
-        var wallTimes: [Double] = []
+        var latencyMS: [Double] = []
         var consecutiveFailures = 0
         for index in 0..<100 {
             let preferTop = index % 2 == 0
@@ -1134,10 +1153,10 @@ final class P0Probe {
             // 期间有别的窗口开合是环境噪声，不是产品把卡片挪了。
             let beforeSeat = Dictionary(uniqueKeysWithValues: before.workbench.placement.occupants
                 .filter { $0.key != slot }.map { ($0.value, $0.key) })
-            let beforeTopScroll = before.workbench.topScrollOffset
-            let beforeSideScroll = before.workbench.sideScrollOffset
+            let beforeTopScroll = before.workbench.scrollOffset(rail: .top)
+            let beforeSideScroll = before.workbench.scrollOffset(rail: .side)
             let oldMain = before.workbench.placement.main
-            let started = Date()
+            let started = monotonicNow()
             guard sendRealMouseDownUp((point.window, point.point), hitView: point.view) else {
                 failures.append("第 \(index + 1) 次：真实点击无法派发")
                 break
@@ -1145,7 +1164,7 @@ final class P0Probe {
             let converged = await waitUntil(timeout: 8.0) {
                 self.isSettled(main: identity) && self.coordinator.workbenchControllers.values.contains(where: \.isVisible)
             }
-            wallTimes.append(Date().timeIntervalSince(started) * 1000)
+            latencyMS.append((monotonicNow() - started) * 1000)
             if !converged {
                 let state = coordinator.state
                 var note = "-"
@@ -1167,7 +1186,7 @@ final class P0Probe {
             if !movedCards.isEmpty {
                 issues.append("其他卡片挪位：" + movedCards.joined(separator: "、"))
             }
-            if after.workbench.topScrollOffset != beforeTopScroll || after.workbench.sideScrollOffset != beforeSideScroll {
+            if after.workbench.scrollOffset(rail: .top) != beforeTopScroll || after.workbench.scrollOffset(rail: .side) != beforeSideScroll {
                 issues.append("滚动偏移被改变")
             }
             if issues.isEmpty {
@@ -1181,6 +1200,7 @@ final class P0Probe {
             // 中途取一次真实 frame 事实：非参与窗口不该被动过。
             if index == 49 {
                 await refreshCatalog()
+                captureLedger(stage: "工作台在途·交换第50次")
                 let drift = frameDriftReport(baseline: soakFrameBaseline, excluding: participants)
                 if !drift.silent.isEmpty {
                     failures.append("50 次后非参与窗口几何被动过：" + drift.silent.joined(separator: "、"))
@@ -1188,8 +1208,8 @@ final class P0Probe {
             }
             if consecutiveFailures >= 3 { break }
         }
-        soakWallTimes["swap"] = wallTimes
-        let p95 = Self.percentile(of: wallTimes, 0.95)
+        soakLatencyMS["swap"] = latencyMS
+        let p95 = Self.percentile(of: latencyMS, 0.95)
         record("P0-16", "固定交换 100 次",
                passed: failures.isEmpty && swaps == 100,
                detail: failures.isEmpty
@@ -1247,13 +1267,13 @@ final class P0Probe {
                 failures.append("第 \(index + 1) 轮找不到「全部窗口」按钮")
                 break
             }
-            let returnStarted = Date()
+            let returnStarted = monotonicNow()
             guard sendRealMouseDownUp((button.window, button.point), hitView: button.view) else {
                 failures.append("第 \(index + 1) 轮「全部窗口」点击无法派发")
                 break
             }
             let returned = await waitUntil(timeout: 8.0) { self.isSettled(overviewVisible: true) }
-            soakWallTimes["return", default: []].append(Date().timeIntervalSince(returnStarted) * 1000)
+            soakLatencyMS["return", default: []].append((monotonicNow() - returnStarted) * 1000)
             if !returned {
                 failures.append("第 \(index + 1) 轮没回到总览（阶段=\(phaseDebug(coordinator.state.phase))）")
                 break
@@ -1279,7 +1299,7 @@ final class P0Probe {
                 failures.append("第 \(index + 1) 轮 \(identity.journalKey) 格子不在面板上")
                 break
             }
-            let enterStarted = Date()
+            let enterStarted = monotonicNow()
             guard sendRealMouseDownUp(point) else {
                 failures.append("第 \(index + 1) 轮卡片点击无法派发")
                 break
@@ -1287,7 +1307,7 @@ final class P0Probe {
             let entered = await waitUntil(timeout: 8.0) {
                 self.isSettled(main: identity) && self.coordinator.workbenchControllers.values.contains(where: \.isVisible)
             }
-            soakWallTimes["enter", default: []].append(Date().timeIntervalSince(enterStarted) * 1000)
+            soakLatencyMS["enter", default: []].append((monotonicNow() - enterStarted) * 1000)
             if !entered {
                 let state = coordinator.state
                 failures.append("第 \(index + 1) 轮进入没落定到 \(identity.journalKey)"
@@ -1311,11 +1331,11 @@ final class P0Probe {
                 }
             } else {
                 seatBaseline = seats
-                baselineTopScroll = state.workbench.topScrollOffset
-                baselineSideScroll = state.workbench.sideScrollOffset
+                baselineTopScroll = state.workbench.scrollOffset(rail: .top)
+                baselineSideScroll = state.workbench.scrollOffset(rail: .side)
             }
             if let top = baselineTopScroll, let side = baselineSideScroll,
-               state.workbench.topScrollOffset != top || state.workbench.sideScrollOffset != side {
+               state.workbench.scrollOffset(rail: .top) != top || state.workbench.scrollOffset(rail: .side) != side {
                 failures.append("第 \(index + 1) 轮滚动偏移被改变")
                 consecutiveFailures += 1
             }
@@ -1338,8 +1358,8 @@ final class P0Probe {
             if again.silent == drift.silent, again.reported == drift.reported { break }
             drift = again
         }
-        let enterTimes = soakWallTimes["enter"] ?? []
-        let returnTimes = soakWallTimes["return"] ?? []
+        let enterTimes = soakLatencyMS["enter"] ?? []
+        let returnTimes = soakLatencyMS["return"] ?? []
         var issues = failures
         if rounds != 100 { issues.append("完成 \(rounds)/100 轮") }
         if !drift.silent.isEmpty { issues.append("真实 frame 静默漂移（产品没有任何记录）：" + drift.silent.prefix(4).joined(separator: "、")) }
@@ -1355,6 +1375,143 @@ final class P0Probe {
                     : "已完成 \(rounds)/100 轮；问题：" + issues.prefix(3).joined(separator: "；"),
                check: "P0-17 往返 soak")
         manual("P0-17", "往返录屏", "点「全部窗口」回总览、再点同一/不同窗口，往返 30 次：总览位置、轨道位置、滚动都不变，退出后再开仍从总览开始。")
+    }
+
+    // MARK: - P0-19 几何事务对照（方案 §22）
+
+    /// 一行对照：一个被写窗口在某个时刻的全部几何事实。
+    /// 交付清单要求「退出/失败恢复前后每个被写窗口的 original/before/target/readBack/displayID 对照」，
+    /// 只给一句"恢复通过"不算交付——偏离多少、有没有读回，必须能从表里读出来。
+    private struct LedgerRow {
+        let stage: String
+        let key: String
+        let original: String
+        let operationBefore: String
+        let target: String
+        let readBack: String
+        let displayID: String
+        let state: String
+        let live: String
+        let deviation: CGFloat
+
+        var markdownLine: String {
+            let dev = deviation < 0 ? "—" : String(format: "%.1f", deviation)
+            return "| \(stage) | \(key) | \(original) | \(operationBefore) | \(target) | \(readBack) | \(displayID) | \(state) | \(live) | \(dev) |"
+        }
+    }
+
+    /// 从 journal 的已提交事实采样一行行对照。工作台在途时调用，才有 target/readBack 可记。
+    private func captureLedger(stage: String) {
+        let records = coordinator.state.records
+        for entry in coordinator.journal.snapshot.entries.values.sorted(by: { $0.identity.journalKey < $1.identity.journalKey }) {
+            let key = entry.identity.journalKey
+            let live = records[entry.identity]?.frame
+            let dev = live.map { Self.rectDeviation($0, entry.originalFrame) } ?? -1
+            let displayIDs = "原\(entry.originalDisplayID)/目标\(entry.plannedDisplayID.map(String.init) ?? "—")/读回\(entry.provisionalDisplayID.map(String.init) ?? "—")"
+            ledgerRows.append(LedgerRow(stage: stage,
+                                        key: key,
+                                        original: Self.rectText(entry.originalFrame),
+                                        operationBefore: entry.operationBeforeFrame.map(Self.rectText) ?? "—",
+                                        target: entry.plannedFrame.map(Self.rectText) ?? "—",
+                                        readBack: entry.lastProvisionalFrame.map(Self.rectText) ?? "—",
+                                        displayID: displayIDs,
+                                        state: String(describing: entry.state),
+                                        live: live.map(Self.rectText) ?? "窗口已不在目录",
+                                        deviation: dev))
+            // 有读回=这次真的动过窗口。这份名单是收尾判定的依据：事务落定后会被正常删除。
+            if let readBack = entry.lastProvisionalFrame {
+                ledgerWrittenFacts[key] = LedgerWrittenFact(original: entry.originalFrame,
+                                                            operationBefore: entry.operationBeforeFrame.map(Self.rectText) ?? "—",
+                                                            target: entry.plannedFrame.map(Self.rectText) ?? "—",
+                                                            readBack: readBack,
+                                                            displayIDs: displayIDs)
+            }
+        }
+    }
+
+    /// 「恢复后」一侧也要逐窗口成行：只给未回位名单，读的人看不到每个被写窗口各自的最终事实，
+    /// 就不满足方案 §22 的「退出/失败恢复前后」对照。落定的事务此时已从 journal 删除，
+    /// 所以这些行只能由在途时留下的 `ledgerWrittenFacts` + 当前真实读数拼出来。
+    private func appendRecoveredRows() {
+        let records = coordinator.state.records
+        let entries = coordinator.journal.snapshot.entries
+        for (key, fact) in ledgerWrittenFacts.sorted(by: { $0.key < $1.key }) {
+            let live = records.values.first { $0.identity.journalKey == key }?.frame
+            let dev = live.map { Self.rectDeviation($0, fact.original) } ?? -1
+            let state = entries[key].map { String(describing: $0.state) } ?? "已落定并删除"
+            ledgerRows.append(LedgerRow(stage: "退出恢复后",
+                                        key: key,
+                                        original: Self.rectText(fact.original),
+                                        operationBefore: fact.operationBefore,
+                                        target: fact.target,
+                                        readBack: Self.rectText(fact.readBack),
+                                        displayID: fact.displayIDs,
+                                        state: state,
+                                        live: live.map(Self.rectText) ?? "窗口已不在目录",
+                                        deviation: dev))
+        }
+    }
+
+    /// 收尾对照：每个曾有真实写入读回的窗口，此刻必须回到会话 original。
+    /// 窗口服务器几何提交滞后 AX（P0-17 同一实测结论），所以未回位的读数要连续两次一致才判。
+    private func p0_19_transactionLedger() async {
+        await refreshCatalog()
+        var unrestored: [String] = []
+        var attempts = 0
+        while true {
+            unrestored = ledgerUnrestoredReport()
+            if unrestored.isEmpty || attempts >= 3 { break }
+            attempts += 1
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            await refreshCatalog()
+        }
+        // 前一次 refreshCatalog 就是最后一批真实读数：恢复后的行必须用它，不能再猜。
+        appendRecoveredRows()
+        let rows = ledgerRows.map(\.markdownLine).joined(separator: "\n")
+        recorder.note("""
+        ## P0-19 几何事务对照（方案 §22）
+        | 时刻 | 窗口 | original | 操作前(before) | 目标(target) | 读回(readBack) | displayID 原/目标/读回 | 状态 | 当前真实 frame | 与 original 偏离pt |
+        | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+        \(rows.isEmpty ? "| — | 本轮没采到在途事务 | | | | | | | | |" : rows)
+        """)
+        guard !ledgerWrittenFacts.isEmpty else {
+            record("P0-19", "几何事务对照", passed: nil,
+                   detail: "本轮没有任何「写入后读回」的窗口事实可对照（soak 未跑成或被环境挡住），"
+                         + "对照表 \(ledgerRows.count) 行全是未写入事务；不能据此判定恢复正确",
+                   check: "P0-19 几何事务对照")
+            return
+        }
+        let lingering = coordinator.journal.snapshot.entries.values
+            .filter { !$0.state.requiresRestore }
+            .map { "\($0.identity.journalKey)（state=\($0.state)）" }
+            .sorted()
+        var issues: [String] = []
+        if !unrestored.isEmpty {
+            issues.append("曾有真实写入读回的窗口里 \(unrestored.count)/\(ledgerWrittenFacts.count) 个没回到 original："
+                          + unrestored.prefix(4).joined(separator: "、"))
+        }
+        if !lingering.isEmpty {
+            issues.append("收尾仍留存 \(lingering.count) 笔不要求恢复的事务（方案 §7.2 的未解释恢复义务）："
+                          + lingering.prefix(4).joined(separator: "、"))
+        }
+        record("P0-19", "几何事务对照", passed: issues.isEmpty,
+               detail: issues.isEmpty
+                    ? "采到 \(ledgerRows.count) 行对照（覆盖 \(ledgerWrittenFacts.count) 个曾有写入读回的窗口）；"
+                      + "退出恢复后每个被写窗口的真实 frame 与会话 original 偏离 ≤4pt；"
+                      + "收尾无「不要求恢复却仍留存」的事务；逐行见报告对照表"
+                    : issues.joined(separator: "；") + "；逐行见报告对照表",
+               check: "P0-19 几何事务对照")
+    }
+
+    /// 曾有写入读回的窗口 → 现在还在 original 上吗。读不到当前 frame 的窗口（已关闭）不算未回位。
+    private func ledgerUnrestoredReport() -> [String] {
+        let records = coordinator.state.records
+        return ledgerWrittenFacts.compactMap { key, fact in
+            guard let now = records.values.first(where: { $0.identity.journalKey == key })?.frame else { return nil }
+            let dev = Self.rectDeviation(now, fact.original)
+            guard dev > 4 else { return nil }
+            return "\(key) 现偏 original \(Self.pt(dev))pt（读回曾为 \(Self.rectText(fact.readBack))）"
+        }.sorted()
     }
 
     // MARK: - P0-18 样本与帧预算（方案 §19.13、§20.2）
@@ -1378,20 +1535,42 @@ final class P0Probe {
         let overBudget = counters["过渡超帧预算"] ?? 0
         facts.append("帧预算：\(counters["过渡帧预算内"] ?? 0) 段在内、\(overBudget) 段超预算（判据 P95≤20ms 且掉帧占比≤1% 且无连续 3 帧卡顿）")
         if overBudget > 0 { misses.append("有 \(overBudget) 段过渡超出 §20.2 帧预算") }
-        // 墙钟：点击→落定。目标来自 §20.2（慢应用按方案允许超时回滚，数字就是数字，照实写）。
-        let walls: [(key: String, kind: String, targetMS: Double)] = [
-            ("enter", "总览→L 型", 600), ("swap", "L 型内交换", 500), ("return", "L 型→总览", 500)]
-        for wall in walls {
-            let values = soakWallTimes[wall.key] ?? []
-            let p95 = Self.percentile(of: values, 0.95)
-            facts.append("\(wall.kind) 点击→落定 p95=\(String(format: "%.0f", p95))ms（目标 ≤\(Int(wall.targetMS))ms，n=\(values.count)）")
-            if !values.isEmpty {
-                recorder.recordPerformance(PerformanceSample(name: "点击→落定p95·\(wall.kind)",
-                                                             valueMS: p95,
-                                                             context: "n=\(values.count)，目标 ≤\(Int(wall.targetMS))ms"))
+        // 点击→第一帧单独判（方案 §20.2「把每段动画的首帧延迟单独记录」+ §20.1 点击反馈 P95 ≤50ms）。
+        // 帧间隔统计只覆盖动画内部，看不见"点了很久没出第一帧"，所以两段各算各的。
+        for kind in ["总览→L 型", "L 型内交换", "L 型→总览"] {
+            guard let sample = summary.first(where: { $0.name.hasPrefix("过渡首帧延迟·\(kind)") }) else {
+                shortfalls.append("\(kind) 没有锚在真实点击上的首帧样本")
+                continue
             }
-            if values.count < 100 { shortfalls.append("\(wall.kind) 墙钟样本 \(values.count) < 100") }
-            else if p95 > wall.targetMS { misses.append("\(wall.kind) 点击→落定 p95 超 \(Int(wall.targetMS))ms 目标") }
+            let n = Self.sampleCount(from: sample.context)
+            facts.append("\(kind) 点击→首帧 p95=\(String(format: "%.1f", sample.valueMS))ms（目标 ≤50ms，n=\(n)）")
+            if n < 100 { shortfalls.append("\(kind) 首帧样本 \(n) < 100") }
+            else if sample.valueMS > 50 { misses.append("\(kind) 点击→首帧 p95 超 50ms 目标") }
+            if let unanchored = summary.first(where: { $0.name.hasPrefix("过渡首帧延迟(无点击锚点)·\(kind)") }) {
+                facts.append("\(kind) 无点击锚点段 p95=\(String(format: "%.1f", unanchored.valueMS))ms"
+                    + "（\(Self.sampleCount(from: unanchored.context)) 段，不计入点击反馈）")
+            }
+        }
+        // 回调次数不能代替呈现（方案 §20.2）：present=0 的段没有画面证据，回调多于 present 的差额是真实丢帧。
+        let zeroPresent = counters["过渡零呈现段"] ?? 0
+        let callbackOnly = counters["过渡回调多于呈现"] ?? 0
+        facts.append("呈现核对：\(zeroPresent) 段一次 present 都没有、回调多于呈现合计 \(callbackOnly) 帧")
+        if zeroPresent > 0 { misses.append("有 \(zeroPresent) 段过渡没有任何画面证据") }
+        if callbackOnly > 0 { misses.append("有 \(callbackOnly) 个显示链接回调没换成帧") }
+        // 点击→落定延迟（单调时钟差值，方案 §20.2）。目标来自 §20.1（慢应用按方案允许超时回滚，数字就是数字，照实写）。
+        let paths: [(key: String, kind: String, targetMS: Double)] = [
+            ("enter", "总览→L 型", 600), ("swap", "L 型内交换", 500), ("return", "L 型→总览", 500)]
+        for path in paths {
+            let values = soakLatencyMS[path.key] ?? []
+            let p95 = Self.percentile(of: values, 0.95)
+            facts.append("\(path.kind) 点击→落定 p95=\(String(format: "%.0f", p95))ms（目标 ≤\(Int(path.targetMS))ms，n=\(values.count)）")
+            if !values.isEmpty {
+                recorder.recordPerformance(PerformanceSample(name: "点击→落定p95·\(path.kind)",
+                                                             valueMS: p95,
+                                                             context: "n=\(values.count)，目标 ≤\(Int(path.targetMS))ms"))
+            }
+            if values.count < 100 { shortfalls.append("\(path.kind) 延迟样本 \(values.count) < 100") }
+            else if p95 > path.targetMS { misses.append("\(path.kind) 点击→落定 p95 超 \(Int(path.targetMS))ms 目标") }
         }
         record("P0-18", "样本与帧预算", passed: shortfalls.isEmpty ? misses.isEmpty : nil,
                detail: (shortfalls.isEmpty ? "" : "样本不足（不能判）：\(shortfalls.joined(separator: "；"))；")
@@ -1405,33 +1584,34 @@ final class P0Probe {
 
     /// 反复走三条真实点击路径（返回总览 → 点卡片进工作台 → 点轨道卡交换），
     /// 周期采样本进程 RSS；结束时隐藏并核对活跃流最终为零。
-    /// 墙钟与帧样本累计进 soakWallTimes / Metrics，P0-18 在同一轮里按 n≥100 判定。
+    /// 点击→落定延迟与帧样本累计进 soakLatencyMS / Metrics，P0-18 在同一轮里按 n≥100 判定。
     private func longRun(minutes: Int) async {
         await restoreOverview()
         await refreshCatalog()
         if soakFrameBaseline.isEmpty { soakFrameBaseline = await captureStableFrameBaseline() }
-        let started = Date()
-        let deadline = started.addingTimeInterval(Double(minutes) * 60)
+        let started = monotonicNow()
+        let deadline = started + Double(minutes) * 60
         let cpuStart = P0Probe.processCPUSeconds()
         var failures: [String] = []
         var rounds = 0
         var consecutiveFailures = 0
         var rssSamples: [(offset: TimeInterval, mb: Double)] = []
-        var lastSampleAt = Date.distantPast
-        while Date() < deadline {
+        // 单调时钟没有"纪元"可言，用"15 秒前"表达第一轮立即采一次（原来的 Date.distantPast 同一意图）。
+        var lastSampleAt = monotonicNow() - 15
+        while monotonicNow() < deadline {
             // 1) 返回总览：真实点击「全部窗口」；已经不在工作台就先补一次进入。
             if coordinator.state.mode == .workbench {
                 guard let button = allWindowsButtonPoint() else {
                     failures.append("第 \(rounds + 1) 轮找不到「全部窗口」按钮")
                     break
                 }
-                let returnStarted = Date()
+                let returnStarted = monotonicNow()
                 guard sendRealMouseDownUp((button.window, button.point), hitView: button.view) else {
                     failures.append("第 \(rounds + 1) 轮「全部窗口」点击无法派发")
                     break
                 }
                 let returned = await waitUntil(timeout: 8.0) { self.isSettled(overviewVisible: true) }
-                soakWallTimes["return", default: []].append(Date().timeIntervalSince(returnStarted) * 1000)
+                soakLatencyMS["return", default: []].append((monotonicNow() - returnStarted) * 1000)
                 guard returned else {
                     failures.append("第 \(rounds + 1) 轮没回到总览（阶段=\(phaseDebug(coordinator.state.phase))）")
                     break
@@ -1444,7 +1624,7 @@ final class P0Probe {
                 failures.append("第 \(rounds + 1) 轮没有可点的总览卡片")
                 break
             }
-            let enterStarted = Date()
+            let enterStarted = monotonicNow()
             guard sendRealMouseDownUp(point) else {
                 failures.append("第 \(rounds + 1) 轮卡片点击无法派发")
                 break
@@ -1453,7 +1633,7 @@ final class P0Probe {
             let entered = await waitUntil(timeout: 10.0) {
                 self.isSettled(main: candidate.identity) && self.coordinator.workbenchControllers.values.contains(where: \.isVisible)
             }
-            soakWallTimes["enter", default: []].append(Date().timeIntervalSince(enterStarted) * 1000)
+            soakLatencyMS["enter", default: []].append((monotonicNow() - enterStarted) * 1000)
             guard entered else {
                 failures.append("第 \(rounds + 1) 轮进入没落定到 \(candidate.identity.journalKey)"
                               + "（阶段=\(phaseDebug(coordinator.state.phase))）")
@@ -1464,13 +1644,13 @@ final class P0Probe {
                let slot = firstClickableRailSlot(in: presentation.cards, excluding: candidate.identity),
                let identity = presentation.cards.first(where: { $0.slot == slot })?.identity,
                let railPoint = workbenchRailPoint(for: slot) {
-                let swapStarted = Date()
+                let swapStarted = monotonicNow()
                 guard sendRealMouseDownUp((railPoint.window, railPoint.point), hitView: railPoint.view) else {
                     failures.append("第 \(rounds + 1) 轮轨道点击无法派发")
                     break
                 }
                 let swapped = await waitUntil(timeout: 8.0) { self.isSettled(main: identity) }
-                soakWallTimes["swap", default: []].append(Date().timeIntervalSince(swapStarted) * 1000)
+                soakLatencyMS["swap", default: []].append((monotonicNow() - swapStarted) * 1000)
                 if !swapped {
                     consecutiveFailures += 1
                     if consecutiveFailures >= 3 {
@@ -1479,13 +1659,14 @@ final class P0Probe {
                     }
                 } else {
                     consecutiveFailures = 0
+                    if ledgerRows.isEmpty { captureLedger(stage: "工作台在途·长跑首轮交换后") }
                 }
             }
             rounds += 1
-            if Date().timeIntervalSince(lastSampleAt) >= 15 {
-                lastSampleAt = Date()
+            if monotonicNow() - lastSampleAt >= 15 {
+                lastSampleAt = monotonicNow()
                 if let mb = P0Probe.residentFootprintMB() {
-                    rssSamples.append((Date().timeIntervalSince(started), mb))
+                    rssSamples.append((monotonicNow() - started, mb))
                 }
             }
         }
@@ -1494,12 +1675,12 @@ final class P0Probe {
         coordinator.toggleOverview()
         _ = await waitUntil(timeout: 5.0) { self.coordinator.state.phase == .hidden }
         var streamsNow = coordinator.capture.activeStreamCount
-        let streamDeadline = Date().addingTimeInterval(10)
-        while streamsNow > 0, Date() < streamDeadline {
+        let streamDeadline = monotonicNow() + 10
+        while streamsNow > 0, monotonicNow() < streamDeadline {
             try? await Task.sleep(nanoseconds: 500_000_000)
             streamsNow = coordinator.capture.activeStreamCount
         }
-        let duration = Date().timeIntervalSince(started)
+        let duration = monotonicNow() - started
         let cpuUsed = P0Probe.processCPUSeconds().flatMap { end in cpuStart.map { end - $0 } }
         let cpuAverage = cpuUsed.map { $0 / duration * 100 }
         let mb = { (value: Double) in String(format: "%.0f", value) }
@@ -1515,7 +1696,7 @@ final class P0Probe {
         if grew { issues.append("RSS 末段均值 \(mb(lastAvg ?? 0))MB 高于首段 \(mb(firstAvg ?? 0))MB 超 50MB") }
         if streamsNow != 0 { issues.append("隐藏后 10s 内活跃流未归零（现 \(streamsNow) 路）") }
         let walls = ["enter", "swap", "return"].map { key -> String in
-            let values = soakWallTimes[key] ?? []
+            let values = soakLatencyMS[key] ?? []
             return "\(key) n=\(values.count) p95=\(String(format: "%.0f", Self.percentile(of: values, 0.95)))ms"
         }
         record("P0-长跑", "\(minutes) 分钟长时运行", passed: issues.isEmpty,
@@ -1659,9 +1840,9 @@ final class P0Probe {
         // 帧事实要有观察窗：锁屏/显示休眠与"刚重新打开、流还在起步"是两种形状。
         // 0.1.10+18 那轮在隐藏态采了一次样（信箱已释放）就写「全程 0 帧」，
         // 与同一份报告里 P0-2 的 96 帧自相矛盾——单一瞬时读数不能当环境结论。
-        let deadline = Date().addingTimeInterval(2.5)
+        let deadline = monotonicNow() + 2.5
         var frames = totalPublished()
-        while frames == 0 && Date() < deadline {
+        while frames == 0 && monotonicNow() < deadline {
             try? await Task.sleep(nanoseconds: 250_000_000)
             frames = totalPublished()
         }
@@ -1787,9 +1968,9 @@ final class P0Probe {
     private func performanceSample() async {
         let framesBefore = totalPublished()
         let cpuBefore = P0Probe.processCPUSeconds()
-        let started = Date()
+        let started = monotonicNow()
         try? await Task.sleep(nanoseconds: 3_000_000_000)
-        let wall = max(0.001, Date().timeIntervalSince(started))
+        let wall = max(0.001, monotonicNow() - started)
         let frames = totalPublished() - framesBefore
         let streams = coordinator.capture.activeStreamCount
         let polled = coordinator.capture.polledCount
@@ -1809,7 +1990,7 @@ final class P0Probe {
         manual("性能", "多窗口压力", "开到 30 个窗口，确认帧率下降是渐进的、卡片标注与实际更新方式一致。")
     }
 
-    /// 本进程已消耗的 CPU 时间（用户 + 系统），单位秒。100% 记法由调用方按墙钟时间换算。
+    /// 本进程已消耗的 CPU 时间（用户 + 系统），单位秒。100% 记法由调用方按采样时长（单调时钟）换算。
     static func processCPUSeconds() -> Double? {
         var info = rusage_info_current()
         let result: Int32 = withUnsafeMutablePointer(to: &info) { pointer in
@@ -1874,9 +2055,15 @@ final class P0Probe {
         return nil
     }
 
+    /// 采样用的单调时钟（方案 §20.2「时间使用单调时钟；wall-clock 时间只用于报告日期」）。
+    /// `Date()` 会被 NTP 步进、手动改表和时区调整挪动，用它做差能凭空造出 ±几十秒的"点击耗时"；
+    /// `CACurrentMediaTime()` 走 mach_absolute_time，和过渡帧间隔样本（ModeTransitionCoordinator）同一时间域，
+    /// 两边读数可以直接对齐。报告里的日期时间戳仍然用墙钟。
+    private func monotonicNow() -> TimeInterval { CACurrentMediaTime() }
+
     private func waitUntil(timeout: TimeInterval = 6.0, _ predicate: @escaping () -> Bool) async -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
+        let deadline = monotonicNow() + timeout
+        while monotonicNow() < deadline {
             if predicate() { return true }
             try? await Task.sleep(nanoseconds: 120_000_000)
         }
@@ -1890,9 +2077,9 @@ final class P0Probe {
                                       expected: CGRect,
                                       tolerance: CGFloat = 4,
                                       timeout: TimeInterval = 2.0) async -> CGRect? {
-        let deadline = Date().addingTimeInterval(timeout)
+        let deadline = monotonicNow() + timeout
         var latest = coordinator.state.records[identity]?.frame
-        while Date() < deadline {
+        while monotonicNow() < deadline {
             if let latest, P0Probe.rectDeviation(latest, expected) <= tolerance { return latest }
             let generation = coordinator.state.catalogGeneration
             coordinator.refreshNow()

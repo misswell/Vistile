@@ -19,6 +19,9 @@ final class AppCoordinator {
     let journal: WindowJournalStore
     let catalog: WindowCatalog
     let capture: CaptureCoordinator
+    /// 全应用唯一的几何操作通道（方案 §5.1–§5.5、§14.2）：focus / switch / recovery 共用它，
+    /// 因此"取消屏障""排空""恢复授权"只有一处实现，也不存在第二条恢复路径。
+    let geometry: GeometryOperationScheduler
     let focus: FocusCoordinator
     let recovery: RecoveryCoordinator
     /// 工作台两窗口动作的串行执行器（方案 §8.2）；探针可读它的事实（是否到过限时）。
@@ -53,6 +56,9 @@ final class AppCoordinator {
     private(set) var cardClickCount = 0
     /// 只统计"由真实视图动作转接进来"的背景点击：P0 探针用它区分事件链路与直接 dispatch。
     private(set) var viewBackgroundClickCount = 0
+    /// 最近一次真实视图动作的时刻（单调时钟）：过渡首帧延迟以它为锚点（方案 §20.2）。
+    /// 锚在 `play()` 自己的进入时刻会把"点击后卡在目录复核里几百毫秒才起动画"这段洗掉。
+    private(set) var lastInputStamp: CFTimeInterval = 0
 
     private var eventQueue: [SessionEvent] = []
     private var isDraining = false
@@ -86,8 +92,32 @@ final class AppCoordinator {
     }
     private var pendingReveal: PendingReveal?
 
+    // MARK: - 会话级几何编排（方案 §5.4、§7.1、§14）
+
+    /// operationID → 操作上下文：`updateJournal` 失败只带 operationID，
+    /// 但补偿事件需要完整上下文（会话、代次、令牌、类型），所以在 prepare 时登记（方案 §7.2）。
+    private var operationContexts: [UUID: GeometryOperationContext] = [:]
+
+    /// 排空完成回调（宿主侧事件）：`drainGeometry` 发出后，只有这里才算"几何任务已终止"。
+    /// 核心层目前没有对应的回执事件，宿主先把事实暴露出来，reducer 补上后改成 dispatch（方案 §5.4）。
+    var onGeometryDrainFinished: ((GeometryOperationContext, Bool) -> Void)?
+
+    /// 一次统一隐藏入口的进度：撤销准入 → 清理意图 → 拆 UI/停捕获 → 栅栏 → 恢复。
+    /// 每个阶段都可能被打断，但同一次会话只允许一条这样的链（方案 §5.4）。
+    private enum SessionTeardown {
+        case idle
+        case revoked(sessionID: UUID)
+        case draining(GeometryOperationContext)
+        case finished(GeometryOperationContext, settled: Bool)
+    }
+    private var teardown: SessionTeardown = .idle
+
+    /// 供探针/测试读取的排空事实：最后一次隐藏是在等栅栏、还是已经排空、是否超预算。
+    private(set) var isGeometryDrained = true
+
     /// 渲染设备与着色器由调用方先建好：启动被阻塞时要分得清是"没有 Metal 设备"还是"着色器没编译过"。
-    /// 宿主测试注入口（方案 §18.2）：目录、捕获、几何写入与事务日志都可换替身，省略即生产接线。
+    /// 宿主测试注入口（方案 §18.2）：目录、捕获、几何写入、事务日志与进程实例判定都可换替身，省略即生产接线。
+    /// 进程实例判定必须可注入，否则退出恢复在宿主里只会得出"进程已不存在"，永远走不到真正写回原 frame 那一步。
     /// 不注册真实全局热键的选项只属于测试宿主：它不该占用用户系统里的组合键。
     init(settings: SettingsModel,
          permissions: PermissionChecking,
@@ -99,7 +129,9 @@ final class AppCoordinator {
          capture: CaptureCoordinator? = nil,
          journal: WindowJournalStore = WindowJournalStore(),
          writer: GeometryWriting? = nil,
-         registersGlobalHotKey: Bool = true) {
+         registersGlobalHotKey: Bool = true,
+         processIdentity: ProcessIdentityChecking = LiveProcessIdentity.shared,
+         geometryClock: (() -> GeometryOperationScheduler.Stamp)? = nil) {
         let resolver = AXWindowResolver()
         let catalog = catalog ?? WindowCatalog(permissions: permissions, resolver: resolver)
         let geometryWriter = writer ?? resolver
@@ -115,12 +147,17 @@ final class AppCoordinator {
         self.capture = capture ?? CaptureCoordinator(metal: metal, catalog: catalog)
         self.modes = ModeTransitionCoordinator(metal: metal)
         self.registersGlobalHotKey = registersGlobalHotKey
+        // 唯一的几何通道：注入时钟时用它（宿主测试用手动时钟证明退出预算，不靠真实 sleep，方案 §14/§18 A38）。
+        let geometry = GeometryOperationScheduler(now: geometryClock)
+        self.geometry = geometry
         // 恢复执行器先建：过渡执行器的恢复全部委托给它，避免两套恢复规则（方案 §6.5）。
         let recovery = RecoveryCoordinator(store: journal,
                                            writer: geometryWriter,
                                            catalog: catalog,
                                            settings: settings,
-                                           permissions: permissions)
+                                           permissions: permissions,
+                                           processIdentity: processIdentity,
+                                           scheduler: geometry)
         self.recovery = recovery
         let focus = FocusCoordinator(catalog: catalog,
                                      metal: metal,
@@ -130,7 +167,8 @@ final class AppCoordinator {
                                      metrics: metrics,
                                      recorder: recorder,
                                      recovery: recovery,
-                                     permissions: permissions)
+                                     permissions: permissions,
+                                     scheduler: geometry)
         self.focus = focus
         self.switchCoordinator = WorkbenchSwitchCoordinator(catalog: catalog,
                                                             writer: geometryWriter,
@@ -139,7 +177,8 @@ final class AppCoordinator {
                                                             focus: focus,
                                                             permissions: permissions,
                                                             metrics: metrics,
-                                                            recorder: recorder)
+                                                            recorder: recorder,
+                                                            scheduler: geometry)
     }
 
     // MARK: - 启动
@@ -175,7 +214,10 @@ final class AppCoordinator {
         focus.cardRectProvider = { [weak self] identity in self?.cardRects[identity] }
         focus.textureProvider = { [weak self] identity in self?.renderer.texture(for: identity) }
         // 过期的过渡不许再改状态：宿主用状态机自己那一次令牌判定。
-        focus.isTokenCurrent = { [weak self] token in self?.state.phase.token == token }
+        focus.isTokenCurrent = { [weak self] token in
+            guard let current = self?.state.phase.token else { return false }
+            return current == token
+        }
         switchCoordinator.onEvent = { [weak self] event in
             guard let self else { return }
             // 动画交接的开关只跟"真实结果"走：到位/提交才淡化，失败/取消立刻收（方案 §10.1、§10.4）。
@@ -187,7 +229,7 @@ final class AppCoordinator {
                 if result.allowsContinue { self.modes.confirm(token) } else { self.modes.retreat(token) }
             case let .mainSwitchCommitted(token):
                 self.modes.confirm(token)
-            case let .mainSwitchFailed(token, reason):
+            case let .mainSwitchFailed(token, reason, _):
                 self.log("workbench", "主区交换未完成：\(reason)")
                 self.modes.retreat(token)
             default:
@@ -208,6 +250,7 @@ final class AppCoordinator {
         modes.onSceneReachedEnd = { [weak self] token in self?.handleSceneReachedEnd(token) }
         modes.onSceneFinished = { [weak self] token in self?.handleSceneFinished(token) }
         modes.onSceneStats = { [weak self] kind, stats in self?.handleSceneStats(kind: kind, stats: stats) }
+        modes.onSceneFacts = { [weak self] kind, facts in self?.handleSceneFacts(kind: kind, facts: facts) }
         // 交换执行器不自己判断状态：每一步都回来问唯一状态机这次交换还算不算数（方案 §8.2）。
         switchCoordinator.directive = { [weak self] token in
             guard let self else { return .aborted }
@@ -417,6 +460,9 @@ final class AppCoordinator {
         let beforeMode = state.mode
         let beforeTransition = state.workbench.modeTransition
         let effects = SessionReducer.reduce(&state, event)
+        // 会话身份只有一个来源：状态机算完就把 sessionID/代次下发给调度器，
+        // 否则两边各数一次，真实写入永远拿不到准入（方案 §5.3、§15）。
+        geometry.adopt(sessionID: state.sessionID, epoch: state.sessionEpoch)
         // 阶段/模式变化必须留痕：0.1.10+18 那轮的静默整段退出，就是因为隐藏路径一条日志都没有，
         // 只能靠外部进程采样反推。此处的"由什么事实引起"是事后定责的锚点。
         if state.phase != beforePhase || state.mode != beforeMode
@@ -443,6 +489,7 @@ final class AppCoordinator {
         case let .collapsing(target, _): return "collapsing(\(target.journalKey))"
         case let .switching(from, to, _): return "switching(\(from.journalKey)→\(to.journalKey))"
         case .recovering: return "recovering"
+        case let .recoveryRequired(target, _): return "recoveryRequired(\(target.journalKey))"
         }
     }
 
@@ -472,7 +519,11 @@ final class AppCoordinator {
         case let .windowMinimized(identity, minimized): return "windowMinimized(\(identity.journalKey), \(minimized))"
         case let .windowGeometryChangedExternally(identity, _, source): return "geometryChangedExternally(\(identity.journalKey), \(source))"
         case .geometryWriteFinished: return "geometryWriteFinished"
-        case let .journalWriteFailed(identity, _): return "journalWriteFailed(\(identity.journalKey))"
+        case let .journalPrepared(context): return "journalPrepared(\(context.kind.rawValue))"
+        case let .journalPreparationFailed(context, identities, _):
+            return "journalPreparationFailed(\(context.kind.rawValue), \(identities.count))"
+        case let .journalUpdateFailed(context, identity, _):
+            return "journalUpdateFailed(\(context.kind.rawValue), \(identity.journalKey))"
         case .captureStarted: return "captureStarted"
         case .captureFirstFrame: return "captureFirstFrame"
         case .captureStreamFailed: return "captureStreamFailed"
@@ -487,7 +538,9 @@ final class AppCoordinator {
         case .workbenchTransitionFinished: return "workbenchTransitionFinished"
         case .mainSwitchStepFinished: return "mainSwitchStepFinished"
         case .mainSwitchCommitted: return "mainSwitchCommitted"
-        case let .mainSwitchFailed(_, reason): return "mainSwitchFailed(\(reason))"
+        case let .mainSwitchFailed(_, reason, _): return "mainSwitchFailed(\(reason))"
+        case let .promotionFinished(_, identity, _, activated):
+            return "promotionFinished(\(identity.journalKey), activated=\(activated))"
         case .workbenchRailSizePreview: return "workbenchRailSizePreview"
         case .workbenchRailSizeChanged: return "workbenchRailSizeChanged"
         case .workbenchSearchFocusChanged: return "workbenchSearchFocusChanged"
@@ -521,6 +574,9 @@ final class AppCoordinator {
     }
 
     /// 返回 false 表示这条 effect 之后不允许继续执行。
+    ///
+    /// 这里刻意不写 `default:`：核心层新增一个 effect 时宿主必须显式表态，
+    /// 不能让它悄悄落进"什么都不做"分支——那正是"状态机以为已处理、界面一动不动"的来源（方案 §5.4）。
     @discardableResult
     private func run(_ effect: SessionEffect) -> Bool {
         switch effect {
@@ -555,25 +611,69 @@ final class AppCoordinator {
             }
 
         case .hideOverview:
+            // 只拆界面：隐藏不等于"几何任务已终止"，排空由 `.drainGeometry` 那条链给结论（方案 §5.4）。
             hideOverview()
 
-        case let .writeJournal(transaction):
-            let result = journal.apply(transaction)
-            guard !result.isPersisted else { return true }
-            let reason = result.reason ?? "未知原因"
-            log("journal", "事务未落盘：\(reason)")
-            recorder.record("几何事务落盘", subject: transaction.identity.journalKey, result: .failed,
-                            detail: reason)
-            dispatch(.journalWriteFailed(transaction.identity, reason))
-            return false
+        // MARK: 日志：批量准入与事实追加（方案 §7.1、§7.4）
+
+        case let .prepareJournal(request):
+            // 写 AX 之前的唯一准入闸：整体落盘成功才回报 journalPrepared，失败一个字节都不写。
+            registerContext(request.context)
+            Task { [weak self, request] in
+                guard let self else { return }
+                let started = CACurrentMediaTime()
+                let written = await self.journal.prepare(request)
+                // §20.2 要求 journal prepare 单独打点：写盘等待混在"进入主区"总耗时里就永远分不开。
+                self.metrics.measure("日志:批量 prepare",
+                                     milliseconds: (CACurrentMediaTime() - started) * 1000,
+                                     context: written.isPersisted ? "整体落盘成功"
+                                                                  : (written.reason ?? "落盘失败"))
+                if written.isPersisted {
+                    self.dispatch(.journalPrepared(context: request.context))
+                } else {
+                    let reason = written.reason ?? "未知原因"
+                    self.log("journal", "批量落盘失败：\(reason)")
+                    self.recorder.record("几何事务落盘",
+                                         subject: "批量 prepare",
+                                         result: .failed,
+                                         detail: reason)
+                    self.dispatch(.journalPreparationFailed(context: request.context,
+                                                            identities: request.affectedIdentities,
+                                                            reason: reason))
+                }
+            }
+
+        case let .updateJournal(request):
+            // 追加已发生的事实：失败说明"确实写过"，只能进补偿，不能按未写入处理（方案 §7.2）。
+            Task { [weak self, request] in
+                guard let self else { return }
+                let started = CACurrentMediaTime()
+                let written = await self.journal.update(request)
+                self.metrics.measure("日志:事实追加",
+                                     milliseconds: (CACurrentMediaTime() - started) * 1000,
+                                     context: written.isPersisted ? "落盘成功" : (written.reason ?? "落盘失败"))
+                guard !written.isPersisted else { return }
+                let reason = written.reason ?? "未知原因"
+                self.log("journal", "事实追加失败 \(request.identity.journalKey)：\(reason)")
+                // operationID 为空是旧展开路径，没有操作级补偿：只记事实，不伪造上下文。
+                guard let operationID = request.operationID,
+                      let context = self.operationContexts[operationID] else { return }
+                self.dispatch(.journalUpdateFailed(context: context, identity: request.identity, reason: reason))
+            }
 
         case let .clearJournal(sessionID, settledIdentities):
-            let result = journal.clearSettled(sessionID: sessionID, settledIdentities: settledIdentities)
-            if let reason = result.reason { log("journal", "清理已完成事务失败：\(reason)") }
+            Task { [weak self, sessionID, settledIdentities] in
+                guard let self else { return }
+                let written = await self.journal.clearSettled(sessionID: sessionID,
+                                                              settledIdentities: settledIdentities)
+                if let reason = written.reason { self.log("journal", "清理已完成事务失败：\(reason)") }
+            }
 
-        case let .dropJournal(identity):
-            let result = journal.drop(identity)
-            if let reason = result.reason { log("journal", "删除事务失败：\(reason)") }
+        case let .drainGeometry(context):
+            // 隐藏/退出的排空入口：撤销普通准入 → 拆界面 → 栅栏 → 恢复授权下的收尾。
+            drainGeometry(context)
+
+        // MARK: 展开/收回/恢复/唤起
 
         case let .expand(identity, targetFrame, token, animationMS):
             focus.expand(identity, targetFrame: targetFrame, token: token, animationMS: animationMS)
@@ -582,13 +682,23 @@ final class AppCoordinator {
             focus.collapse(identity, token: token, animationMS: animationMS)
 
         case let .restoreGeometry(identity, token):
+            guard canStartRestoreOutsideTermination() else { break }
             focus.restoreGeometry(identity, token: token)
 
         case let .restoreAll(token, identities):
-            focus.restoreAll(identities, token: token)
+            if canStartRestoreOutsideTermination() {
+                focus.restoreAll(identities, token: token, deadline: sharedTerminationDeadline)
+            } else {
+                // 终止链是唯一的恢复所有者：接住状态机算好的这一批，不开第二条并发恢复路径（方案 §14.2）。
+                terminationRestoreRequest = (token, identities)
+            }
 
         case let .raiseTarget(identity):
-            focus.raiseOnly(identity)
+            // 唤起也是一次跨进程动作：先拿上下文与准入，再进 AX 队列（方案 §5.2）。
+            let context = geometry.makeContext(token: TransitionToken(generation: 0), kind: .settleLayout)
+            registerContext(context)
+            let outcome = focus.raiseOnly(identity, context: context)
+            if !outcome.wasIssued { log("focus", "唤起未发出：\(outcome.detail)") }
 
         case .cancelTransition:
             // 目标没了：立刻收掉代理浮层并清空令牌，旧动画回调此后不再有效。
@@ -597,6 +707,7 @@ final class AppCoordinator {
         // MARK: 工作台（方案 §4、§8）
 
         case let .enterWorkbench(plan):
+            registerContext(plan.operationContext)
             // 投影立刻生效：总览面板收起、两栏按冻结几何显示，然后才写主窗口（方案 §4.2）。
             workbenchPresentation = plan.presentation
             ensureWorkbenchControllers()
@@ -606,12 +717,14 @@ final class AppCoordinator {
             switchCoordinator.perform(plan)
 
         case let .returnToOverview(plan):
+            registerContext(plan.operationContext)
             pendingReveal = PendingReveal(token: plan.token)
             playTransition(sceneFactory.returning(plan))
             refreshFlightTexture(plan.identity, cellWidth: plan.snapshot.layout.mainRect.width)
             switchCoordinator.perform(plan)
 
         case let .beginMainSwitch(plan):
+            registerContext(plan.intent.operationContext)
             playTransition(sceneFactory.swapping(plan))
             // B 进主区、A 回轨道：两张的画面源都在飞行中刷新一次，交接时不再是旧图（方案 §10.3）。
             refreshFlightTexture(plan.intent.to, cellWidth: plan.mainTargetFrame.width)
@@ -640,12 +753,22 @@ final class AppCoordinator {
         case let .updateWorkbenchLayout(presentation):
             workbenchPresentation = presentation
 
-        case let .settleMainFrame(identity, targetFrame, token, _):
+        case let .settleMainFrame(identity, targetFrame, context, animationMS):
             // M2 不做动画：主区几何立即写入并读回（方案 §21，动画在 M3）。
-            let displayID = state.workbench.activeDisplayID
-                ?? state.workbench.snapshot?.displayID
-                ?? catalog.mapper.primaryDisplay?.id ?? 0
-            switchCoordinator.settle(identity, targetFrame: targetFrame, displayID: displayID, token: token)
+            registerContext(context)
+            guard let rects = settleRects() else {
+                log("workbench", "布局投影缺失，布局微调未发起")
+                break
+            }
+            switchCoordinator.settle(identity,
+                                     targetFrame: targetFrame,
+                                     displayID: rects.displayID,
+                                     token: context.transitionToken,
+                                     mainRect: rects.mainRect,
+                                     topRailRect: rects.topRailRect,
+                                     sideRailRect: rects.sideRailRect,
+                                     context: context,
+                                     animationMS: animationMS)
 
         case let .setKeyboardFocus(focus):
             // 返回总览的键盘移交推迟到揭示那一刻：目标面板还没上屏就不该先接管键盘（方案 §10.1）。
@@ -678,6 +801,73 @@ final class AppCoordinator {
         return true
     }
 
+    // MARK: - 操作上下文登记（方案 §7.2）
+
+    /// 记下这次操作的身份：日志更新失败只带 operationID，补偿要能还原完整上下文。
+    private func registerContext(_ context: GeometryOperationContext) {
+        operationContexts[context.operationID] = context
+        // 表只服务于本会话：换会话后旧操作再报事实也不该找到旧上下文。
+        if operationContexts.count > 64 {
+            for (id, value) in operationContexts where value.sessionID != context.sessionID {
+                operationContexts.removeValue(forKey: id)
+            }
+        }
+    }
+
+    /// 布局微调需要的主区/两栏矩形：来自当前冻结投影，绝不现场重算（方案 §11.2）。
+    private func settleRects() -> (displayID: UInt32, mainRect: CGRect, topRailRect: CGRect, sideRailRect: CGRect)? {
+        guard let presentation = workbenchPresentation else { return nil }
+        let layout = presentation.snapshot.layout
+        return (presentation.displayID, layout.mainRect, layout.topRailRect, layout.sideRailRect)
+    }
+
+    /// 退出期间只有一个恢复所有者（方案 §14.2）：终止链一旦开始，状态机的恢复效果由它接管。
+    private func canStartRestoreOutsideTermination() -> Bool {
+        guard isTerminationBegun else { return true }
+        log("termination", "终止链已是唯一恢复所有者，本次恢复效果并入同一条链")
+        return false
+    }
+
+    // MARK: - 统一隐藏与排空（方案 §5.4）
+
+    /// 退出链的共享预算截止点；正常会话隐藏不受两秒限制，所以是 nil。
+    private var terminationDeadline: GeometryOperationScheduler.Stamp?
+
+    /// 状态机算好、但按 §14.2 移交终止链的恢复批次：终止时只有一条恢复路径能碰窗口。
+    private var terminationRestoreRequest: (token: TransitionToken, identities: [WindowIdentity])?
+
+    /// 恢复写入拿到的截止点：只有终止链开始后才有预算（方案 §14）。
+    var sharedTerminationDeadline: GeometryOperationScheduler.Stamp? { terminationDeadline }
+
+    /// 隐藏入口统一：撤销普通准入 → 停掉在跑的操作链 → 等已开始写入的栅栏 → 给出排空结论。
+    /// 界面拆建仍归 `.hideOverview`/`.hideWorkbench`/`.stopAllCapture`：这里只回答"几何任务终止了没有"（方案 §5.4）。
+    /// 快捷键、锁屏、Space、权限丢失、显示器变化、退出都走这条链，不再有第二种隐藏。
+    private func drainGeometry(_ context: GeometryOperationContext) {
+        if case .draining = teardown {
+            // 同一次会话只允许一条排空链：后来的请求并入它，不开第二条恢复路径（方案 §14.2）。
+            log("drain", "排空链已在运行，本次请求（\(context.kind.rawValue)）并入同一条链")
+            return
+        }
+        teardown = .revoked(sessionID: context.sessionID)
+        isGeometryDrained = false
+        // 关闭普通准入：相位之后任何普通操作都拿不到许可，排队计划一律丢弃（方案 §5.1）。
+        geometry.advance(to: .closing)
+        // 交换链自己也要收手：它内部还有一段尾任务，不叫停就会继续提交写入（方案 §8.3）。
+        switchCoordinator.cancel()
+        focus.cancelAnimation()
+        let deadline = terminationDeadline
+        Task { [weak self] in
+            guard let self else { return }
+            let quiet = await self.geometry.drain(until: deadline)
+            self.teardown = .finished(context, settled: quiet)
+            self.isGeometryDrained = self.geometry.isIdle
+            self.log("drain", quiet
+                     ? "几何通道已排空（\(context.kind.rawValue)）"
+                     : "排空超出预算：\(self.geometry.busyDescription)，事务与日志原样保留")
+            self.onGeometryDrainFinished?(context, quiet)
+        }
+    }
+
     // MARK: - 展示同步
 
     private func performSync() {
@@ -689,7 +879,9 @@ final class AppCoordinator {
         modes.retireDisplays(keeping: Set(catalog.mapper.displays.map(\.id)))
         guard state.phase.isVisible else { return }
 
-        capture.sync(targets: captureTargets(), tier: state.policy.tier, isAnimating: focus.isAnimating)
+        // 统一的过渡活动（方案 §13.2）：三路事实合并后交给捕获层，
+        // 只有可延后的尺寸重配会被它抑制，启停与释放照旧立即执行。
+        capture.sync(targets: captureTargets(), tier: state.policy.tier, activity: transitionActivity)
         syncOverviewPanels()
         syncWorkbenchPanels()
         applyOrdering()
@@ -804,7 +996,86 @@ final class AppCoordinator {
         record.matches(searchQuery: state.searchQuery)
     }
 
+    /// 三路过渡事实合并后的唯一活动判据（方案 §13.2）：
+    /// 视图代理、模式承载层、交换/布局执行器任何一路还在跑，尺寸重配都要延后合并；
+    /// 任何一路说了"取消已请求"，延后立刻失效，释放不许被动画拖住。
+    var transitionActivity: TransitionActivity {
+        focus.activity | modes.activity | switchCoordinator.activity
+    }
+
+    // MARK: - 捕获需求分级（方案 §13.1）
+
+    /// 可见性分档的中间结果：每档一个身份集合，顺序即优先级（方案 §13.1）。
+    private struct CaptureVisibilityPlan {
+        var transition: Set<WindowIdentity> = []
+        var visible: Set<WindowIdentity> = []
+        var prefetch: Set<WindowIdentity> = []
+        /// 真实主区窗口：它自己就是画面，不该再占一条缩略捕获流（方案 §13.1）。
+        var excluded: Set<WindowIdentity> = []
+    }
+
+    /// 一张卡的画面需求来自四个事实，按固定顺序取第一档命中：
+    /// 过渡参与者 → 此刻可见 → 相邻一屏内的预取 → 离屏。
+    ///
+    /// 为什么不能只看"有没有格子"：滚动即将进入视口的卡片要提前有缓存帧，
+    /// 而远离视口的卡片还在抢直播名额，可见卡片就永远回不到实时（方案 §13.1 末段）。
+    private func captureVisibilityPlan() -> CaptureVisibilityPlan {
+        var plan = CaptureVisibilityPlan()
+        // 1. 过渡参与者：状态机正在操作的身份 + 执行器在途身份 + 承载层正在飞的身份。
+        for identity in transitionParticipants { plan.transition.insert(identity) }
+        if let presentation = workbenchPresentation {
+            // 2. 可见：投影自己按 viewport 判定，宿主不另算一套。
+            for card in presentation.cards where card.isVisible { plan.visible.insert(card.identity) }
+            // 3. 邻近预取：每条栏各取"可见序号范围 ± 一屏卡片数"，绝不越界到整条栏（方案 §13.1）。
+            for rail in [RailKind.top, .side] {
+                let ordinals = presentation.cards.filter { $0.slot.rail == rail }.map { $0.slot.ordinal }
+                let visibleOrdinals = presentation.cards.filter { $0.slot.rail == rail && $0.isVisible }
+                    .map { $0.slot.ordinal }
+                guard let first = visibleOrdinals.min(), let last = visibleOrdinals.max() else { continue }
+                // 一屏能放几张按当前可见数量估，至少 1 张；上界即"相邻一屏"。
+                let span = max(1, visibleOrdinals.count)
+                let lower = first - span, upper = last + span
+                for card in presentation.cards
+                where card.slot.rail == rail && card.slot.ordinal >= lower && card.slot.ordinal <= upper {
+                    plan.prefetch.insert(card.identity)
+                }
+            }
+            // 主区是真实窗口，不占缩略捕获资源（方案 §13.1：稳定后不保留持续捕获）。
+            plan.excluded = Set([presentation.mainIdentity].compactMap { $0 })
+        } else {
+            // 总览：有格子的算可见；没有格子的（overflow/被过滤）算离屏，只保最后一帧。
+            for (displayID, layout) in layouts {
+                for card in layout.cards {
+                    guard let identity = state.slots.identity(at: card.slot) else { continue }
+                    plan.visible.insert(identity)
+                }
+            }
+        }
+        return plan
+    }
+
+    /// 当前正在"飞"的身份：这几张必须拿到最高档，否则交接时是旧图（方案 §10.6、§13.1）。
+    private var transitionParticipants: Set<WindowIdentity> {
+        var identities: Set<WindowIdentity> = []
+        if let target = state.phase.controlledTarget { identities.insert(target) }
+        if let pending = state.pendingTarget { identities.insert(pending) }
+        if let target = state.workbench.modeTransition.target { identities.insert(target) }
+        switch state.workbench.mainSwitch {
+        case let .switching(intent, _):
+            identities.insert(intent.to)
+            if let from = intent.from { identities.insert(from) }
+        case let .rollingBack(intent, _):
+            identities.insert(intent.to)
+            if let from = intent.from { identities.insert(from) }
+        default:
+            break
+        }
+        return identities
+    }
+
     private func captureTargets() -> [CaptureTarget] {
+        let hidden = !state.phase.isVisible
+        let plan = captureVisibilityPlan()
         // 工作台里主区是真实窗口：只有两栏卡片需要实时画面（方案 §4.3、§14 空闲 CPU）。
         if state.workbench.modeTransition.isTransitioning || state.mode == .workbench,
            let presentation = workbenchPresentation {
@@ -815,18 +1086,35 @@ final class AppCoordinator {
                 return CaptureTarget(record: card.record,
                                      cellWidth: cellWidth,
                                      backingScale: scale,
-                                     isPriority: settings.isPriority(card.record.memoryKey))
+                                     isPriority: settings.isPriority(card.record.memoryKey),
+                                     visibility: visibility(for: card.identity, in: plan, hidden: hidden))
             }
         }
         return state.records.values.compactMap { record in
-            guard let display = catalog.mapper.display(id: record.displayID),
-                  let slot = record.slot,
-                  let card = layouts[display.id]?.card(at: slot) else { return nil }
+            guard let display = catalog.mapper.display(id: record.displayID) else { return nil }
+            // 没有格子位置的卡片（overflow/刚新增）也要有目标条目：它按离屏处理只保最后一帧，
+            // 不能因为布局里暂时没有它就从目标集里消失（那会让滚回来的瞬间是黑帧）。
+            let card = record.slot.flatMap { layouts[display.id]?.card(at: $0) }
+            let cellWidth = card?.cellRect.width ?? display.frame.width / 6
             return CaptureTarget(record: record,
-                                 cellWidth: card.cellRect.width,
+                                 cellWidth: max(80, cellWidth),
                                  backingScale: display.backingScale,
-                                 isPriority: settings.isPriority(record.memoryKey))
+                                 isPriority: settings.isPriority(record.memoryKey),
+                                 visibility: visibility(for: record.identity, in: plan, hidden: hidden))
         }
+    }
+
+    /// 分档：隐藏 > 过渡参与者 > 可见 > 邻近预取 > 离屏（方案 §13.1 的固定顺序）。
+    private func visibility(for identity: WindowIdentity,
+                            in plan: CaptureVisibilityPlan,
+                            hidden: Bool) -> CaptureTargetVisibility {
+        if hidden || plan.excluded.contains(identity) { return .paused }
+        if plan.transition.contains(identity) { return .transition }
+        if plan.visible.contains(identity) { return .visible }
+        if plan.prefetch.contains(identity) { return .prefetch }
+        // 离屏：包括"这一轮没有格子位置"的新增窗口——它随时会被重新平铺进来，
+        // 保留最后一帧比彻底不捕获更省（滚回来时不是黑帧）。
+        return .offscreen
     }
 
     private func applyOrdering() {
@@ -883,7 +1171,11 @@ final class AppCoordinator {
 
     private func playTransition(_ scene: TransitionScene?) {
         guard let scene else { return }
-        modes.play(scene)
+        // 锚点用完即清：每段过渡只由触发它的那次输入锚定，没有输入（自动替补、探针直接 dispatch）
+        // 就按 play() 进入时刻算，并在 context 里如实标出来（方案 §20.2）。
+        let anchor = lastInputStamp
+        lastInputStamp = 0
+        modes.play(scene, anchorAt: anchor > 0 ? anchor : nil)
         // 场景一上屏，两栏就要按新的隐藏集合重绘一次。
         needsSync = true
     }
@@ -937,6 +1229,24 @@ final class AppCoordinator {
         if let changed = motionController.observe(stats) {
             log("motion", "动效等级变化：\(motionController.reason)")
             metrics.increment("动效等级.\(changed.rawValue)")
+        }
+    }
+
+    /// 呈现事实（方案 §20.2）：首帧延迟单独一条；动画 present 与 displayLink 回调分开核对。
+    /// 只记帧间隔会把"点了之后很久没出第一帧"和"整段一个像素都没呈现"都藏起来。
+    private func handleSceneFacts(kind: TransitionScene.Kind, facts: TransitionFlightFacts) {
+        if let delay = facts.firstPresentDelayMS {
+            // 没有点击锚点的段（自动替补、探针直接 dispatch）单列，不混进"点击反馈"的 P95。
+            metrics.measure(facts.anchoredAtRealInput ? "过渡首帧延迟·\(kind.displayName)"
+                                                      : "过渡首帧延迟(无点击锚点)·\(kind.displayName)",
+                            milliseconds: delay,
+                            context: "锚点=\(facts.anchoredAtRealInput ? "真实点击" : "动画进入")"
+                                + " ticks=\(facts.ticks) present=\(facts.presentedFrames)")
+        } else {
+            metrics.increment("过渡零呈现段")
+        }
+        if facts.missedPresentFrames > 0 {
+            metrics.increment("过渡回调多于呈现", by: facts.missedPresentFrames)
         }
     }
 
@@ -1145,6 +1455,7 @@ final class AppCoordinator {
     // MARK: - 视图动作
 
     private func handle(_ action: OverviewContentView.Action) {
+        lastInputStamp = CACurrentMediaTime()
         switch action {
         case let .cardClicked(identity):
             cardClickCount += 1
@@ -1196,6 +1507,7 @@ final class AppCoordinator {
 
     /// 工作台视图动作同样只转成事件：命中、滚动、搜索都不在视图里改状态（方案 §7.1）。
     private func handle(_ action: WorkbenchWindowController.Action) {
+        lastInputStamp = CACurrentMediaTime()
         switch action {
         case let .railCardClicked(slot, identity):
             // 点击进诊断日志：实机验收要能还原"点是否到达宿主、当时状态机什么态度"（方案 §14）。
@@ -1535,7 +1847,9 @@ final class AppCoordinator {
     }
 
     private func log(_ category: String, _ text: String) {
-        VistileLog.session.log(level: .debug, "[\(category, privacy: .public)] \(text, privacy: .public)")
+        // 阶段/模式/过渡的每一跳都必须留在能查到的等级里：0.1.10+18 那轮静默退出只能靠外部进程采样反推，
+        // 就是因为这类轨迹全压在 .debug，控制台与统一日志都取不到（方案 §14、§22）。
+        VistileLog.session.log(level: .info, "[\(category, privacy: .public)] \(text, privacy: .public)")
         onStatus?(text)
     }
 
@@ -1546,59 +1860,88 @@ final class AppCoordinator {
 
     /// 正常退出：先恢复本次临时修改的几何，再落盘诊断。恢复未确认时保留事务给下次启动。
     /// 等待用可续起的 Task 完成，不在主线程嵌套 RunLoop，也不并行开第二条恢复路径（方案 §6.6）。
+    /// 终止链只报已经发生的事实：排空、恢复确认条数、按预算推迟条数（方案 §14.5）。
+    private struct TerminationOutcome {
+        var drained = true
+        var restored = 0
+        var deferred = 0
+        var didExpire = false
+    }
+
     func beginTermination(settled: @escaping @MainActor () -> Void) {
         guard !isTerminationBegun else { return }
         isTerminationBegun = true
+        // 1. 先停掉一切会产生新写入的来源：热键、AX 观察、目录定时任务、结构刷新。
         hotKey.unregister()
         observerHub.stopAll()
         reconcileTimer?.invalidate()
         reconcileTimer = nil
         structuralRefreshWork?.cancel()
+        // 共享预算从这一刻开始算：后面每个阶段只花剩下的，不再各自重新拿满两秒（方案 §14）。
+        let deadline = geometry.deadline(after: .seconds(Self.terminationCeiling))
+        terminationDeadline = deadline
         if state.phase.isVisible { dispatch(.quitRequested) }
 
+        // 2. 终止链是唯一的恢复所有者：先按身份栅栏排空在途写入，再在剩余预算内逐条恢复。
+        let outcome = OneShot<TerminationOutcome>()
         Task { [weak self] in
             guard let self else { return }
-            let ceiling = Date().addingTimeInterval(Self.terminationCeiling)
-            while Date() < ceiling, !self.isTerminationSettled {
-                try? await Task.sleep(nanoseconds: 20_000_000)
+            outcome.send(await self.runTermination(deadline: deadline))
+        }
+        // 3. 到点用独立计时回调结束等待。`TaskGroup.cancelAll()` 管不住已经在跨进程调用里的恢复，
+        //    包住它只是把"等子任务收尾"说成硬截止（方案 §14）；这里的在途调用继续自行收敛，日志原样保留。
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.terminationCeiling) {
+            MainActor.assumeIsolated {
+                var expired = TerminationOutcome()
+                expired.didExpire = true
+                expired.drained = false
+                outcome.send(expired)
             }
-            // 状态机路径没走完时（例如过渡仍在跑），用日志里的未完成事务做有界兜底恢复。
-            if !self.journal.unfinished.isEmpty {
-                await self.restoreOnQuitWithin(ceiling)
+        }
+        // 4. 回报恰好一次：链先收敛就用链的结论，否则用到点结论。
+        Task { [weak self] in
+            let result = await withCheckedContinuation {
+                (continuation: CheckedContinuation<TerminationOutcome, Never>) in
+                outcome.attach(continuation)
             }
-            self.finishTermination()
+            guard let self else { return }
+            await self.finishTermination(result)
             settled()
         }
     }
 
     private var isTerminationBegun = false
 
-    private var isTerminationSettled: Bool {
-        state.phase == .hidden && journal.unfinished.isEmpty && focus.isIdle
-    }
-
-    /// 兜底恢复与剩余期限赛跑：到期就放弃等待，事务留在日志里。
-    private func restoreOnQuitWithin(_ deadline: Date) async {
-        let remaining = max(0, deadline.timeIntervalSinceNow)
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask { @MainActor [weak self] in
-                guard let self else { return }
-                _ = await self.recovery.restoreOnQuit()
-            }
-            group.addTask { @MainActor in
-                try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
-            }
-            _ = await group.next()
-            group.cancelAll()
+    /// 终止链本体：排空 → 在剩余预算内逐条恢复 → 交出事实。任何一步没有预算就停下保留日志（方案 §14.1–§14.3）。
+    private func runTermination(deadline: GeometryOperationScheduler.Stamp) async -> TerminationOutcome {
+        var result = TerminationOutcome()
+        result.drained = await geometry.drain(until: deadline)
+        let pending = journal.unfinished.count
+        guard pending > 0 else { return result }
+        guard result.drained, geometry.canStartNewWrite(deadline: deadline) else {
+            result.deferred = pending
+            result.didExpire = true
+            recorder.note("退出预算已尽：\(pending) 条事务保留在日志里，交下次启动核对")
+            return result
         }
+        let token = terminationRestoreRequest?.token ?? TransitionToken(generation: 0)
+        let report = await recovery.restoreOnQuit(token: token, deadline: deadline)
+        result.restored = report.items.filter { $0.outcome.isSettled }.count
+        result.deferred = report.deferredByDeadline.count
+        result.didExpire = !report.deferredByDeadline.isEmpty
+        return result
     }
 
-    private func finishTermination() {
+    private func finishTermination(_ outcome: TerminationOutcome) async {
         let unfinished = journal.unfinished.count
-        if unfinished == 0 {
+        if outcome.didExpire {
+            // 到期：只记录已确认事实，一条都不清理，未完成事务留给下次启动（方案 §14.5）。
+            recorder.note("退出期限结束：恢复确认 \(outcome.restored) 条，推迟 \(outcome.deferred) 条，"
+                          + "排空\(outcome.drained ? "完成" : "未完成")")
+        } else if unfinished == 0 {
             // 只清已完成条目：其他会话的未完成记录必须留下（方案 §6.4）。
-            _ = journal.clearSettled(sessionID: journal.currentSessionID,
-                                     settledIdentities: journal.settledIdentities(sessionID: journal.currentSessionID))
+            _ = await journal.clearSettled(sessionID: journal.currentSessionID,
+                                           settledIdentities: journal.settledIdentities(sessionID: journal.currentSessionID))
         } else {
             recorder.note("退出时仍有 \(unfinished) 条事务未确认恢复，已交给下次启动的保守恢复")
         }
@@ -1606,8 +1949,8 @@ final class AppCoordinator {
         for sample in metrics.summary() { recorder.recordPerformance(sample) }
         recorder.record("退出恢复",
                         subject: "会话事务",
-                        result: unfinished == 0 ? .passed : .failed,
-                        detail: "未结束事务 \(unfinished) 条")
+                        result: unfinished == 0 && !outcome.didExpire ? .passed : .failed,
+                        detail: "未结束事务 \(unfinished) 条，期限\(outcome.didExpire ? "已过" : "内收敛")")
         _ = recorder.flush()
     }
 }

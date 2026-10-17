@@ -19,6 +19,7 @@ final class T05T07GeometryTransactionTests: XCTestCase {
     private var catalogSource: FakeCatalogSource!
     private var processIdentity: FakeProcessIdentity!
     private var writer: FakeGeometryWriter!
+    private lazy var scheduler = HostScheduler.make(sessionID: sessionID)
     private var catalog: WindowCatalog!
     private var settings: SettingsModel!
     private var recovery: RecoveryCoordinator!
@@ -88,7 +89,8 @@ final class T05T07GeometryTransactionTests: XCTestCase {
                                        catalog: catalog,
                                        settings: settings,
                                        permissions: permissions,
-                                       processIdentity: processIdentity)
+                                       processIdentity: processIdentity,
+                                       scheduler: scheduler)
     }
 
     private func startFocus(store: WindowJournalStore) throws -> FocusCoordinator {
@@ -101,7 +103,8 @@ final class T05T07GeometryTransactionTests: XCTestCase {
                                 metrics: .shared,
                                 recorder: CompatibilityRecorder(fileName: "host-test-\(UUID().uuidString)"),
                                 recovery: recovery,
-                                permissions: permissions)
+                                permissions: permissions,
+                                scheduler: scheduler)
     }
 
     // MARK: - T05 恢复失败留痕，结束项单独清除
@@ -119,7 +122,7 @@ final class T05T07GeometryTransactionTests: XCTestCase {
 
         // 三条都已经把窗口改成展开尺寸（读回 = 目标），退出时都要回到原 frame。
         for identity in [rejected, deviating, settled] {
-            store.apply(plannedTransaction(identity)
+            await store.apply(plannedTransaction(identity)
                 .markingWritten(readBack: expandedFrame, displayID: displayID))
             if let element = catalogSource.element(for: identity) {
                 writer.setInitialFrame(expandedFrame, for: element)
@@ -131,7 +134,8 @@ final class T05T07GeometryTransactionTests: XCTestCase {
         writer.setInitialFrame(FakeCatalogSource.frame(for: 2),
                                for: try XCTUnwrap(catalogSource.element(for: settled)))
 
-        let results = await recovery.restoreOnQuit()
+        let results = await recovery.restoreOnQuit(token: TransitionToken(generation: 1),
+                                                   deadline: nil).items
         let outcome = { (identity: WindowIdentity) in
             results.first { $0.identity == identity }?.outcome
         }
@@ -139,7 +143,7 @@ final class T05T07GeometryTransactionTests: XCTestCase {
         guard case .rejected = outcome(rejected) else {
             return XCTFail("写入被拒绝要如实回报，实际 \(String(describing: outcome(rejected)))")
         }
-        guard case .constrained(let deviation) = outcome(deviating), deviation > 0 else {
+        guard case .constrained(_, let deviation) = outcome(deviating), deviation > 0 else {
             return XCTFail("任意偏差不算恢复成功，实际 \(String(describing: outcome(deviating)))")
         }
         XCTAssertEqual(outcome(settled), .alreadyAtOriginal)
@@ -160,8 +164,8 @@ final class T05T07GeometryTransactionTests: XCTestCase {
         XCTAssertEqual(Set(reloaded.unfinished.map(\.identity)), Set([rejected, deviating]))
 
         // 收尾"只清已结束的"：把失败项一起交进去也必须留下。
-        store.clearSettled(sessionID: sessionID, settledIdentities: [rejected, deviating, settled])
-        XCTAssertEqual(Set(store.snapshot().entries.keys), Set([rejected.journalKey, deviating.journalKey]))
+        _ = await store.clearSettled(sessionID: sessionID, settledIdentities: [rejected, deviating, settled])
+        XCTAssertEqual(Set(store.snapshot.entries.keys), Set([rejected.journalKey, deviating.journalKey]))
         XCTAssertFalse(store.unfinished.isEmpty, "仍有窗口未恢复时不能报告'已全部处理'")
 
         // 两次写入都是"试图回到原 frame"，不是把展开尺寸再写一遍。
@@ -175,7 +179,7 @@ final class T05T07GeometryTransactionTests: XCTestCase {
         let store = makeStore()
         startRecovery(store: store)
         let identity = HostFixtures.identity(0)
-        store.apply(plannedTransaction(identity).markingWritten(readBack: expandedFrame, displayID: displayID))
+        await store.apply(plannedTransaction(identity).markingWritten(readBack: expandedFrame, displayID: displayID))
         if let element = catalogSource.element(for: identity) {
             writer.setInitialFrame(expandedFrame, for: element)
         }
@@ -185,7 +189,8 @@ final class T05T07GeometryTransactionTests: XCTestCase {
         await catalog.refreshAndWait(reason: .reconcile)
         XCTAssertNil(catalog.axEntry(for: try XCTUnwrap(catalog.record(for: identity))))
 
-        let results = await recovery.restoreOnQuit()
+        let results = await recovery.restoreOnQuit(token: TransitionToken(generation: 1),
+                                                   deadline: nil).items
         XCTAssertEqual(results.count, 1)
         XCTAssertEqual(results.first?.outcome, .notAttempted("辅助功能句柄暂不可用"),
                        "句柄读不到属于事实不足：既不写也不删，还要说清原因")
@@ -199,14 +204,15 @@ final class T05T07GeometryTransactionTests: XCTestCase {
         let store = makeStore()
         startRecovery(store: store)
         let identity = HostFixtures.identity(0)
-        store.apply(plannedTransaction(identity).markingWritten(readBack: expandedFrame, displayID: displayID))
+        await store.apply(plannedTransaction(identity).markingWritten(readBack: expandedFrame, displayID: displayID))
         if let element = catalogSource.element(for: identity) {
             writer.setInitialFrame(expandedFrame, for: element)
         }
 
         // PID 还在，但已经不是原来那个进程：写回去只会改到别人的窗口。
         processIdentity.markProcessRestarted(processID: identity.processID)
-        let results = await recovery.restoreOnQuit()
+        let results = await recovery.restoreOnQuit(token: TransitionToken(generation: 1),
+                                                   deadline: nil).items
 
         XCTAssertEqual(results.map(\.outcome), [.windowGone])
         XCTAssertEqual(writer.totalWrites, 0)
@@ -297,14 +303,14 @@ final class T05T07GeometryTransactionTests: XCTestCase {
             entryAtWriteTime = WindowJournalStore(fileName: "session-journal.json",
                                                   sessionID: journalSession,
                                                   baseDirectory: journalFile)
-                .snapshot().entries[identity.journalKey]
+                .snapshot.entries[identity.journalKey]
         }
         var sawWriteResult = false
         focus.onEvent = { event in
             if case .geometryWriteFinished = event { sawWriteResult = true }
         }
 
-        store.apply(plannedTransaction(identity))
+        await store.apply(plannedTransaction(identity))
         focus.expand(identity, targetFrame: expandedFrame, token: token, animationMS: 60)
         await pendingUntil { self.writer.totalWrites > 0 && sawWriteResult }
 
@@ -326,7 +332,7 @@ final class T05T07GeometryTransactionTests: XCTestCase {
         let focus = try startFocus(store: store)
 
         let identity = HostFixtures.identity(0)
-        let write = store.apply(plannedTransaction(identity))
+        let write = await store.apply(plannedTransaction(identity))
         XCTAssertFalse(write.isPersisted, "这种目录结构下日志写不进去：\(String(describing: write.reason))")
         XCTAssertNotNil(write.reason)
         // 落盘失败要回滚：内存里也不能假装"已经记下"，否则守卫形同虚设。
@@ -366,7 +372,7 @@ final class T05T07GeometryTransactionTests: XCTestCase {
 
         var events: [SessionEvent] = []
         focus.onEvent = { events.append($0) }
-        store.apply(plannedTransaction(identity))
+        await store.apply(plannedTransaction(identity))
 
         // 写入正在进行时状态机已经走了（退出/会话关闭）。
         writer.gatesNextWrite = true
@@ -388,6 +394,8 @@ final class T05T07GeometryTransactionTests: XCTestCase {
         focus.cancelAnimation()
     }
 
+    /// A05（方案 §18 A05）：写入正在途中时退出——恢复必须排在这笔在途写入之后，
+    /// 并把未完成的那一笔留在日志里，最终回到 original。
     func testQuitQueuesBehindInFlightExpandAndKeepsUnfinishedIntent() async throws {
         await startCatalog(indices: [0, 2, 3])
         let store = makeStore()
@@ -408,7 +416,7 @@ final class T05T07GeometryTransactionTests: XCTestCase {
             }
             if case .restoreCompleted(let token) = event, token == quitToken { sawRestoreCompleted = true }
         }
-        store.apply(plannedTransaction(identity))
+        await store.apply(plannedTransaction(identity))
 
         writer.gatesNextWrite = true
         focus.expand(identity, targetFrame: expandedFrame, token: expandToken, animationMS: 60)
@@ -431,17 +439,103 @@ final class T05T07GeometryTransactionTests: XCTestCase {
         let pending = HostFixtures.identity(2)
         let otherSession = HostFixtures.identity(3)
         let otherSessionID = UUID()
-        store.apply(plannedTransaction(pending))
-        store.apply(WindowTransaction(sessionID: otherSessionID,
+        await store.apply(plannedTransaction(pending))
+        await store.apply(WindowTransaction(sessionID: otherSessionID,
                                        identity: otherSession,
                                        bundleID: "com.test.app\(otherSession.windowID)",
                                        originalFrame: FakeCatalogSource.frame(for: 3),
                                        originalDisplayID: displayID).markingRestored())
-        store.clearSettled(sessionID: sessionID, settledIdentities: [pending, otherSession])
-        XCTAssertEqual(Set(store.snapshot().entries.keys),
+        _ = await store.clearSettled(sessionID: sessionID, settledIdentities: [pending, otherSession])
+        XCTAssertEqual(Set(store.snapshot.entries.keys),
                        Set([pending.journalKey, otherSession.journalKey]),
                        "本会话未完成记录与其他会话记录都必须保留")
         focus.cancelAnimation()
+    }
+
+    // MARK: - A38 无响应 AX 到退出期限：等待有界、日志保留、不再启动新恢复写入（方案 §14）
+
+    /// 第一笔恢复的 AX 调用不返回，期限在这一期间到点。
+    /// 放行之后：已经动过的那一笔按事实结算，另一笔**不得**再发起新的恢复写入，
+    /// 未完成事务必须原样留在日志里交给下次启动核对（方案 §14.3–§14.5）。
+    func testDeadlineDuringUnresponsiveRestoreKeepsJournalAndStartsNoFurtherWrite() async throws {
+        let clock = HostClock()
+        scheduler = HostScheduler.make(clock: clock, sessionID: sessionID)
+        await startCatalog()
+        let store = makeStore()
+        startRecovery(store: store)
+
+        let first = HostFixtures.identity(0)
+        let second = HostFixtures.identity(1)
+        for identity in [first, second] {
+            await store.apply(plannedTransaction(identity)
+                .markingWritten(readBack: expandedFrame, displayID: displayID))
+            if let element = catalogSource.element(for: identity) {
+                writer.setInitialFrame(expandedFrame, for: element)
+            }
+        }
+        XCTAssertEqual(store.unfinished.count, 2, "前置事实：两条都还欠着恢复")
+
+        let deadline = scheduler.deadline(after: .seconds(2))
+        // 第一笔恢复的 AX 写入停在"命令已排到队列头"这一刻：模拟无响应应用。
+        writer.gatesNextWrite = true
+        let run = Task {
+            await self.recovery.restoreOnQuit(token: TransitionToken(generation: 1), deadline: deadline)
+        }
+        await pendingUntil { self.writer.isBlockedInWrite }
+        XCTAssertTrue(scheduler.canStartNewWrite(deadline: deadline), "前置事实：此刻预算还没用完")
+
+        // 期限到点（手动时钟推进，不靠真实 sleep 赌时序）。
+        clock.advance(seconds: 3)
+        XCTAssertFalse(scheduler.canStartNewWrite(deadline: deadline), "前置事实：预算已尽")
+
+        // 无响应的那一笔最终自己回来了：它已经在途，只能按事实结算，不算"新写入"。
+        writer.openGate()
+        await pendingUntil { !self.writer.isBlockedInWrite }
+        let report = await run.value
+
+        XCTAssertEqual(report.items.count, 1, "只有到期前已经开始的那一笔被恢复：\(report.items)")
+        XCTAssertEqual(report.deferredByDeadline.count, 1,
+                       "预算已尽时必须按「推迟」回报，不能悄悄跳过：\(report.deferredByDeadline)")
+        let restored = try XCTUnwrap(report.items.first)
+        let deferred = try XCTUnwrap(report.deferredByDeadline.first)
+        XCTAssertEqual(writer.totalWrites, 1,
+                       "到期后不得再发起第二条恢复写入：\(writer.writtenFrames)")
+        XCTAssertEqual(writer.writtenFrames, [FakeCatalogSource.frame(for: Int(restored.identity.windowID) - 9_000)])
+        let deferredElement = try XCTUnwrap(catalogSource.element(for: deferred))
+        let deferredFrame = await writer.currentFrame(of: deferredElement)
+        XCTAssertEqual(deferredFrame, expandedFrame,
+                       "被推迟的窗口必须还在展开尺寸：动过它就是那条禁令的反例")
+        XCTAssertEqual(store.entry(for: deferred)?.state.requiresRestore, true,
+                       "未确认恢复的事务要留给下次启动：清掉就是把没做完的事当成做完了")
+        XCTAssertNil(store.entry(for: restored.identity), "确认回到原位置的才允许结束")
+        XCTAssertFalse(store.unfinished.isEmpty)
+
+        // 下次启动核对：预算回来（deadline 为 nil）后那条推迟的能正常补上。
+        let retry = await recovery.restoreOnQuit(token: TransitionToken(generation: 2), deadline: nil)
+        XCTAssertEqual(retry.items.map(\.identity), [deferred])
+        XCTAssertTrue(retry.deferredByDeadline.isEmpty, "预算回来后要能补上那条推迟的恢复")
+        let restoredFrame = await writer.currentFrame(of: deferredElement)
+        XCTAssertEqual(restoredFrame, FakeCatalogSource.frame(for: 1))
+        XCTAssertNil(store.entry(for: deferred))
+    }
+
+    /// 退出等待只结算一次：到期与链收敛两条路谁先到算谁，另一条必须被忽略（方案 §14.4、A38/A39）。
+    func testTerminationWaitResolvesOnceWithWhicheverArrivesFirst() async throws {
+        let expiredFirst = OneShot<String>()
+        expiredFirst.send("到期")
+        expiredFirst.send("链收敛")
+        let expiredResult = await withCheckedContinuation { (continuation: CheckedContinuation<String, Never>) in
+            expiredFirst.attach(continuation)
+        }
+        XCTAssertEqual(expiredResult, "到期", "到期后迟到的链结论不许改写已生效的收口（方案 §14.5）")
+
+        let chainFirst = OneShot<String>()
+        chainFirst.send("链收敛")
+        chainFirst.send("到期")
+        let chainResult = await withCheckedContinuation { (continuation: CheckedContinuation<String, Never>) in
+            chainFirst.attach(continuation)
+        }
+        XCTAssertEqual(chainResult, "链收敛", "链先收敛时到期那一笔要作废，否则终止回调会走两遍")
     }
 
     // MARK: - 辅助

@@ -13,6 +13,20 @@ struct WindowTransactionTests {
                                originalFrame: original, originalDisplayID: 1))
     }
 
+    /// 落点由 `RestorePlanner` 一次算好再交给判定层（方案 §8）：
+    /// 判定层不再自己夹取，测试也不许绕过规划器直接喂矩形。
+    private func plannedDestination(_ entry: WindowTransaction,
+                                   originalDisplayIsLive: Bool = true,
+                                   originalVisibleFrame: CGRect? = CGRect(x: 0, y: 0, width: 1_920, height: 1_080),
+                                   fallbackVisibleFrame: CGRect? = nil,
+                                   fallbackDisplayID: UInt32? = nil) -> RestoreDestination? {
+        RestorePlanner.plan(entry: entry,
+                            originalDisplayIsLive: originalDisplayIsLive,
+                            originalVisibleFrame: originalDisplayIsLive ? originalVisibleFrame : nil,
+                            fallbackVisibleFrame: fallbackVisibleFrame,
+                            fallbackDisplayID: fallbackDisplayID)
+    }
+
     @Test("同一事务不会反复覆盖原 frame")
     func originalFrameIsImmutable() {
         let identity = WindowIdentity.test(700, 42)
@@ -189,31 +203,36 @@ struct WindowTransactionTests {
     @Test("进程重启或用户已自行改动时跳过自动恢复")
     func conservativeRecovery() {
         let entry = transaction { $0.markingWritten(readBack: provisional, displayID: 1) }
+        let destination = plannedDestination(entry)
+        // 规划器给出的落点就是原 frame、原屏：这一条本身就是被测事实。
+        #expect(destination?.targetFrame == original)
+        #expect(destination?.targetDisplayID == 1)
+        #expect(destination?.isDowngraded == false)
 
         #expect(RecoveryPlanner.decide(entry: entry, currentFrame: provisional, liveness: .processExited,
-                                       isOriginalDisplayLive: true, clampedFrame: nil,
+                                       destination: destination,
                                        preserveUserGeometry: false) == .skipProcessRestarted)
         #expect(RecoveryPlanner.decide(entry: entry, currentFrame: CGRect(x: 20, y: 20, width: 500, height: 400),
-                                       liveness: .alive, isOriginalDisplayLive: true,
-                                       clampedFrame: nil, preserveUserGeometry: false)
+                                       liveness: .alive,
+                                       destination: destination, preserveUserGeometry: false)
                 == .skipUserMoved(current: CGRect(x: 20, y: 20, width: 500, height: 400)))
         #expect(RecoveryPlanner.decide(entry: entry, currentFrame: original, liveness: .alive,
-                                       isOriginalDisplayLive: true, clampedFrame: nil,
+                                       destination: destination,
                                        preserveUserGeometry: false) == .skipAlreadyRestored)
         // 确认关闭才允许判 gone。
         #expect(RecoveryPlanner.decide(entry: entry, currentFrame: nil, liveness: .closedWindow,
-                                       isOriginalDisplayLive: true, clampedFrame: nil,
+                                       destination: destination,
                                        preserveUserGeometry: false) == .skipWindowGone)
         // 权限丢失 / 句柄暂不可读不是"窗口消失"：不写也不删。
         let deferred = RecoveryPlanner.decide(entry: entry, currentFrame: nil, liveness: .unknown(reason: "缺少辅助功能权限"),
-                                              isOriginalDisplayLive: true, clampedFrame: nil, preserveUserGeometry: false)
+                                              destination: destination, preserveUserGeometry: false)
         #expect(deferred == .deferRestore(reason: "缺少辅助功能权限"))
         #expect(!deferred.shouldWriteAX)
         #expect(deferred.settledOutcome?.isSettled == false)
         let decided = RecoveryPlanner.decide(entry: entry, currentFrame: provisional.offsetBy(dx: 1, dy: 1),
-                                             liveness: .alive, isOriginalDisplayLive: true,
-                                             clampedFrame: nil, preserveUserGeometry: false)
-        #expect(decided == .restore(to: original))
+                                             liveness: .alive,
+                                             destination: destination, preserveUserGeometry: false)
+        #expect(decided == .restore(to: destination!))
         #expect(decided.shouldWriteAX)
         #expect(decided.frame == original)
     }
@@ -221,15 +240,17 @@ struct WindowTransactionTests {
     @Test("计划已落盘但未确认写入时同样保守判定")
     func plannedStateIsCheckedAgainstPlannedFrame() {
         let entry = transaction { $0.markingPlanned(frame: provisional, displayID: 1) }
+        let destination = plannedDestination(entry)
         #expect(RecoveryPlanner.decide(entry: entry, currentFrame: original, liveness: .alive,
-                                       isOriginalDisplayLive: true, clampedFrame: nil,
+                                       destination: destination,
                                        preserveUserGeometry: false) == .skipAlreadyRestored)
         #expect(RecoveryPlanner.decide(entry: entry, currentFrame: provisional, liveness: .alive,
-                                       isOriginalDisplayLive: true, clampedFrame: nil,
-                                       preserveUserGeometry: false) == .restore(to: original))
+                                       destination: destination,
+                                       preserveUserGeometry: false) == .restore(to: destination!))
         // 既不是原 frame 也不是计划 frame：不擅自覆盖。
         #expect(RecoveryPlanner.decide(entry: entry, currentFrame: CGRect(x: 10, y: 10, width: 100, height: 100),
-                                       liveness: .alive, isOriginalDisplayLive: true, clampedFrame: nil,
+                                       liveness: .alive,
+                                       destination: destination,
                                        preserveUserGeometry: false)
                 == .skipUserMoved(current: CGRect(x: 10, y: 10, width: 100, height: 100)))
     }
@@ -242,7 +263,7 @@ struct WindowTransactionTests {
             .markingFailed("AX 拒绝写入")
         #expect(exhausted.restoreAttempts == RecoveryPlanner.autoRestoreAttemptLimit)
         let decided = RecoveryPlanner.decide(entry: exhausted, currentFrame: provisional, liveness: .alive,
-                                             isOriginalDisplayLive: true, clampedFrame: nil,
+                                             destination: plannedDestination(exhausted),
                                              preserveUserGeometry: false)
         #expect(!decided.shouldWriteAX)
         #expect(decided.settledOutcome?.isSettled == false)
@@ -253,7 +274,7 @@ struct WindowTransactionTests {
     func preparedTransactionSkips() {
         let entry = transaction()
         #expect(RecoveryPlanner.decide(entry: entry, currentFrame: original, liveness: .alive,
-                                       isOriginalDisplayLive: true, clampedFrame: nil,
+                                       destination: plannedDestination(entry),
                                        preserveUserGeometry: false) == .skipNeverWritten)
     }
 
@@ -264,12 +285,24 @@ struct WindowTransactionTests {
                                       originalDisplayID: 2)
             .markingWritten(readBack: CGRect(x: 1_600, y: 0, width: 1_400, height: 860), displayID: 2)
         let clamped = CGRect(x: 300, y: 40, width: 900, height: 600)
+        // 原屏已消失：落点由规划器按备用屏可用区夹取，并明确标记为降级。
+        let destination = plannedDestination(entry, originalDisplayIsLive: false,
+                                             fallbackVisibleFrame: clamped, fallbackDisplayID: 3)
+        #expect(destination?.targetFrame == clamped)
+        #expect(destination?.targetDisplayID == 3)
+        #expect(destination?.reason == .originalDisplayUnavailable)
+        #expect(destination?.isDowngraded == true)
         let decided = RecoveryPlanner.decide(entry: entry,
                                              currentFrame: CGRect(x: 1_600, y: 0, width: 1_400, height: 860),
-                                             liveness: .alive, isOriginalDisplayLive: false,
-                                             clampedFrame: clamped, preserveUserGeometry: false)
-        #expect(decided == .clampAndRestore(to: clamped))
+                                             liveness: .alive,
+                                             destination: destination, preserveUserGeometry: false)
+        #expect(decided == .restore(to: destination!))
         #expect(decided.frame == clamped)
+        // 已经在夹取落点上：要说清是降级结果，不能报成"已按原样恢复"。
+        let alreadyThere = RecoveryPlanner.decide(entry: entry, currentFrame: clamped, liveness: .alive,
+                                                  destination: destination, preserveUserGeometry: false)
+        #expect(alreadyThere == .settleDegraded(destination: destination!))
+        #expect(alreadyThere.settledOutcome == .settledDegraded(readBack: clamped, displayID: 3))
     }
 
     @Test("保留手动尺寸时不回到进入前大小")
@@ -279,7 +312,7 @@ struct WindowTransactionTests {
         #expect(entry.restoreTargetFrame(preserveUserGeometry: true) == override)
         #expect(entry.restoreTargetFrame(preserveUserGeometry: false) == original)
         let decision = RecoveryPlanner.decide(entry: entry, currentFrame: override, liveness: .alive,
-                                              isOriginalDisplayLive: true, clampedFrame: nil,
+                                              destination: plannedDestination(entry),
                                               preserveUserGeometry: true)
         #expect(decision == .skipPreserveUserGeometry(keep: override))
         #expect(decision.settledOutcome == .keptUserGeometry)
@@ -291,7 +324,9 @@ struct WindowTransactionTests {
         #expect(RestoreOutcome.alreadyAtOriginal.isSettled)
         #expect(RestoreOutcome.windowGone.isSettled)
         #expect(RestoreOutcome.userMoved(current: original).isSettled)
-        #expect(!RestoreOutcome.constrained(deviation: 12).isSettled)
+        #expect(!RestoreOutcome.constrained(readBack: original, deviation: 12).isSettled)
+        #expect(RestoreOutcome.settledDegraded(readBack: original, displayID: 42).isSettled)
+        #expect(!RestoreOutcome.settledDegraded(readBack: original, displayID: 42).isFailure)
         #expect(!RestoreOutcome.rejected("错误码 -25205").isSettled)
         #expect(!RestoreOutcome.unreadable.isSettled)
         #expect(!RestoreOutcome.notAttempted("缺少辅助功能权限").isSettled)

@@ -108,7 +108,7 @@ final class T15PollingStabilityTests: XCTestCase {
 
     func testDowngradedCardsAreNotPromotedByTheNextSync() async {
         coordinator.streamSoftLimit = 1
-        coordinator.sync(targets: targets(3), tier: .balanced, isAnimating: false)
+        coordinator.sync(targets: targets(3), tier: .balanced, activity: TransitionActivity())
         await pump(8)
         let live = HostFixtures.identity(0)
         let polled = HostFixtures.identity(1)
@@ -119,7 +119,7 @@ final class T15PollingStabilityTests: XCTestCase {
 
         facts = []
         for _ in 0..<3 {
-            coordinator.sync(targets: targets(3), tier: .balanced, isAnimating: false)
+            coordinator.sync(targets: targets(3), tier: .balanced, activity: TransitionActivity())
             await pump(4)
         }
         XCTAssertEqual(coordinator.activeStreamCount, 1, "下一次 sync 把降级来的卡片又重启成直播流")
@@ -133,14 +133,14 @@ final class T15PollingStabilityTests: XCTestCase {
     /// 降到 3fps 的档位底后仍超预算：落到轮询，且再同步不回弹。
     func testBudgetDowngradeLandsInPollingAndStaysThere() async {
         coordinator.streamSoftLimit = 1
-        coordinator.sync(targets: targets(2), tier: .powerSaving, isAnimating: false)
+        coordinator.sync(targets: targets(2), tier: .powerSaving, activity: TransitionActivity())
         await pump(8)
         XCTAssertEqual(coordinator.mode(for: HostFixtures.identity(0)), .live)
         XCTAssertEqual(coordinator.mode(for: HostFixtures.identity(1)), .poll(intervalMilliseconds: 1_000))
         let streams = coordinator.activeStreamCount
         XCTAssertEqual(streams, 1)
 
-        coordinator.sync(targets: targets(2), tier: .powerSaving, isAnimating: false)
+        coordinator.sync(targets: targets(2), tier: .powerSaving, activity: TransitionActivity())
         await pump(8)
         XCTAssertEqual(coordinator.activeStreamCount, streams)
         XCTAssertEqual(coordinator.mode(for: HostFixtures.identity(1)), .poll(intervalMilliseconds: 1_000))
@@ -151,14 +151,14 @@ final class T15PollingStabilityTests: XCTestCase {
     func testPollCaptureNeverStacksConcurrentRequests() {
         capturer.gatesRequests = true
         coordinator.streamSoftLimit = 1
-        coordinator.sync(targets: targets(2), tier: .balanced, isAnimating: false)
+        coordinator.sync(targets: targets(2), tier: .balanced, activity: TransitionActivity())
         let polled = HostFixtures.identity(1)
         waitUntil(timeout: 2) { self.capturer.calls(for: polled) >= 1 }
         XCTAssertEqual(capturer.calls(for: polled), 1, "第一次降级就该发一次单窗口截图")
 
         // 在途期间反复同步：既不该重排轮询，也不该叠第二个请求。
-        coordinator.sync(targets: targets(2), tier: .balanced, isAnimating: false)
-        coordinator.sync(targets: targets(2), tier: .balanced, isAnimating: false)
+        coordinator.sync(targets: targets(2), tier: .balanced, activity: TransitionActivity())
+        coordinator.sync(targets: targets(2), tier: .balanced, activity: TransitionActivity())
         // 定时器每 1 秒触发一次；前一次还卡在门后，这几轮都必须被跳过。
         spin(2.5)
         XCTAssertEqual(capturer.calls(for: polled), 1, "上一次截图还没回来就又叠了一个请求")
@@ -232,7 +232,7 @@ final class T15PollingStabilityTests: XCTestCase {
 
     func testPolledCardStillPaintsAndReportsItsRealInterval() async {
         coordinator.streamSoftLimit = 1
-        coordinator.sync(targets: targets(2), tier: .balanced, isAnimating: false)
+        coordinator.sync(targets: targets(2), tier: .balanced, activity: TransitionActivity())
         await pump(12)
         let polled = HostFixtures.identity(1)
         XCTAssertEqual(capturer.calls(for: polled), 1, "降级后根本没发起单窗口截图")
@@ -247,7 +247,7 @@ final class T15PollingStabilityTests: XCTestCase {
     func testLatePollResultAfterStopIsIgnored() {
         capturer.gatesRequests = true
         coordinator.streamSoftLimit = 1
-        coordinator.sync(targets: targets(2), tier: .balanced, isAnimating: false)
+        coordinator.sync(targets: targets(2), tier: .balanced, activity: TransitionActivity())
         let polled = HostFixtures.identity(1)
         waitUntil(timeout: 2) { self.capturer.calls(for: polled) >= 1 }
         facts = []

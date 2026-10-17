@@ -2,6 +2,7 @@ import AppKit
 import ApplicationServices
 import CoreGraphics
 import Foundation
+import QuartzCore
 import VistileCore
 
 /// 一次几何写入的完整事实：写前 frame、两侧写入的错误码、写后读回、结论。
@@ -13,15 +14,31 @@ struct GeometryWriteReport: Equatable {
     let positionWriteError: Int
     let readBack: CGRect?
     let outcome: GeometryOutcome
+    /// 本次调用真正发起过哪一侧写入：被取消时必须能表达"只改了尺寸、位置还没动"（方案 §5.2）。
+    var didWriteSize: Bool = false
+    var didWritePosition: Bool = false
+    /// 写后读回（含 3×70ms 有界重试）耗了多久：§20.2 要求读回是独立端点，
+    /// 不然"写入慢"和"应用刚被改几何时 AX 短暂忙"永远分不开。没做过读回时为 nil。
+    var readBackMS: Double? = nil
 
     var readBackFrame: CGRect? { outcome.readBackFrame }
     var didChangeGeometry: Bool { outcome.didChangeGeometry }
+    var isCancelled: Bool {
+        if case .cancelled = outcome { return true }
+        return false
+    }
 }
 
 /// 几何写入通道抽象：宿主测试用替身驱动交错与故障注入，真机走 AXWindowResolver（方案 §15.1）。
+///
+/// 每个写入都必须带着调度器发的许可：MainActor 上"已经取消"这件事，AX 队列自己并不知道，
+/// 只有闭包内再查一次才拦得住已经排进队列的命令（方案 §5.2）。
 protocol GeometryWriting: AnyObject {
     func currentFrame(of element: AXUIElement) async -> CGRect?
-    func apply(frame target: CGRect, element: AXUIElement) async -> GeometryWriteReport
+    /// 尺寸 + 位置：只在许可有效时写，被撤销时按真实部分事实回报。
+    func apply(frame target: CGRect, element: AXUIElement, permit: GeometryWritePermit) async -> GeometryWriteReport
+    /// 仅位置（move-only 路径）：绝不写尺寸，尺寸用实读的当前值（方案 §9.1）。
+    func applyPosition(_ origin: CGPoint, element: AXUIElement, permit: GeometryWritePermit) async -> GeometryWriteReport
     func raise(element: AXUIElement) async -> Bool
     func focus(element: AXUIElement) async -> Bool
     func setMinimized(_ minimized: Bool, element: AXUIElement) async -> Bool
@@ -160,48 +177,114 @@ final class AXWindowResolver: @unchecked Sendable {
         await executor.submit { self.frame(of: element) }
     }
 
-    // MARK: - 写入（每一步都读回）
+    // MARK: - 写入（每一步都读回，每一步都查许可）
 
     /// 设置几何：先尺寸后位置；跨显示器偏差时最多再做一次 size→position 补偿。
     /// 写前读不到 frame 就不写：没有基准就无法判断这次写入到底改了什么。
-    func apply(frame target: CGRect, element: AXUIElement) async -> GeometryWriteReport {
+    ///
+    /// 许可检查全部发生在 AX 队列内部：入队之后被取消的操作不能再靠"入队前查过"来阻止真实写入。
+    func apply(frame target: CGRect, element: AXUIElement, permit: GeometryWritePermit) async -> GeometryWriteReport {
         await executor.submit {
             let clamped = target.standardized
+            guard permit.isGranted else {
+                return Self.cancelledReport(target: clamped, before: nil, wroteSize: false,
+                                            wrotePosition: false, readBack: nil)
+            }
             guard let before = self.frame(of: element) else {
                 return GeometryWriteReport(target: clamped, frameBeforeWrite: nil,
                                            sizeWriteError: Int(AXError.cannotComplete.rawValue),
                                            positionWriteError: Int(AXError.cannotComplete.rawValue),
                                            readBack: nil, outcome: .unreadable)
             }
-            let first = self.writeOnce(clamped, element: element, before: before)
+            let first = self.writeOnce(clamped, element: element, before: before, permit: permit)
+            if first.isCancelled {
+                return first
+            }
             guard self.needsCompensation(first, before: before) else { return first }
+            guard permit.isGranted else {
+                // 已经动过窗口才被取消：回报真实部分事实，让补偿按这些事实回位。
+                return Self.cancelledReport(target: clamped, before: before,
+                                            wroteSize: first.didWriteSize,
+                                            wrotePosition: first.didWritePosition,
+                                            readBack: first.readBack)
+            }
             // 跨不同 scaling 的显示器常见"位置被接受但尺寸被应用重算"：补偿一次，最多一次。
-            return self.writeOnce(clamped, element: element, before: before)
+            var compensated = self.writeOnce(clamped, element: element, before: before, permit: permit)
+            // 两段都真实读过 AX：读回耗时按整次调用累计，只留最后一段会把第一次的重试洗掉（方案 §20.2）。
+            if let first = first.readBackMS {
+                compensated.readBackMS = (compensated.readBackMS ?? 0) + first
+            }
+            return compensated
         }
     }
 
-    func applyPosition(_ origin: CGPoint, element: AXUIElement) async -> GeometryWriteReport {
+    /// 仅移动路径：只写 position，尺寸保持实读的当前值（方案 §9.1）。
+    func applyPosition(_ origin: CGPoint,
+                       element: AXUIElement,
+                       permit: GeometryWritePermit) async -> GeometryWriteReport {
         await executor.submit {
+            guard permit.isGranted else {
+                return Self.cancelledReport(target: CGRect(origin: origin, size: .zero), before: nil,
+                                            wroteSize: false, wrotePosition: false, readBack: nil)
+            }
             guard let before = self.frame(of: element) else {
                 return GeometryWriteReport(target: CGRect(origin: origin, size: .zero), frameBeforeWrite: nil,
                                            sizeWriteError: Int(AXError.cannotComplete.rawValue),
                                            positionWriteError: Int(AXError.cannotComplete.rawValue),
                                            readBack: nil, outcome: .unreadable)
             }
+            // 目标矩形只是给判定用；真实尺寸来自写前实读，绝不为了"看着像主区"而裁小。
             let target = CGRect(origin: origin, size: before.size)
             let positionError = self.writePosition(origin, element: element)
+            let readBackStarted = CACurrentMediaTime()
             let readBack = self.readBackFrame(element)
-            return Self.classify(target: target, before: before, sizeError: 0, positionError: positionError,
-                                 readBack: readBack, tolerance: self.geometryTolerance)
+            var report = Self.classify(target: target, before: before, sizeError: 0,
+                                       positionError: positionError, readBack: readBack,
+                                       tolerance: self.geometryTolerance)
+            report.didWriteSize = false
+            report.didWritePosition = true
+            report.readBackMS = (CACurrentMediaTime() - readBackStarted) * 1000
+            return report
         }
     }
 
-    private func writeOnce(_ target: CGRect, element: AXUIElement, before: CGRect) -> GeometryWriteReport {
+    private func writeOnce(_ target: CGRect,
+                           element: AXUIElement,
+                           before: CGRect,
+                           permit: GeometryWritePermit) -> GeometryWriteReport {
         let sizeError = writeSize(target.size, element: element)
+        guard permit.isGranted else {
+            // 尺寸已经落笔、位置还没写：只改过一半的几何必须按事实回报（方案 §5.2）。
+            let partialReadBack = self.frame(of: element)
+            return Self.cancelledReport(target: target, before: before, wroteSize: true,
+                                        wrotePosition: false, readBack: partialReadBack,
+                                        sizeError: sizeError)
+        }
         let positionError = writePosition(target.origin, element: element)
+        let readBackStarted = CACurrentMediaTime()
         let readBack = readBackFrame(element)
-        return Self.classify(target: target, before: before, sizeError: sizeError, positionError: positionError,
-                             readBack: readBack, tolerance: geometryTolerance)
+        var report = Self.classify(target: target, before: before, sizeError: sizeError,
+                                   positionError: positionError, readBack: readBack,
+                                   tolerance: geometryTolerance)
+        report.didWriteSize = true
+        report.didWritePosition = true
+        report.readBackMS = (CACurrentMediaTime() - readBackStarted) * 1000
+        return report
+    }
+
+    /// 取消后的回报：错误码记为"未执行"，但已写入侧与读回事实原样保留。
+    private static func cancelledReport(target: CGRect,
+                                        before: CGRect?,
+                                        wroteSize: Bool,
+                                        wrotePosition: Bool,
+                                        readBack: CGRect?,
+                                        sizeError: Int = Int(AXError.success.rawValue)) -> GeometryWriteReport {
+        GeometryWriteReport(target: target, frameBeforeWrite: before,
+                            sizeWriteError: wroteSize ? sizeError : Int(AXError.cannotComplete.rawValue),
+                            positionWriteError: wrotePosition ? Int(AXError.success.rawValue) : Int(AXError.cannotComplete.rawValue),
+                            readBack: readBack,
+                            outcome: .cancelled(wroteSize: wroteSize, wrotePosition: wrotePosition, readBack: readBack),
+                            didWriteSize: wroteSize, didWritePosition: wrotePosition)
     }
 
     /// 写后读回给一个有界重试窗口：写入双侧回报成功（错误码 0）时，单次读失败不能当成终审。

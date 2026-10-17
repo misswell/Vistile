@@ -134,6 +134,7 @@ final class TransitionSceneTests: XCTestCase {
         let token = TransitionToken(generation: 7)
         let plan = WorkbenchTransitionPlan(kind: .enteringWorkbench,
                                            token: token,
+                                           operationContext: HostPlanFacts.context(token: token, kind: .enterWorkbench),
                                            identity: main,
                                            displayID: displayID,
                                            snapshot: fixture.snapshot,
@@ -142,7 +143,8 @@ final class TransitionSceneTests: XCTestCase {
                                            animationTo: target,
                                            railHandoffs: handoffs,
                                            animationMS: 240,
-                                           presentation: fixture.presentation)
+                                           presentation: fixture.presentation,
+                                           placement: HostPlanFacts.placement(target: target))
 
         var factory = baseFactory(imageRects: imageRects)
         factory.aspect = { identity, _ in identity.windowID == 9_001 ? 3.5 : 1.25 }
@@ -184,6 +186,7 @@ final class TransitionSceneTests: XCTestCase {
         let faraway = CGRect(x: screen.maxX + 5_000, y: screen.maxY + 5_000, width: 200, height: 120)
         let plan = WorkbenchTransitionPlan(kind: .enteringWorkbench,
                                            token: TransitionToken(generation: 3),
+                                           operationContext: HostPlanFacts.context(token: TransitionToken(generation: 3), kind: .enterWorkbench),
                                            identity: main,
                                            displayID: displayID,
                                            snapshot: fixture.snapshot,
@@ -195,7 +198,8 @@ final class TransitionSceneTests: XCTestCase {
                                                                       from: faraway,
                                                                       to: nil)],
                                            animationMS: 240,
-                                           presentation: fixture.presentation)
+                                           presentation: fixture.presentation,
+                                           placement: HostPlanFacts.placement(target: fixture.layout.mainRect))
 
         let scene = try XCTUnwrap(baseFactory(imageRects: [:]).entering(plan))
         XCTAssertEqual(scene.cards.map(\.identity), [main], "不在这一屏上的卡片不参与合成")
@@ -213,6 +217,7 @@ final class TransitionSceneTests: XCTestCase {
                                   to: fixture.snapshot.rect(for: farSlot))
         let plan = WorkbenchTransitionPlan(kind: .enteringWorkbench,
                                            token: TransitionToken(generation: 4),
+                                           operationContext: HostPlanFacts.context(token: TransitionToken(generation: 4), kind: .enterWorkbench),
                                            identity: main,
                                            displayID: displayID,
                                            snapshot: fixture.snapshot,
@@ -221,7 +226,8 @@ final class TransitionSceneTests: XCTestCase {
                                            animationTo: fixture.layout.mainRect,
                                            railHandoffs: [handoff],
                                            animationMS: 240,
-                                           presentation: fixture.presentation)
+                                           presentation: fixture.presentation,
+                                           placement: HostPlanFacts.placement(target: fixture.layout.mainRect))
 
         let scene = try XCTUnwrap(baseFactory(imageRects: [HostFixtures.identity(1): grid.layout.cards[1].imageRect]).entering(plan))
         let card = try XCTUnwrap(scene.cards.first { $0.identity == HostFixtures.identity(1) })
@@ -253,6 +259,7 @@ final class TransitionSceneTests: XCTestCase {
         let token = TransitionToken(generation: 11)
         let plan = WorkbenchTransitionPlan(kind: .returningOverview,
                                            token: token,
+                                           operationContext: HostPlanFacts.context(token: token, kind: .returnOverview),
                                            identity: main,
                                            displayID: displayID,
                                            snapshot: fixture.snapshot,
@@ -261,7 +268,8 @@ final class TransitionSceneTests: XCTestCase {
                                            animationTo: mainCell,
                                            railHandoffs: handoffs,
                                            animationMS: 200,
-                                           presentation: fixture.presentation)
+                                           presentation: fixture.presentation,
+                                           placement: HostPlanFacts.placement(target: CGRect(x: 100, y: 100, width: 900, height: 700)))
 
         let scene = try XCTUnwrap(baseFactory(imageRects: imageRects).returning(plan))
         XCTAssertEqual(scene.kind, .returning)
@@ -294,6 +302,7 @@ final class TransitionSceneTests: XCTestCase {
         let cell = try XCTUnwrap(grid.layout.card(at: SlotID(index: 0))).cellRect
         let plan = WorkbenchTransitionPlan(kind: .returningOverview,
                                            token: TransitionToken(generation: 12),
+                                           operationContext: HostPlanFacts.context(token: TransitionToken(generation: 12), kind: .returnOverview),
                                            identity: main,
                                            displayID: displayID,
                                            snapshot: fixture.snapshot,
@@ -302,7 +311,8 @@ final class TransitionSceneTests: XCTestCase {
                                            animationTo: cell,
                                            railHandoffs: [],
                                            animationMS: 200,
-                                           presentation: fixture.presentation)
+                                           presentation: fixture.presentation,
+                                           placement: HostPlanFacts.placement(target: fixture.layout.mainRect))
 
         let scene = try XCTUnwrap(baseFactory(imageRects: [:]).returning(plan))
         let mainCard = try XCTUnwrap(scene.focusCard)
@@ -321,7 +331,7 @@ final class TransitionSceneTests: XCTestCase {
                             to: CGRect(x: 90, y: 120, width: 800, height: 500)]
         let mainTarget = fixture.layout.mainRect.insetBy(dx: 6, dy: 6)
         let resting = fixture.snapshot.contentRect(for: slot).map { $0.insetBy(dx: 3, dy: 3) } ?? mainTarget
-        let intent = WorkbenchSwitchIntent(token: TransitionToken(generation: 21),
+        let intent = HostPlanFacts.switchIntent(token: TransitionToken(generation: 21),
                                            from: from,
                                            to: to,
                                            source: .rail(slot: slot),
@@ -333,7 +343,8 @@ final class TransitionSceneTests: XCTestCase {
                                        restingTargetFrame: resting,
                                        restingSlot: slot,
                                        snapshot: fixture.snapshot,
-                                       presentation: fixture.presentation)
+                                       presentation: fixture.presentation,
+                                       placement: HostPlanFacts.placement(target: mainTarget))
 
         var factory = baseFactory(imageRects: [:])
         factory.recordFrame = { identity in recordFrames[identity] }
@@ -367,7 +378,7 @@ final class TransitionSceneTests: XCTestCase {
         let fixture = HostWorkbench.fixture(count: 3)
         let to = HostFixtures.identity(1)
         let slot = try XCTUnwrap(fixture.placement.slot(of: to))
-        let intent = WorkbenchSwitchIntent(token: TransitionToken(generation: 22),
+        let intent = HostPlanFacts.switchIntent(token: TransitionToken(generation: 22),
                                            from: nil,
                                            to: to,
                                            source: .rail(slot: slot),
@@ -379,7 +390,8 @@ final class TransitionSceneTests: XCTestCase {
                                        restingTargetFrame: nil,
                                        restingSlot: slot,
                                        snapshot: fixture.snapshot,
-                                       presentation: fixture.presentation)
+                                       presentation: fixture.presentation,
+                                       placement: HostPlanFacts.placement(target: fixture.layout.mainRect))
 
         let scene = try XCTUnwrap(baseFactory(imageRects: [:]).swapping(plan))
         XCTAssertEqual(scene.cards.map(\.identity), [to])
@@ -388,11 +400,13 @@ final class TransitionSceneTests: XCTestCase {
 
     // MARK: - 降级与限额
 
+    /// A41（方案 §18 A41）：系统"减少动态效果"下只做短淡化，时长取降级值且严格短于完整动效。
+    /// 呈现层是否真的不位移见 `testReduceMotionPresentsTheSameEndpointsWithoutAnyFlight`。
     func testReduceMotionStaysFadeOnly() throws {
         let fixture = HostWorkbench.fixture(count: 3)
         let to = HostFixtures.identity(1)
         let slot = try XCTUnwrap(fixture.placement.slot(of: to))
-        let intent = WorkbenchSwitchIntent(token: TransitionToken(generation: 23),
+        let intent = HostPlanFacts.switchIntent(token: TransitionToken(generation: 23),
                                            from: HostFixtures.identity(0),
                                            to: to,
                                            source: .rail(slot: slot),
@@ -404,7 +418,8 @@ final class TransitionSceneTests: XCTestCase {
                                        restingTargetFrame: fixture.layout.mainRect,
                                        restingSlot: slot,
                                        snapshot: fixture.snapshot,
-                                       presentation: fixture.presentation)
+                                       presentation: fixture.presentation,
+                                       placement: HostPlanFacts.placement(target: fixture.layout.mainRect))
 
         var factory = baseFactory(imageRects: [:])
         factory.reduceMotion = { true }
@@ -419,6 +434,7 @@ final class TransitionSceneTests: XCTestCase {
         let main = HostFixtures.identity(0)
         let plan = WorkbenchTransitionPlan(kind: .enteringWorkbench,
                                            token: TransitionToken(generation: 31),
+                                           operationContext: HostPlanFacts.context(token: TransitionToken(generation: 31), kind: .enterWorkbench),
                                            identity: main,
                                            displayID: displayID,
                                            snapshot: fixture.snapshot,
@@ -427,7 +443,8 @@ final class TransitionSceneTests: XCTestCase {
                                            animationTo: fixture.layout.mainRect,
                                            railHandoffs: [],
                                            animationMS: 240,
-                                           presentation: fixture.presentation)
+                                           presentation: fixture.presentation,
+                                           placement: HostPlanFacts.placement(target: fixture.layout.mainRect))
         var factory = baseFactory(imageRects: [:])
         factory.displayFrame = { _ in nil }
         XCTAssertNil(factory.entering(plan), "拿不到屏幕事实时不许播动画")
@@ -435,7 +452,9 @@ final class TransitionSceneTests: XCTestCase {
 
     // MARK: - 打断续接
 
-    /// §10.4：播放中来了新场景，必须从"此刻屏幕上的矩形"接续，不跳回新计划的起点、也不重放。
+    /// §10.4 / A40（方案 §18 A40）：播放中来了新场景，必须从"此刻屏幕上的矩形"接续，
+    /// 不跳回新计划的起点、也不重放。"旧完成不得提交新状态"那一半由核心侧
+    /// `WorkbenchTests` 的过渡收口用例守着（见 W 系列）。
     @MainActor
     func testInterruptContinuesFromPresentedRect() throws {
         let metal = try HostFixtures.metalContext()
@@ -454,6 +473,7 @@ final class TransitionSceneTests: XCTestCase {
         let sceneA = try XCTUnwrap(baseFactory(imageRects: [main: mainCell]).entering(
             WorkbenchTransitionPlan(kind: .enteringWorkbench,
                                     token: TransitionToken(generation: 51),
+                                    operationContext: HostPlanFacts.context(token: TransitionToken(generation: 51), kind: .enterWorkbench),
                                     identity: main,
                                     displayID: displayID,
                                     snapshot: fixture.snapshot,
@@ -462,7 +482,8 @@ final class TransitionSceneTests: XCTestCase {
                                     animationTo: target,
                                     railHandoffs: [],
                                     animationMS: 240,
-                                    presentation: fixture.presentation)))
+                                    presentation: fixture.presentation,
+                                    placement: HostPlanFacts.placement(target: target))))
 
         let before = CACurrentMediaTime()
         view.play(sceneA, sources: [:])
@@ -478,6 +499,7 @@ final class TransitionSceneTests: XCTestCase {
         let sceneB = try XCTUnwrap(baseFactory(imageRects: [main: laterStart]).entering(
             WorkbenchTransitionPlan(kind: .enteringWorkbench,
                                     token: TransitionToken(generation: 52),
+                                    operationContext: HostPlanFacts.context(token: TransitionToken(generation: 52), kind: .enterWorkbench),
                                     identity: main,
                                     displayID: displayID,
                                     snapshot: fixture.snapshot,
@@ -486,7 +508,8 @@ final class TransitionSceneTests: XCTestCase {
                                     animationTo: target,
                                     railHandoffs: [],
                                     animationMS: 240,
-                                    presentation: fixture.presentation)))
+                                    presentation: fixture.presentation,
+                                    placement: HostPlanFacts.placement(target: target))))
         view.play(sceneB, sources: [:])
         let continued = try XCTUnwrap(view.presentedRect(for: main))
         XCTAssertEqual(continued.minX, interrupted.minX, accuracy: 0.001, "打断续接：不许跳回新计划的起点")
@@ -515,7 +538,7 @@ final class TransitionSceneTests: XCTestCase {
         let fixture = HostWorkbench.fixture(count: 3)
         let to = HostFixtures.identity(1)
         let slot = try XCTUnwrap(fixture.placement.slot(of: to))
-        let intent = WorkbenchSwitchIntent(token: TransitionToken(generation: 41),
+        let intent = HostPlanFacts.switchIntent(token: TransitionToken(generation: 41),
                                            from: HostFixtures.identity(0),
                                            to: to,
                                            source: .rail(slot: slot),
@@ -527,7 +550,8 @@ final class TransitionSceneTests: XCTestCase {
                                        restingTargetFrame: fixture.layout.mainRect,
                                        restingSlot: slot,
                                        snapshot: fixture.snapshot,
-                                       presentation: fixture.presentation)
+                                       presentation: fixture.presentation,
+                                       placement: HostPlanFacts.placement(target: fixture.layout.mainRect))
         let scene = try XCTUnwrap(baseFactory(imageRects: [:]).swapping(swap))
 
         coordinator.play(scene)
@@ -557,7 +581,7 @@ final class TransitionSceneTests: XCTestCase {
         let fixture = HostWorkbench.fixture(count: 3)
         let to = HostFixtures.identity(1)
         let slot = try XCTUnwrap(fixture.placement.slot(of: to))
-        let intent = WorkbenchSwitchIntent(token: TransitionToken(generation: 42),
+        let intent = HostPlanFacts.switchIntent(token: TransitionToken(generation: 42),
                                            from: HostFixtures.identity(0),
                                            to: to,
                                            source: .rail(slot: slot),
@@ -569,7 +593,8 @@ final class TransitionSceneTests: XCTestCase {
                                        restingTargetFrame: fixture.layout.mainRect,
                                        restingSlot: slot,
                                        snapshot: fixture.snapshot,
-                                       presentation: fixture.presentation)
+                                       presentation: fixture.presentation,
+                                       placement: HostPlanFacts.placement(target: fixture.layout.mainRect))
         let scene = try XCTUnwrap(baseFactory(imageRects: [:]).swapping(plan))
         coordinator.play(scene)
 
@@ -592,7 +617,9 @@ final class TransitionSceneTests: XCTestCase {
                                                           scale: 2)
         }
         var finished: [TransitionToken] = []
+        var cancelled: [TransitionToken] = []
         coordinator.onSceneFinished = { finished.append($0) }
+        coordinator.onSceneCancellationFinished = { cancelled.append($0) }
 
         let grid = HostFixtures.layout(count: 6)
         let fixture = HostWorkbench.fixture(count: 6)
@@ -614,6 +641,7 @@ final class TransitionSceneTests: XCTestCase {
         let scene = try XCTUnwrap(baseFactory(imageRects: imageRects).entering(
             WorkbenchTransitionPlan(kind: .enteringWorkbench,
                                     token: token,
+                                    operationContext: HostPlanFacts.context(token: token, kind: .enterWorkbench),
                                     identity: main,
                                     displayID: displayID,
                                     snapshot: fixture.snapshot,
@@ -622,7 +650,8 @@ final class TransitionSceneTests: XCTestCase {
                                     animationTo: fixture.layout.mainRect,
                                     railHandoffs: handoffs,
                                     animationMS: 240,
-                                    presentation: fixture.presentation)))
+                                    presentation: fixture.presentation,
+                                    placement: HostPlanFacts.placement(target: fixture.layout.mainRect))))
         XCTAssertEqual(scene.cards.count, 1 + handoffs.count, "前提：这一段过渡真的有多张卡片参与合成")
 
         coordinator.play(scene)
@@ -637,6 +666,7 @@ final class TransitionSceneTests: XCTestCase {
         let second = try XCTUnwrap(baseFactory(imageRects: imageRects).entering(
             WorkbenchTransitionPlan(kind: .enteringWorkbench,
                                     token: secondToken,
+                                    operationContext: HostPlanFacts.context(token: secondToken, kind: .enterWorkbench),
                                     identity: main,
                                     displayID: displayID,
                                     snapshot: fixture.snapshot,
@@ -645,7 +675,8 @@ final class TransitionSceneTests: XCTestCase {
                                     animationTo: fixture.layout.mainRect,
                                     railHandoffs: handoffs,
                                     animationMS: 240,
-                                    presentation: fixture.presentation)))
+                                    presentation: fixture.presentation,
+                                    placement: HostPlanFacts.placement(target: fixture.layout.mainRect))))
         coordinator.play(second)
         XCTAssertEqual(coordinator.carrierDisplayIDs.count, 1, "第二次播放不新增承载窗口")
         let reused = try XCTUnwrap(coordinator.carrierWindow(for: displayID))
@@ -658,7 +689,9 @@ final class TransitionSceneTests: XCTestCase {
         XCTAssertFalse(coordinator.isPresenting, "结束后不许再占着过渡令牌")
         XCTAssertFalse(reused.isVisible, "结束后承载层必须离开屏幕")
         XCTAssertTrue(coordinator.hiddenRailIdentities.isEmpty)
-        XCTAssertEqual(finished, [secondToken])
+        // retreat 是"取消"不是"落位完成"：终止回调必须正好一个，而且走取消那一路（方案 §13.2、A39）。
+        XCTAssertEqual(cancelled, [secondToken], "retreat 收场必须回报一次取消完成")
+        XCTAssertTrue(finished.isEmpty, "被 retreat 收掉的过渡不许再发一次正常完成，否则状态机收两遍（A39）")
     }
 
     // MARK: - 动效等级与帧采样（方案 §20.3–§20.4）
@@ -681,7 +714,7 @@ final class TransitionSceneTests: XCTestCase {
         let slot = try XCTUnwrap(fixture.placement.slot(of: to))
         XCTAssertNotEqual(fixture.snapshot.contentRect(for: slot), fixture.layout.mainRect,
                           "前提：真实窗口帧（起点）与栏内容区（终点）不同，替换才可观察")
-        let intent = WorkbenchSwitchIntent(token: TransitionToken(generation: 61),
+        let intent = HostPlanFacts.switchIntent(token: TransitionToken(generation: 61),
                                            from: from,
                                            to: to,
                                            source: .rail(slot: slot),
@@ -693,7 +726,8 @@ final class TransitionSceneTests: XCTestCase {
                                        restingTargetFrame: nil,
                                        restingSlot: slot,
                                        snapshot: fixture.snapshot,
-                                       presentation: fixture.presentation)
+                                       presentation: fixture.presentation,
+                                       placement: HostPlanFacts.placement(target: fixture.layout.mainRect))
 
         var factory = baseFactory(imageRects: [:])
         factory.motionLevel = { .light }
@@ -741,6 +775,7 @@ final class TransitionSceneTests: XCTestCase {
         }
         let plan = WorkbenchTransitionPlan(kind: .enteringWorkbench,
                                            token: TransitionToken(generation: 62),
+                                           operationContext: HostPlanFacts.context(token: TransitionToken(generation: 62), kind: .enterWorkbench),
                                            identity: main,
                                            displayID: displayID,
                                            snapshot: fixture.snapshot,
@@ -749,7 +784,8 @@ final class TransitionSceneTests: XCTestCase {
                                            animationTo: fixture.layout.mainRect,
                                            railHandoffs: handoffs,
                                            animationMS: 240,
-                                           presentation: fixture.presentation)
+                                           presentation: fixture.presentation,
+                                           placement: HostPlanFacts.placement(target: fixture.layout.mainRect))
 
         var factory = baseFactory(imageRects: imageRects)
         factory.motionLevel = { .light }
@@ -781,6 +817,7 @@ final class TransitionSceneTests: XCTestCase {
         let cell = CGRect(x: 100, y: 100, width: 300, height: 200)
         let entering = WorkbenchTransitionPlan(kind: .enteringWorkbench,
                                                token: TransitionToken(generation: 63),
+                                               operationContext: HostPlanFacts.context(token: TransitionToken(generation: 63), kind: .enterWorkbench),
                                                identity: main,
                                                displayID: displayID,
                                                snapshot: fixture.snapshot,
@@ -789,7 +826,8 @@ final class TransitionSceneTests: XCTestCase {
                                                animationTo: fixture.layout.mainRect,
                                                railHandoffs: [],
                                                animationMS: 240,
-                                               presentation: fixture.presentation)
+                                               presentation: fixture.presentation,
+                                               placement: HostPlanFacts.placement(target: fixture.layout.mainRect))
 
         var factory = baseFactory(imageRects: [main: cell])
         factory.motionLevel = { .fade }
@@ -801,7 +839,7 @@ final class TransitionSceneTests: XCTestCase {
         XCTAssertLessThan(enterScene.durationMS, 240, "比计划里的完整时长更短")
 
         let slot = try XCTUnwrap(fixture.placement.slot(of: HostFixtures.identity(1)))
-        let intent = WorkbenchSwitchIntent(token: TransitionToken(generation: 64),
+        let intent = HostPlanFacts.switchIntent(token: TransitionToken(generation: 64),
                                            from: main,
                                            to: HostFixtures.identity(1),
                                            source: .rail(slot: slot),
@@ -813,7 +851,8 @@ final class TransitionSceneTests: XCTestCase {
                                        restingTargetFrame: nil,
                                        restingSlot: slot,
                                        snapshot: fixture.snapshot,
-                                       presentation: fixture.presentation)
+                                       presentation: fixture.presentation,
+                                       placement: HostPlanFacts.placement(target: fixture.layout.mainRect))
         let swapScene = try XCTUnwrap(factory.swapping(swap))
         XCTAssertTrue(swapScene.fadeOnly)
         XCTAssertEqual(swapScene.durationMS, fixture.layout.style.switchAnimationMS(reduceMotion: true))
@@ -835,6 +874,7 @@ final class TransitionSceneTests: XCTestCase {
         let scene = try XCTUnwrap(baseFactory(imageRects: [main: fixture.layout.mainRect]).entering(
             WorkbenchTransitionPlan(kind: .enteringWorkbench,
                                     token: TransitionToken(generation: 71),
+                                    operationContext: HostPlanFacts.context(token: TransitionToken(generation: 71), kind: .enterWorkbench),
                                     identity: main,
                                     displayID: displayID,
                                     snapshot: fixture.snapshot,
@@ -843,7 +883,8 @@ final class TransitionSceneTests: XCTestCase {
                                     animationTo: fixture.layout.mainRect,
                                     railHandoffs: [],
                                     animationMS: 240,
-                                    presentation: fixture.presentation)))
+                                    presentation: fixture.presentation,
+                                    placement: HostPlanFacts.placement(target: fixture.layout.mainRect))))
 
         var reported: [(TransitionScene.Kind, FrameIntervalStats)] = []
         view.onFlightStats = { reported.append(($0, $1)) }
@@ -884,6 +925,7 @@ final class TransitionSceneTests: XCTestCase {
         let scene = try XCTUnwrap(baseFactory(imageRects: [main: fixture.layout.mainRect]).entering(
             WorkbenchTransitionPlan(kind: .enteringWorkbench,
                                     token: TransitionToken(generation: 72),
+                                    operationContext: HostPlanFacts.context(token: TransitionToken(generation: 72), kind: .enterWorkbench),
                                     identity: main,
                                     displayID: displayID,
                                     snapshot: fixture.snapshot,
@@ -892,7 +934,8 @@ final class TransitionSceneTests: XCTestCase {
                                     animationTo: fixture.layout.mainRect,
                                     railHandoffs: [],
                                     animationMS: 240,
-                                    presentation: fixture.presentation)))
+                                    presentation: fixture.presentation,
+                                    placement: HostPlanFacts.placement(target: fixture.layout.mainRect))))
 
         var reported: [FrameIntervalStats] = []
         view.onFlightStats = { _, stats in reported.append(stats) }
@@ -916,6 +959,109 @@ final class TransitionSceneTests: XCTestCase {
         view.stopNow()
     }
 
+    /// 呈现事实（方案 §20.2）：首帧延迟以真实输入为锚，单独一条；tick 次数与 present 次数分开记，
+    /// 不许拿回调次数当"画面动了"。
+    @MainActor
+    func testCarrierReportsFirstFrameAnchoredAtInputAndSeparatesPresentsFromTicks() throws {
+        let metal = try HostFixtures.metalContext()
+        let view = TransitionCarrierView(frame: CGRect(origin: .zero, size: HostFixtures.offscreenSize),
+                                         metal: metal)
+        view.configure(cgOrigin: HostFixtures.offscreenOrigin, scale: 2)
+        view.layout()
+
+        let fixture = HostWorkbench.fixture(count: 2)
+        let main = HostFixtures.identity(0)
+        let scene = try XCTUnwrap(baseFactory(imageRects: [main: fixture.layout.mainRect]).entering(
+            WorkbenchTransitionPlan(kind: .enteringWorkbench,
+                                    token: TransitionToken(generation: 74),
+                                    operationContext: HostPlanFacts.context(token: TransitionToken(generation: 74), kind: .enterWorkbench),
+                                    identity: main,
+                                    displayID: displayID,
+                                    snapshot: fixture.snapshot,
+                                    targetFrame: fixture.layout.mainRect,
+                                    animationFrom: fixture.layout.mainRect,
+                                    animationTo: fixture.layout.mainRect,
+                                    railHandoffs: [],
+                                    animationMS: 240,
+                                    presentation: fixture.presentation,
+                                    placement: HostPlanFacts.placement(target: fixture.layout.mainRect))))
+
+        var facts: [TransitionFlightFacts] = []
+        view.onFlightFacts = { _, value in facts.append(value) }
+
+        // 假装"200ms 前就点了"：锚点在前，首帧延迟就必须把这 200ms 算进去。
+        let anchor = CACurrentMediaTime() - 0.2
+        let base = CACurrentMediaTime()
+        view.play(scene, sources: [:], anchorAt: anchor)
+        view.advance(to: base)
+        var now = base
+        for _ in 0..<15 {
+            now += 16.7 / 1000
+            view.advance(to: now)
+        }
+        XCTAssertTrue(view.isHolding)
+        let flight = try XCTUnwrap(facts.first)
+        XCTAssertEqual(facts.count, 1, "一段飞行只报一次呈现事实")
+        XCTAssertTrue(flight.anchoredAtRealInput, "给了输入锚点就必须标成真实输入锚定")
+        XCTAssertEqual(flight.ticks, 16, "tick 次数按真正驱动到飞行的次数记：首个 tick + 15 个 16.7ms")
+        XCTAssertLessThanOrEqual(flight.presentedFrames, flight.ticks + 1,
+                                 "present 不可能多于渲染次数（play 的同步第一帧 + 每个 tick 一次）")
+        guard flight.hasPresentedPixels else {
+            return XCTFail("承载层一次都没 present：这一段没有画面证据，先查 drawable 是否拿得到")
+        }
+        let delay = try XCTUnwrap(flight.firstPresentDelayMS)
+        XCTAssertGreaterThanOrEqual(delay, 195, "首帧延迟必须包含点击之后那 200ms")
+        XCTAssertLessThan(delay, 400, "锚点之外只允许几十毫秒的合成开销")
+        view.stopNow()
+    }
+
+    /// 没有前置输入的过渡（自动替补、探针直接 dispatch）不许冒充"点击反馈"：
+    /// 锚点缺失要标出来，延迟按动画进入时刻算，所以一定是小数字。
+    @MainActor
+    func testFlightFactsWithoutInputAnchorAreMarkedNotAnchored() throws {
+        let metal = try HostFixtures.metalContext()
+        let view = TransitionCarrierView(frame: CGRect(origin: .zero, size: HostFixtures.offscreenSize),
+                                         metal: metal)
+        view.configure(cgOrigin: HostFixtures.offscreenOrigin, scale: 2)
+        view.layout()
+
+        let fixture = HostWorkbench.fixture(count: 2)
+        let main = HostFixtures.identity(0)
+        let scene = try XCTUnwrap(baseFactory(imageRects: [main: fixture.layout.mainRect]).entering(
+            WorkbenchTransitionPlan(kind: .enteringWorkbench,
+                                    token: TransitionToken(generation: 75),
+                                    operationContext: HostPlanFacts.context(token: TransitionToken(generation: 75), kind: .enterWorkbench),
+                                    identity: main,
+                                    displayID: displayID,
+                                    snapshot: fixture.snapshot,
+                                    targetFrame: fixture.layout.mainRect,
+                                    animationFrom: fixture.layout.mainRect,
+                                    animationTo: fixture.layout.mainRect,
+                                    railHandoffs: [],
+                                    animationMS: 240,
+                                    presentation: fixture.presentation,
+                                    placement: HostPlanFacts.placement(target: fixture.layout.mainRect))))
+
+        var facts: [TransitionFlightFacts] = []
+        view.onFlightFacts = { _, value in facts.append(value) }
+        let startBase = CACurrentMediaTime()
+        view.play(scene, sources: [:])
+        view.advance(to: startBase)
+        var now = startBase
+        for _ in 0..<15 {
+            now += 16.7 / 1000
+            view.advance(to: now)
+        }
+        XCTAssertTrue(view.isHolding, "前提：这段必须跑到飞行结束才会计一次呈现事实")
+        let flight = try XCTUnwrap(facts.first)
+        XCTAssertFalse(flight.anchoredAtRealInput, "没给锚点就不能标成真实输入")
+        if flight.hasPresentedPixels {
+            // 锚点是 play() 自己：首帧在同一 tick 内画完，不该读出几百毫秒。
+            XCTAssertLessThan(flight.firstPresentDelayMS ?? 999, 100)
+        }
+        view.stopNow()
+    }
+
     /// 样本不足不下结论：只有两个间隔时宁可不报，也不拿两帧做降级决策（方案 §20.4）。
     @MainActor
     func testCarrierSkipsStatsWhenTooFewSamples() throws {
@@ -930,6 +1076,7 @@ final class TransitionSceneTests: XCTestCase {
         let scene = try XCTUnwrap(baseFactory(imageRects: [main: fixture.layout.mainRect]).entering(
             WorkbenchTransitionPlan(kind: .enteringWorkbench,
                                     token: TransitionToken(generation: 73),
+                                    operationContext: HostPlanFacts.context(token: TransitionToken(generation: 73), kind: .enterWorkbench),
                                     identity: main,
                                     displayID: displayID,
                                     snapshot: fixture.snapshot,
@@ -938,7 +1085,8 @@ final class TransitionSceneTests: XCTestCase {
                                     animationTo: fixture.layout.mainRect,
                                     railHandoffs: [],
                                     animationMS: 80,
-                                    presentation: fixture.presentation)))
+                                    presentation: fixture.presentation,
+                                    placement: HostPlanFacts.placement(target: fixture.layout.mainRect))))
 
         var reported = 0
         view.onFlightStats = { _, _ in reported += 1 }
@@ -975,6 +1123,7 @@ final class TransitionSceneTests: XCTestCase {
         let scene = try XCTUnwrap(baseFactory(imageRects: [main: mainCell]).entering(
             WorkbenchTransitionPlan(kind: .enteringWorkbench,
                                     token: TransitionToken(generation: 91),
+                                    operationContext: HostPlanFacts.context(token: TransitionToken(generation: 91), kind: .enterWorkbench),
                                     identity: main,
                                     displayID: displayID,
                                     snapshot: fixture.snapshot,
@@ -983,7 +1132,8 @@ final class TransitionSceneTests: XCTestCase {
                                     animationTo: target,
                                     railHandoffs: [],
                                     animationMS: 240,
-                                    presentation: fixture.presentation)))
+                                    presentation: fixture.presentation,
+                                    placement: HostPlanFacts.placement(target: target))))
 
         let base = CACurrentMediaTime()
         view.play(scene, sources: [main: firstFrame])
@@ -1052,6 +1202,7 @@ final class TransitionSceneTests: XCTestCase {
         let scene = try XCTUnwrap(factory.entering(
             WorkbenchTransitionPlan(kind: .enteringWorkbench,
                                     token: TransitionToken(generation: 74),
+                                    operationContext: HostPlanFacts.context(token: TransitionToken(generation: 74), kind: .enterWorkbench),
                                     identity: main,
                                     displayID: displayID,
                                     snapshot: fixture.snapshot,
@@ -1060,7 +1211,8 @@ final class TransitionSceneTests: XCTestCase {
                                     animationTo: fixture.layout.mainRect,
                                     railHandoffs: [handoff],
                                     animationMS: 240,
-                                    presentation: fixture.presentation)))
+                                    presentation: fixture.presentation,
+                                    placement: HostPlanFacts.placement(target: fixture.layout.mainRect))))
 
         let focus = try XCTUnwrap(scene.focusCard)
         let railCard = try XCTUnwrap(scene.cards.first { $0.identity == other })
@@ -1089,6 +1241,89 @@ final class TransitionSceneTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(view.presentedAlpha(for: other)), 1, accuracy: 0.0001,
                        "140ms 的交叉淡化必须在这之前走完")
         XCTAssertTrue(view.isPlaying)
+        view.stopNow()
+    }
+
+    /// A41（方案 §18 A41、§10.5）：减少动态效果必须得到**同样的几何与焦点结果**，只是不做位移。
+    /// 判据取自真实呈现层的 `presentedRect`——fadeOnly 只在 carrier 的呈现分支里生效，
+    /// 只断言场景标志等于"没飞行"，屏幕上的矩形仍可能照旧飞。
+    @MainActor
+    func testReduceMotionPresentsTheSameEndpointsWithoutAnyFlight() throws {
+        let metal = try HostFixtures.metalContext()
+        let view = TransitionCarrierView(frame: CGRect(origin: .zero, size: HostFixtures.offscreenSize),
+                                         metal: metal)
+        view.configure(cgOrigin: HostFixtures.offscreenOrigin, scale: 2)
+        view.layout()
+
+        let fixture = HostWorkbench.fixture(count: 4)
+        let from = HostFixtures.identity(0)
+        let to = HostFixtures.identity(1)
+        let slot = try XCTUnwrap(fixture.placement.slot(of: to))
+        let recordFrames = [from: CGRect(x: 40, y: 60, width: 1_100, height: 720),
+                            to: CGRect(x: 90, y: 120, width: 800, height: 500)]
+        let mainTarget = fixture.layout.mainRect.insetBy(dx: 6, dy: 6)
+        let resting = fixture.snapshot.contentRect(for: slot) ?? mainTarget
+        let intent = HostPlanFacts.switchIntent(token: TransitionToken(generation: 31),
+                                           from: from,
+                                           to: to,
+                                           source: .rail(slot: slot),
+                                           placementRevision: 3,
+                                           targetDisplayID: displayID)
+        let plan = WorkbenchSwitchPlan(intent: intent,
+                                       displayID: displayID,
+                                       mainTargetFrame: mainTarget,
+                                       restingTargetFrame: resting,
+                                       restingSlot: slot,
+                                       snapshot: fixture.snapshot,
+                                       presentation: fixture.presentation,
+                                       placement: HostPlanFacts.placement(target: mainTarget))
+
+        func build(reduceMotion: Bool) throws -> TransitionScene {
+            var factory = baseFactory(imageRects: [:])
+            factory.recordFrame = { identity in recordFrames[identity] }
+            factory.reduceMotion = { reduceMotion }
+            return try XCTUnwrap(factory.swapping(plan))
+        }
+
+        let full = try build(reduceMotion: false)
+        let reduced = try build(reduceMotion: true)
+        XCTAssertEqual(full.cards.count, 2, "前提：两张卡片都要真的飞")
+        XCTAssertEqual(reduced.cards.count, 2)
+
+        // 同样的几何与焦点结果：端点、参与窗口、哪张是主区卡片都必须一模一样。
+        XCTAssertEqual(reduced.cards.map(\.identity), full.cards.map(\.identity), "减少动效不许改变参与窗口集合")
+        XCTAssertEqual(reduced.cards.map(\.end), full.cards.map(\.end), "终点几何必须与完整动效一致")
+        XCTAssertEqual(reduced.cards.map(\.isFocus), full.cards.map(\.isFocus), "焦点卡片必须是同一张")
+        XCTAssertTrue(reduced.fadeOnly)
+        XCTAssertFalse(full.fadeOnly)
+        XCTAssertLessThan(reduced.durationMS, full.durationMS, "时长要缩短")
+
+        view.play(reduced, sources: [:])
+        let reducedBase = CACurrentMediaTime()
+        // 走到这一段的中点：还在淡入途中，但矩形已经停在终点——一个像素都不许位移。
+        view.advance(to: reducedBase + Double(reduced.durationMS) / 2_000.0)
+        for card in reduced.cards {
+            let end = try XCTUnwrap(card.end)
+            let presented = try XCTUnwrap(view.presentedRect(for: card.identity))
+            XCTAssertEqual(presented.minX, end.minX, accuracy: 0.001, "\(card.identity) 减少动效时仍有位移")
+            XCTAssertEqual(presented.minY, end.minY, accuracy: 0.001)
+            XCTAssertEqual(presented.width, end.width, accuracy: 0.001)
+            XCTAssertEqual(presented.height, end.height, accuracy: 0.001)
+            let alpha = try XCTUnwrap(view.presentedAlpha(for: card.identity))
+            XCTAssertGreaterThan(alpha, 0, "淡化本身要看得见：\(card.identity) alpha=\(alpha)")
+        }
+        view.stopNow()
+
+        // 对照组：同一份计划不降级时，同一时刻必须还在途中——
+        // 没有这条，上面的"已经在终点"可能只是因为根本没画出来。
+        view.play(full, sources: [:])
+        let fullBase = CACurrentMediaTime()
+        view.advance(to: fullBase + Double(full.durationMS) / 2_000.0)
+        let focus = try XCTUnwrap(full.focusCard)
+        let flying = try XCTUnwrap(view.presentedRect(for: focus.identity))
+        let focusEnd = try XCTUnwrap(focus.end)
+        XCTAssertNotEqual(flying.minX, focusEnd.minX, accuracy: 0.001,
+                          "完整动效在中点应当还在飞：\(flying)")
         view.stopNow()
     }
 

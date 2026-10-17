@@ -153,6 +153,41 @@ P0-4 因此从"未测"转为拿到读数。
 还没到量级的：`P0-17` 的 100/100 与 `P0-18` 的 ≥100 帧样本要靠解锁后的 run12 与 30 分钟长跑（run13）补；
 **这两项起跑的是发布字节（CI 构建）**，上表八轮跑的是各轮本机构建（§1 的说明在 [Compatibility.md](Compatibility.md) §1.1）。
 
+### 3.8 §20.2 采样端点清单与时间口径（本轮把"只测内部耗时"改成"逐段可核对"）
+
+方案 §20.2 要求端点打在真实输入、首帧反馈、journal prepare、AX 排队、写入、读回、激活、present、settle 上，
+并明令"不能用 reducer 状态推进或 display-link callback 次数代替实际画面呈现"。下表是**代码里真实存在的打点**，
+每行给出指标名与文件行号；报告里的数字只能从这些名字读出来，名字对不上就是没测。
+
+| 端点 | 指标名（`Metrics.measure` 的 name） | 打点位置 | §20.1 判据 |
+| --- | --- | --- | --- |
+| 真实输入 | 不单独成项，是首帧延迟的**锚点**：两处 view-action 入口写 `lastInputStamp` | [App/AppCoordinator.swift:1458](../App/AppCoordinator.swift#L1458)（总览卡片）、[:1510](../App/AppCoordinator.swift#L1510)（工作台轨道） | — |
+| 首帧反馈（present 出去的那一刻） | `过渡首帧延迟·<场景>` / `过渡首帧延迟(无点击锚点)·<场景>` | 锚点消费 [App/AppCoordinator.swift:1176](../App/AppCoordinator.swift#L1176)，判据是渲染器 `diagnostics().presents` 增量 [Presentation/ModeTransitionCoordinator.swift:432](../Presentation/ModeTransitionCoordinator.swift#L432)，入表 [App/AppCoordinator.swift:1240](../App/AppCoordinator.swift#L1240) | 点击反馈 P95 ≤50ms |
+| 呈现 vs 回调 | 计数 `过渡零呈现段`、`过渡回调多于呈现` | [App/AppCoordinator.swift:1246](../App/AppCoordinator.swift#L1246)、[:1249](../App/AppCoordinator.swift#L1249)，缺口算式 `ticks − presentedFrames` | 任一非 0 即不能宣布该项达标 |
+| 帧间隔（按场景分段） | `过渡帧间隔p95·<场景>` | [App/AppCoordinator.swift:1223](../App/AppCoordinator.swift#L1223)，段内统计由 `FrameIntervalStats.measure` 做 | P95 ≤20ms、>33.3ms 占比 ≤1%、无连续 3 帧 |
+| journal prepare | `日志:批量 prepare` | [App/AppCoordinator.swift:627](../App/AppCoordinator.swift#L627) | 无独立阈值，用于分离"落盘慢"与"AX 慢" |
+| journal 事实追加 | `日志:事实追加` | [App/AppCoordinator.swift:652](../App/AppCoordinator.swift#L652) | 同上 |
+| AX 排队（提交→通道认领） | `工作台:AX 排队` | [Presentation/WorkbenchSwitchCoordinator.swift:106](../Presentation/WorkbenchSwitchCoordinator.swift#L106) | 同上；排队时长决定"点了没反应"是不是队列问题 |
+| 几何写入（含读回与重试的混合段） | `工作台:几何写入` | [Presentation/WorkbenchSwitchCoordinator.swift:654](../Presentation/WorkbenchSwitchCoordinator.swift#L654) | 历史口径见 §3.7，不与单次写入互引 |
+| 写后读回（单独一段） | `工作台:几何读回`、`几何读回` | [Presentation/WorkbenchSwitchCoordinator.swift:115](../Presentation/WorkbenchSwitchCoordinator.swift#L115)、[Presentation/FocusCoordinator.swift:188](../Presentation/FocusCoordinator.swift#L188)，取值 `GeometryWriteReport.readBackMS`（3×70ms 有界重试之和） | 同上 |
+| 激活 + Raise | `激活+Raise` | [Presentation/FocusCoordinator.swift:419](../Presentation/FocusCoordinator.swift#L419) | 同上；context 带"激活返回/raise 返回/焦点一致/前景一致" |
+| 最终 settle | `工作台:布局结算` | [Presentation/WorkbenchSwitchCoordinator.swift:355](../Presentation/WorkbenchSwitchCoordinator.swift#L355) | 同上 |
+| 三条模式路径整体（点击→落定） | `点击→落定p95·<路径>`（探针侧算，见 `soakLatencyMS`） | [App/P0Probe.swift:1539-1552](../App/P0Probe.swift#L1539) | ≤600 / ≤500 / ≤500ms |
+
+**口径约定（本轮统一）**：
+- 所有时长、deadline、动画进度一律单调时钟：App 侧 `CACurrentMediaTime()`（`mach_absolute_time`），
+  探针侧 `monotonicNow()`（[App/P0Probe.swift:2038](../App/P0Probe.swift#L2038)）。
+  墙钟只用于报告日期与日志时间戳。改口径之前跨睡眠/改表的读数不能与本轮互引。
+- `Metrics.summary()` 会把每个名字改写成「<name> p95」并把 context 覆盖成「n=…, median=…」，
+  所以**每条样本自己的 context 只通过 `onSample` → 报告正文**落盘。消费端（含 P0-18）必须按前缀匹配，
+  不能按全名相等（[App/P0Probe.swift:1527](../App/P0Probe.swift#L1527)）。
+- 首帧延迟的锚点只在"由真实点击触发的那一段"生效，且用完即清：探针直接 `dispatch`、自动替补段走
+  「(无点击锚点)」单列，**不允许混进点击反馈的 P95**。
+- 样本不足一律标未判：每条模式路径 ≥100 次操作、短场景累计 ≥1,000 个有效间隔；
+  60Hz/120Hz、reduceMotion、冷启动/热路径分组，锁屏/授权弹窗/系统睡眠记为环境中断，不静默删除。
+- §3.1–§3.7 的自报 CPU（0.2–0.42）与"总览帧率"仍在同一个未核区间，**不作为改善基线**（方案 §20.3）。
+  要引用 CPU 必须先与 Activity Monitor / Instruments 对表并写清对表方式。
+
 ## 4. 必须补齐的实测项（全部未测）
 
 1. **空闲基线**：总览打开且画面静止时 `presents` 不增长、总览关闭后 CPU 回到接近 0%、GPU 无持续占用（Activity Monitor 对照）。

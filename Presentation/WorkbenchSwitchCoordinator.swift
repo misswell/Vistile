@@ -1,12 +1,18 @@
 import AppKit
 import CoreGraphics
 import Foundation
+import QuartzCore
 import VistileCore
 
-/// 工作台的两窗口动作执行器（方案 §8.2、§21 M2）：
-/// 会话级串行——A/B 交换、模式过渡与布局微调共用一条队列，绝不同时写两个窗口；
-/// 每次 AX 写入都先确认事务已落盘，写入后按读回判定；失败按逆序补偿后才报告结果。
-/// 这里不自己决定"现在算什么状态"：每步结果都回报 reducer，再按 reducer 的态度继续或回滚。
+/// 工作台的两窗口动作执行器（方案 §8.2、§5、§6.3、§7.2、§9、§21 M2）。
+///
+/// 所有真实写入都只有一条路：`GeometryOperationScheduler`。
+/// - 每一步都带操作上下文，并在执行前重新核对会话/代次/相位/令牌/许可/预算；
+/// - 日志先行：`prepare` 成功后才发第一笔 AX 写入（`.journalPrepared`）；
+/// - 进主区的方式由 `MainPlacementPolicy` 决定：可调尺寸=占满主区，固定尺寸=真实尺寸仅移动，
+///   放不下=拒绝并保持 A 与两栏不动；
+/// - 失败只补偿"确实动过"的窗口，逆序执行，然后把 A 真的激活；
+/// - 补偿事实（`WorkbenchCompensationResult`）必须先于 `mainSwitchFailed` 回报。
 @MainActor
 final class WorkbenchSwitchCoordinator {
     var onEvent: ((SessionEvent) -> Void)?
@@ -22,7 +28,7 @@ final class WorkbenchSwitchCoordinator {
 
     /// 一次动作的总限时：AX 无响应或应用挂起必须有界收敛（方案 §8.3、§10.5）。
     /// 每步 AX 调用本身带 0.35s 消息超时，所以到期后最多再等一个步骤就能到检查点。
-    static let switchDeadline: TimeInterval = 2.5
+    static let switchDeadline: Duration = .milliseconds(2_500)
 
     private let catalog: WindowCatalog
     private let writer: GeometryWriting
@@ -32,18 +38,39 @@ final class WorkbenchSwitchCoordinator {
     private let permissions: PermissionChecking
     private let metrics: Metrics
     private let recorder: CompatibilityRecorder
+    private let scheduler: GeometryOperationScheduler
 
-    /// 在途令牌：只有它的结果与后续步骤还算数。
-    private(set) var activeToken: TransitionToken?
-    private var tail: Task<Void, Never>?
+    /// 由 AppCoordinator 注入：从唯一状态机读出这次交换此刻的态度。
+    var directive: (TransitionToken) -> SwitchDirective = { _ in .proceed }
+
+    /// 在途操作：只有它的结果与后续步骤还算数。
+    private(set) var activeContext: GeometryOperationContext?
     private var watchdog: Task<Void, Never>?
-    private var deadline: Date?
+    private var deadline: GeometryOperationScheduler.Stamp?
     private(set) var didTimeOut = false
     /// 同一次动作只补偿一次：超时与失败路径可能都走到补偿，不能重复写窗口。
     private var didRollback = false
-    /// 本次动作真正动过的窗口：补偿只允许写这些身份（方案 §8.3）。
-    /// 被拦在准备/校验阶段的动作一个窗口都没动，回滚不许把仍在主区的 A 拉走。
-    private var touched: Set<WindowIdentity> = []
+    /// prepare 成功时看到的日志序号：后续追加事实必须对上它，过期写入一律拒绝（方案 §7.2）。
+    private var preparedRevision: UInt64?
+    /// 本次动作真正动过的窗口与动过的方式：补偿只允许覆盖这些事实（方案 §6.3）。
+    private var sideEffects: [SideEffect] = []
+    /// 本次动作名义上负责的窗口：清理"计划已落盘但从未写入"的事务时只能按这份名单，
+    /// 别的操作名下的事务一个都不许碰（方案 §6.4、A12）。
+    private var activeIdentities: [WindowIdentity] = []
+    /// latest-wins 合并键前缀：布局微调同一主窗口只保留最后一个未执行目标。
+    private var settleCounter = 0
+
+    /// 一次步骤产生的真实副作用：补偿按逆序还原。
+    private struct SideEffect: Hashable, Sendable {
+        enum Kind: Hashable, Sendable {
+            /// 写了 frame；`wasMinimized` 记录这个窗口原本是 Vistile 为本次操作解除的最小化（方案 §10.1）。
+            case geometry(restoredMinimized: Bool)
+            /// 只把它带到过前台：不需要写几何，但补偿必须重新确认真实前台。
+            case activation
+        }
+        let identity: WindowIdentity
+        let kind: Kind
+    }
 
     init(catalog: WindowCatalog,
          writer: GeometryWriting,
@@ -52,7 +79,8 @@ final class WorkbenchSwitchCoordinator {
          focus: FocusCoordinator,
          permissions: PermissionChecking,
          metrics: Metrics,
-         recorder: CompatibilityRecorder) {
+         recorder: CompatibilityRecorder,
+         scheduler: GeometryOperationScheduler) {
         self.catalog = catalog
         self.writer = writer
         self.store = store
@@ -61,180 +89,436 @@ final class WorkbenchSwitchCoordinator {
         self.permissions = permissions
         self.metrics = metrics
         self.recorder = recorder
+        self.scheduler = scheduler
     }
 
-    /// 由 AppCoordinator 注入：从唯一状态机读出这次交换此刻的态度。
-    var directive: (TransitionToken) -> SwitchDirective = { _ in .proceed }
-
-    var isBusy: Bool { activeToken != nil }
+    var isBusy: Bool { activeContext != nil }
     var didReachDeadline: Bool { didTimeOut }
+
+    /// 交换 + 模式过渡 + 布局微调共用的忙判据：调度器里还有活也算忙（方案 §5.4）。
+    var isBusyIncludingScheduler: Bool { activeContext != nil || !scheduler.isIdle }
 
     // MARK: - 模式过渡（进入工作台 / 返回总览）
 
-    func perform(_ plan: WorkbenchTransitionPlan) {
-        enqueue { [weak self] in
-            guard let self else { return }
-            self.beginLifetime(plan.token, name: plan.kind.displayName)
-            defer { self.endLifetime(plan.token) }
-            switch plan.kind {
-            case .enteringWorkbench:
-                let started = Date()
-                var outcome: WorkbenchStepOutcome
-                if await self.catalog.hasBlockingSheet(identity: plan.identity) {
-                    // 选中的窗口挂着用户还没处理的对话框：不动它，也不进 L 型（方案 §8.2.4、§10.4）。
-                    outcome = .rejected(self.sheetRefusal(identity: plan.identity))
-                } else {
-                    outcome = await self.placeMain(plan.identity,
-                                                   targetFrame: plan.targetFrame,
-                                                   token: plan.token,
-                                                   activate: true).step
-                }
-                outcome = self.enforceDeadline(outcome)
-                self.metrics.measure("工作台:进入主区",
-                                     milliseconds: Date().timeIntervalSince(started) * 1000,
-                                     context: outcome.message)
-                VistileLog.session.log(level: .debug,
-                                       "[过渡] 进入工作台 对象=\(plan.identity.journalKey, privacy: .public) 结论=\(outcome.message, privacy: .public)")
-                // 令牌被取消（锁屏、Space、退出）后由系统级恢复接管：这里不再自开补偿。
-                guard self.activeToken == plan.token else { return }
-                if outcome.isFailure {
-                    // 失败留在原总览，同时把已经改过的几何补偿回原 frame（方案 §4.2.7）。
-                    // 补偿结果必须先回报：journal 已经结算而 state 还留在"待恢复"，
-                    // 退出恢复就会去读一条不存在的日志条目，误报"尺寸未能恢复"（方案 §6.4）。
-                    let item = await self.restoreQuietly(plan.identity, note: "进入工作台未完成")
-                    if let item {
-                        self.onEvent?(.geometryRestoreSettled(token: plan.token, items: [item]))
-                    }
-                }
-                self.onEvent?(.workbenchTransitionFinished(token: plan.token,
-                                                           kind: .enteringWorkbench,
-                                                           result: outcome))
+    /// AX 通道排队时长（方案 §20.2 的独立端点）：从提交作业到真正拿到许可开始执行。
+    /// 混在"进入主区"总耗时里就永远分不清是写入慢还是排在别人后面。
+    private func noteQueueDelay(_ queuedAt: CFTimeInterval, context: String) {
+        metrics.measure("工作台:AX 排队",
+                        milliseconds: (CACurrentMediaTime() - queuedAt) * 1000,
+                        context: context)
+    }
 
-            case .returningOverview:
-                let started = Date()
-                var outcome = await self.restoreMain(plan.identity, token: plan.token)
-                outcome = self.enforceDeadline(outcome)
-                self.metrics.measure("工作台:返回总览",
-                                     milliseconds: Date().timeIntervalSince(started) * 1000,
-                                     context: outcome.message)
-                VistileLog.session.log(level: .debug,
-                                       "[过渡] 返回总览 对象=\(plan.identity.journalKey, privacy: .public) 结论=\(outcome.message, privacy: .public)")
-                guard self.activeToken == plan.token else { return }
-                self.onEvent?(.workbenchTransitionFinished(token: plan.token,
-                                                           kind: .returningOverview,
-                                                           result: outcome))
+    /// 写后读回单独打点（方案 §20.2）：读回带着 3×70ms 的有界重试，混进"写入"总耗时里
+    /// 就分不清是 AX 写慢，还是应用刚被改几何时短暂读不到。
+    private func noteReadBack(_ report: GeometryWriteReport) {
+        guard let readBackMS = report.readBackMS else { return }
+        metrics.measure("工作台:几何读回", milliseconds: readBackMS, context: report.outcome.message)
+    }
+
+    func perform(_ plan: WorkbenchTransitionPlan) {
+        let kind: GeometryOperationKind = plan.kind == .enteringWorkbench ? .enterWorkbench : .returnOverview
+        let context = plan.operationContext
+        guard context.matches(sessionID: scheduler.sessionID, epoch: scheduler.sessionEpoch) else {
+            onEvent?(.workbenchTransitionFinished(token: plan.token, kind: plan.kind,
+                                                  result: .rejected("会话代次已更新，本次过渡未开始")))
+            return
+        }
+        let queuedAt = CACurrentMediaTime()
+        let admitted = scheduler.perform(GeometryOperationScheduler.Operation(context: context,
+                                    identities: transitionIdentities(of: plan),
+                                    coalesceKey: "transition:\(plan.identity.journalKey)",
+                                    deadline: scheduler.deadline(after: Self.switchDeadline),
+                                    onSkipped: { [weak self] reason in
+                                        // 被丢弃的作业不会再进 run：先交还会话所有权，再按"未写入"回报（方案 §5.5）。
+                                        self?.endLifetime(context)
+                                        self?.reportSkipped(reason, context: context, token: plan.token,
+                                                            kind: plan.kind)
+                                    },
+                                    run: { [weak self] permit in
+                                        self?.noteQueueDelay(queuedAt,
+                                                             context: plan.kind == .enteringWorkbench ? "进入工作台" : "返回总览")
+                                        await self?.runTransition(plan, context: context, permit: permit)
+                                    }))
+        guard admitted else {
+            // 连准入都没拿到（相位已关闭/代次已变）：这次过渡从未开始，必须给状态机一个真实结论。
+            onEvent?(.workbenchTransitionFinished(token: plan.token, kind: plan.kind,
+                                                  result: .rejected("调度器未受理本次过渡（会话或相位已变）")))
+            return
+        }
+        beginLifetime(context, identities: transitionIdentities(of: plan))
+    }
+
+    private func transitionIdentities(of plan: WorkbenchTransitionPlan) -> [WindowIdentity] {
+        [plan.identity] + plan.railHandoffs.map(\.identity)
+    }
+
+    private func runTransition(_ plan: WorkbenchTransitionPlan,
+                               context: GeometryOperationContext,
+                               permit: GeometryWritePermit) async {
+        defer { endLifetime(context) }
+        switch plan.kind {
+        case .enteringWorkbench:
+            let started = CACurrentMediaTime()
+            guard stillValid(context, token: plan.token) else { return }
+            let outcome: WorkbenchStepOutcome
+            if await catalog.hasBlockingSheet(identity: plan.identity) {
+                // 选中的窗口挂着用户还没处理的对话框：不动它，也不进 L 型（方案 §8.2.4、§10.4）。
+                outcome = .rejected(sheetRefusal(identity: plan.identity))
+            } else if !verifyJournalPrepared(context: context, identities: [plan.identity]) {
+                // 轨道上的卡片只是动画端点，不写 AX：进入这一步要核对的只有主窗口。
+                outcome = .rejected("几何事务未原子落盘，未写入任何窗口")
+            } else {
+                let placement = await placeMain(plan.identity,
+                                                mainRect: plan.snapshot.mainRect,
+                                                topRailRect: plan.snapshot.layout.topRailRect,
+                                                sideRailRect: plan.snapshot.layout.sideRailRect,
+                                                context: context,
+                                                permit: permit,
+                                                activate: true,
+                                                fallbackTarget: plan.targetFrame)
+                outcome = placement.step
             }
+            let final = enforceDeadline(outcome)
+            metrics.measure("工作台:进入主区",
+                            milliseconds: (CACurrentMediaTime() - started) * 1000,
+                            context: final.message)
+            VistileLog.session.log(level: .info,
+                                   "[过渡] 进入工作台 对象=\(plan.identity.journalKey, privacy: .public) 结论=\(final.message, privacy: .public)")
+            guard activeContext == context else { return }
+            if final.allowsContinue == false {
+                // 失败先补偿再回报：journal 与 state 必须同时收口（方案 §6.4）。
+                await compensate(reason: final.message, context: context, token: plan.token,
+                                reActivate: nil, transition: true)
+            }
+            onEvent?(.workbenchTransitionFinished(token: plan.token, kind: .enteringWorkbench, result: final))
+
+        case .returningOverview:
+            let started = CACurrentMediaTime()
+            guard stillValid(context, token: plan.token) else { return }
+            let outcome = await restoreMain(plan.identity, context: context, permit: permit)
+            let final = enforceDeadline(outcome)
+            metrics.measure("工作台:返回总览",
+                            milliseconds: (CACurrentMediaTime() - started) * 1000,
+                            context: final.message)
+            VistileLog.session.log(level: .info,
+                                   "[过渡] 返回总览 对象=\(plan.identity.journalKey, privacy: .public) 结论=\(final.message, privacy: .public)")
+            guard activeContext == context else { return }
+            onEvent?(.workbenchTransitionFinished(token: plan.token, kind: .returningOverview, result: final))
         }
     }
 
     // MARK: - A/B 交换
 
     func perform(_ plan: WorkbenchSwitchPlan) {
-        enqueue { [weak self] in
-            guard let self else { return }
-            self.beginLifetime(plan.intent.token, name: "主区交换")
-            defer { self.endLifetime(plan.intent.token) }
-            let intent = plan.intent
-            let token = intent.token
-            let started = Date()
-            defer {
-                self.metrics.measure("工作台:主区交换",
-                                     milliseconds: Date().timeIntervalSince(started) * 1000,
-                                     context: intent.source.displayName)
-            }
+        let context = plan.intent.operationContext
+        let token = plan.intent.token
+        guard context.matches(sessionID: scheduler.sessionID, epoch: scheduler.sessionEpoch) else {
+            reportSwitchFailure(token: token,
+                                reason: "会话代次已更新，本次交换未开始",
+                                compensation: nil)
+            return
+        }
+        let identities: [WindowIdentity] = [plan.intent.to, plan.intent.from].compactMap { $0 }
+        let queuedAt = CACurrentMediaTime()
+        let admitted = scheduler.perform(GeometryOperationScheduler.Operation(context: context,
+                                    identities: identities,
+                                    coalesceKey: "switch:\(token.id.uuidString)",
+                                    deadline: scheduler.deadline(after: Self.switchDeadline),
+                                    onSkipped: { [weak self] reason in
+                                        // 被丢弃的交换没碰过任何窗口：交还会话所有权后按"未写入"失败收口（方案 §5.5）。
+                                        self?.endLifetime(context)
+                                        self?.reportSwitchFailure(token: token,
+                                                                  reason: SetupMessages.skipped(reason),
+                                                                  compensation: nil)
+                                    },
+                                    run: { [weak self] permit in
+                                        self?.noteQueueDelay(queuedAt, context: "主区交换")
+                                        await self?.runSwitch(plan, context: context, permit: permit)
+                                    }))
+        guard admitted else {
+            reportSwitchFailure(token: token,
+                                reason: "调度器未受理本次交换（会话或相位已变）",
+                                compensation: nil)
+            return
+        }
+        beginLifetime(context, identities: identities)
+    }
 
-            // prepare：事务、句柄与模态事实先核对，缺任何一项都不写窗口（方案 §8.2.3、§8.2.4）。
-            let prepared = await self.prepare(intent: intent)
-            self.report(step: .prepare, outcome: prepared, identity: intent.to, token: token)
-            guard await self.proceedOrRollback(plan, after: prepared, token: token) else { return }
+    private func runSwitch(_ plan: WorkbenchSwitchPlan,
+                           context: GeometryOperationContext,
+                           permit: GeometryWritePermit) async {
+        defer { endLifetime(context) }
+        let intent = plan.intent
+        let token = intent.token
+        let started = CACurrentMediaTime()
+        defer {
+            metrics.measure("工作台:主区交换",
+                            milliseconds: (CACurrentMediaTime() - started) * 1000,
+                            context: intent.source.displayName)
+        }
 
-            // moveToMain：B 进主区。读回为准，应用按自身约束返回也算继续（要写进事实）。
-            let movePlacement = await self.placeMain(intent.to,
-                                                     targetFrame: plan.mainTargetFrame,
-                                                     token: token,
-                                                     activate: false)
-            if movePlacement.geometry != nil { self.touched.insert(intent.to) }
-            let moved = self.enforceDeadline(movePlacement.step)
-            self.report(step: .moveToMain, outcome: moved, identity: intent.to, token: token)
-            guard await self.proceedOrRollback(plan, after: moved, token: token) else { return }
+        // prepare：权限、目录、模态与日志先核对；缺任何一项都不写窗口（方案 §8.2.3、§8.2.4、§7.2）。
+        guard stillValid(context, token: token) else { return }
+        let prepared = await prepare(plan: plan, context: context)
+        report(step: .prepare, outcome: prepared, identity: intent.to, token: token, context: context)
+        guard await proceedOrStop(plan, context: context, after: prepared, token: token) else { return }
 
-            // activateMain：真实主窗口必须可操作；只有相反证据才算失败（方案 §12.2）。
-            let activation = await self.focus.activateAndRaise(intent.to)
-            let activationOutcome: WorkbenchStepOutcome = activation.isProvenBehind
-                ? .rejected("未确认 \(intent.to.journalKey) 已到前台（\(activation.evidence)）")
-                : .succeeded(readBack: nil)
-            self.report(step: .activateMain, outcome: activationOutcome, identity: intent.to, token: token)
-            guard await self.proceedOrRollback(plan, after: activationOutcome, token: token) else { return }
+        // moveToMain：B 进主区。方式由 MainPlacementPolicy 决定，读回为准（方案 §9.1、§9.2）。
+        let movePlacement = await placeMain(intent.to,
+                                            mainRect: plan.mainRect,
+                                            topRailRect: plan.topRailRect,
+                                            sideRailRect: plan.sideRailRect,
+                                            context: context,
+                                            permit: permit,
+                                            activate: false,
+                                            fallbackTarget: plan.mainTargetFrame)
+        let moved = enforceDeadline(movePlacement.step)
+        report(step: .moveToMain, outcome: moved, identity: intent.to, token: token, context: context)
+        guard await proceedOrStop(plan, context: context, after: moved, token: token) else { return }
 
-            // restorePrevious：A 回它原来的 slot 位置。写回后同应用兄弟窗口可能被顶到前面，要再确认一次。
-            var restoreOutcome: WorkbenchStepOutcome = .succeeded(readBack: nil)
-            if let from = intent.from, let resting = plan.restingTargetFrame {
-                let restorePlacement = await self.placeMain(from, targetFrame: resting, token: token, activate: false)
-                if restorePlacement.geometry != nil { self.touched.insert(from) }
-                restoreOutcome = restorePlacement.step
-                if !restoreOutcome.isFailure, from.processID == intent.to.processID {
-                    // 同进程里改 A 的几何会把它带到兄弟窗口之前：把 B 再提到前台一次（方案 §17 同应用多窗口）。
-                    let recheck = await self.focus.activateAndRaise(intent.to)
-                    if recheck.isProvenBehind {
-                        restoreOutcome = .rejected("写回原主后 B 不再处于前台（\(recheck.evidence)）")
-                    }
+        // activateMain：真实主窗口必须可操作；只有相反证据才算失败（方案 §12.2）。
+        guard stillValid(context, token: token) else { return }
+        sideEffects.append(SideEffect(identity: intent.to, kind: .activation))
+        let activation = await focus.activateAndRaise(intent.to)
+        let activationOutcome: WorkbenchStepOutcome = activation.isProvenBehind
+            ? .rejected("未确认 \(intent.to.journalKey) 已到前台（\(activation.evidence)）")
+            : .succeeded(readBack: nil)
+        report(step: .activateMain, outcome: activationOutcome, identity: intent.to, token: token, context: context)
+        guard await proceedOrStop(plan, context: context, after: activationOutcome, token: token) else { return }
+
+        // restorePrevious：A 回它原来的 slot 位置。写过 A 之后 B 是否还在前面，必须实测一次，不能靠推断。
+        var restoreOutcome: WorkbenchStepOutcome = .succeeded(readBack: nil)
+        if let from = intent.from, let resting = plan.restingTargetFrame {
+            guard stillValid(context, token: token) else { return }
+            let restorePlacement = await placeMain(from,
+                                                   mainRect: resting,
+                                                   topRailRect: .null,
+                                                   sideRailRect: .null,
+                                                   context: context,
+                                                   permit: permit,
+                                                   activate: false,
+                                                   fallbackTarget: resting)
+            restoreOutcome = enforceDeadline(restorePlacement.step)
+            if !restoreOutcome.isFailure {
+                // 把 B 再提到前台并读回一次：A 已经被动过，B 的前景色此时是提交的凭据，
+                // 不能因为"A 是另一个应用"就不查——同应用兄弟窗口最常见，跨应用则是 A 的应用被顶起来（方案 §8.2、§18 A09）。
+                let recheck = await focus.activateAndRaise(intent.to)
+                if recheck.isProvenBehind {
+                    restoreOutcome = .rejected("写回原主后 B 不再处于前台（\(recheck.evidence)）")
                 }
             }
-            self.report(step: .restorePrevious, outcome: restoreOutcome, identity: intent.from, token: token)
-            guard await self.proceedOrRollback(plan, after: restoreOutcome, token: token) else { return }
-
-            // commit：placement 的提交只在 reducer 里发生；这里只证明"该写的都写完了"。
-            self.report(step: .commit, outcome: .succeeded(readBack: nil), identity: intent.to, token: token)
-            guard await self.proceedOrRollback(plan, after: .succeeded(readBack: nil), token: token) else { return }
-            self.onEvent?(.mainSwitchCommitted(token: token))
         }
+        report(step: .restorePrevious, outcome: restoreOutcome, identity: intent.from, token: token, context: context)
+        guard await proceedOrStop(plan, context: context, after: restoreOutcome, token: token) else { return }
+
+        // commit：placement 的提交只在 reducer 里发生；这里只证明"该写的都写完了"。
+        report(step: .commit, outcome: .succeeded(readBack: nil), identity: intent.to, token: token, context: context)
+        guard await proceedOrStop(plan, context: context, after: .succeeded(readBack: nil), token: token) else { return }
+        onEvent?(.mainSwitchCommitted(token: token))
     }
 
     // MARK: - 布局微调（侧栏切换 / 分隔线收敛）
 
-    func settle(_ identity: WindowIdentity, targetFrame: CGRect, displayID: UInt32, token: TransitionToken) {
-        enqueue { [weak self] in
-            guard let self else { return }
-            let placed = await self.placeMain(identity, targetFrame: targetFrame, token: token, activate: false)
-            // 写没写过都必须是真实结论：没写的失败原因原样带给 reducer（方案 §6.1）。
-            let writeOutcome = placed.geometry ?? .rejected(.preconditionFailed(placed.step.message))
-            if case .rejected = writeOutcome {
-                self.onStatus?("主窗口尺寸未调整：\(placed.step.message)")
-            }
-            self.onEvent?(.geometryWriteFinished(GeometryWriteResult(identity: identity,
-                                                                    token: token,
-                                                                    operationID: UUID(),
-                                                                    targetFrame: targetFrame,
-                                                                    displayID: displayID,
-                                                                    outcome: writeOutcome)))
+    /// 布局微调同样站在会话生命周期与忙判据里：同一主窗口的连续目标 latest-wins（方案 §5.3、§11.2）。
+    ///
+    /// `context` 由状态机给出（effect `.settleMainFrame` 自带操作上下文）：日志与写入必须共用同一个身份，
+    /// 执行器不能自己再造一个上下文，否则 reducer 收到的回执对不上任何一次操作（方案 §7.1）。
+    /// 省略时（旧调用与宿主测试）按当前会话现场生成，仍走同一条准入与队列。
+    func settle(_ identity: WindowIdentity,
+                targetFrame: CGRect,
+                displayID: UInt32,
+                token: TransitionToken,
+                mainRect: CGRect,
+                topRailRect: CGRect,
+                sideRailRect: CGRect,
+                context supplied: GeometryOperationContext? = nil,
+                animationMS: Int = 0) {
+        settleCounter += 1
+        let context = supplied ?? scheduler.makeContext(token: token, kind: .settleLayout)
+        let queuedAt = CACurrentMediaTime()
+        let ok = scheduler.perform(GeometryOperationScheduler.Operation(context: context,
+                                             identities: [identity],
+                                             coalesceKey: "settle:\(identity.journalKey)",
+                                             deadline: scheduler.deadline(after: Self.switchDeadline
+                                                + .milliseconds(max(0, animationMS))),
+                                             onSkipped: { [weak self] reason in
+                                                 self?.finishSettle(identity: identity, token: token, context: context,
+                                                                    targetFrame: targetFrame, displayID: displayID,
+                                                                    outcome: .rejected(SetupMessages.skipped(reason)),
+                                                                    geometry: nil)
+                                             },
+                                             run: { [weak self] permit in
+                                                 guard let self else { return }
+                                                 self.noteQueueDelay(queuedAt, context: "布局结算")
+                                                 let settleStarted = CACurrentMediaTime()
+                                                 // §20.2 的"最终 settle"端点：结算从开始执行到回报完成的整段。
+                                                 defer { self.metrics.measure("工作台:布局结算",
+                                                                              milliseconds: (CACurrentMediaTime() - settleStarted) * 1000,
+                                                                              context: identity.journalKey) }
+                                                 // 生命周期在通道里认领，不在发起时：排队中的第二次结算若先抢走
+                                                 // 会话所有权，在途那次的读回与回报会被判成"已被撤销"（方案 §5.4）。
+                                                 self.beginLifetime(context, identities: [identity])
+                                                 defer { self.endLifetime(context) }
+                                                 guard self.stillValid(context, token: token) else {
+                                                     // 会话这一刻已换：一个窗口都没碰，但必须给 reducer 真实结论（方案 §6.1）。
+                                                     self.finishSettle(identity: identity, token: token,
+                                                                       context: context, targetFrame: targetFrame,
+                                                                       displayID: displayID,
+                                                                       outcome: .rejected("会话已更新，未写入几何"),
+                                                                       geometry: nil)
+                                                     return
+                                                 }
+                                                 let placement = await self.placeMain(identity,
+                                                                                       mainRect: mainRect,
+                                                                                       topRailRect: topRailRect,
+                                                                                       sideRailRect: sideRailRect,
+                                                                                       context: context,
+                                                                                       permit: permit,
+                                                                                       activate: false,
+                                                                                       fallbackTarget: targetFrame)
+                                                 self.finishSettle(identity: identity,
+                                                                   token: token,
+                                                                   context: context,
+                                                                   targetFrame: targetFrame,
+                                                                   displayID: displayID,
+                                                                   outcome: placement.step,
+                                                                   geometry: placement.geometry)
+                                             }))
+        if !ok {
+            finishSettle(identity: identity, token: token, context: context, targetFrame: targetFrame,
+                         displayID: displayID,
+                         outcome: .rejected("调度器未受理本次布局微调（会话或相位已变）"), geometry: nil)
         }
     }
 
-    /// 取消（锁屏、Space 切换、退出）：停止后续步骤，不再写任何窗口。
-    /// 已写入的窗口由事务日志交给既有恢复路径，不在这里另开一条补偿。
+    private func finishSettle(identity: WindowIdentity,
+                              token: TransitionToken,
+                              context: GeometryOperationContext,
+                              targetFrame: CGRect,
+                              displayID: UInt32,
+                              outcome: WorkbenchStepOutcome,
+                              geometry: GeometryOutcome?) {
+        // 写没写过都必须是真实结论：没写的失败原因原样带给 reducer（方案 §6.1）。
+        let writeOutcome = geometry ?? .rejected(.preconditionFailed(outcome.message))
+        if case .rejected = writeOutcome {
+            onStatus?("主窗口尺寸未调整：\(outcome.message)")
+        }
+        guard activeContext == nil || activeContext?.operationID == context.operationID else { return }
+        onEvent?(.geometryWriteFinished(GeometryWriteResult(identity: identity,
+                                                            token: token,
+                                                            operationID: context.operationID,
+                                                            targetFrame: targetFrame,
+                                                            displayID: displayID,
+                                                            outcome: writeOutcome,
+                                                            beforeFrame: nil,
+                                                            context: context)))
+    }
+
+    // MARK: - 取消
+
+    /// 取消（锁屏、Space 切换、退出）：撤销普通授权，停止后续步骤，不再写任何窗口。
+    /// 已经写过的窗口由在途动作自己按真实副作用补偿；补偿走独立授权，不受这次撤销影响。
     func cancel() {
+        _ = scheduler.cancelOrdinaryWrites(sessionID: scheduler.sessionID)
+        // 取消即交还会话所有权：命令可能还压在 AX 队列里，但这次交换/过渡对用户已经结束了。
+        // 之后回来的读回会因为 `activeContext` 已换而被步骤守卫挡掉，不再改状态机（方案 §5.5）。
+        if let context = activeContext { endLifetime(context) }
         watchdog?.cancel()
         watchdog = nil
-        activeToken = nil
-        deadline = nil
         didTimeOut = false
-        didRollback = true
     }
 
-    // MARK: - 串行队列
-
-    private func enqueue(_ body: @escaping @MainActor () async -> Void) {
-        let previous = tail
-        tail = Task { @MainActor in
-            _ = await previous?.value
-            await body()
+    /// 当前是否在跑一次交换/过渡（供 TransitionActivity 汇总，方案 §13.2）。
+    var activity: TransitionActivity {
+        guard let activeContext else { return TransitionActivity() }
+        switch activeContext.kind {
+        case .mainSwitch: return TransitionActivity(mainSwitch: true)
+        case .enterWorkbench, .returnOverview: return TransitionActivity(modeTransition: true)
+        case .settleLayout, .promoteCandidate: return TransitionActivity(layoutSettle: true)
+        case .compensation: return TransitionActivity(rollback: true)
+        case .sessionRestore: return TransitionActivity()
         }
     }
 
-    // MARK: - 步骤实现
+    // MARK: - 准备与日志
+
+    private func prepare(plan: WorkbenchSwitchPlan,
+                         context: GeometryOperationContext) async -> WorkbenchStepOutcome {
+        let intent = plan.intent
+        guard permissions.status.isComplete else { return .rejected("权限已收回，未写入任何窗口") }
+        for identity in [intent.to, intent.from].compactMap({ $0 }) {
+            guard catalog.record(for: identity) != nil else {
+                return identity == intent.to ? .targetGone : .rejected("原主窗口已不在目录里")
+            }
+        }
+        // A 挂着用户还没处理的对话框：不擅自关闭，也不动任何窗口（方案 §8.2.4、§10.4）。
+        if let from = intent.from, await catalog.hasBlockingSheet(identity: from) {
+            return .rejected(sheetRefusal(identity: from))
+        }
+        // 日志先行：这一批事务要么整体落盘、要么这次交换一个窗口都不写（方案 §7.2）。
+        // 旧主只有在确实要被写回落点时才有事务，所以核对的身份跟着计划走。
+        var affected: [WindowIdentity] = [intent.to]
+        if let from = intent.from, plan.restingTargetFrame != nil { affected.append(from) }
+        guard verifyJournalPrepared(context: context, identities: affected) else {
+            return .rejected("几何事务未原子落盘，已拒绝写入")
+        }
+        return .succeeded(readBack: nil)
+    }
+
+    /// 日志先行的唯一判据：这批写前事务已经按**本次操作**落盘（方案 §7.1、§7.2）。
+    ///
+    /// 批次由状态机经 `.prepareJournal` 效果原子写入，宿主不再自己攒一份事务重写一遍——
+    /// 两处各写就会各数一次修订号，写后事实也不知道该认谁。这里只核对落盘事实。
+    private func verifyJournalPrepared(context: GeometryOperationContext,
+                                       identities: [WindowIdentity]) -> Bool {
+        for identity in identities where store.entry(for: identity)?.operationID != context.operationID {
+            reportJournalFailure(context: context,
+                                 identities: identities,
+                                 reason: "\(identity.journalKey) 的写前事务没有按本次操作落盘")
+            return false
+        }
+        preparedRevision = store.revision
+        return true
+    }
+
+    private func reportJournalFailure(context: GeometryOperationContext,
+                                      identities: [WindowIdentity],
+                                      reason: String) {
+        VistileLog.session.log(level: .error,
+                               "[日志] 批量落盘失败 操作=\(context.operationID.uuidString.prefix(8), privacy: .public) 原因=\(reason, privacy: .public)")
+        onEvent?(.journalPreparationFailed(context: context, identities: identities, reason: reason))
+    }
+
+    /// 追加一条已发生的事实；失败说明"确实写过"，只能进补偿（方案 §7.2）。
+    ///
+    /// 序号守卫挡的是**别人**：同一次操作自己连续追加（原位置纠正、操作前快照、写后事实）
+    /// 每落一条就刷新基准，否则第二次追加会被自己的第一次判成过期。
+    private func updateJournal(context: GeometryOperationContext,
+                               identity: WindowIdentity,
+                               mutation: JournalMutation) async -> Bool {
+        let written = await store.update(JournalUpdateRequest(operationID: context.operationID,
+                                                              identity: identity,
+                                                              mutation: mutation),
+                                         expectedRevision: preparedRevision)
+        guard written.isPersisted else {
+            let reason = written.reason ?? "未知原因"
+            VistileLog.session.log(level: .error,
+                                   "[日志] 事实追加失败 \(identity.journalKey, privacy: .public) 原因=\(reason, privacy: .public)")
+            onEvent?(.journalUpdateFailed(context: context, identity: identity, reason: reason))
+            return false
+        }
+        preparedRevision = store.revision
+        return true
+    }
+
+    private func sheetRefusal(identity: WindowIdentity) -> String {
+        let name = catalog.record(for: identity)?.applicationName ?? "该应用"
+        return "请先处理当前对话框（\(name)）"
+    }
+
+    // MARK: - 放置
 
     /// 一次几何写入之后的两侧事实：给 reducer 的步骤结论，和原始写入结果。
-    /// settle 需要原始结果，不能把 `.unreadable` 之类压平成一句字符串。
     private struct PlacementResult {
         let step: WorkbenchStepOutcome
         let geometry: GeometryOutcome?
@@ -244,44 +528,33 @@ final class WorkbenchSwitchCoordinator {
         }
     }
 
-    private func prepare(intent: WorkbenchSwitchIntent) async -> WorkbenchStepOutcome {
-        guard permissions.status.isComplete else { return .rejected("权限已收回，未写入任何窗口") }
-        for identity in [intent.to, intent.from].compactMap({ $0 }) {
-            guard catalog.record(for: identity) != nil else {
-                return identity == intent.to ? .targetGone : .rejected("原主窗口已不在目录里")
-            }
-            guard store.entry(for: identity)?.state.requiresRestore == true else {
-                return .rejected("几何事务未落盘（\(identity.journalKey)），拒绝写入")
-            }
-        }
-        // A 挂着用户还没处理的对话框：不擅自关闭，也不动任何窗口（方案 §8.2.4、§10.4）。
-        if let from = intent.from, await catalog.hasBlockingSheet(identity: from) {
-            return .rejected(sheetRefusal(identity: from))
-        }
-        return .succeeded(readBack: nil)
-    }
-
-    private func sheetRefusal(identity: WindowIdentity) -> String {
-        let name = catalog.record(for: identity)?.applicationName ?? "该应用"
-        return "请先处理当前对话框（\(name)）"
-    }
-
-    /// 把真实窗口送到目标 frame（可同时带到前台）。返回的是读回事实，不是"我以为到位"。
+    /// 把真实窗口送到主区（或 A 的落点）。方式由 `MainPlacementPolicy` 算，这里只执行算出来的那条路径。
+    ///
+    /// 关键约束：
+    /// - 写前 frame 必须实读成功；目录里的 frame 只是投影，不能替代（方案 §6.2）。
+    /// - 固定尺寸窗口走 position-only，绝不为了"看起来占满主区"而写尺寸（方案 §9.1）。
+    /// - 读回必须经 `MainPlacementPolicy.verify`：越界或压栏先做一次有界修正，仍不合格就补偿且不提交（方案 §9.2）。
     private func placeMain(_ identity: WindowIdentity,
-                           targetFrame: CGRect,
-                           token: TransitionToken,
-                           activate: Bool) async -> PlacementResult {
+                           mainRect: CGRect,
+                           topRailRect: CGRect,
+                           sideRailRect: CGRect,
+                           context: GeometryOperationContext,
+                           permit: GeometryWritePermit,
+                           activate: Bool,
+                           fallbackTarget: CGRect) async -> PlacementResult {
         guard permissions.status.isComplete else {
             return .refused("权限已收回，未写入窗口几何")
-        }
-        guard store.entry(for: identity)?.state.requiresRestore == true else {
-            return .refused("几何事务未落盘，已拒绝写入")
         }
         guard var record = catalog.record(for: identity) else {
             return PlacementResult(step: .targetGone, geometry: .targetGone)
         }
+        // 事务必须在日志里且仍要求恢复：否则这次写入无从补偿（方案 §7.2）。
+        guard let entry = store.entry(for: identity), entry.state.requiresRestore else {
+            return .refused("几何事务未落盘，已拒绝写入")
+        }
 
         // 最小化窗口先解除：拿不到句柄就不谎称"已经展开"（方案 §10.1）。
+        var restoredFromMinimized = false
         if record.isMinimized || record.capture == .pausedMinimized {
             guard let element = catalog.axEntry(for: record)?.element else {
                 return .refused("\(record.applicationName) 的最小化窗口缺少 AX 句柄")
@@ -290,6 +563,7 @@ final class WorkbenchSwitchCoordinator {
             guard released else {
                 return .refused("\(record.applicationName) 未解除最小化")
             }
+            restoredFromMinimized = true
             await catalog.refreshAndWait(reason: .windowEvent)
             guard let fresh = catalog.record(for: identity) else {
                 return PlacementResult(step: .targetGone, geometry: .targetGone)
@@ -305,83 +579,301 @@ final class WorkbenchSwitchCoordinator {
         guard let ax = await catalog.axEntryAfterReview(for: record) else {
             return .refused("拿不到 AX 句柄（身份未唯一确定）")
         }
-        // 目录里的"不可调整"来自上一次采样的快照：跨进程读一次超时就会被折叠成 false，
-        // 把一次读不到当成窗口事实。身份已唯一、句柄在手时，用最新目录再判一次，
-        // 仍说不可控就直接问窗口本身：只有读到确凿的不可写才拒绝；
-        // 读不到同样不是事实，交给写入自身的读回结论（方案 §6.1）。
-        if !record.allowsGeometryControl {
+        // 写前实读：读不到就不写。目录快照可能落后一整轮，不能拿来当基准（方案 §6.2）。
+        guard let before = await writer.currentFrame(of: ax.element) else {
+            return .refused("写前读不到当前 frame，拒绝盲目写入")
+        }
+        // 可移动/可尺寸必须是这次实读的事实：目录里的布尔会把一次读超时折叠成 false（方案 §6.1）。
+        let movable: Bool
+        let resizable: Bool
+        switch await writer.geometryWriteability(element: ax.element) {
+        case .writeable:
+            movable = true
+            resizable = true
+        case .sizeNotSettable:
+            movable = true
+            resizable = false
+        case .positionNotSettable:
+            movable = false
+            resizable = false
+        case .unreadable:
+            // 读不到不是事实：交给写入自身的读回结论，但可移动性只能按目录最新采样保守处理。
             let current = catalog.record(for: identity) ?? record
             record = current
-            if !current.allowsGeometryControl {
-                if !current.allowsAutoFocus {
-                    return .refused("\(current.applicationName) 当前受限（\(current.restriction.map { "\($0)" } ?? "身份未唯一确定")），未写入几何")
-                }
-                switch await writer.geometryWriteability(element: ax.element) {
-                case .sizeNotSettable:
-                    return .refused("AX 确认该窗口不接受尺寸调整")
-                case .positionNotSettable:
-                    return .refused("AX 确认该窗口不接受位置调整")
-                case .writeable, .unreadable:
-                    break
-                }
-            }
+            movable = current.isMovable
+            resizable = current.isResizable
         }
 
-        let started = Date()
-        // 事务创建时记下的"原位置"来自目录快照：快速往返里快照可能落后一整轮，把上一轮的主区
-        // 位置当成原位置——返回时"已在原位置"直接跳过，窗口被永久留在主区。首个写入前用实读
-        // 纠一次，只限从未写过的事务；写过的原位置已经过读回验证，不再改写（方案 §6.2）。
-        if let entry = store.entry(for: identity), entry.hasSpeculativeOriginal,
-           let before = await writer.currentFrame(of: ax.element),
-           !WindowTransaction.framesClose(before, entry.originalFrame, tolerance: 2) {
-            let persisted = store.correctOriginal(identity, frame: before, displayID: record.displayID)
-            if !persisted.isPersisted {
-                VistileLog.session.log(level: .error,
-                                       "原位置修正落盘失败: \(identity.journalKey, privacy: .public)")
+        let decision = MainPlacementPolicy.decide(mainRect: mainRect,
+                                                  currentFrame: before,
+                                                  isMovable: movable,
+                                                  isResizable: resizable)
+        guard let planned = decision.targetFrame else {
+            // 放不下：不宣布进入主区，A 与两栏保持不动（方案 §9.1）。
+            if restoredFromMinimized {
+                await restoreMinimizedIfNeeded(identity: identity, element: ax.element, wasRestored: true)
             }
-            VistileLog.session.log(level: .debug,
+            return .refused(decisionUnavailableReason(decision))
+        }
+        // 只有从未写过的事务才用实读纠正推测原位置；写过的原位置已经过读回验证（方案 §6.2、§7.3）。
+        if entry.hasSpeculativeOriginal,
+           !WindowTransaction.framesClose(before, entry.originalFrame, tolerance: 2) {
+            let corrected = await store.correctOriginal(identity, frame: before, displayID: record.displayID)
+            guard corrected.isPersisted else {
+                // 纠正失败 = 基准不可信：这次写入没有可回退的事实，拒绝写入（方案 §7.3）。
+                return .refused("原位置纠正未能落盘（\(corrected.reason ?? "")），已拒绝写入")
+            }
+            // 纠正本身也是一次落盘：基准跟着走，否则下一条追加会被自己写的这条判成过期。
+            preparedRevision = store.revision
+            VistileLog.session.log(level: .info,
                                    "[原位置] \(identity.journalKey, privacy: .public) 目录快照=\(RecoveryCoordinator.text(entry.originalFrame), privacy: .public) 写前实读=\(RecoveryCoordinator.text(before), privacy: .public) 结论=按实读修正")
         }
+        // 操作前快照：补偿回到这里，会话退出仍回 originalFrame（方案 §6.2、§6.3）。
+        let recorded = await updateJournal(context: context,
+                                          identity: identity,
+                                          mutation: .upsert(entry.markingOperationBefore(frame: before,
+                                                                                        displayID: record.displayID,
+                                                                                        operationID: context.operationID)))
+        guard recorded else {
+            return .refused("操作前几何未能记入日志，已拒绝写入")
+        }
+        guard stillValid(context, token: context.transitionToken) else {
+            return .refused("操作已被撤销，未写入几何")
+        }
+
+        let started = CACurrentMediaTime()
         focus.beginProgrammaticWrite(identity)
-        let write = await writer.apply(frame: targetFrame, element: ax.element)
+        let write: GeometryWriteReport
+        if decision.writesSize {
+            write = await writer.apply(frame: planned, element: ax.element, permit: permit)
+        } else {
+            // move-only：只写位置，尺寸保持实读值（方案 §9.1）。
+            write = await writer.applyPosition(planned.origin, element: ax.element, permit: permit)
+        }
         focus.endProgrammaticWrite(identity, frame: write.displayFrame)
         metrics.measure("工作台:几何写入",
-                        milliseconds: Date().timeIntervalSince(started) * 1000,
+                        milliseconds: (CACurrentMediaTime() - started) * 1000,
                         context: write.outcome.message)
-        // 写前、目标与读回三值都进日志：实机验收判定"到位"必须能核对这三个值（方案 §6.1、§14）。
-        VistileLog.session.log(level: .debug,
-                               "[写入] \(identity.journalKey, privacy: .public) 目标=\(RecoveryCoordinator.text(targetFrame), privacy: .public) 写前=\(write.frameBeforeWrite.map(RecoveryCoordinator.text) ?? "-", privacy: .public) 读回=\(write.readBack.map(RecoveryCoordinator.text) ?? "-", privacy: .public) size错误=\(write.sizeWriteError) position错误=\(write.positionWriteError) 结论=\(write.outcome.message, privacy: .public)")
-
-        let outcome: WorkbenchStepOutcome
-        switch write.outcome {
-        case let .exact(readBack):
-            outcome = .succeeded(readBack: readBack)
-        case let .constrained(readBack):
-            let note = "应用按自身尺寸约束返回 \(RecoveryCoordinator.text(readBack))"
-            recorder.updateRow(application: record.applicationName, version: "",
-                               resize: .failed,
-                               knownLimitation: note)
-            outcome = .constrained(readBack: readBack, note: note)
-        case let .rejected(reason):
-            outcome = .rejected(reason.message)
-        case .unreadable:
-            outcome = .rejected("写入后无法读回 frame，不能宣称到位")
-        case .targetGone:
-            outcome = .targetGone
+        noteReadBack(write)
+        // 只有真的写过一个属性才算"动过"，才进入补偿清单（方案 §6.3）。
+        if write.didWriteSize || write.didWritePosition {
+            sideEffects.append(SideEffect(identity: identity,
+                                          kind: .geometry(restoredMinimized: restoredFromMinimized)))
+        } else if restoredFromMinimized {
+            sideEffects.append(SideEffect(identity: identity, kind: .geometry(restoredMinimized: true)))
         }
+        VistileLog.session.log(level: .info,
+                               "[写入] \(identity.journalKey, privacy: .public) 方式=\(decision.writesSize ? "尺寸+位置" : "仅移动", privacy: .public) 目标=\(RecoveryCoordinator.text(planned), privacy: .public) 写前=\(RecoveryCoordinator.text(before), privacy: .public) 读回=\(write.readBack.map(RecoveryCoordinator.text) ?? "-", privacy: .public) size错误=\(write.sizeWriteError) position错误=\(write.positionWriteError) 结论=\(write.outcome.message, privacy: .public)")
 
-        if activate, !outcome.isFailure {
-            let facts = await focus.activateAndRaise(identity)
-            if facts.isProvenBehind {
-                return PlacementResult(step: .rejected("\(record.applicationName) 没能带到前台（\(facts.evidence)）"),
-                                       geometry: write.outcome)
+        // 许可中途被撤销：一半几何已经落地，这不是"落位"，只能按部分事实交给补偿（方案 §5.2）。
+        if write.isCancelled {
+            if let refusal = await keepWriteFact(context: context, identity: identity, report: write,
+                                                 target: planned, record: record,
+                                                 element: ax.element, permit: permit) {
+                return PlacementResult(step: refusal, geometry: write.outcome)
             }
+            return PlacementResult(step: .rejected(write.outcome.message), geometry: write.outcome)
         }
-        return PlacementResult(step: outcome, geometry: write.outcome)
+
+        guard let readBack = write.readBack else {
+            let outcome: WorkbenchStepOutcome
+            switch write.outcome {
+            case .targetGone: outcome = .targetGone
+            default: outcome = .rejected(write.outcome.message)
+            }
+            if let refusal = await keepWriteFact(context: context, identity: identity, report: write,
+                                                 target: planned, record: record,
+                                                 element: ax.element, permit: permit) {
+                return PlacementResult(step: refusal, geometry: write.outcome)
+            }
+            return PlacementResult(step: outcome, geometry: write.outcome)
+        }
+
+        // 写入被应用拒绝：读回的是"根本没动过"的旧几何。它既不是落位，也不是可修正的偏差，
+        // 有界修正只服务于 §9.2"应用接受但改了尺寸"，对着拒绝再写一次只会重复同一个失败。
+        if case .rejected = write.outcome {
+            if let refusal = await keepWriteFact(context: context, identity: identity, report: write,
+                                                 target: planned, record: record,
+                                                 element: ax.element, permit: permit) {
+                return PlacementResult(step: refusal, geometry: write.outcome)
+            }
+            return PlacementResult(step: .rejected(write.outcome.message), geometry: write.outcome)
+        }
+
+        // 读回包含性判定：受限不等于合格（方案 §9.2）。
+        let verification = MainPlacementPolicy.verify(readBack: readBack,
+                                                      mainRect: mainRect,
+                                                      topRailRect: topRailRect,
+                                                      sideRailRect: sideRailRect)
+        switch verification {
+        case let .accepted(frame):
+            if let refusal = await keepWriteFact(context: context, identity: identity, report: write,
+                                                 target: planned, record: record,
+                                                 element: ax.element, permit: permit) {
+                return PlacementResult(step: refusal, geometry: write.outcome)
+            }
+            let outcome: WorkbenchStepOutcome = write.outcome.settlesGeometryTransaction
+                ? .succeeded(readBack: frame)
+                : .constrained(readBack: frame, note: write.outcome.message)
+            if activate {
+                return await confirmActivation(outcome: outcome, identity: identity, geometry: write.outcome,
+                                               record: record)
+            }
+            return PlacementResult(step: outcome, geometry: write.outcome)
+
+        case let .correctPosition(corrected):
+            // 一次有界修正：只改位置，尺寸不动；修正后仍不合格就补偿、不提交（方案 §9.2）。
+            guard permit.isGranted, stillValid(context, token: context.transitionToken) else {
+                return PlacementResult(step: .rejected("操作已撤销，未做位置修正"), geometry: write.outcome)
+            }
+            let fixed = await writer.applyPosition(corrected.origin, element: ax.element, permit: permit)
+            noteReadBack(fixed)
+            guard let finalReadBack = fixed.readBack else {
+                if let refusal = await keepWriteFact(context: context, identity: identity, report: fixed,
+                                                    target: corrected, record: record,
+                                                    element: ax.element, permit: permit) {
+                    return PlacementResult(step: refusal, geometry: fixed.outcome)
+                }
+                return PlacementResult(step: .rejected("有界修正后读不回 frame"), geometry: fixed.outcome)
+            }
+            let recheck = MainPlacementPolicy.verify(readBack: finalReadBack,
+                                                     mainRect: mainRect,
+                                                     topRailRect: topRailRect,
+                                                     sideRailRect: sideRailRect)
+            if let refusal = await keepWriteFact(context: context, identity: identity, report: fixed,
+                                                 target: corrected, record: record,
+                                                 element: ax.element, permit: permit) {
+                return PlacementResult(step: refusal, geometry: fixed.outcome)
+            }
+            switch recheck {
+            case let .accepted(frame):
+                let outcome: WorkbenchStepOutcome = .constrained(
+                    readBack: frame,
+                    note: "写回后越界，已一次有界修正到 \(RecoveryCoordinator.text(frame))")
+                if activate {
+                    return await confirmActivation(outcome: outcome, identity: identity,
+                                                   geometry: fixed.outcome, record: record)
+                }
+                return PlacementResult(step: outcome, geometry: fixed.outcome)
+            case .correctPosition, .rejected:
+                // 修正后仍不合格：交给补偿，placement 不提交（方案 §9.2）。
+                let reason = Self.verificationFailure(recheck)
+                return PlacementResult(step: .outsideMain(readBack: finalReadBack, reason: reason),
+                                       geometry: fixed.outcome)
+            }
+
+        case .rejected(let reason):
+            if let refusal = await keepWriteFact(context: context, identity: identity, report: write,
+                                                 target: planned, record: record,
+                                                 element: ax.element, permit: permit) {
+                return PlacementResult(step: refusal, geometry: write.outcome)
+            }
+            // 尺寸本身放不下主区：这不是"受限但可以继续"，必须补偿且不提交（方案 §9.2）。
+            return PlacementResult(step: .outsideMain(readBack: readBack, reason: reason),
+                                   geometry: write.outcome)
+        }
     }
 
+    private func confirmActivation(outcome: WorkbenchStepOutcome,
+                                   identity: WindowIdentity,
+                                   geometry: GeometryOutcome?,
+                                   record: WindowRecord) async -> PlacementResult {
+        sideEffects.append(SideEffect(identity: identity, kind: .activation))
+        let facts = await focus.activateAndRaise(identity)
+        if facts.isProvenBehind {
+            return PlacementResult(step: .rejected("\(record.applicationName) 没能带到前台（\(facts.evidence)）"),
+                                   geometry: geometry)
+        }
+        return PlacementResult(step: outcome, geometry: geometry)
+    }
+
+    /// 把写入事实追加进日志（计划 → 已写 → 已验证）。失败已通过事件回报，调用方据返回值继续补偿。
+    ///
+    /// 返回 nil = 事实已落盘，这一步可以按原结论继续；非 nil = 这一步必须立刻收口的结论，
+    /// 因为日志不知道窗口动过，再往下走就是把一次无从恢复的移动当成成功（方案 §7.3、§18 A17）。
+    private func keepWriteFact(context: GeometryOperationContext,
+                               identity: WindowIdentity,
+                               report: GeometryWriteReport,
+                               target: CGRect,
+                               record: WindowRecord,
+                               element: AXUIElement,
+                               permit: GeometryWritePermit) async -> WorkbenchStepOutcome? {
+        guard let existing = store.entry(for: identity) else {
+            return await unrecordedWriteOutcome(identity: identity, element: element,
+                                                permit: permit, report: report)
+        }
+        let planned = existing.markingPlanned(frame: target, displayID: record.displayID)
+        let updated: WindowTransaction
+        // "有读回"不等于"应用接受了"：被拒的写入读回的是没动过的旧几何，
+        // 记成 written 会让退出恢复以为窗口已经停在目标上，跳过本该做的核对（方案 §6.1）。
+        switch report.outcome {
+        case let .exact(frame), let .constrained(frame):
+            updated = planned.markingWritten(readBack: frame,
+                                             displayID: record.displayID,
+                                             note: report.outcome.message)
+        case let .cancelled(_, _, readBack):
+            // 部分写入是已经发生的事实：按读回记 written，恢复照着这块几何回位（方案 §5.2）。
+            if let readBack {
+                updated = planned.markingWritten(readBack: readBack,
+                                                 displayID: record.displayID,
+                                                 note: report.outcome.message)
+            } else {
+                updated = planned.markingWriteFailed(report.outcome.message,
+                                                     observedFrame: report.frameBeforeWrite)
+            }
+        case .rejected, .unreadable, .targetGone:
+            // 写入被拒/读不回：状态停在"尝试过但结果未知或未接受"，恢复据此保守核对。
+            // 有读回就把读回记进去——它是判断"这次尝试到底动没动窗口"的证据（方案 §6.4）。
+            updated = planned.markingWriteFailed(report.outcome.message,
+                                                 observedFrame: report.readBack ?? report.frameBeforeWrite)
+        }
+        let persisted = await updateJournal(context: context, identity: identity, mutation: .upsert(updated))
+        guard persisted else {
+            return await unrecordedWriteOutcome(identity: identity, element: element,
+                                                permit: permit, report: report)
+        }
+        return nil
+    }
+
+    /// 写后事实落不下去时的收口：真的动过窗口就照写前实读立刻回位，回位结果如实写进结论（方案 §7.3、§18 A17）。
+    private func unrecordedWriteOutcome(identity: WindowIdentity,
+                                        element: AXUIElement,
+                                        permit: GeometryWritePermit,
+                                        report: GeometryWriteReport) async -> WorkbenchStepOutcome {
+        guard report.didChangeGeometry, let before = report.frameBeforeWrite else {
+            return .rejected("写后事实未能落盘，且无法确认窗口是否动过：本步不提交")
+        }
+        let back = await writer.apply(frame: before, element: element, permit: permit)
+        noteReadBack(back)
+        let restored = back.readBack.map { WindowTransaction.framesClose($0, before, tolerance: 2) } ?? false
+        recorder.note("写后事实未落盘：\(identity.journalKey) 按写前实读 \(RecoveryCoordinator.text(before))"
+                      + " 回位\(restored ? "成功" : "失败")")
+        return .rejected(restored
+            ? "写后事实未能落盘，已按写前实读 \(RecoveryCoordinator.text(before)) 回位"
+            : "写后事实未能落盘，按写前实读 \(RecoveryCoordinator.text(before)) 回位也未确认：\(back.outcome.message)")
+    }
+
+    /// Vistile 为本次操作解除的最小化：补偿时按原样恢复（方案 §10.1）。
+    private func restoreMinimizedIfNeeded(identity: WindowIdentity, element: AXUIElement, wasRestored: Bool) async {
+        guard wasRestored else { return }
+        guard let record = catalog.record(for: identity) else { return }
+        // 只有仍然没有用户改动的迹象才重新最小化：用户已经动过就不越权。
+        if record.isMinimized { return }
+        _ = await writer.setMinimized(true, element: element)
+        recorder.note("已按原样恢复 \(record.applicationName) 的最小化状态")
+    }
+
+    private func decisionUnavailableReason(_ decision: MainPlacementDecision) -> String {
+        if case let .unavailable(reason) = decision { return reason }
+        return "主区放置方式无法确定"
+    }
+
+    // MARK: - 写回原位置
+
     /// 返回总览：写回 resting frame 并让同一套恢复规则收口事务（方案 §4.4、§6.5）。
-    private func restoreMain(_ identity: WindowIdentity, token: TransitionToken) async -> WorkbenchStepOutcome {
+    private func restoreMain(_ identity: WindowIdentity,
+                             context: GeometryOperationContext,
+                             permit: GeometryWritePermit) async -> WorkbenchStepOutcome {
         guard let entry = store.entry(for: identity) else {
             return .rejected("事务日志里没有该窗口的记录，未写回几何")
         }
@@ -389,24 +881,24 @@ final class WorkbenchSwitchCoordinator {
             // 已经被恢复过（例如用户在返回前手动改回原状）：不是失败，也不是"我们写回成功"。
             return .succeeded(readBack: nil)
         }
-        let started = Date()
-        let item = await recovery.restore(entry: entry)
+        let started = CACurrentMediaTime()
+        let item = await recovery.restore(entry: entry, token: context.transitionToken, deadline: deadline)
         metrics.measure("工作台:写回原尺寸",
-                        milliseconds: Date().timeIntervalSince(started) * 1000,
+                        milliseconds: (CACurrentMediaTime() - started) * 1000,
                         context: item.outcome.message)
-        VistileLog.session.log(level: .debug,
+        VistileLog.session.log(level: .info,
                                "[写回] \(identity.journalKey, privacy: .public) 结论=\(item.outcome.message, privacy: .public)")
+        return Self.stepOutcome(for: item, identity: identity)
+    }
+
+    /// 恢复结论映射到步骤结论：只有 settled 类结论才算继续，降级要写清是哪块屏（方案 §8）。
+    static func stepOutcome(for item: RestoreItemResult, identity: WindowIdentity) -> WorkbenchStepOutcome {
         switch item.outcome {
-        case .restored, .alreadyAtOriginal, .keptUserGeometry:
+        case .restored, .alreadyAtOriginal, .keptUserGeometry, .userMoved, .settledDegraded:
             return .succeeded(readBack: nil)
-        case let .constrained(deviation):
-            // RestoreOutcome 只带偏差，不带读回值：偏差是这一格的事实，读回仅用于展示。
-            let readBack = catalog.record(for: identity)?.frame ?? entry.originalFrame
+        case let .constrained(readBack, deviation):
             return .constrained(readBack: readBack,
-                                note: "写回偏差 \(String(format: "%.1f", deviation))pt")
-        case .userMoved:
-            // 用户自己把它拖走了：事务按预期结束，不覆盖用户位置（方案 §10.4）。
-            return .succeeded(readBack: nil)
+                                note: "写回偏差 \(String(format: "%.1f", deviation))pt，实际 \(RecoveryCoordinator.text(readBack))")
         case .windowGone:
             return .targetGone
         case let .rejected(reason):
@@ -418,62 +910,193 @@ final class WorkbenchSwitchCoordinator {
         }
     }
 
-    /// 失败补偿：把已经改过的窗口交回既有恢复路径，绝不静默留在半路。
-    /// 返回逐条结果：调用方负责回报 reducer，让 state 侧与 journal 同步收口（方案 §6.4）。
-    @discardableResult
-    private func restoreQuietly(_ identity: WindowIdentity, note: String) async -> RestoreItemResult? {
-        guard let entry = store.entry(for: identity), entry.state.requiresRestore else { return nil }
-        let item = await recovery.restore(entry: entry)
-        if item.outcome.isFailure {
-            recorder.note("\(note)：\(identity.journalKey) 补偿恢复未完成（\(item.outcome.message)）")
-        }
-        return item
-    }
+    // MARK: - 补偿
 
-    /// 交换失败：只逆序补偿这次真正动过的窗口，然后报告 mainSwitchFailed（placement 不提交）。
-    /// 准备阶段被拦下时一个窗口都没动：A 必须保持主窗口不动（方案 §8.3）。
-    /// 同一次动作只补偿一次；超时与步骤失败可能先后到达。
-    private func rollback(_ plan: WorkbenchSwitchPlan, reason: String) async {
+    /// 失败补偿：只逆序还原"确实动过"的窗口，然后把旧主真正带回前台，最后合成一份完整补偿事实。
+    /// 补偿用独立授权（`.compensation`），不受普通操作撤销屏障影响（方案 §5.1、§6.3）。
+    private func compensate(reason: String,
+                            context: GeometryOperationContext,
+                            token: TransitionToken,
+                            reActivate: WindowIdentity?,
+                            transition: Bool) async {
         guard !didRollback else { return }
         didRollback = true
-        recorder.note("工作台交换回滚：\(reason)")
-        var compensated: [RestoreItemResult] = []
-        if let from = plan.intent.from, touched.contains(from),
-           let item = await restoreQuietly(from, note: "交换回滚：原主窗口") {
-            compensated.append(item)
+        recorder.note("工作台补偿：\(reason)")
+        scheduler.reserveCompensation(for: context)
+        defer { scheduler.releaseCompensation(operationID: context.operationID) }
+
+        var items: [WorkbenchCompensationResult.Item] = []
+        var seen = Set<WindowIdentity>()
+        // 逆序：后写的先回位，避免中间态把已回位的窗口再次顶走（方案 §6.3）。
+        for effect in sideEffects.reversed() where seen.insert(effect.identity).inserted {
+            let action = await compensateWindow(effect.identity, context: context)
+            let displayID = catalog.record(for: effect.identity)?.displayID
+            items.append(.init(identity: effect.identity, action: action, displayID: displayID))
         }
-        if touched.contains(plan.intent.to),
-           let item = await restoreQuietly(plan.intent.to, note: "交换回滚：目标窗口") {
-            compensated.append(item)
+        sideEffects.removeAll()
+        // 这批里"落盘了计划但一次都没写"的身份没有恢复依据：把义务从账上撤掉。
+        // 留着会让下次启动去核对一个从没碰过的窗口，也把 A42 的"每个恢复义务都对应真实写入"打破（方案 §6.4、§18）。
+        await releaseUnwrittenPlans()
+
+        var activatedMain: WindowIdentity?
+        if let reActivate, !transition {
+            // 补偿之后必须真的把 A 带回前台：`setKeyboardFocus(.targetApplication)` 只改状态机里的焦点描述，
+            // 不会改变系统前台，用户看到半套交换（方案 §6.3）。
+            let facts = await focus.activateAndRaise(reActivate)
+            if !facts.isProvenBehind { activatedMain = reActivate }
         }
-        // 补偿结果先于 mainSwitchFailed 回报：state 侧必须在收口前看到 journal 的真实结局。
-        if !compensated.isEmpty {
-            onEvent?(.geometryRestoreSettled(token: plan.intent.token, items: compensated))
+        // 模式过渡失败：没有"旧主"要带回，焦点事实按未确认处理（isComplete 自然为假）。
+        let compensation = WorkbenchCompensationResult(items: items, activatedMain: activatedMain)
+        // 补偿事实先于失败事件回报：reducer 只能在看到真实结局后收口（方案 §6.4）。
+        onEvent?(.geometryRestoreSettled(token: token,
+                                         items: items.map {
+                                             RestoreItemResult(identity: $0.identity,
+                                                               outcome: Self.restoreOutcome($0.action),
+                                                               applicationName: applicationName(for: $0.identity))
+                                         }))
+        // 模式过渡的终止回调只有一处：`runTransition` 在补偿之后自己发。
+        // 这里再发一次就是同一个令牌两次终止，状态机按第二次收口，用户看到的是半套结论（方案 §15、§18 A39）。
+        if !transition {
+            reportSwitchFailure(token: token, reason: reason, compensation: compensation)
         }
-        onEvent?(.mainSwitchFailed(token: plan.intent.token, reason: reason))
+    }
+
+    /// 撤掉"本次操作名下、但窗口从未被移动过"的事务：没有真实写入就没有恢复依据（方案 §6.4、§18 A42）。
+    /// 只按本次操作名义负责的窗口清理；已经写过的、以及别的操作名下的事务一律原样留给恢复路径（A12）。
+    private func releaseUnwrittenPlans() async {
+        guard let context = activeContext else { return }
+        let stale = store.snapshot.entries.values.filter { entry in
+            activeIdentities.contains(entry.identity) && !Self.owesRestoreObligation(entry, of: context)
+        }
+        for entry in stale {
+            let written = await store.drop(entry.identity)
+            guard !written.isPersisted else { continue }
+            // 撤账没落盘不能当作已撤：状态与日志的分歧要回报，下次启动照旧核对（方案 §7.3）。
+            onStatus?("未写入的事务清理未落盘：\(entry.identity.journalKey)（\(written.reason ?? "未知原因")）")
+        }
+    }
+
+    /// 这个事务还欠一次恢复吗？判据全部来自已记录的几何事实，不按"计划过"推断（方案 §6.4、§7.2）。
+    /// - 从未执行过 AX 写入：窗口还在它本来的位置，没有恢复依据。
+    /// - 写过但被拒/失败：只有读回同时等于"本操作前实读"和"会话原位置"才算从头到尾没动过；
+    ///   任一项不等，就是退出时必须还原的差值（A12：回滚成功也不许 drop A 的会话事务）。
+    static func owesRestoreObligation(_ entry: WindowTransaction, of context: GeometryOperationContext) -> Bool {
+        guard Self.didWriteGeometry(entry) else { return false }
+        guard entry.state == .failed, let observed = entry.lastProvisionalFrame else { return true }
+        // 只有"这次操作自己写失败"才适用下面的读回判据：更早操作留下的失败记录与本操作无关，不许顺手撤账（A12）。
+        guard entry.operationID == context.operationID else { return true }
+        let untouchedByOperation = entry.operationBeforeFrame
+            .map { WindowTransaction.framesClose(observed, $0, tolerance: 2) } ?? false
+        let atSessionOriginal = WindowTransaction.framesClose(observed, entry.originalFrame, tolerance: 2)
+        return !(untouchedByOperation && atSessionOriginal)
+    }
+
+    private func applicationName(for identity: WindowIdentity) -> String {
+        catalog.record(for: identity)?.applicationName
+            ?? NSRunningApplication(processIdentifier: identity.processID)?.localizedName ?? "未知应用"
+    }
+
+    static func restoreOutcome(_ action: CompensationAction) -> RestoreOutcome {
+        switch action {
+        case .restoredTo: return .restored
+        case .alreadyInPlace: return .alreadyAtOriginal
+        case .notWritten: return .notAttempted("")
+        case let .refused(reason): return .rejected(reason)
+        }
+    }
+
+    /// 单个身份的补偿：目标取操作前快照（`compensationTargetFrame`），没有快照才退回会话原位置。
+    private func compensateWindow(_ identity: WindowIdentity,
+                                  context: GeometryOperationContext) async -> CompensationAction {
+        guard let entry = store.entry(for: identity) else {
+            return .refused(reason: "日志里没有该事务，补偿无法确认目标位置")
+        }
+        guard Self.didWriteGeometry(entry) else { return .notWritten }
+        guard let target = entry.compensationTargetFrame() else {
+            return .refused(reason: "既没有操作前快照也没有原位置")
+        }
+        let compensationContext = scheduler.makeContext(token: context.transitionToken, kind: .compensation)
+        let result: CompensationAction? = await scheduler.request(
+            context: compensationContext,
+            identities: [identity],
+            work: { [weak self] permit -> CompensationAction in
+                guard let self else { return .refused(reason: "执行器已释放") }
+                guard let record = self.catalog.record(for: identity),
+                      let ax = await self.catalog.axEntryAfterReview(for: record) else {
+                    return .refused(reason: "补偿时拿不到句柄")
+                }
+                guard let current = await self.writer.currentFrame(of: ax.element) else {
+                    return .refused(reason: "补偿前读不到当前 frame")
+                }
+                if WindowTransaction.framesClose(current, target, tolerance: 2) {
+                    return .alreadyInPlace(frame: current)
+                }
+                let written = await self.writer.apply(frame: target, element: ax.element, permit: permit)
+                self.noteReadBack(written)
+                guard let readBack = written.readBack else {
+                    return .refused(reason: written.outcome.message)
+                }
+                if WindowTransaction.framesClose(readBack, target, tolerance: 2) {
+                    // 补偿只把窗口送回"本操作之前"，会话事务仍然要求恢复：
+                    // A 的回轨事务不能因为一次失败交换就被结算掉（方案 §6.3、§6.4）。
+                    return .restoredTo(frame: readBack)
+                }
+                return .refused(reason: "补偿读回 \(RecoveryCoordinator.text(readBack)) 与目标 \(RecoveryCoordinator.text(target)) 不一致")
+            })
+        guard let result else {
+            return .refused(reason: "补偿未获调度器受理（会话或相位已变）")
+        }
+        return result
+    }
+
+    /// 是否真的写过几何：计划了但从未有读回/临时值 = 没动过窗口。
+    static func didWriteGeometry(_ entry: WindowTransaction) -> Bool {
+        if entry.state == .verified || entry.state == .written { return true }
+        if entry.state == .failed { return true }
+        return entry.lastProvisionalFrame != nil
+    }
+
+    /// 判定结论里的失败原因（`.correctPosition` 分支只需要一句话）。
+    static func verificationFailure(_ verification: PlacementVerification) -> String {
+        switch verification {
+        case let .accepted(frame): return "读回 \(RecoveryCoordinator.text(frame)) 已合格"
+        case let .correctPosition(to): return "仍需修正到 \(RecoveryCoordinator.text(to)) 才能合格"
+        case let .rejected(reason): return reason
+        }
+    }
+
+    private func reportSwitchFailure(token: TransitionToken,
+                                     reason: String,
+                                     compensation: WorkbenchCompensationResult?) {
+        onEvent?(.mainSwitchFailed(token: token, reason: reason, compensation: compensation))
     }
 
     // MARK: - reducer 态度
 
     /// 每步之后问一次 reducer：继续、回滚、还是令牌已作废。
-    private func proceedOrRollback(_ plan: WorkbenchSwitchPlan,
-                                   after outcome: WorkbenchStepOutcome,
-                                   token: TransitionToken) async -> Bool {
-        guard activeToken == token else { return false }
+    private func proceedOrStop(_ plan: WorkbenchSwitchPlan,
+                               context: GeometryOperationContext,
+                               after outcome: WorkbenchStepOutcome,
+                               token: TransitionToken) async -> Bool {
+        guard activeContext == context else { return false }
         if didTimeOut || isPastDeadline {
             didTimeOut = true
-            await rollback(plan, reason: "超过 \(Int(Self.switchDeadline * 1000))ms 未收敛")
+            await compensate(reason: "超过 \(Int(Self.switchDeadline.totalNanoseconds / 1_000_000))ms 未收敛",
+                             context: context, token: token,
+                             reActivate: plan.intent.from, transition: false)
             return false
         }
         if outcome.isFailure {
-            await rollback(plan, reason: outcome.message)
+            await compensate(reason: outcome.message, context: context, token: token,
+                             reActivate: plan.intent.from, transition: false)
             return false
         }
         switch directive(token) {
         case .proceed:
             return true
         case let .rollback(reason):
-            await rollback(plan, reason: reason)
+            await compensate(reason: reason, context: context, token: token,
+                             reActivate: plan.intent.from, transition: false)
             return false
         case .aborted:
             return false
@@ -483,10 +1106,11 @@ final class WorkbenchSwitchCoordinator {
     private func report(step: WorkbenchSwitchStep,
                         outcome: WorkbenchStepOutcome,
                         identity: WindowIdentity?,
-                        token: TransitionToken) {
-        guard activeToken == token else { return }
+                        token: TransitionToken,
+                        context: GeometryOperationContext) {
+        guard activeContext == context else { return }
         // 每一步的真实结论进诊断日志：实机验收要靠它还原"哪一步、什么事实"（方案 §14）。
-        VistileLog.session.log(level: .debug,
+        VistileLog.session.log(level: .info,
                                "[交换] 步骤=\(step.displayName, privacy: .public) 对象=\(identity?.journalKey ?? "-", privacy: .public) 结论=\(outcome.message, privacy: .public)")
         onEvent?(.mainSwitchStepFinished(WorkbenchSwitchStepResult(token: token,
                                                                    step: step,
@@ -494,33 +1118,56 @@ final class WorkbenchSwitchCoordinator {
                                                                    identity: identity)))
     }
 
-    // MARK: - 令牌与限时
+    // MARK: - 上下文核对与限时
 
-    /// 每次动作开始时建立生命周期：令牌生效、限时起算、补偿只做一次。
-    private func beginLifetime(_ token: TransitionToken, name: String) {
-        activeToken = token
-        deadline = Date().addingTimeInterval(Self.switchDeadline)
+    /// 每一步之前的统一核对：会话、代次、相位、令牌、预算，一项对不上就不再写窗口（方案 §5.5）。
+    private func stillValid(_ context: GeometryOperationContext, token: TransitionToken) -> Bool {
+        guard activeContext == context else { return false }
+        guard context.matches(sessionID: scheduler.sessionID, epoch: scheduler.sessionEpoch) else {
+            onStatus?("会话已更新，停止后续步骤")
+            return false
+        }
+        guard !isPastDeadline else {
+            didTimeOut = true
+            return false
+        }
+        return true
+    }
+
+    private func beginLifetime(_ context: GeometryOperationContext,
+                               identities: [WindowIdentity] = []) {
+        activeContext = context
+        activeIdentities = identities
+        deadline = scheduler.deadline(after: Self.switchDeadline)
         didTimeOut = false
         didRollback = false
-        touched = []
+        preparedRevision = nil
+        sideEffects = []
         watchdog?.cancel()
-        watchdog = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(Self.switchDeadline * 1_000_000_000))
-            guard !Task.isCancelled, let self, self.activeToken == token, !self.didTimeOut else { return }
-            // 到点先把状态机推出在途态（reducer 收到后转入回滚/取消），
-            // 补偿由串行队列里的同一次动作在下一个检查点完成——绝不与在途写入并发。
-            self.didTimeOut = true
-            self.recorder.note("工作台\(name)超过 \(Int(Self.switchDeadline * 1000))ms 未收敛，按超时处理")
-            self.onStatus?("\(name)超时，正在收敛")
-            self.onEvent?(.transitionTimedOut(token))
+        watchdog = Task { @MainActor [weak self, deadline] in
+            guard let deadline else { return }
+            let wait = max(deadline.nanoseconds &- (self?.scheduler.now.nanoseconds ?? 0), 0)
+            try? await Task.sleep(nanoseconds: wait)
+            guard !Task.isCancelled else { return }
+            self?.deadlineExpired(context)
         }
     }
 
-    private func endLifetime(_ token: TransitionToken) {
+    /// 到点收敛：真实时间由看门狗触发；注入时钟的测试直接调它，不靠睡眠赌时序（方案 §15.2）。
+    func deadlineExpired(_ context: GeometryOperationContext) {
+        guard activeContext == context, !didTimeOut else { return }
+        didTimeOut = true
+        recorder.note("工作台\(context.kind.rawValue)超过 \(Int(Self.switchDeadline.totalNanoseconds / 1_000_000))ms 未收敛，按超时处理")
+        onStatus?("\(context.kind.rawValue)超时，正在收敛")
+        onEvent?(.transitionTimedOut(context.transitionToken))
+    }
+
+    private func endLifetime(_ context: GeometryOperationContext) {
         watchdog?.cancel()
         watchdog = nil
-        guard activeToken == token else { return }
-        activeToken = nil
+        guard activeContext == context else { return }
+        activeContext = nil
+        activeIdentities = []
         deadline = nil
     }
 
@@ -529,11 +1176,32 @@ final class WorkbenchSwitchCoordinator {
         guard isPastDeadline else { return outcome }
         didTimeOut = true
         guard !outcome.isFailure else { return outcome }
-        return .rejected("超过 \(Int(Self.switchDeadline * 1000))ms 未收敛")
+        return .rejected("超过 \(Int(Self.switchDeadline.totalNanoseconds / 1_000_000))ms 未收敛")
     }
 
     private var isPastDeadline: Bool {
         guard let deadline else { return false }
-        return Date() >= deadline
+        return scheduler.remaining(until: deadline) == 0
+    }
+
+    private func reportSkipped(_ reason: SetupMessages.SkipReason,
+                               context: GeometryOperationContext,
+                               token: TransitionToken,
+                               kind: WorkbenchTransitionKind) {
+        onEvent?(.workbenchTransitionFinished(token: token, kind: kind,
+                                              result: .rejected(SetupMessages.skipped(reason))))
+    }
+}
+
+/// 调度器丢弃作业的人类可读原因（诊断与测试断言共用）。
+enum SetupMessages {
+    typealias SkipReason = GeometryOperationScheduler.Skip
+
+    static func skipped(_ reason: SkipReason) -> String {
+        switch reason {
+        case .cancelled: return "操作已被取消屏障撤销，未写入几何"
+        case .sessionChanged: return "会话已更换，本次操作未执行"
+        case .budgetExpired: return "限时预算已尽，未开始新的写入"
+        }
     }
 }

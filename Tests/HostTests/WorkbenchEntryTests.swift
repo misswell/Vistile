@@ -4,7 +4,8 @@ import VistileCore
 import XCTest
 @testable import Vistile
 
-/// 入口链路与初选交接的宿主回归（方案 §18.2 H15/H16）。
+/// 入口链路与初选交接的宿主回归（方案 §18.2 H15/H16），外加退出链的恢复所有权（A39）：
+/// 只有把整个 `AppCoordinator` 装起来，才看得到"两个退出入口抢同一个窗口"这件事。
 ///
 /// 两项都要"从真实入口到真实视图事件"的整条链路：目录、捕获、几何写入、权限与事务日志
 /// 全部用替身注入（方案 §15.1），面板一律摆在主屏之外的负坐标；测试宿主不注册全局热键、
@@ -29,6 +30,11 @@ final class WorkbenchEntryTests: XCTestCase {
     private var catalog: WindowCatalog!
     private var capture: CaptureCoordinator!
     private var coordinator: AppCoordinator!
+    /// 替身应用是本机不存在的假 PID：进程实例判定不注入就一律读成"进程已退出"，
+    /// 退出恢复会直接按"窗口已消失"结算，永远走不到写回原 frame 那一步。
+    private var processIdentity: FakeProcessIdentity!
+    /// 协调器回报给用户的每一句话：入口失败时必须能直接看到"是哪一步拦住的"（方案 §14、§22）。
+    private var statuses: [String] = []
     private var runs: [WindowIdentity: FakeCaptureRun] = [:]
 
     private var displayID: UInt32 { HostFixtures.display.id }
@@ -49,6 +55,13 @@ final class WorkbenchEntryTests: XCTestCase {
             return writer?.isMinimized(for: element) ?? false
         }
         catalogSource.addWindows([0, 1, 2, 3])
+        // 真实窗口的 AXSize/AXPosition 一直读得到，替身也必须一直答得出：
+        // 写前实读读不到时生产按事实拒绝写入（方案 §6.2），所以这里给每个句柄一个初值几何。
+        for index in [0, 1, 2, 3] {
+            if let element = catalogSource.element(for: HostFixtures.identity(index)) {
+                writer.setInitialFrame(FakeCatalogSource.frame(for: index), for: element)
+            }
+        }
     }
 
     override func tearDown() {
@@ -58,6 +71,7 @@ final class WorkbenchEntryTests: XCTestCase {
         capture = nil
         catalog = nil
         runs = [:]
+        statuses = []
         renderer = nil
         metal = nil
         // 测试临时拿到的前台激活必须还给系统。
@@ -93,6 +107,7 @@ final class WorkbenchEntryTests: XCTestCase {
         store = WindowJournalStore(fileName: "session-journal.json",
                                    sessionID: UUID(),
                                    baseDirectory: journalDirectory)
+        processIdentity = FakeProcessIdentity()
         let coordinator = AppCoordinator(settings: settings,
                                          permissions: permissions,
                                          metrics: .shared,
@@ -103,8 +118,10 @@ final class WorkbenchEntryTests: XCTestCase {
                                          capture: capture,
                                          journal: store,
                                          writer: writer,
-                                         registersGlobalHotKey: false)
+                                         registersGlobalHotKey: false,
+                                         processIdentity: processIdentity)
         coordinator.start()
+        coordinator.onStatus = { [weak self] text in self?.statuses.append(text) }
         self.coordinator = coordinator
         return coordinator
     }
@@ -212,11 +229,12 @@ final class WorkbenchEntryTests: XCTestCase {
 
         waitUntil(timeout: 5) { self.coordinator.state.mode == .workbench }
         XCTAssertEqual(coordinator.state.mode, .workbench,
-                       "选择之后必须真的进到工作台，实际 phase=\(coordinator.state.phase)")
+                       "选择之后必须真的进到工作台，实际 phase=\(coordinator.state.phase)，回报=\(statuses)")
 
         // 真实窗口交接：写的是被选中的那一个，且只有它。
-        XCTAssertEqual(writer.totalWrites, 1, "进入工作台只允许写主窗口一次：\(writer.writtenFrames)")
-        XCTAssertEqual(journalSettledBeforeWrite, true, "第一次 AX 写入之前事务必须已经在日志里")
+        XCTAssertEqual(writer.totalWrites, 1, "进入工作台只允许写主窗口一次：\(writer.writtenFrames) 回报=\(statuses)")
+        XCTAssertEqual(journalSettledBeforeWrite, true,
+                       "第一次 AX 写入之前事务必须已经在日志里：回报=\(statuses)")
         XCTAssertGreaterThanOrEqual(writer.focusCount + writer.raiseCount, 1, "主窗口必须被带到前台")
 
         let presentation = try XCTUnwrap(coordinator.workbenchPresentation)
@@ -236,6 +254,78 @@ final class WorkbenchEntryTests: XCTestCase {
         XCTAssertEqual(coordinator.workbenchControllers.count, 1, "单屏只建一套两栏面板")
         XCTAssertTrue(store.unfinished.contains { $0.identity == identity },
                       "写过的窗口必须留下待恢复事务，退出时才能还原")
+    }
+
+    // MARK: - A39 两种退出入口重复触发：仅一恢复所有者、一次终止回调（方案 §14.2、§14.4）
+
+    /// 退出时同时存在两个恢复入口：⌘Q 走进来的终止链，和状态机为同一批窗口算出的 `.restoreAll` 效果；
+    /// 第二次 ⌘Q 还会再敲一次链入口。链必须独占几何写入，收尾必须只回报一次。
+    ///
+    /// 判据都用替身应用上看到的外部事实：被写过的窗口只被恢复一次、停在原始 frame、事务落定后从日志消失。
+    /// 「唯一恢复所有者」那条回报同时证明第二个恢复入口真的到过——否则这条断言会因为什么都没发生而空过。
+    func testTwoQuitEntriesLeaveOneRecoveryOwnerAndOneTerminationCallback() async throws {
+        let coordinator = makeCoordinator()
+        coordinator.toggleOverview()
+        try await awaitUntil(timeout: 5) { self.coordinator.state.records.count == 4 }
+        let identity = HostFixtures.identity(0)
+        try selectCard(identity)
+        try await awaitUntil(timeout: 5) { self.coordinator.state.mode == .workbench }
+        let original = FakeCatalogSource.frame(for: 0)
+        XCTAssertTrue(store.unfinished.contains { $0.identity == identity },
+                      "前提：进入工作台写过的窗口必须留下待恢复事务，否则退出没有东西可恢复：\(writer.writtenFrames)")
+        XCTAssertEqual(writer.writtenFrames.filter { $0 == original }.count, 0,
+                       "前提：退出之前谁都不该被写回原位")
+
+        // 两个退出入口前后脚进来：菜单「退出」，以及紧随其后的第二次 ⌘Q。
+        var firstSettledCount = 0
+        var secondSettled = false
+        coordinator.beginTermination { firstSettledCount += 1 }
+        coordinator.beginTermination { secondSettled = true }
+
+        try await awaitUntil(timeout: 5) { firstSettledCount > 0 }
+        XCTAssertEqual(firstSettledCount, 1, "终止收尾只能回报一次")
+        XCTAssertFalse(secondSettled, "第二个链入口不能自己再收尾一次：两遍回调会把终止答复发两遍")
+        XCTAssertTrue(statuses.contains { $0.contains("唯一恢复所有者") },
+                      "状态机的 .restoreAll 必须被链接住并留下轨迹：\(statuses)")
+
+        let restoreWrites = writer.writtenFrames.filter { $0 == original }
+        XCTAssertEqual(restoreWrites.count, 1,
+                       "同一个窗口只许被恢复一次，第二条恢复路径会把原 frame 写两遍：\(writer.writtenFrames)")
+        let element = try XCTUnwrap(catalogSource.element(for: identity))
+        let frameAfterQuit = await writer.currentFrame(of: element)
+        XCTAssertEqual(frameAfterQuit, original, "退出后窗口必须回到原始 frame")
+        XCTAssertNil(store.entry(for: identity), "确认恢复完的事务不该留给下次启动")
+        XCTAssertTrue(store.unfinished.isEmpty, "退出收敛后日志不该还挂着本会话事务")
+        XCTAssertTrue(coordinator.focus.isIdle, "退出收敛后不能留下在途恢复")
+        XCTAssertFalse(coordinator.switchCoordinator.isBusyIncludingScheduler, "工作台链也必须彻底交还")
+        XCTAssertFalse(coordinator.workbenchControllers.values.contains { $0.isVisible },
+                       "退出必须把两栏面板拆掉，恢复期间不能还盖着屏幕")
+    }
+
+    /// 真实视图事件选卡：与 H16 同一条链路，退出的前提状态得靠它把窗口真的写进主区。
+    private func selectCard(_ identity: WindowIdentity) throws {
+        let view = try overviewView()
+        view.layoutSubtreeIfNeeded()
+        let cell = try XCTUnwrap(coordinator.cardRects[identity], "初选目标必须有总览格子")
+        let point = HostFixtures.viewPoint(of: cell, in: view, cgOrigin: HostFixtures.offscreenOrigin)
+        XCTAssertTrue(view.bounds.contains(point), "取样点必须落在内容视图内")
+        view.mouseDown(with: HostEvents.mouse(.leftMouseDown, in: view.window, point: point))
+        view.mouseUp(with: HostEvents.mouse(.leftMouseUp, in: view.window, point: point))
+    }
+
+    /// 异步用例里的等待：让出 MainActor 好让生产的任务链继续跑（同步用例用的 runloop 泵在异步体里不推进），
+    /// 到点就失败，不靠固定 sleep 赌时序（方案 §18）。
+    private func awaitUntil(timeout: TimeInterval = 2,
+                            _ condition: @MainActor () -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !condition() {
+            guard Date() < deadline else {
+                XCTFail("等待条件超时（\(timeout)s）：phase=\(coordinator.state.phase) "
+                        + "mode=\(coordinator.state.mode) 回报=\(statuses)")
+                return
+            }
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
     }
 
     // MARK: - 工具区自适应（方案 §11.2 下界 96pt 与 §5.1 工具区）

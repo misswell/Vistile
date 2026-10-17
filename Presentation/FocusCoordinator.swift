@@ -1,6 +1,7 @@
 import AppKit
 import CoreGraphics
 import Foundation
+import QuartzCore
 import VistileCore
 
 /// 展开、收回与恢复的有序执行器（方案 §10.2、§10.3）。
@@ -30,6 +31,7 @@ final class FocusCoordinator {
     private let metal: MetalContext
     private let recovery: RecoveryCoordinator
     private let permissions: PermissionChecking
+    private let scheduler: GeometryOperationScheduler
 
     private var proxy: TransitionProxyWindow?
     private var activeToken: TransitionToken?
@@ -37,13 +39,11 @@ final class FocusCoordinator {
     private var activeDirection: Direction = .expand
     /// 当前这次过渡的预算与起点：超时那条记录要把"到底等了多久、预算是多少"写出来，否则下次复跑无从对比。
     private var transitionBudgetMS = 0
-    private var transitionStartedAt = Date()
+    private var transitionStartedAt = CACurrentMediaTime()
     private var watchdog: Timer?
-    /// 每个窗口一条串行通道：展开、收回、恢复、补偿按入队顺序执行，互不重叠（方案 §6.3）。
-    private var tails: [WindowIdentity: Task<Void, Never>] = [:]
     private var busy: Set<WindowIdentity> = []
     private var writing: Set<WindowIdentity> = []
-    private var lastWritten: [WindowIdentity: (frame: CGRect, at: Date)] = [:]
+    private var lastWritten: [WindowIdentity: (frame: CGRect, at: TimeInterval)] = [:]
 
     private enum Direction { case expand, collapse }
 
@@ -55,7 +55,8 @@ final class FocusCoordinator {
          metrics: Metrics,
          recorder: CompatibilityRecorder,
          recovery: RecoveryCoordinator,
-         permissions: PermissionChecking) {
+         permissions: PermissionChecking,
+         scheduler: GeometryOperationScheduler) {
         self.catalog = catalog
         self.metal = metal
         self.writer = writer
@@ -65,9 +66,15 @@ final class FocusCoordinator {
         self.recorder = recorder
         self.recovery = recovery
         self.permissions = permissions
+        self.scheduler = scheduler
     }
 
     var isAnimating: Bool { activeToken != nil }
+
+    /// 代理动画是否仍在跑：合并进 TransitionActivity，取代零散的 isAnimating 判断（方案 §13.2）。
+    var activity: TransitionActivity {
+        TransitionActivity(focusProxy: activeToken != nil)
+    }
 
     /// 退出前必须等到所有窗口通道排空：不能并行走第二条恢复路径（方案 §6.6）。
     var isIdle: Bool { activeToken == nil && busy.isEmpty }
@@ -94,15 +101,30 @@ final class FocusCoordinator {
         // 总超时从这一次动作的入口开始算，而不是从动画开始算（方案 §6.3）。
         beginAnimation(token, identity: identity, budgetMS: animationMS + 1_500)
         metrics.begin("过渡:展开")
-        Task { [weak self] in
-            guard let self else { return }
-            await self.onChannel(identity) {
+        // 展开的几何写入只经调度器排队：取消屏障撤销的是同一个许可（方案 §5.2）。
+        let context = scheduler.makeContext(token: token, kind: .enterWorkbench)
+        guard scheduler.perform(GeometryOperationScheduler.Operation(
+            context: context,
+            identities: [identity],
+            coalesceKey: "expand:\(identity.journalKey)",
+            deadline: scheduler.deadline(after: .milliseconds(animationMS + 1_500)),
+            onSkipped: { [weak self] reason in
+                self?.report(token: token, reason: SetupMessages.skipped(reason))
+            },
+            run: { [weak self] permit in
+                guard let self else { return }
+                self.busy.insert(identity)
                 await self.performExpand(record: record,
                                          display: display,
                                          targetFrame: targetFrame,
                                          token: token,
+                                         context: context,
+                                         permit: permit,
                                          animationMS: animationMS)
-            }
+                self.busy.remove(identity)
+            })) else {
+            report(token: token, reason: "会话已更新，展开未排队")
+            return
         }
     }
 
@@ -110,6 +132,8 @@ final class FocusCoordinator {
                                display: DisplayInfo,
                                targetFrame: CGRect,
                                token: TransitionToken,
+                               context: GeometryOperationContext,
+                               permit: GeometryWritePermit,
                                animationMS: Int) async {
         let identity = record.identity
         guard isCurrent(token, identity) else { return }
@@ -153,28 +177,33 @@ final class FocusCoordinator {
         }
         var applied = targetFrame
         if let ax, current.allowsGeometryControl {
-            let started = Date()
+            let started = CACurrentMediaTime()
             writing.insert(identity)
-            let write = await writer.apply(frame: targetFrame, element: ax.element)
+            let write = await writer.apply(frame: targetFrame, element: ax.element, permit: permit)
             writing.remove(identity)
-            lastWritten[identity] = (write.displayFrame, Date())
-            metrics.measure("几何写入", milliseconds: Date().timeIntervalSince(started) * 1000,
+            lastWritten[identity] = (write.displayFrame, CACurrentMediaTime())
+            metrics.measure("几何写入", milliseconds: (CACurrentMediaTime() - started) * 1000,
                             context: write.outcome.message)
+            if let readBackMS = write.readBackMS {
+                metrics.measure("几何读回", milliseconds: readBackMS, context: write.outcome.message)
+            }
             guard isCurrent(token, identity) else {
                 // 令牌已过期：状态已经不属于这次过渡，但几何可能已被改掉，必须补偿回原 frame。
                 if write.didChangeGeometry, let entry = store.entry(for: identity) {
                     recorder.note("过渡令牌已过期，正在补偿恢复：\(identity.journalKey)")
-                    _ = await recovery.restore(entry: entry)
+                    _ = await recovery.restore(entry: entry, token: token)
                 }
                 return
             }
             applied = write.displayFrame
             onEvent?(.geometryWriteFinished(GeometryWriteResult(identity: identity,
                                                                 token: token,
-                                                                operationID: UUID(),
+                                                                operationID: context.operationID,
                                                                 targetFrame: targetFrame,
                                                                 displayID: display.id,
-                                                                outcome: write.outcome)))
+                                                                outcome: write.outcome,
+                                                                beforeFrame: write.frameBeforeWrite,
+                                                                context: context)))
             if case let .constrained(readBack) = write.outcome {
                 recorder.updateRow(application: current.applicationName,
                                    version: "",
@@ -188,7 +217,7 @@ final class FocusCoordinator {
                 ? "AX 报告该窗口不可调整尺寸，或本代次句柄不可用"
                 : "身份未唯一确定，禁止几何写入")
         }
-        let ordering = await bringToFront(record: current, element: ax?.element)
+        let ordering = await bringToFront(record: current, element: ax?.element, permit: permit)
         guard isCurrent(token, identity) else { return }
         // 有相反证据时不把它当成功展开：走回总览与恢复分支（方案 §12.2）。
         if ordering.isProvenBehind {
@@ -209,11 +238,17 @@ final class FocusCoordinator {
         guard isTokenCurrent?(token) ?? true else { return }
         beginAnimation(token, identity: identity, budgetMS: animationMS + 200)
         metrics.begin("过渡:收回")
-        Task { [weak self] in
-            guard let self else { return }
-            await self.onChannel(identity) {
+        let context = scheduler.makeContext(token: token, kind: .returnOverview)
+        _ = scheduler.perform(GeometryOperationScheduler.Operation(
+            context: context,
+            identities: [identity],
+            coalesceKey: "collapse:\(identity.journalKey)",
+            run: { [weak self] _ in
+                guard let self else { return }
+                self.busy.insert(identity)
+                defer { self.busy.remove(identity) }
                 guard self.isCurrent(token, identity) else { return }
-                // 同一通道已保证 .restoreGeometry 先跑完（方案 §10.3）：这里只读真实 frame 再反向动画。
+                // 同一条串行通道已保证 .restoreGeometry 先跑完（方案 §10.3）：这里只读真实 frame 再反向动画。
                 let from = await self.currentFrame(of: identity)
                 guard self.isCurrent(token, identity) else { return }
                 let card = self.cardRectProvider?(identity) ?? self.catalog.mapper.visibleFrame(for: from ?? .zero)
@@ -223,25 +258,27 @@ final class FocusCoordinator {
                              to: card,
                              animationMS: animationMS,
                              reverse: true)
-            }
-        }
+            }))
     }
 
-    /// 恢复只写回事务里记录的原 frame；同一 token 的反向动画由通道排在它后面。
+    /// 恢复只写回事务里记录的原 frame；同一 token 的反向动画由同一条通道排在它后面。
     func restoreGeometry(_ identity: WindowIdentity, token: TransitionToken) {
         Task { [weak self] in
             guard let self else { return }
-            let item = await self.onChannel(identity) { await self.restoreOne(identity) }
+            let item = await self.restoreOne(identity, token: token)
             self.onEvent?(.geometryRestoreSettled(token: token, items: [item]))
         }
     }
 
     /// 退出、锁屏、Space 切换：逐条恢复并单独回报结果，最后统一收口（方案 §6.4）。
-    func restoreAll(_ identities: [WindowIdentity], token: TransitionToken) {
+    /// 每条恢复都带自己的预算检查（RecoveryCoordinator 内部完成），过期就保留日志停下。
+    func restoreAll(_ identities: [WindowIdentity],
+                    token: TransitionToken,
+                    deadline: GeometryOperationScheduler.Stamp? = nil) {
         Task { [weak self] in
             guard let self else { return }
             for identity in identities {
-                let item = await self.onChannel(identity) { await self.restoreOne(identity) }
+                let item = await self.restoreOne(identity, token: token, deadline: deadline)
                 self.onEvent?(.geometryRestoreSettled(token: token, items: [item]))
             }
             self.stopAnimation()
@@ -249,7 +286,9 @@ final class FocusCoordinator {
         }
     }
 
-    private func restoreOne(_ identity: WindowIdentity) async -> RestoreItemResult {
+    private func restoreOne(_ identity: WindowIdentity,
+                            token: TransitionToken,
+                            deadline: GeometryOperationScheduler.Stamp? = nil) async -> RestoreItemResult {
         guard let entry = store.entry(for: identity) else {
             // 日志里没有：可能属于别的会话，也可能写盘失败。按事实回报，不谎报已恢复。
             return RestoreItemResult(identity: identity,
@@ -261,7 +300,7 @@ final class FocusCoordinator {
                                      outcome: .alreadyAtOriginal,
                                      applicationName: recovery.applicationName(for: entry))
         }
-        return await recovery.restore(entry: entry)
+        return await recovery.restore(entry: entry, token: token, deadline: deadline)
     }
 
     /// "只把这一个窗口提到前面"到底有没有发出去。
@@ -271,6 +310,8 @@ final class FocusCoordinator {
         case issued(axIndex: Int)
         case recordMissing
         case handleMissing(String)
+        /// 调度器没给准入（会话已换、相位已关闭、取消屏障已落下）：这次唤起一个调用都没发（方案 §5.2）。
+        case notAdmitted
 
         var wasIssued: Bool {
             if case .issued = self { return true }
@@ -282,21 +323,38 @@ final class FocusCoordinator {
             case let .issued(axIndex): return "已发出 AX Raise（索引 #\(axIndex)）"
             case .recordMissing: return "目录里没有该窗口身份，Raise 没有发出"
             case let .handleMissing(reason): return "拿不到 AX 句柄，Raise 没有发出：\(reason)"
+            case .notAdmitted: return "会话准入已撤销，Raise 没有进入 AX 队列"
             }
         }
     }
 
+    /// 只把窗口提到前面，不写任何几何。
+    ///
+    /// `context` 是调用方（状态机 effect）给的身份：唤起必须与这次会话的准入、取消屏障同一条通道，
+    /// 不能在隐藏之后还排进一条新命令（方案 §5.2、§5.3）。省略时按当前会话现场生成。
     @discardableResult
-    func raiseOnly(_ identity: WindowIdentity) -> RaiseOutcome {
+    func raiseOnly(_ identity: WindowIdentity,
+                   context suppliedContext: GeometryOperationContext? = nil) -> RaiseOutcome {
         guard let record = catalog.record(for: identity) else { return .recordMissing }
-        if let element = catalog.axEntry(for: record)?.element {
-            Task { await self.bringToFront(record: record, element: element) }
-            return .issued(axIndex: record.confidence.resolvedAXIndex ?? -1)
+        guard let element = catalog.axEntry(for: record)?.element else {
+            guard let index = record.confidence.resolvedAXIndex else {
+                return .handleMissing("身份未解析出 AX 索引")
+            }
+            return .handleMissing("本代次句柄表里没有索引 #\(index) 的窗口")
         }
-        guard let index = record.confidence.resolvedAXIndex else {
-            return .handleMissing("身份未解析出 AX 索引")
+        // 只做前景/层级：仍然必须经调度器排队，否则它会插进一次几何写入中间（方案 §5.3）。
+        let context = suppliedContext
+            ?? scheduler.makeContext(token: TransitionToken(generation: 0), kind: .settleLayout)
+        guard scheduler.perform(GeometryOperationScheduler.Operation(
+            context: context,
+            identities: [identity],
+            coalesceKey: "raise:\(identity.journalKey)",
+            run: { [weak self] permit in
+                await self?.bringToFront(record: record, element: element, permit: permit)
+            })) else {
+            return .notAdmitted
         }
-        return .handleMissing("本代次句柄表里没有索引 #\(index) 的窗口")
+        return .issued(axIndex: record.confidence.resolvedAXIndex ?? -1)
     }
 
     /// 外部中断（挂起、退出）时立刻结束代理，避免残留浮层。
@@ -314,7 +372,7 @@ final class FocusCoordinator {
 
     func endProgrammaticWrite(_ identity: WindowIdentity, frame: CGRect) {
         writing.remove(identity)
-        lastWritten[identity] = (frame, Date())
+        lastWritten[identity] = (frame, CACurrentMediaTime())
     }
 
     /// 工作台交换的「前景确认」步骤读回的事实。只用公开激活 + AX Raise + 读回，
@@ -344,14 +402,25 @@ final class FocusCoordinator {
     }
 
     @discardableResult
-    func activateAndRaise(_ identity: WindowIdentity) async -> ActivationFacts {
+    func activateAndRaise(_ identity: WindowIdentity,
+                          permit: GeometryWritePermit? = nil) async -> ActivationFacts {
         guard let record = catalog.record(for: identity) else {
             var facts = ActivationFacts()
             facts.frontApplicationMatches = false
             onStatus?("前景化失败：目录里已没有该窗口")
             return facts
         }
-        let report = await bringToFront(record: record, element: catalog.axEntry(for: record)?.element)
+        let started = CACurrentMediaTime()
+        let report = await bringToFront(record: record,
+                                       element: catalog.axEntry(for: record)?.element,
+                                       permit: permit)
+        // §20.2 把"激活"单列为一个采样端点：它和几何写入是两次不同的跨进程往返，
+        // 混在过渡总耗时里就看不出到底是前景化慢还是写入慢。
+        metrics.measure("激活+Raise",
+                        milliseconds: (CACurrentMediaTime() - started) * 1000,
+                        context: "请求=\(report.activationRequested) 激活返回=\(report.activationReturned) "
+                            + "raise 返回=\(report.raiseReturned) 焦点一致=\(report.focusedWindowMatches) "
+                            + "前景一致=\(report.frontApplicationMatches)")
         return ActivationFacts(activationRequested: report.activationRequested,
                                activationReturned: report.activationReturned,
                                raiseReturned: report.raiseReturned,
@@ -359,10 +428,9 @@ final class FocusCoordinator {
                                frontApplicationMatches: report.frontApplicationMatches)
     }
 
-    /// 通道字典按窗口累积，空闲时必须回收（方案 §14 内存）。
+    /// 写后归因表按窗口累积，空闲时必须回收（方案 §14 内存）。
     func pruneIdleChannels() {
-        for identity in Array(tails.keys) where !busy.contains(identity) {
-            tails[identity] = nil
+        for identity in Array(lastWritten.keys) where !busy.contains(identity) {
             lastWritten[identity] = nil
         }
     }
@@ -371,26 +439,11 @@ final class FocusCoordinator {
     func changeSource(for identity: WindowIdentity, observed frame: CGRect) -> GeometryChangeSource {
         if writing.contains(identity) { return .programmatic }
         guard let last = lastWritten[identity] else { return .user }
-        guard Date().timeIntervalSince(last.at) < Self.attributionWindow else { return .user }
+        guard CACurrentMediaTime() - last.at < Self.attributionWindow else { return .user }
         return WindowTransaction.framesClose(frame, last.frame, tolerance: 2) ? .programmatic : .uncertain
     }
 
-    // MARK: - 串行通道
-
-    @discardableResult
-    private func onChannel<V: Sendable>(_ identity: WindowIdentity,
-                                        _ body: @escaping @MainActor () async -> V) async -> V {
-        let previous = tails[identity]
-        busy.insert(identity)
-        return await withCheckedContinuation { (continuation: CheckedContinuation<V, Never>) in
-            tails[identity] = Task { @MainActor in
-                _ = await previous?.value
-                let value = await body()
-                continuation.resume(returning: value)
-                busy.remove(identity)
-            }
-        }
-    }
+    // MARK: - 通道（只有一条：GeometryOperationScheduler）
 
     /// 每个 await 之后重新确认：令牌仍是当前过渡，且权限仍在（方案 §6.3）。
     private func isCurrent(_ token: TransitionToken, _ identity: WindowIdentity) -> Bool {
@@ -437,9 +490,16 @@ final class FocusCoordinator {
     /// 前景化：公开激活 API + AX Raise + 设为 focused window，不使用私有层级调用。
     /// 返回读回事实；调用方不得把"没报错"当成"已经在前面"。
     @discardableResult
-    private func bringToFront(record: WindowRecord, element: AXUIElement?) async -> FrontOrderingReport {
+    private func bringToFront(record: WindowRecord,
+                             element: AXUIElement?,
+                             permit: GeometryWritePermit? = nil) async -> FrontOrderingReport {
         let identity = record.identity
         var report = FrontOrderingReport()
+        // 唤起同样是跨进程动作：许可已撤销（隐藏/退出/换会话）就一个调用都不发（方案 §5.2）。
+        guard permit?.isGranted ?? true else {
+            onStatus?("唤起未发出：本次操作许可已撤销")
+            return report
+        }
         if let element {
             report.raiseReturned = await writer.raise(element: element)
             _ = await writer.focus(element: element)
@@ -484,7 +544,7 @@ final class FocusCoordinator {
         activeToken = token
         activeIdentity = identity
         transitionBudgetMS = budgetMS
-        transitionStartedAt = Date()
+        transitionStartedAt = CACurrentMediaTime()
         scheduleWatchdog(token, budgetMS: budgetMS)
     }
 
@@ -590,24 +650,32 @@ final class FocusCoordinator {
         let identity = activeIdentity
         let direction = activeDirection
         let budget = transitionBudgetMS
-        let waited = Int(Date().timeIntervalSince(transitionStartedAt) * 1000)
+        let waited = Int((CACurrentMediaTime() - transitionStartedAt) * 1000)
         let lastWrite = identity.flatMap { lastWritten[$0] }
         let application = identity.flatMap { catalog.record(for: $0)?.applicationName } ?? "未知应用"
         stopAnimation()
+        let lastWriteText: String
+        if let lastWrite {
+            lastWriteText = "已写入 \(lastWrite.frame)（\(Int((CACurrentMediaTime() - lastWrite.at) * 1000))ms 前）"
+        } else {
+            lastWriteText = "没有写入记录"
+        }
         // 只写"超时了"没法定位：方向、预算、几何是否已落、隔了多久才是下一次复跑要对比的事实。
         recorder.record("过渡超时",
                         subject: identity?.journalKey ?? "unknown",
                         result: .failed,
                         detail: "\(direction == .expand ? "展开" : "收回")在 \(budget)ms 内未确认（实际等了 \(waited)ms）；"
                               + "目标=\(application)，令牌=\(token.generation)，"
-                              + "几何\(lastWrite.map { "已写入 \($0.frame)（\(Int(Date().timeIntervalSince($0.at) * 1000))ms 前）" } ?? "没有写入记录")，"
+                              + "几何\(lastWriteText)，"
                               + "已按状态机降级")
         onStatus?("过渡超时，已降级处理")
         // 超时不能把窗口留在中间尺寸：已经改过几何就补一次恢复（方案 §6.3）。
+        // 恢复只有一个执行者：RecoveryCoordinator 站在同一条调度通道里做逐条恢复，
+        // 这里不再自己起第二条写入路径，也不绕过准入（方案 §14.2）。
         if let identity, let entry = store.entry(for: identity), entry.state.requiresRestore {
             Task { [weak self] in
                 guard let self else { return }
-                let item = await self.onChannel(identity) { await self.recovery.restore(entry: entry) }
+                let item = await self.recovery.restore(entry: entry, token: token)
                 self.onStatus?("超时补偿恢复：\(item.outcome.message)")
             }
         }

@@ -40,6 +40,7 @@ final class FakeCaptureRun: CaptureRunning, @unchecked Sendable {
     private var pendingStartResume: CheckedContinuation<Void, Never>?
     private var _lastError: String?
     private var _counts = CaptureFrameCounts()
+    private var configurationUpdates = 0
 
     /// 置位后 start 停在 await 里，等 `openStartGate()`。
     var gatesStart = false
@@ -123,9 +124,15 @@ final class FakeCaptureRun: CaptureRunning, @unchecked Sendable {
 
     @discardableResult
     func update(configuration: StreamConfig) async -> Bool {
-        lock.withLock { storage = configuration }
+        lock.withLock {
+            storage = configuration
+            configurationUpdates += 1
+        }
         return phase == .running
     }
+
+    /// 这条流被要求换过几次配置：滚动/拖动时的"一个显示周期只兑现一次合并重配"就数这个（方案 §13.2）。
+    var configurationUpdateCount: Int { lock.withLock { configurationUpdates } }
 
     // MARK: - 门与晚到回调
 
@@ -222,9 +229,9 @@ final class FakeSingleFrameCapturer: @unchecked Sendable {
 @MainActor
 enum HostCapture {
     /// 一个可捕获目标：几何固定，测试只关心生命周期不关心像素。
-    static func target(_ index: Int, slot: Int? = nil, isPriority: Bool = false) -> CaptureTarget {
+    static func target(_ index: Int, slot: Int? = nil, isPriority: Bool = false, cellWidth: CGFloat = 320) -> CaptureTarget {
         CaptureTarget(record: HostFixtures.record(index, slot: slot ?? index),
-                      cellWidth: 320,
+                      cellWidth: cellWidth,
                       backingScale: 2,
                       isPriority: isPriority)
     }

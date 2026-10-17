@@ -17,6 +17,7 @@ final class T13MinimizeExpandTests: XCTestCase {
     private var catalogSource: FakeCatalogSource!
     private var processIdentity: FakeProcessIdentity!
     private var writer: FakeGeometryWriter!
+    private lazy var scheduler = HostScheduler.make(sessionID: sessionID)
     private var catalog: WindowCatalog!
     private var settings: SettingsModel!
     private var recovery: RecoveryCoordinator!
@@ -94,7 +95,8 @@ final class T13MinimizeExpandTests: XCTestCase {
                                       catalog: catalog,
                                       settings: settings,
                                       permissions: permissions,
-                                      processIdentity: processIdentity)
+                                      processIdentity: processIdentity,
+                                      scheduler: scheduler)
         let metal = try HostFixtures.metalContext()
         return FocusCoordinator(catalog: catalog,
                                 metal: metal,
@@ -104,7 +106,8 @@ final class T13MinimizeExpandTests: XCTestCase {
                                 metrics: .shared,
                                 recorder: CompatibilityRecorder(fileName: "host-test-\(UUID().uuidString)"),
                                 recovery: recovery,
-                                permissions: permissions)
+                                permissions: permissions,
+                                scheduler: scheduler)
     }
 
     private func plannedTransaction(_ identity: WindowIdentity) -> WindowTransaction {
@@ -145,7 +148,7 @@ final class T13MinimizeExpandTests: XCTestCase {
         let focus = try startFocus(store: store)
         let identity = HostFixtures.identity(0)
         let element = try XCTUnwrap(catalogSource.element(for: identity))
-        store.apply(plannedTransaction(identity))
+        await store.apply(plannedTransaction(identity))
 
         let token = TransitionToken(generation: 1)
         focus.isTokenCurrent = { $0 == token }
@@ -174,7 +177,7 @@ final class T13MinimizeExpandTests: XCTestCase {
         let identity = HostFixtures.identity(0)
         let element = try XCTUnwrap(catalogSource.element(for: identity))
         writer.refusesUnminimize = true
-        store.apply(plannedTransaction(identity))
+        await store.apply(plannedTransaction(identity))
 
         let token = TransitionToken(generation: 1)
         focus.isTokenCurrent = { $0 == token }
@@ -209,7 +212,7 @@ final class T13MinimizeExpandTests: XCTestCase {
         let refreshed = AXUIElementCreateApplication(424_242)
         writer.setInitialFrame(FakeCatalogSource.frame(for: 0), for: refreshed)
         catalogSource.swapElementOnNextRead(identity, to: refreshed)
-        store.apply(plannedTransaction(identity))
+        await store.apply(plannedTransaction(identity))
 
         let token = TransitionToken(generation: 1)
         focus.isTokenCurrent = { $0 == token }
@@ -233,7 +236,7 @@ final class T13MinimizeExpandTests: XCTestCase {
         let focus = try startFocus(store: store)
         let identity = HostFixtures.identity(0)
         let element = try XCTUnwrap(catalogSource.element(for: identity))
-        store.apply(plannedTransaction(identity))
+        await store.apply(plannedTransaction(identity))
 
         let token = TransitionToken(generation: 1)
         focus.isTokenCurrent = { $0 == token }
@@ -277,7 +280,7 @@ final class T13MinimizeExpandTests: XCTestCase {
         defer { coordinator.stopAll(releasingMailboxes: true) }
         let identity = HostFixtures.identity(0)
 
-        coordinator.sync(targets: [captureTarget(0, minimized: false)], tier: .balanced, isAnimating: false)
+        coordinator.sync(targets: [captureTarget(0, minimized: false)], tier: .balanced, activity: TransitionActivity())
         await pump()
         XCTAssertEqual(coordinator.activeStreamCount, 1, "未最小化时应有直播流")
         let frame = try HostFixtures.metalFrame(metal: metal, width: 160, height: 100)
@@ -287,13 +290,13 @@ final class T13MinimizeExpandTests: XCTestCase {
         XCTAssertNotNil(coordinator.mailbox(for: identity).lastPublishedAt, "最后一帧必须进信箱")
 
         // 运行中最小化：停流但保留信箱，卡片继续显示最后一帧（方案 §11）。
-        coordinator.sync(targets: [captureTarget(0, minimized: true)], tier: .balanced, isAnimating: false)
+        coordinator.sync(targets: [captureTarget(0, minimized: true)], tier: .balanced, activity: TransitionActivity())
         await pump(6)
         XCTAssertEqual(coordinator.mode(for: identity), .paused)
         XCTAssertNotNil(coordinator.mailbox(for: identity).lastPublishedAt, "最小化不能把已抓到的画面抹掉")
 
         // 解除最小化后重新捕获：新的一轮必须起来。
-        coordinator.sync(targets: [captureTarget(0, minimized: false)], tier: .balanced, isAnimating: false)
+        coordinator.sync(targets: [captureTarget(0, minimized: false)], tier: .balanced, activity: TransitionActivity())
         await pump(6)
         XCTAssertEqual(coordinator.mode(for: identity), .live)
         XCTAssertEqual(runs.count, 2, "解除最小化后要重新起流，不能只改状态不发帧")
