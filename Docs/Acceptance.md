@@ -1039,3 +1039,21 @@ shasum -a 256 "/Volumes/Vistile v0.1.13/Vistile.app/Contents/MacOS/Vistile"   # 
 2. 若某些应用 AX 读取长期超时（0.5–1s 成串），1.0s 预算仍可能让点击出现 ~1s 的等待；
    下一步可考虑"只复核目标 pid"的定向读取，而不是整轮刷新（需要谨慎处理身份匹配）。
 3. 动画时长未改（交换 180ms）；"模糊"观感若仍明显，需要真机录屏确认是代理放大低分辨率画面还是等待时间。
+
+### 12.12 0.1.16 发布、镜像与安装（2026-10-18 07:19）
+
+- 发布页：<https://github.com/misswell/Vistile/releases/tag/v0.1.16>；标签 `v0.1.16` → `0dc1bc6`
+  （代码 `a9a59fd`：P01 总览置前 + 交换卡顿优化；`0dc1bc6`：版本 0.1.16/30）。
+- CI run [`39078293096`](https://github.com/misswell/Vistile/actions/runs/39078293096) success；
+  Release run [`39078296214`](https://github.com/misswell/Vistile/actions/runs/39078296214) success。
+- 发布资产：`Vistile_v0.1.16_macos_arm64.dmg`，**2,422,661 字节**，
+  `sha256 da6f83add4a63345578e3263e1905f21f13d76c9b902b2bc031824ffeaf192a8`（与 asset digest 一致）。
+- 包内二进制：`sha256 d8ddfbb9c9d830df1c6a3a19b9774198bf164a49d11a4c675170742218ef5280`，
+  `0.1.16 / 30`，`arm64`；codesign / stapler / spctl（Notarized Developer ID，Team `U8U443D7ZL`）全通过。
+- **镜像已上传**：`releases/v0.1.16/` 下 dmg + `.sha256`；镜像直连（不走代理）实测 HTTP 200、
+  2,422,661 字节、4.8s、哈希与 GitHub 资产一致。
+- **已安装到 `/Applications`**：旧 0.1.15 移到 `/tmp/Vistile-0.1.15-backup.app`（未删），
+  安装后二进制哈希与 dmg 内一致，并已重启应用。
+- **待真机复测**：打开总览是否置前；连续切换窗口时日志里
+  `[交换] 步骤=… 耗时=Nms` 是否还有 ~1s 级等待、是否还出现「拿不到 AX 句柄」的 2.14s 停顿。
+  动画时长未改，若观感仍"模糊时间长"，下一步应优化过渡代理的画面来源（高分辨率预取），需要真机录屏判断。
