@@ -952,3 +952,34 @@ shasum -a 256 "/Volumes/Vistile v0.1.13/Vistile.app/Contents/MacOS/Vistile"   # 
   `User-Agent: Vistile/0.1.14` + `Accept: application/vnd.github+json` 请求
   `https://api.github.com/repos/misswell/Vistile/releases?per_page=20` → **HTTP 200**、15 条 release、
   `v0.1.14` 在首位且资产/大小与发布页一致。说明真实响应可被 `GitHubRelease` DTO 解码（解码本身由核心用例覆盖）。
+
+### 12.9 下载镜像与更新通道的国内可用性（D02）
+
+**背景（实机报告）**：用户点 GitHub release 直链无法下载。本机复现：不走代理请求
+`https://github.com/misswell/Vistile/releases/download/v0.1.14/Vistile_v0.1.14_macos_arm64.dmg`
+→ **25s 超时、0 字节**；同一 URL 经本机代理（127.0.0.1:7890）→ 302 → `release-assets.githubusercontent.com` 200、2,420,239 字节。
+所以是网络通道问题，不是发布资产问题。
+
+**镜像部署事实**（自有 ECS，`i-uf62tsvf0xbzzpuzi29v`，nginx 站点 `autocrop.liuguofeng.com`）：
+
+- 路径规则：`/home/wwwroot/autocrop.liuguofeng.com/vistile/releases/<tag>/<文件>`
+  → <https://autocrop.liuguofeng.com/vistile/releases/v0.1.14/Vistile_v0.1.14_macos_arm64.dmg>
+  （0.1.15 起包含同名 `.sha256`）。
+- 实测（直连、不走代理）：HTTP **200**、2,420,239 字节、4.4s；
+  `sha256 63efc196…cb2738` 与 GitHub 发布资产一字不差；`.sha256` 文件也可直接取。
+- 备用第三方前缀：`https://ghfast.top/<GitHub 直链>` 直连 3.9s、2,420,239 字节、哈希一致
+  （`gh-proxy.com` 11.2s 可用；`ghproxy.net` 40s 只下到一半，不作为默认）。
+  第三方代理不默认使用：安装包只从自有域名取，第三方只作为人工兜底。
+- 站点是 SPA，但 nginx `try_files $uri $uri/ /index.html` 优先返回真实文件，静态 dmg/.sha256 可直接下载。
+
+**App 侧改造**（0.1.15）：`UpdateChannelPolicy` 同时产出镜像地址、校验文件地址与 GitHub 直链；
+更新弹窗按钮「从镜像下载 / 打开 GitHub 发布页 / 稍后 / 跳过此版本」，正文写明镜像来源与校验方式。
+回归：核心 `testPackageCarriesOwnMirrorAndChecksumURL`、`testPackageWithoutAssetHasNoMirror`、
+`testMirrorURLEncodesTagAndAssetName`；宿主更新检查用例补镜像断言。
+
+**未完成/风险**
+
+1. 每发一版需**手工**把 dmg 与 `.sha256` 上传到 ECS 镜像目录（发布流水线跑在 GitHub Runner，
+   尚未接自有服务器凭据；可后续用 ECS 部署任务自动化）。
+2. 镜像下载在 Safari/系统下载器里的手工验收未做；弹窗四个按钮的真实点击路径未做（只有接缝回归）。
+3. 镜像域名与证书归用户自有（Let's Encrypt，2026-12-07 到期）；证书续期失效会让更新通道退回 GitHub 直链语义。
