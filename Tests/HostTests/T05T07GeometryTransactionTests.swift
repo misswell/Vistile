@@ -372,6 +372,8 @@ final class T05T07GeometryTransactionTests: XCTestCase {
 
         var events: [SessionEvent] = []
         focus.onEvent = { events.append($0) }
+        var statuses: [String] = []
+        focus.onStatus = { statuses.append($0) }
         await store.apply(plannedTransaction(identity))
 
         // 写入正在进行时状态机已经走了（退出/会话关闭）。
@@ -379,10 +381,31 @@ final class T05T07GeometryTransactionTests: XCTestCase {
         focus.expand(identity, targetFrame: expandedFrame, token: token, animationMS: 200)
         await pendingUntil { self.writer.isBlockedInWrite }
         tokenIsCurrent = false
+        // 补偿那一笔由替身报信，不等墙钟：原来这里 poll「1 秒内出现第二笔写入」，赌的是机器快，
+        // 同一份代码在 CI 上重跑就绿了——那是测时序不是测行为（方案 §18「不加真实 sleep 赌时序」）。
+        // "不是等总超时兜底"改用结构判据：补偿到位时不许出现「过渡超时」那条回报。
+        let compensation = OneShot<Int>()
+        writer.onWillWrite = { [weak writer] _ in
+            guard let writer, writer.totalWrites >= 2 else { return }
+            compensation.send(writer.totalWrites)
+        }
         writer.openGate()
-
-        // 补偿必须紧接在过期写入之后，而不是等总超时兜底（超时预算是 200+1 500ms）。
-        await pendingUntil(timeout: 1) { self.writer.totalWrites == 2 }
+        // 看门狗只负责"没补偿时把挂死变成可读的失败"，通过的判据仍是第二笔写入这个事件本身：
+        // 补偿真要来了，5 秒这个数字参与不了任何结论。
+        Task { [weak compensation] in
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            compensation?.send(-1)
+        }
+        let arrived = await withCheckedContinuation { (continuation: CheckedContinuation<Int, Never>) in
+            compensation.attach(continuation)
+        }
+        writer.onWillWrite = nil
+        XCTAssertEqual(arrived, 2, "补偿就是第二笔写入本身（报回 \(arrived) 笔）：\(writer.writtenFrames)")
+        XCTAssertTrue(statuses.filter { $0.contains("过渡超时") }.isEmpty,
+                      "补偿必须紧接在过期写入之后，不能是 200+1500ms 总超时兜底跑出来的：\(statuses)")
+        // 事务结算发生在补偿那一笔的 work 闭包里（markRestored → drop）。
+        // 栅栏等的就是"这一笔在通道上彻底走完"，所以既不用轮询也不设时长。
+        await scheduler.fence(identities: [identity])
         XCTAssertEqual(writer.writtenFrames, [expandedFrame, original],
                        "过期写入改掉了 frame，就必须补偿回原尺寸")
         XCTAssertFalse(events.contains { if case .geometryWriteFinished = $0 { return true } else { return false } },

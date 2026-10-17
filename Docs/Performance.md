@@ -162,7 +162,7 @@ P0-4 因此从"未测"转为拿到读数。
 | 端点 | 指标名（`Metrics.measure` 的 name） | 打点位置 | §20.1 判据 |
 | --- | --- | --- | --- |
 | 真实输入 | 不单独成项，是首帧延迟的**锚点**：两处 view-action 入口写 `lastInputStamp` | [App/AppCoordinator.swift:1481](../App/AppCoordinator.swift#L1481)（总览卡片）、[:1533](../App/AppCoordinator.swift#L1533)（工作台轨道） | — |
-| 首帧反馈（present 出去的那一刻） | `过渡首帧延迟·<场景>·<分组键>` / `过渡首帧延迟(无点击锚点)·<场景>·<分组键>` | 锚点消费 [App/AppCoordinator.swift:1186](../App/AppCoordinator.swift#L1186)，判据是渲染器 `diagnostics().presents` 增量 [Presentation/ModeTransitionCoordinator.swift:432](../Presentation/ModeTransitionCoordinator.swift#L432)，入表 [App/AppCoordinator.swift:1260](../App/AppCoordinator.swift#L1260) | 点击反馈 P95 ≤50ms（逐组判） |
+| 首帧反馈（present 出去的那一刻） | `过渡首帧延迟·<场景>·<分组键>` / `过渡首帧延迟(无点击锚点)·<场景>·<分组键>` | 锚点消费 [App/AppCoordinator.swift:1186](../App/AppCoordinator.swift#L1186)，判据是渲染器 `diagnostics().presents` 增量 [Presentation/ModeTransitionCoordinator.swift:435](../Presentation/ModeTransitionCoordinator.swift#L435)，入表 [App/AppCoordinator.swift:1260](../App/AppCoordinator.swift#L1260) | 点击反馈 P95 ≤50ms（逐组判） |
 | 呈现 vs 回调 | 计数 `过渡零呈现段`、`过渡回调多于呈现` | [App/AppCoordinator.swift:1269](../App/AppCoordinator.swift#L1269)、[:1272](../App/AppCoordinator.swift#L1272)，缺口算式 `ticks − presentedFrames`。这两条不按分组拆：它们是"有没有画面证据"的核对，不是 §20.1 带目标值的数字 | 任一非 0 即不能宣布该项达标 |
 | 帧间隔（按场景×分组分段） | `过渡帧间隔p95·<场景>·<分组键>` | [App/AppCoordinator.swift:1235](../App/AppCoordinator.swift#L1235)，段内统计由 `FrameIntervalStats.measure` 做 | P95 ≤20ms（逐组判） |
 | 段级帧预算（掉帧占比与连续卡顿） | 计数 `过渡帧预算内·<分组键>` / `过渡超帧预算·<分组键>` | [App/AppCoordinator.swift:1242](../App/AppCoordinator.swift#L1242)；`meetsTarget` = P95≤20ms 且 >33.3ms 占比 ≤1% 且无连续 3 帧 [Packages/VistileCore/Sources/VistileCore/Domain/MotionLevel.swift:50](../Packages/VistileCore/Sources/VistileCore/Domain/MotionLevel.swift#L50) | 任一组的「超预算」>0 即该组未达标 |
@@ -189,7 +189,7 @@ P0-4 因此从"未测"转为拿到读数。
   这条契约由两组测试钉住：核心包的命名往返
   （[Packages/VistileCore/Tests/VistileCoreTests/PerformanceGroupTests.swift:78](../Packages/VistileCore/Tests/VistileCoreTests/PerformanceGroupTests.swift#L78)）
   与宿主里走真实 `Metrics` 的分组合池检查
-  （[Tests/HostTests/TransitionSceneTests.swift:1335](../Tests/HostTests/TransitionSceneTests.swift#L1335)）。
+  （[Tests/HostTests/TransitionSceneTests.swift:1337](../Tests/HostTests/TransitionSceneTests.swift#L1337)）。
 - 首帧延迟的锚点只在"由真实点击触发的那一段"生效，且用完即清：探针直接 `dispatch`、自动替补段走
   「(无点击锚点)」单列，**不允许混进点击反馈的 P95**。
 - 样本不足一律标未判：每条模式路径 ≥100 次操作、短场景累计 ≥1,000 个有效间隔；

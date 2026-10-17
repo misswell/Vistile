@@ -140,7 +140,8 @@ final class TransitionCarrierView: NSView {
 
     /// 播放一段场景。起点优先取"此刻屏幕上的呈现矩形"（打断续接），其次才是计划起点（方案 §10.4）。
     /// - Parameter anchorAt: 真实输入时刻（单调时钟），只用于首帧延迟；不给就按本方法进入时刻算。
-    func play(_ scene: TransitionScene, sources: [WindowIdentity: MetalFrame], anchorAt: CFTimeInterval? = nil) {
+    func play(_ scene: TransitionScene, sources: [WindowIdentity: MetalFrame], anchorAt: CFTimeInterval? = nil,
+              startAt: CFTimeInterval? = nil) {
         let interrupting = phase != .idle
         self.scene = scene
         // 令牌与场景一起绑定：之后的每个回调都只报这个令牌，绝不在回调时刻回看协调器状态（方案 §16.2）。
@@ -181,7 +182,9 @@ final class TransitionCarrierView: NSView {
         presentsAtSceneStart = renderer?.diagnostics().presents ?? 0
         metalLayer.opacity = 1
         phase = .playing
-        startTimestamp = CACurrentMediaTime()
+        // 起点可注入：宿主测试要拿"进度恰好 0.5"这种确切刻度断言，不能拿 play() 内部的
+        // CACurrentMediaTime() 与测试自己读的那次抢时间——机器一慢，中点就跑到终点之后。
+        startTimestamp = startAt ?? CACurrentMediaTime()
         lastTickAt = 0
         render(progress: 0)
         startClock()

@@ -1298,9 +1298,11 @@ final class TransitionSceneTests: XCTestCase {
         XCTAssertFalse(full.fadeOnly)
         XCTAssertLessThan(reduced.durationMS, full.durationMS, "时长要缩短")
 
-        view.play(reduced, sources: [:])
         let reducedBase = CACurrentMediaTime()
+        view.play(reduced, sources: [:], startAt: reducedBase)
         // 走到这一段的中点：还在淡入途中，但矩形已经停在终点——一个像素都不许位移。
+        // 起点由测试给定（`startAt`），进度恰好 0.5；换成 play() 自己读时钟的话，
+        // 机器一慢中点就漂到终点之后，这条会变成赌机器快。
         view.advance(to: reducedBase + Double(reduced.durationMS) / 2_000.0)
         for card in reduced.cards {
             let end = try XCTUnwrap(card.end)
@@ -1316,8 +1318,8 @@ final class TransitionSceneTests: XCTestCase {
 
         // 对照组：同一份计划不降级时，同一时刻必须还在途中——
         // 没有这条，上面的"已经在终点"可能只是因为根本没画出来。
-        view.play(full, sources: [:])
         let fullBase = CACurrentMediaTime()
+        view.play(full, sources: [:], startAt: fullBase)
         view.advance(to: fullBase + Double(full.durationMS) / 2_000.0)
         let focus = try XCTUnwrap(full.focusCard)
         let flying = try XCTUnwrap(view.presentedRect(for: focus.identity))
