@@ -164,10 +164,19 @@ final class WindowJournalStore {
     /// 多条后置更新合成**一次**原子落盘（方案 §7.3）：写前实读既要纠正推测原位置、
     /// 又要记下本次操作的 before 快照，两件事必须同批成功/同批失败，
     /// 且不能因此多花一次磁盘往返。任一条不成立则整批作废，调用方据此拒绝写入。
+    ///
+    /// 守卫按"**条目仍存在**"判断，而不是全局 revision：
+    /// - 日志是会话级共享的，退出清理、布局结算、同窗口的排队结算都会推进 revision；
+    ///   用全局序号当守卫会把一次完全合法的追加判死（0.1.13 实机「期望 7，当前 8」即此）。
+    /// - 也不能按 `operationID` 归属判断：同一窗口的 latest-wins 结算会在上一笔仍在途时
+    ///   先为新操作准备事务（改归属），按归属会把在途那笔的写后事实判成过期，触发多余回位。
+    /// 真正必须挡住的是"条目已被补偿/清理之后又被迟到写入复活"，所以只要条目还在就允许合并式更新。
     func update(_ request: JournalUpdateRequest,
-                additional mutations: [JournalMutation],
-                expectedRevision: UInt64? = nil) async -> JournalWrite {
+                additional mutations: [JournalMutation]) async -> JournalWrite {
         await mutate({ journal in
+            guard journal.entries[request.identity.journalKey] != nil else {
+                return .rejected(reason: "日志条目已被清理，拒绝迟到写入：\(request.identity)")
+            }
             if let reason = Self.apply(request.mutation, to: &journal) {
                 return .rejected(reason: reason)
             }
@@ -177,8 +186,7 @@ final class WindowJournalStore {
                 }
             }
             return .accept
-        }, label: "update+\(mutations.count) \(request.operationID?.uuidString.prefix(8) ?? "-")",
-           expectedRevision: expectedRevision)
+        }, label: "update+\(mutations.count) \(request.operationID?.uuidString.prefix(8) ?? "-")")
     }
 
     /// 测试与旧路径用的单条补记：写几何前的一批事务请走 `prepare`，那里失败必须挡住写入。

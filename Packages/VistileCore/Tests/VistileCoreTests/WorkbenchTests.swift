@@ -1920,8 +1920,10 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertEqual(state.mode, .overview, "重试返回必须真的走完")
     }
 
-    /// A17（方案 §7.2 末段、§7.3）：写后事实落不进日志不是"未写入"——停后续步骤、排空在途几何，
-    /// 并把真实写入留下的恢复义务原样保留。
+    /// A17（方案 §7.2 末段、§7.3）：写后事实落不进日志不是"未写入"——停后续步骤，
+    /// 并把真实写入留下的恢复义务原样保留。**这里刻意不发 `.drainGeometry`**：排空入口会撤销
+    /// 普通准入并让宿主 cancel 在途交换，而这次操作的失败收口（`mainSwitchFailed`）正是由那条
+    /// 在途链补偿后回报的；先取消它，回报就被门禁挡掉，状态机永远停在 rollingBack（0.1.13 实机）。
     func testObservedFactPersistFailureStopsStepsAndKeepsRestoreObligation() throws {
         var (state, list) = openState(count: 5)
         let a = list[0].identity
@@ -1943,10 +1945,10 @@ final class WorkbenchTests: XCTestCase {
                        "写过几何的事务必须欠着恢复，不管日志记没记住（方案 §6.4）")
 
         let effects = rejectUpdate(&state, request, identity: b, reason: "测试注入：写后落盘失败")
-        XCTAssertTrue(effects.contains {
-            if case .drainGeometry(plan.intent.operationContext) = $0 { return true }
+        XCTAssertFalse(effects.contains {
+            if case .drainGeometry = $0 { return true }
             return false
-        }, "在途几何按本次操作上下文排空：\(effects)")
+        }, "排空只属于隐藏/退出入口；操作自身的失败由宿主补偿后回报，不能被提前取消：\(effects)")
         XCTAssertTrue(state.workbench.mainSwitch.isRollingBack, "写后落盘失败只能进补偿，不能继续提交")
         XCTAssertTrue(hints(effects).contains(.journalWriteFailed("测试注入：写后落盘失败")))
 
@@ -2305,6 +2307,41 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertNotNil(state.workbench.recoveryRequired,
                         "最小化没恢复＝真实系统状态不一致，不能按回滚成功收口：\(effects)")
         XCTAssertFalse(state.workbench.acceptsNewOrdinaryOperation)
+    }
+
+    /// 0.1.13 实机回归：交换途中日志事实落盘失败时，reducer 曾发 `.drainGeometry`；
+    /// 宿主收到排空入口就 `switchCoordinator.cancel()` 交还会话所有权，交换链的失败回报随即
+    /// 被"会话已换"门禁挡掉 → 状态机永远停在 rollingBack，之后点击全被"交换在途"吞掉。
+    /// 排空只属于隐藏/退出入口（方案 §5.4）；操作自身的失败必须由宿主补偿后回报。
+    func testJournalFailureDuringSwitchNeverDrainsTheInFlightOperation() throws {
+        var (state, list) = openState(count: 4)
+        let a = list[0].identity
+        let b = list[1].identity
+        enterWorkbench(&state, target: a)
+        let plan = try XCTUnwrap(switchPlan(confirmJournal(&state, selectRail(&state, identity: b))))
+        let context = plan.intent.operationContext
+
+        func drains(_ effects: [SessionEffect]) -> Bool {
+            effects.contains { if case .drainGeometry = $0 { return true }; return false }
+        }
+
+        // 写前失败：一次 AX 写入都没有，更不该排空。
+        _ = dispatchConfirmed(&state, .mainSwitchStepFinished(WorkbenchSwitchStepResult(
+            token: plan.intent.token, step: .prepare,
+            outcome: .succeeded(readBack: nil), identity: b)))
+        let preWrite = Fixtures.dispatch(&state, .journalUpdateFailed(context: context, identity: b,
+                                                                     reason: "测试注入：写前事实落盘失败"))
+        XCTAssertFalse(drains(preWrite),
+                       "写前事实失败不得排空在途交换：宿主还要靠它回报失败（实机死界面根因）")
+
+        // 写后失败（B 已写入）：同样不得排空——取消在途交换会让 mainSwitchFailed 永远回报不上来。
+        _ = dispatchConfirmed(&state, .mainSwitchStepFinished(WorkbenchSwitchStepResult(
+            token: plan.intent.token, step: .moveToMain,
+            outcome: .succeeded(readBack: plan.mainTargetFrame), identity: b)))
+        let postWrite = Fixtures.dispatch(&state, .journalUpdateFailed(context: context, identity: b,
+                                                                      reason: "测试注入：写后事实落盘失败"))
+        XCTAssertFalse(drains(postWrite),
+                       "写后事实失败由宿主补偿后回报；状态机不该提前撤销在途交换")
     }
 
     /// 第 4 条回归 (c)：缓存 frame 过大但窗口可移动、主区有效——缓存只当乐观预检，

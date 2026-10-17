@@ -562,6 +562,50 @@ final class WorkbenchEntryTests: XCTestCase {
             .markingPlanned(frame: record.frame.offsetBy(dx: 120, dy: 60), displayID: displayID)
     }
 
+    // MARK: - 迟到写入守卫：按"条目还在不在"判断，而不是全局 revision（0.1.13 实机）
+
+    /// 实机「日志序号已过期（期望 7，当前 8）」：无关流程（退出清理/布局结算）写同一份日志
+    /// 推进了全局 revision，一次合法的同操作追加被判死 → 交换失败 → 界面卡死。
+    /// 守卫改为"条目仍存在"后：revision 前进不影响；条目已被补偿清理则必须拒绝迟到写入。
+    func testJournalUpdateSurvivesUnrelatedRevisionAdvance() async throws {
+        let store = journalStore()
+        let a = HostFixtures.identity(0)
+        let operation = UUID()
+        let context = GeometryOperationContext(sessionID: sessionID,
+                                               sessionEpoch: 0,
+                                               operationID: operation,
+                                               transitionToken: TransitionToken(generation: 1),
+                                               kind: .mainSwitch)
+        let prepared = journalTransaction(0).markingOperationBefore(frame: HostFixtures.record(0, slot: 0).frame,
+                                                                    displayID: displayID,
+                                                                    operationID: operation)
+        let preparedWrite = await store.prepare(JournalPrepareRequest(context: context,
+                                                                     mutations: [.upsert(prepared)],
+                                                                     affectedIdentities: [a]))
+        XCTAssertTrue(preparedWrite.isPersisted, "\(preparedWrite)")
+
+        // 无关流程写日志：revision 前进，但条目仍在。
+        let unrelated = await store.apply(journalTransaction(1))
+        XCTAssertTrue(unrelated.isPersisted, "\(unrelated)")
+        XCTAssertGreaterThan(store.revision, 1)
+
+        let updated = prepared.markingWritten(readBack: prepared.plannedFrame, displayID: displayID)
+        let sameOperation = await store.update(JournalUpdateRequest(operationID: operation, identity: a,
+                                                                    mutation: .upsert(updated)),
+                                               additional: [])
+        XCTAssertTrue(sameOperation.isPersisted,
+                      "全局 revision 前进不该判死一次合法的追加：\(sameOperation)")
+        XCTAssertEqual(store.entry(for: a)?.state, .written)
+
+        // 条目被补偿清理后，迟到写入必须拒绝：不能把已经结清的事务复活。
+        let dropped = await store.drop(a)
+        XCTAssertTrue(dropped.isPersisted, "\(dropped)")
+        let late = await store.update(JournalUpdateRequest(operationID: operation, identity: a,
+                                                           mutation: .upsert(updated)),
+                                      additional: [])
+        XCTAssertFalse(late.isPersisted, "条目已清理时必须拒绝迟到写入：\(late)")
+    }
+
     // MARK: - 组装辅助
 
     private func makeScratchDirectory() throws -> URL {

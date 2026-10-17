@@ -50,8 +50,6 @@ final class WorkbenchSwitchCoordinator {
     private(set) var didTimeOut = false
     /// 同一次动作只补偿一次：超时与失败路径可能都走到补偿，不能重复写窗口。
     private var didRollback = false
-    /// prepare 成功时看到的日志序号：后续追加事实必须对上它，过期写入一律拒绝（方案 §7.2）。
-    private var preparedRevision: UInt64?
     /// 本次动作真正动过的窗口与动过的方式：补偿只允许覆盖这些事实（方案 §6.3）。
     private var sideEffects: [SideEffect] = []
     /// 本次动作名义上负责的窗口：清理"计划已落盘但从未写入"的事务时只能按这份名单，
@@ -485,7 +483,6 @@ final class WorkbenchSwitchCoordinator {
                                  reason: "\(identity.journalKey) 的写前事务没有按本次操作落盘")
             return false
         }
-        preparedRevision = store.revision
         return true
     }
 
@@ -497,11 +494,12 @@ final class WorkbenchSwitchCoordinator {
         onEvent?(.journalPreparationFailed(context: context, identities: identities, reason: reason))
     }
 
-    /// 追加一条已发生的事实；失败说明"确实写过"，只能进补偿（方案 §7.2）。
+    /// 追加一条已发生的事实（方案 §7.2、§7.3）。
     ///
-    /// 序号守卫挡的是**别人**：同一次操作自己连续追加（原位置纠正、操作前快照、写后事实）
-    /// 每落一条就刷新基准，否则第二次追加会被自己的第一次判成过期。
-    /// 追加一条（或一批）已发生的事实；整批同成同败，调用方据返回值决定是否继续写窗口。
+    /// 守卫按"条目属于本次操作"判断，而不是日志全局 revision：
+    /// 日志是会话级共享的，退出清理、布局结算等无关流程都会推进 revision；
+    /// 拿全局序号当守卫，会把一次合法的同操作追加判死（实机「期望 7，当前 8」即此）。
+    /// 整批同成同败；失败时调用方必须停止后续写入并交给补偿。
     private func updateJournal(context: GeometryOperationContext,
                                identity: WindowIdentity,
                                mutation: JournalMutation,
@@ -509,9 +507,7 @@ final class WorkbenchSwitchCoordinator {
         let request = JournalUpdateRequest(operationID: context.operationID,
                                            identity: identity,
                                            mutation: mutation)
-        let written = additional.isEmpty
-            ? await store.update(request, expectedRevision: preparedRevision)
-            : await store.update(request, additional: additional, expectedRevision: preparedRevision)
+        let written = await store.update(request, additional: additional)
         guard written.isPersisted else {
             let reason = written.reason ?? "未知原因"
             VistileLog.session.log(level: .error,
@@ -519,7 +515,6 @@ final class WorkbenchSwitchCoordinator {
             onEvent?(.journalUpdateFailed(context: context, identity: identity, reason: reason))
             return false
         }
-        preparedRevision = store.revision
         return true
     }
 
@@ -1234,7 +1229,6 @@ final class WorkbenchSwitchCoordinator {
         deadline = scheduler.deadline(after: Self.switchDeadline)
         didTimeOut = false
         didRollback = false
-        preparedRevision = nil
         sideEffects = []
         watchdog?.cancel()
         watchdog = Task { @MainActor [weak self, deadline] in

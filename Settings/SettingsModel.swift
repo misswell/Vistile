@@ -116,6 +116,7 @@ final class SettingsModel: ObservableObject {
         case slotOrder, compactMode, systemLogging
         case workbenchSide, workbenchTopHeight, workbenchSideWidth, workbenchDisplay
         case workbenchOverflow, workbenchSchema, workbenchRailOrder, workbenchPins
+        case autoCheckUpdates, skippedUpdateVersion, lastUpdateCheckAt
     }
 
     private let defaults: UserDefaults
@@ -140,6 +141,18 @@ final class SettingsModel: ObservableObject {
     @Published var orderingStrategy: OrderingStrategy { didSet { defaults.set(orderingStrategy.rawValue, for: .orderingStrategy) } }
     @Published var didCompleteGuidedSetup: Bool { didSet { defaults.set(didCompleteGuidedSetup, for: .didCompleteGuidedSetup) } }
     @Published var verboseLogging: Bool { didSet { defaults.set(verboseLogging, for: .systemLogging) } }
+    /// GitHub Releases 更新通道（方案 §21）：自动检查开关、跳过的版本、上次检查时间。
+    @Published var autoCheckUpdates: Bool { didSet { defaults.set(autoCheckUpdates, for: .autoCheckUpdates) } }
+    /// 用户明确跳过过的版本（"跳过此版本"）：同一版本不再自动提示，手动检查仍会展示。
+    var skippedUpdateVersion: String? {
+        get { defaults.string(for: .skippedUpdateVersion) }
+        set { defaults.set(newValue, for: .skippedUpdateVersion) }
+    }
+    /// 上次检查时间：自动检查按 24h 节流，避免每次启动都打 GitHub API（未认证限额 60 次/小时）。
+    var lastUpdateCheckAt: Date? {
+        get { defaults.doubleValue(for: .lastUpdateCheckAt).map { Date(timeIntervalSince1970: $0) } }
+        set { defaults.set(newValue.map(\.timeIntervalSince1970), for: .lastUpdateCheckAt) }
+    }
     /// 侧栏方向与分隔线偏好：清洗规则在核心 `WorkbenchPreferences`，宿主只负责键值往返（方案 §16）。
     @Published var workbenchSide: RailSide { didSet { defaults.set(workbenchSide.rawValue, for: .workbenchSide) } }
     /// nil 表示用布局默认；拖动结束才写盘（方案 §11.2）。
@@ -189,7 +202,9 @@ final class SettingsModel: ObservableObject {
             Key.tier.rawValue: CaptureTier.balanced.rawValue,
             Key.orderingStrategy.rawValue: OrderingStrategy.normalLevelActivateAndRaise.rawValue,
             Key.didCompleteGuidedSetup.rawValue: false,
-            Key.systemLogging.rawValue: false
+            Key.systemLogging.rawValue: false,
+            // 更新通道默认开启：一次/24h 的静默检查，只有发现新版本才提示（方案 §21）。
+            Key.autoCheckUpdates.rawValue: true
         ])
 
         launchAtLogin = defaults.bool(for: .launchAtLogin)
@@ -227,6 +242,7 @@ final class SettingsModel: ObservableObject {
         if needsMigration { defaults.set(resolvedStrategy.rawValue, for: .orderingStrategy) }
         didCompleteGuidedSetup = defaults.bool(for: .didCompleteGuidedSetup)
         verboseLogging = defaults.bool(for: .systemLogging)
+        autoCheckUpdates = defaults.bool(for: .autoCheckUpdates)
 
         // 0.1.3–0.1.5 遗留值：只识别，不让它们改变入口或再次缩放主区（方案 §16）。
         // 旧键不在 register 域里，且必须读"真的写过的"持久化域，否则默认值会被当成用户设置；

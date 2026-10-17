@@ -449,21 +449,21 @@ done
 | A25 | 固定尺寸太大/位置不可写 → 明确拒绝，原主与轨道不变 | [WorkbenchSwitchTests.swift:380](../Tests/HostTests/WorkbenchSwitchTests.swift#L380) `testConfirmedUnsizableWindowIsRefusedWithoutWrites` | 通过 |
 | A26 | 关闭 A、B 无历史事务 → prepare→写入→激活→提交顺序完整 | [WorkbenchTests.swift:2097](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2097) `testAutoPromotionAfterClosingMainRunsPrepareWriteActivateCommitInOrder` | 通过 |
 | A27 | 替补 journal/AX/激活分别失败 → B 留 slot、主区空、可手动选 C | [WorkbenchTests.swift:2128](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2128) `testFailedPromotionLeavesCandidateInSlotAndKeepsMainSelectable` | 通过 |
-| A28 | 自动替补同时用户选择 C → 最新手动意图生效，无无限排队 | [WorkbenchTests.swift:2374](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2374) `testManualSelectionDuringPromotionArmingWins` | 通过 |
-| A29 | 总览网格已满后新增 B → 无 gridCell 仍入 L 尾部，其他位置不动 | [WorkbenchTests.swift:2419](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2419) `testWindowBeyondGridCapacityStillEntersRailTail` | 通过 |
-| A30 | 标题更新/目录顺序改变 → 已有 occupant 不动 | [WorkbenchTests.swift:2453](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2453) `testTitleUpdateAndCatalogReorderNeverMoveOccupants` | 通过 |
-| A31 | 返回总览后再选原 A → 两栏非零偏移保留 | [WorkbenchTests.swift:2477](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2477) `testScrollOffsetsSurviveReturnAndReentry` | 通过 |
-| A32 | 返回后选轨道 B → A/B 正确交换、偏移保留 | [WorkbenchTests.swift:2506](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2506) `testRailSelectionAfterReturnSwapsAndKeepsOffsets` | 通过 |
-| A33 | 关闭内容或改变栏尺寸 → 只按合法范围 clamp | [WorkbenchTests.swift:2526](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2526) `testRailSizeAndContentShrinkClampToLegalRange` | 通过 |
+| A28 | 自动替补同时用户选择 C → 最新手动意图生效，无无限排队 | [WorkbenchTests.swift:2411](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2411) `testManualSelectionDuringPromotionArmingWins` | 通过 |
+| A29 | 总览网格已满后新增 B → 无 gridCell 仍入 L 尾部，其他位置不动 | [WorkbenchTests.swift:2456](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2456) `testWindowBeyondGridCapacityStillEntersRailTail` | 通过 |
+| A30 | 标题更新/目录顺序改变 → 已有 occupant 不动 | [WorkbenchTests.swift:2490](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2490) `testTitleUpdateAndCatalogReorderNeverMoveOccupants` | 通过 |
+| A31 | 返回总览后再选原 A → 两栏非零偏移保留 | [WorkbenchTests.swift:2514](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2514) `testScrollOffsetsSurviveReturnAndReentry` | 通过 |
+| A32 | 返回后选轨道 B → A/B 正确交换、偏移保留 | [WorkbenchTests.swift:2543](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2543) `testRailSelectionAfterReturnSwapsAndKeepsOffsets` | 通过 |
+| A33 | 关闭内容或改变栏尺寸 → 只按合法范围 clamp | [WorkbenchTests.swift:2563](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2563) `testRailSizeAndContentShrinkClampToLegalRange` | 通过 |
 | A34 | 可见/离屏混合超过预算 → 可见优先，离屏不阻止可见恢复直播 | [CaptureRunTests.swift:352](../Packages/VistileCore/Tests/VistileCoreTests/CaptureRunTests.swift#L352) `offscreenTargetsNeitherTakeSlotsNorBlockRestore` | 通过 |
 | A35 | 连续滚动 → 启停次数受控、最后可见集合调度正确 | [T08T09CaptureLifecycleTests.swift:284](../Tests/HostTests/T08T09CaptureLifecycleTests.swift#L284) `testScrollingSettlesOnTheLastVisibleSetWithoutRestartingCards`＋:257 `testRapidSizeDeltasCoalesceIntoLatestIntent`（滚动用例先钉住分母：滑过的每张卡片都起过一条流） | 通过 |
-| A36 | 工作台过渡中尺寸更新 → 延后重配，取消/停止仍立即有效 | [WorkbenchTests.swift:2558](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2558) `testSizeUpdateDuringTransitionDefersReconfigurationAndCancelIsImmediate` | 通过 |
+| A36 | 工作台过渡中尺寸更新 → 延后重配，取消/停止仍立即有效 | [WorkbenchTests.swift:2595](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2595) `testSizeUpdateDuringTransitionDefersReconfigurationAndCancelIsImmediate` | 通过 |
 | A37 | 旧捕获 run 回调迟到 → 不污染新 mailbox、资源计数不增 | [T08T09CaptureLifecycleTests.swift:175](../Tests/HostTests/T08T09CaptureLifecycleTests.swift#L175) `testLateCallbacksAfterStopAllCannotTouchTheNewRun` | 通过 |
 | A38 | 无响应 AX 到退出期限 → 等待有界、日志保留、无新恢复写入 | [T05T07GeometryTransactionTests.swift:483](../Tests/HostTests/T05T07GeometryTransactionTests.swift#L483) `testDeadlineDuringUnresponsiveRestoreKeepsJournalAndStartsNoFurtherWrite`（fake clock，`HostClock` 推进到期限）＋:523 `testTerminationWaitResolvesOnceWithWhicheverArrivesFirst` | 通过；**应用级 2s 真实上限属实机项（§19 M14），本轮未测** |
 | A39 | 两种退出入口重复触发 → 仅一恢复所有者、一次终止回调 | [WorkbenchEntryTests.swift:266](../Tests/HostTests/WorkbenchEntryTests.swift#L266) `testTwoQuitEntriesLeaveOneRecoveryOwnerAndOneTerminationCallback`（真 `AppCoordinator`：两个链入口＋状态机 `.restoreAll` 抢同一窗口，断言原 frame 只写一次、窗口回原位、日志清空、收尾一次）＋[T05T07GeometryTransactionTests.swift:546](../Tests/HostTests/T05T07GeometryTransactionTests.swift#L546)＋[TransitionSceneTests.swift:692](../Tests/HostTests/TransitionSceneTests.swift#L692)（retreat 走取消那一路，终止回调正好一个） | 通过 |
 | A40 | 动画中连点/退出 → 从当前呈现值接续，旧完成不提交 | [TransitionSceneTests.swift:459](../Tests/HostTests/TransitionSceneTests.swift#L459) `testInterruptContinuesFromPresentedRect` | 通过 |
 | A41 | reduceMotion → 同样几何与焦点结果，缩短/减少位移 | [TransitionSceneTests.swift:405](../Tests/HostTests/TransitionSceneTests.swift#L405) `testReduceMotionStaysFadeOnly`＋:1148 `testReduceMotionPresentsTheSameEndpointsWithoutAnyFlight`（承载层实测：中点已完整落位，终点/参与集合/焦点与完整动效逐项相同） | 通过；肉眼降级观感仍需录屏（§19 M13） |
-| A42 | 成功交换与往返组合循环 → placement 唯一、无漏窗、无 busy 悬挂、无未解释恢复义务 | [WorkbenchTests.swift:2606](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2606) `testRandomOperationSequencePreservesInvariants`（固定种子，失败打印种子与动作序列） | 通过；实机长跑由 §19 M03/M12 承担，本轮未测 |
+| A42 | 成功交换与往返组合循环 → placement 唯一、无漏窗、无 busy 悬挂、无未解释恢复义务 | [WorkbenchTests.swift:2643](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2643) `testRandomOperationSequencePreservesInvariants`（固定种子，失败打印种子与动作序列） | 通过；实机长跑由 §19 M03/M12 承担，本轮未测 |
 
 42 条都有自动用例且全部通过；A38/A41/A42 的实机那一半按方案要求单列未测，不合并成"全通过"。
 
@@ -860,3 +860,74 @@ shasum -a 256 /tmp/vistile013/Vistile_v0.1.13_macos_arm64.dmg   # 期望 7a9eec1
 hdiutil attach -nobrowse -readonly /tmp/vistile013/Vistile_v0.1.13_macos_arm64.dmg
 shasum -a 256 "/Volumes/Vistile v0.1.13/Vistile.app/Contents/MacOS/Vistile"   # 期望 113109b5…8b5745
 ```
+
+### 12.6 0.1.13 实机缺陷：交换一次之后界面不再响应（C10）
+
+**这是 0.1.13 发布后在真实桌面上复现的缺陷**，现场证据取自统一日志（`log show --info`，进程 0.1.13/27）：
+
+```
+00:35:46  [过渡] 播放 总览→L 型：20 张卡片，240ms
+00:35:48  [过渡] 播放 L 型内交换：2 张卡片，180ms
+00:35:48  [日志] 事实追加失败 14114:…:4967 原因=日志序号已过期（期望 7，当前 8）：update 9300D53C 未写入
+00:35:51  [过渡] 真实窗口未在限时内到位，收起承载层
+00:37:21  [focus] 激活确认 …：过渡/交换在途，前台归属交由执行器判定，保持会话   ← 一分钟后仍认为"在途"
+```
+
+之后点击任何卡片/按钮都不再产生任何效果；`session-journal.json` 里留下一条 `mutationPlanned`
+（同一 operationID）与一条 `verified`，说明交换在第一笔事实处就失败、只写过一个窗口。
+
+**根因（两处叠加）**
+
+1. **守卫维度错了**：`WorkbenchSwitchCoordinator.updateJournal` 把日志**全局 revision** 传给
+   `WindowJournalStore.update` 当过期守卫。日志是会话级共享的：退出清理、布局结算、同窗口 latest-wins
+   结算都会推进 revision；无关写入一前进，本次交换的第一条事实就被判"序号过期"。实机「期望 7，当前 8」即此。
+   （C01 只把 `revision` 的读写加了锁，没有改守卫语义，所以 0.1.13 仍会命中。）
+2. **失败收口走错分支**：写前事实落盘失败时 `handleJournalUpdateFailed` 仍走"写后失败"路径，发 `.drainGeometry`；
+   宿主 `AppCoordinator.drainGeometry()` 会 `switchCoordinator.cancel()` 交还会话所有权，而这次交换的失败结论
+   `mainSwitchFailed` 正是由那条在途链补偿后回报的——先取消它，回报就被 `activeContext == context` 门禁全挡掉，
+   reducer 永远停在 `.rollingBack`，之后的点击全被 `mainSwitch.isBusy` 吞掉（focus 日志里"交换在途"就是它的症状）。
+
+**修复**
+
+- 守卫改为"**条目仍存在**"（[WindowJournalStore.swift](../Recovery/WindowJournalStore.swift)）：
+  无关写入推进 revision 不再影响；条目被补偿清理后才拒绝迟到写入。没有改用 `operationID` 归属守卫——
+  同窗口 latest-wins 会在上一笔仍途时先为新操作准备事务，按归属会把在途那笔的写后事实判成过期（实现时踩过，见宿主用例）。
+- 操作自身的日志失败**不再发 `.drainGeometry`**（[WorkbenchReducer.swift](../Packages/VistileCore/Sources/VistileCore/Domain/WorkbenchReducer.swift)）：
+  排空只属于隐藏/退出入口；失败由在途链补偿后如实回报，状态机不再停在 rollingBack。
+- `preparedRevision` 状态与两次落盘的序号基座一起删除（C07 之后本来就只有一批）。
+
+**回归**（均确定性替身，无真实 sleep）
+
+- 宿主 `testUnrelatedJournalWriteBeforePlacementDoesNotKillSwitch`：写前实读处挂起 → 无关流程写日志推进 revision →
+  放行后交换仍必须写入并提交。
+- 宿主 `testPreWriteJournalFailureReportsAndKeepsSessionUsable` / `testPostWriteJournalFailureStillReportsAndKeepsSessionUsable`：
+  写前/写后事实落盘失败都必须回报 `mainSwitchFailed`，且失败后下一笔交换能正常提交。
+- 核心 `testJournalFailureDuringSwitchNeverDrainsTheInFlightOperation`：交换中的日志失败**不得**产生
+  `.drainGeometry`（写前、写后两种分类都断言）；`testObservedFactPersistFailure…` 的旧断言按新语义改正。
+- 存储 `testJournalUpdateSurvivesUnrelatedRevisionAdvance`：revision 前进不判死；条目被 drop 后迟到写入被拒。
+
+状态：**代码完成、自动回归通过**；修复后的字节尚未在真实桌面复跑同一条操作序列（见 §12.8）。
+
+### 12.7 更新通道：GitHub Releases（D01）
+
+**通道就是本仓库的 GitHub Releases**，不引入第三方更新框架、不做静默自动安装（与多数开源 macOS 项目的
+轻量做法一致；Sparkle 这类完整更新器需要额外签名/feed 基础设施，留作后续可选项）。
+
+- 核心纯逻辑 [UpdateChannel.swift](../Packages/VistileCore/Sources/VistileCore/Domain/UpdateChannel.swift)：
+  `AppVersion`（逐段数值比较，`v` 前缀、预发布后缀、段数不同都兼容）、
+  `GitHubRelease`/`GitHubReleaseAsset`（按 API snake_case 解码）、
+  `UpdateChannelPolicy`（忽略 draft、按仓库既有约定把 prerelease 算进通道、选最高版本、
+  资产优先 arm64 dmg → 任意 dmg → zip）。
+- 宿主 [MenuBarController.swift](../App/MenuBarController.swift)：菜单「检查更新…」+ 启动后 3 秒静默检查
+  （**24h 节流**，未认证 GitHub API 限额 60 次/小时；可在设置关闭）。发现新版本弹窗：
+  下载并打开（打开资产直链；无资产则发布页）/ 稍后 / 跳过此版本（跳过只影响自动提示，手动检查仍展示）。
+  网络取数（`UpdateReleasesFetching`）、当前版本、时钟全部可注入。
+- 设置 [SettingsModel.swift](../Settings/SettingsModel.swift)：`autoCheckUpdates`（默认开）、
+  `skippedUpdateVersion`、`lastUpdateCheckAt`。
+- 回归：核心 7 条（[UpdateChannelTests.swift](../Packages/VistileCore/Tests/VistileCoreTests/UpdateChannelTests.swift)）；
+  宿主 8 条（`UpdateChannelHostTests`，在 [T16DiagnosticsOutputTests.swift](../Tests/HostTests/T16DiagnosticsOutputTests.swift)）：
+  新版本+资产、已最新、prerelease 计入、跳过版本语义、24h 节流（证明被节流时不发网络请求）、
+  关闭自动不影响手动、坏 JSON、限流提示。
+
+**未测**：菜单弹窗与真实 GitHub 下载的一次真实桌面手工验收（网络、系统弹窗、浏览器下载路径）；
+自动检查在真实发布节奏下的行为。自动回归只证明决策与接缝，不证明 UI 交互。

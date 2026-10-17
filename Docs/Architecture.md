@@ -157,3 +157,15 @@ Effect：`discover`、`startCapture`、`stopCapture`、`stopAllCapture`、`showO
 0.1.5/0.1.6 报告里 ChatGPT 与 UGit 的「层级=通过」是两处代填，都已在标签内收回，0.1.6 起该列只由 P0-3 写。
 TransitionProxy 的稳定遮挡、全屏 Space 与 Stage Manager 行为、30 窗口下的性能曲线都属于未验证能力。
 数字与原始读数见 [Compatibility.md](Compatibility.md) §1–§2 与 [Performance.md](Performance.md) §4。
+
+## 11. 更新通道（GitHub Releases）
+
+更新通道不另建服务器：直接读本仓库的 GitHub Releases（`api.github.com/repos/misswell/Vistile/releases`）。
+分工与几何/捕获相同——**决策留在核心包，IO 与 UI 留在宿主**：
+
+- 核心 `UpdateChannelPolicy` 是纯函数：版本比较（逐段数值，`v` 前缀/预发布后缀兼容）、release 选择
+  （忽略 draft；本仓库发布包按约定标 `prerelease=true`，所以默认计入通道）、资产挑选（arm64 dmg → 任意 dmg → zip）。
+- 宿主 `UpdateChecker` 负责节流（24h，未认证 API 限额 60 次/小时）、跳过版本、把失败翻成可读原因；
+  网络取数、当前版本与时钟都是注入接缝，宿主测试不碰真实 GitHub。
+- UI 只有菜单项与一个弹窗：下载并打开 / 稍后 / 跳过此版本；**不做静默自动安装**。
+  安装仍是用户动作（覆盖 `/Applications/Vistile.app`），发布包继续走 Developer ID 签名 + 公证。

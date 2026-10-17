@@ -12,6 +12,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private(set) var statusItem: NSStatusItem?
     private var settingsWindow: SettingsWindowController?
     private var onboarding: OnboardingWindowController?
+    /// GitHub Releases 更新通道（方案 §21）：菜单"检查更新…"与启动后的一次静默检查共用。
+    private(set) var updateChecker: UpdateChecker
+    let checkUpdatesItem = NSMenuItem(title: "检查更新…", action: nil, keyEquivalent: "")
 
     private let statusLine = NSMenuItem(title: "准备中", action: nil, keyEquivalent: "")
     let openItem = NSMenuItem()
@@ -25,13 +28,20 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     init(coordinator: AppCoordinator,
          settings: SettingsModel,
          permissions: PermissionManager,
-         installsStatusItem: Bool = true) {
+         updateChecker: UpdateChecker? = nil,
+         installsStatusItem: Bool = true,
+         performsAutomaticUpdateCheck: Bool = true) {
         self.coordinator = coordinator
         self.settings = settings
         self.permissions = permissions
+        self.updateChecker = updateChecker ?? UpdateChecker(settings: settings)
         super.init()
         let item = installsStatusItem ? NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength) : nil
         build(into: item)
+        // 只装在真实菜单栏时才自动检查：测试宿主/无图标模式不碰网络、也不弹窗。
+        if performsAutomaticUpdateCheck && installsStatusItem {
+            scheduleAutomaticUpdateCheck(delayed: true)
+        }
     }
 
     private func build(into item: NSStatusItem?) {
@@ -83,6 +93,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         permissionsItem.target = self
         menu.addItem(permissionsItem)
 
+        checkUpdatesItem.target = self
+        checkUpdatesItem.action = #selector(checkForUpdates)
+        menu.addItem(checkUpdatesItem)
+
         menu.addItem(.separator())
         let quit = NSMenuItem(title: "退出 Vistile", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
@@ -118,6 +132,85 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     // MARK: - 动作
+
+    // MARK: 更新通道
+
+    /// 启动后的静默检查：24h 节流、只有发现新版本才弹一次（可在设置里关掉，方案 §21）。
+    private func scheduleAutomaticUpdateCheck(delayed: Bool) {
+        Task { @MainActor [weak self] in
+            if delayed { try? await Task.sleep(nanoseconds: 3_000_000_000) }
+            guard let self else { return }
+            let outcome = await self.updateChecker.checkIfDue()
+            if case let .available(package) = outcome {
+                self.offerUpdate(package)
+            }
+        }
+    }
+
+    @objc private func checkForUpdates() {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.checkUpdatesItem.isEnabled = false
+            defer { self.checkUpdatesItem.isEnabled = true }
+            self.presentUpdateOutcome(await self.updateChecker.checkNow())
+        }
+    }
+
+    private func presentUpdateOutcome(_ outcome: UpdateCheckOutcome) {
+        switch outcome {
+        case let .upToDate(current):
+            let alert = NSAlert()
+            alert.messageText = "已是最新版本"
+            alert.informativeText = "当前版本 \(current)，更新通道已是最新。"
+            alert.addButton(withTitle: "好")
+            alert.runModal()
+        case let .available(package), let .skipped(package):
+            // 手动检查即使在"跳过此版本"之后也要展示，否则用户无从恢复。
+            offerUpdate(package)
+        case let .failed(reason):
+            let alert = NSAlert()
+            alert.messageText = "检查更新失败"
+            alert.informativeText = reason
+            alert.addButton(withTitle: "好")
+            alert.runModal()
+        case .throttled:
+            break
+        }
+    }
+
+    private func offerUpdate(_ package: UpdatePackage) {
+        let alert = NSAlert()
+        alert.messageText = "发现新版本 \(package.version)"
+        alert.informativeText = Self.updateNotes(for: package)
+        alert.addButton(withTitle: package.asset == nil ? "打开发布页" : "下载并打开")
+        alert.addButton(withTitle: "稍后")
+        alert.addButton(withTitle: "跳过此版本")
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            NSWorkspace.shared.open(package.downloadURL)
+        case .alertThirdButtonReturn:
+            updateChecker.skip(package)
+        default:
+            break
+        }
+    }
+
+    private static func updateNotes(for package: UpdatePackage) -> String {
+        var lines: [String] = []
+        if let asset = package.asset {
+            lines.append("安装包：\(asset.name)（\(ByteCountFormatter.string(fromByteCount: Int64(asset.size), countStyle: .file))）")
+        } else {
+            lines.append("发布页：\(package.release.htmlURL.absoluteString)")
+        }
+        if let body = package.release.body, !body.isEmpty {
+            let trimmed = body.count > 900 ? String(body.prefix(900)) + "…" : body
+            lines.append("")
+            lines.append(trimmed)
+        }
+        lines.append("")
+        lines.append("更新来自 GitHub Releases；下载后请把 Vistile.app 拖进「应用程序」覆盖旧版本。")
+        return lines.joined(separator: "\n")
+    }
 
     /// 只在隐藏态可用：每次打开都先落在全屏总览，工作台只能由点击卡片进入（方案 §4.1、§16）。
     @objc func openOverview() { coordinator.toggleOverview() }
@@ -184,5 +277,135 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         image.unlockFocus()
         image.isTemplate = true
         return image
+    }
+}
+
+
+// MARK: - GitHub Releases 更新通道（方案 §21）
+
+enum UpdateCheckFailure: Error, Equatable {
+    case network(String)
+    case decoding(String)
+}
+
+/// 拉取 release 列表的接缝：测试注入固定 JSON，生产走 GitHub API。
+protocol UpdateReleasesFetching: Sendable {
+    func fetchReleases() async throws -> Data
+}
+
+struct GitHubReleasesFetcher: UpdateReleasesFetching {
+    let repository: String
+    let session: URLSession
+
+    init(repository: String = UpdateChannelPolicy.defaultRepository,
+         session: URLSession = .shared) {
+        self.repository = repository
+        self.session = session
+    }
+
+    static func userAgent() -> String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+        return "\(UpdateChannelPolicy.userAgentProduct)/\(version) (+https://github.com/\(UpdateChannelPolicy.defaultRepository))"
+    }
+
+    func fetchReleases() async throws -> Data {
+        var request = URLRequest(url: UpdateChannelPolicy.releasesEndpoint(repository: repository))
+        request.timeoutInterval = 15
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        // GitHub API 要求 User-Agent；未认证限额 60 次/小时，靠 24h 节流兜住。
+        request.setValue(Self.userAgent(), forHTTPHeaderField: "User-Agent")
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                throw UpdateCheckFailure.network("响应不是 HTTP")
+            }
+            guard (200..<300).contains(http.statusCode) else {
+                throw UpdateCheckFailure.network("GitHub API 返回 HTTP \(http.statusCode)"
+                    + (http.statusCode == 403 ? "（可能触发了未认证限额 60 次/小时）" : ""))
+            }
+            return data
+        } catch let failure as UpdateCheckFailure {
+            throw failure
+        } catch {
+            throw UpdateCheckFailure.network(error.localizedDescription)
+        }
+    }
+}
+
+enum UpdateCheckOutcome: Equatable {
+    case upToDate(current: String)
+    case available(UpdatePackage)
+    case skipped(UpdatePackage)
+    case failed(String)
+    /// 自动检查落在 24h 节流窗口里：什么都不用做。
+    case throttled
+}
+
+/// 更新检查的全部决策：节流、跳过版本、选包。网络与版本比较分别走接缝与核心纯逻辑。
+@MainActor
+final class UpdateChecker: ObservableObject {
+    static let automaticInterval: TimeInterval = 24 * 60 * 60
+
+    private let settings: SettingsModel
+    private let fetcher: UpdateReleasesFetching
+    private let currentVersion: AppVersion
+    private let now: () -> Date
+
+    init(settings: SettingsModel,
+         fetcher: UpdateReleasesFetching = GitHubReleasesFetcher(),
+         currentVersion: AppVersion? = nil,
+         now: @escaping () -> Date = Date.init) {
+        self.settings = settings
+        self.fetcher = fetcher
+        self.currentVersion = currentVersion
+            ?? AppVersion(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0")
+            ?? AppVersion("0")!
+        self.now = now
+    }
+
+    /// 启动/定时用的自动检查：开关关闭或仍在上次检查的 24h 内则直接跳过。
+    func checkIfDue() async -> UpdateCheckOutcome {
+        guard settings.autoCheckUpdates else { return .throttled }
+        if let last = settings.lastUpdateCheckAt, now().timeIntervalSince(last) < Self.automaticInterval {
+            return .throttled
+        }
+        return await performCheck()
+    }
+
+    /// 菜单里的手动检查：不受开关与节流限制。
+    func checkNow() async -> UpdateCheckOutcome {
+        await performCheck()
+    }
+
+    func skip(_ package: UpdatePackage) {
+        settings.skippedUpdateVersion = package.version.description
+    }
+
+    private func performCheck() async -> UpdateCheckOutcome {
+        let data: Data
+        do {
+            data = try await fetcher.fetchReleases()
+        } catch let failure as UpdateCheckFailure {
+            switch failure {
+            case let .network(reason), let .decoding(reason):
+                return .failed("检查更新失败：\(reason)")
+            }
+        } catch {
+            return .failed("检查更新失败：\(error.localizedDescription)")
+        }
+        let releases: [GitHubRelease]
+        do {
+            releases = try JSONDecoder().decode([GitHubRelease].self, from: data)
+        } catch {
+            return .failed("更新信息无法解析：\(error.localizedDescription)")
+        }
+        settings.lastUpdateCheckAt = now()
+        guard let package = UpdateChannelPolicy.latest(from: releases, current: currentVersion) else {
+            return .upToDate(current: currentVersion.description)
+        }
+        if settings.skippedUpdateVersion == package.version.description {
+            return .skipped(package)
+        }
+        return .available(package)
     }
 }

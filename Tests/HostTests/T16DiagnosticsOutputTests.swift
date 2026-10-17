@@ -163,3 +163,151 @@ final class T16DiagnosticsOutputTests: XCTestCase {
         XCTAssertTrue(fresh.contains("上一轮报告已归档"), "新报告里要写清上一轮挪到了哪")
     }
 }
+
+// MARK: - GitHub Releases 更新通道（方案 §21）
+
+/// 更新检查的宿主回归：网络与磁盘都注入，不碰真实 GitHub。
+/// 决策逻辑（版本比较、选包）在核心包 `UpdateChannelTests` 里已有纯逻辑覆盖，
+/// 这里钉的是"接缝 + 节流 + 跳过版本 + 失败口径"。
+@MainActor
+final class UpdateChannelHostTests: XCTestCase {
+    private var suites: [String] = []
+
+    override func tearDown() {
+        for suite in suites {
+            UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
+        }
+        suites = []
+        super.tearDown()
+    }
+
+    private func makeSettings() -> SettingsModel {
+        let name = "com.misswell.Vistile.updatetests.\(UUID().uuidString)"
+        suites.append(name)
+        return SettingsModel(defaults: UserDefaults(suiteName: name)!)
+    }
+
+    private struct FakeFetcher: UpdateReleasesFetching {
+        let result: Result<Data, UpdateCheckFailure>
+        func fetchReleases() async throws -> Data {
+            switch result {
+            case let .success(data): return data
+            case let .failure(failure): throw failure
+            }
+        }
+    }
+
+    private func payload(_ tag: String,
+                         prerelease: Bool = true,
+                         assets: [(name: String, url: String, size: Int)] = []) -> Data {
+        let files = assets.isEmpty
+            ? [(name: "Vistile_\(tag)_macos_arm64.dmg",
+                url: "https://github.com/misswell/Vistile/releases/download/\(tag)/Vistile_\(tag)_macos_arm64.dmg",
+                size: 2_375_689)]
+            : assets
+        let list: [[String: Any]] = [[
+            "tag_name": tag,
+            "name": "Vistile \(tag)",
+            "body": "本版说明",
+            "html_url": "https://github.com/misswell/Vistile/releases/tag/\(tag)",
+            "draft": false,
+            "prerelease": prerelease,
+            "assets": files.map { ["name": $0.name, "browser_download_url": $0.url, "size": $0.size] }
+        ]]
+        return try! JSONSerialization.data(withJSONObject: list)
+    }
+
+    private func checker(_ data: Data,
+                         settings: SettingsModel,
+                         current: String = "0.1.13",
+                         now: @escaping () -> Date = Date.init) -> UpdateChecker {
+        UpdateChecker(settings: settings,
+                      fetcher: FakeFetcher(result: .success(data)),
+                      currentVersion: AppVersion(current),
+                      now: now)
+    }
+
+    func testNewerReleaseIsOfferedWithArm64Dmg() async throws {
+        let settings = makeSettings()
+        let outcome = await checker(payload("v0.1.14"), settings: settings).checkNow()
+        guard case let .available(package) = outcome else {
+            return XCTFail("应有可用更新，实际 \(outcome)")
+        }
+        XCTAssertEqual(package.version.description, "0.1.14")
+        XCTAssertEqual(package.asset?.name, "Vistile_v0.1.14_macos_arm64.dmg")
+        XCTAssertNotNil(settings.lastUpdateCheckAt, "成功检查后要记时间，自动检查按它节流")
+    }
+
+    func testSameVersionIsUpToDate() async throws {
+        let settings = makeSettings()
+        let outcome = await checker(payload("v0.1.13"), settings: settings).checkNow()
+        XCTAssertEqual(outcome, .upToDate(current: "0.1.13"))
+    }
+
+    func testPrereleaseIsPartOfTheUpdateChannel() async throws {
+        let settings = makeSettings()
+        let outcome = await checker(payload("v0.1.14", prerelease: true), settings: settings).checkNow()
+        guard case .available = outcome else {
+            return XCTFail("本仓库发布包一律标 prerelease，更新通道必须包含它：\(outcome)")
+        }
+    }
+
+    func testSkippedVersionStopsAutoPromptButManualCheckStillShowsUpgrade() async throws {
+        let settings = makeSettings()
+        let updateChecker = checker(payload("v0.1.14"), settings: settings)
+        guard case let .available(package) = await updateChecker.checkNow() else {
+            return XCTFail("第一次检查应发现新版本")
+        }
+        updateChecker.skip(package)
+        XCTAssertEqual(settings.skippedUpdateVersion, "0.1.14")
+        let again = await updateChecker.checkNow()
+        XCTAssertEqual(again, .skipped(package), "手动检查仍要展示被跳过的版本，否则用户无从恢复")
+    }
+
+    func testAutomaticCheckIsThrottledFor24HoursAndMakesNoNetworkCall() async throws {
+        let settings = makeSettings()
+        settings.lastUpdateCheckAt = Date()
+        // 故意给一个会抛错的取数器：被节流时根本不该走到网络。
+        let checker = UpdateChecker(settings: settings,
+                                    fetcher: FakeFetcher(result: .failure(.network("不该被调用"))),
+                                    currentVersion: AppVersion("0.1.13"))
+        let outcome = await checker.checkIfDue()
+        XCTAssertEqual(outcome, .throttled)
+    }
+
+    func testAutomaticCheckRespectsDisabledSetting() async throws {
+        let settings = makeSettings()
+        settings.autoCheckUpdates = false
+        let checker = UpdateChecker(settings: settings,
+                                    fetcher: FakeFetcher(result: .failure(.network("不该被调用"))),
+                                    currentVersion: AppVersion("0.1.13"))
+        let automatic = await checker.checkIfDue()
+        XCTAssertEqual(automatic, .throttled)
+        // 手动检查仍然可以工作：开关只管自动。
+        let manual = UpdateChecker(settings: settings,
+                                   fetcher: FakeFetcher(result: .success(payload("v0.1.14"))),
+                                   currentVersion: AppVersion("0.1.13"))
+        guard case .available = await manual.checkNow() else {
+            return XCTFail("关掉自动检查不该影响手动检查")
+        }
+    }
+
+    func testMalformedPayloadFailsReadably() async throws {
+        let settings = makeSettings()
+        let outcome = await checker(Data("not json".utf8), settings: settings).checkNow()
+        guard case let .failed(reason) = outcome else { return XCTFail("解析失败要如实回报：\(outcome)") }
+        XCTAssertTrue(reason.contains("无法解析"), reason)
+    }
+
+    func testNetworkFailureSurfacesGitHubRateLimitHint() async throws {
+        let settings = makeSettings()
+        let checker = UpdateChecker(settings: settings,
+                                    fetcher: FakeFetcher(result: .failure(.network("GitHub API 返回 HTTP 403（可能触发了未认证限额 60 次/小时）"))),
+                                    currentVersion: AppVersion("0.1.13"))
+        guard case let .failed(reason) = await checker.checkNow() else {
+            return XCTFail("网络失败要如实回报：不是静默当成最新版")
+        }
+        XCTAssertTrue(reason.contains("403"), reason)
+        XCTAssertTrue(reason.contains("60 次/小时"), reason)
+    }
+}

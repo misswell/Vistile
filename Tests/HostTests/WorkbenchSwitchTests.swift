@@ -1388,6 +1388,96 @@ final class WorkbenchSwitchTests: XCTestCase {
                        "替身确认这次恢复真的失败了（窗口确实留在展开态）")
     }
 
+    // MARK: - H24 日志序号前进不该判死一次合法交换（0.1.13 实机缺陷）
+
+    /// 现场（0.1.13 实机）：进入工作台后立刻点一次交换，报
+    /// 「日志序号已过期（期望 7，当前 8）：update 未写入」，随后整个界面不再响应任何点击。
+    /// 根因有两层：① 追加事实用的是日志**全局** revision 当守卫，退出清理/布局结算等无关写入
+    /// 也会推进它；② 写前事实落盘失败被当成"写后失败"，reducer 发 `.drainGeometry` 把在途交换
+    /// 的会话所有权撤掉，`mainSwitchFailed` 永远回报不上来，状态机停在 rollingBack。
+    /// 本条钉住第 ① 层：无关写入先落盘，本次交换仍必须能写入并提交。
+    func testUnrelatedJournalWriteBeforePlacementDoesNotKillSwitch() async throws {
+        let plan = try await beginHappyPath()
+        // 写前实读处挂起：此刻 prepare 已完成、第一条事实尚未追加，正是实机竞态的窗口。
+        writer.gatesNextFrameRead = true
+        coordinator.perform(plan)
+        await pendingUntil { self.writer.isBlockedInRead }
+        XCTAssertTrue(committedTokens().isEmpty, "前置事实：交换还没提交")
+
+        let stranger = HostFixtures.identity(3)
+        let extra = await store.apply(WindowTransaction(sessionID: sessionID,
+                                                        identity: stranger,
+                                                        bundleID: "com.test.app\(stranger.windowID)",
+                                                        originalFrame: FakeCatalogSource.frame(for: 3),
+                                                        originalDisplayID: displayID))
+        XCTAssertTrue(extra.isPersisted, "前置事实：无关流程的日志写入成功并推进 revision")
+        writer.openReadGate()
+
+        await pendingUntil(timeout: 6) {
+            self.committedTokens().contains(plan.intent.token) || !self.failureReasons().isEmpty
+        }
+        await pendingUntil(timeout: 4) { !self.coordinator.isBusy }
+
+        XCTAssertTrue(failureReasons().isEmpty,
+                      "日志序号前进不等于这次交换失效：\(failureReasons())")
+        XCTAssertTrue(committedTokens().contains(plan.intent.token),
+                      "同操作的事实必须能写入：守卫应按条目归属判断，而不是全局序号")
+        XCTAssertEqual(writer.writtenFrames.count, 2, "交换该写的两笔几何都要落地")
+    }
+
+    // MARK: - H25 写前事实落盘失败必须收口，不能把界面留在"交换在途"
+
+    /// 写前事实（操作前快照/原位置纠正）落盘失败时，一次 AX 写入都还没发生：
+    /// 必须按失败回报，让状态机离开 rollingBack 并恢复交互，而不是 drain+cancel 把回报全挡掉。
+    func testPreWriteJournalFailureReportsAndKeepsSessionUsable() async throws {
+        let plan = try await beginHappyPath()
+        makeJournalUnwritable()
+
+        coordinator.perform(plan)
+        await pendingUntil(timeout: 6) { !self.failureReasons().isEmpty }
+        await pendingUntil(timeout: 6) { !self.coordinator.isBusy }
+        makeJournalWritable()
+
+        XCTAssertFalse(failureReasons().isEmpty,
+                       "写前事实落盘失败必须回报 mainSwitchFailed：否则 reducer 永远停在 rollingBack，点击全被吞掉")
+        XCTAssertTrue(committedTokens().isEmpty)
+        XCTAssertEqual(writer.totalWrites, 0, "日志先行失败：一个几何字节都不许写")
+        XCTAssertEqual(writer.recordedActions.filter { $0 == "写" }.count, 0)
+
+        // 会话仍可用：日志恢复可写后，同一套交换必须能正常完成（而不是"交换在途"永久挡住）。
+        let plan2 = try await switchPlan(token: TransitionToken(generation: 2))
+        coordinator.perform(plan2)
+        await pendingUntil(timeout: 8) { self.committedTokens().contains(plan2.intent.token) }
+        XCTAssertTrue(committedTokens().contains(plan2.intent.token),
+                      "失败收口后必须能继续操作：\(statuses)")
+    }
+
+    /// 实机主形态：B 已经写进主区、**写后事实**落盘失败。旧实现发 `.drainGeometry` → 宿主
+    /// `cancel()` 交还会话所有权 → 交换链的失败回报被门禁挡掉 → 界面永久"交换在途"。
+    /// 修好后必须由交换链补偿并回报 `mainSwitchFailed`，且会话能继续操作。
+    func testPostWriteJournalFailureStillReportsAndKeepsSessionUsable() async throws {
+        let plan = try await beginHappyPath()
+        // B 的第一笔几何写入发起那一刻让日志不可写：写后事实必失败，时序与实机一致。
+        writer.onWillWrite = { [weak self] _ in self?.makeJournalUnwritable() }
+
+        coordinator.perform(plan)
+        await pendingUntil(timeout: 6) { !self.failureReasons().isEmpty }
+        await pendingUntil(timeout: 6) { !self.coordinator.isBusy }
+        writer.onWillWrite = nil
+        makeJournalWritable()
+
+        XCTAssertFalse(failureReasons().isEmpty,
+                       "写后事实落盘失败必须由交换链补偿后回报，不能因为提前取消而静默")
+        XCTAssertTrue(committedTokens().isEmpty)
+        XCTAssertFalse(writer.totalWrites == 0, "前置事实：B 真的写过一笔几何")
+
+        let plan2 = try await switchPlan(token: TransitionToken(generation: 2))
+        coordinator.perform(plan2)
+        await pendingUntil(timeout: 8) { self.committedTokens().contains(plan2.intent.token) }
+        XCTAssertTrue(committedTokens().contains(plan2.intent.token),
+                      "失败收口后必须能继续操作：\(statuses)")
+    }
+
     // MARK: - 辅助
 
     /// 等主 Actor 上的异步工作推进：await 让出主 Actor，替身的续接才有机会跑完。

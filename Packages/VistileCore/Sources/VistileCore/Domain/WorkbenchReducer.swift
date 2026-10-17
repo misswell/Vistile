@@ -295,6 +295,15 @@ public enum WorkbenchReducer {
         let written = state.workbench.runningOperation.map { operation in
             operation.writtenOrder.filter { operation.entry(for: $0)?.didWrite == true }
         } ?? []
+        // 写前事实（原位置纠正/操作前快照）落盘失败时，一次 AX 写入都还没发生：
+        // 不需要排空通道、更不能撤销会话所有权——`drainGeometry` 会调宿主 cancel 把在途交换
+        // 的回报全部挡掉，状态机就永远停在 rollingBack，之后的点击全被"交换在途"吞掉。
+        // 这里只保留在途标记，让宿主按补偿结果回报 mainSwitchFailed / 过渡结论（方案 §7.3、§5.4）。
+        let wroteNothing = written.isEmpty
+            && state.workbench.runningOperation?.entry(for: identity)?.didWrite != true
+        if wroteNothing {
+            return []
+        }
         var identities = Set(written)
         identities.insert(identity)
         return handlePostWriteJournalFailure(&state,
@@ -304,11 +313,17 @@ public enum WorkbenchReducer {
     }
 
     /// 真实写入之后的日志失败：停后续步骤，等补偿；journal 与事务原样保留（方案 §7.2 末段、§6.4）。
+    ///
+    /// **不能在这里发 `.drainGeometry`**：排空入口会撤销普通准入并让宿主 `switchCoordinator.cancel()`
+    /// 交还会话所有权；而这次操作的失败结论（`mainSwitchFailed` / 过渡终止）正是由那条在途执行链
+    /// 补偿后回报的。先取消它，回报就会被"会话已换"的门禁全部挡掉，状态机永远停在 rollingBack
+    /// （0.1.13 实机：交换后整个界面不再响应点击，日志里持续报"过渡/交换在途"）。
+    /// 排空只属于隐藏/退出入口（方案 §5.4）；操作自身的失败由宿主补偿后收口。
     private static func handlePostWriteJournalFailure(_ state: inout SessionState,
                                                       context: GeometryOperationContext,
                                                       identities: [WindowIdentity],
                                                       reason: String) -> [SessionEffect] {
-        var effects: [SessionEffect] = [.drainGeometry(context)]
+        var effects: [SessionEffect] = []
         if let intent = state.workbench.mainSwitch.intent, intent.operationContext == context {
             state.workbench.mainSwitch = .rollingBack(intent: intent, reason: reason)
             state.workbench.switchCorrection = nil
