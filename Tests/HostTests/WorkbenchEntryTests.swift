@@ -23,6 +23,8 @@ final class WorkbenchEntryTests: XCTestCase {
     private var recorder: CompatibilityRecorder!
     private var store: WindowJournalStore!
     private var journalDirectory: URL!
+    /// 同一用例内重新构造 store 时复用：日志里已有文件时以文件内的会话为准。
+    private let sessionID = UUID()
     private var scratchDirectories: [URL] = []
     private var testDefaultsSuites: [String] = []
     private var metal: MetalContext!
@@ -371,6 +373,195 @@ final class WorkbenchEntryTests: XCTestCase {
         }
     }
 
+    // MARK: - 事务日志：失败批次不得抹掉后来成功批次（方案 §7.2 不变量 2）
+
+    /// 并发三批：A 落盘失败、B 成功、C 成功。
+    ///
+    /// 回归的是旧实现"锁内先暂存 staged、await 落盘之后才提交"的缺陷：A 失败回滚会把 B 基于 A 的暂存
+    /// 抹成旧快照，随后 C 又以旧快照落盘，把已经报成功的 B 从磁盘和 `committed` 里静默抹掉。
+    /// 现在整段事务独占通道：同一时刻一批在途、后一批基于最新已提交内容，失败批次只丢弃自己。
+    func testConcurrentFailedBatchNeverErasesLaterSuccessfulBatches() async throws {
+        let writer = ScriptedJournalDiskWriter(outcomes: [.failed(reason: "注入：第 1 批落盘失败"),
+                                                          .persisted,
+                                                          .persisted],
+                                               gatedIndices: [0, 1])
+        let store = journalStore(writer: writer)
+        let a = HostFixtures.identity(0)
+        let b = HostFixtures.identity(1)
+        let c = HostFixtures.identity(2)
+
+        let batchA = Task { await store.apply(journalTransaction(0)) }
+        await writer.waitUntilEntered(1) // A 已进入落盘并挂起，仍占着通道
+        let batchB = Task { await store.apply(journalTransaction(1)) }
+        let batchC = Task { await store.apply(journalTransaction(2)) }
+        // 等 B/C 真正排到通道外：旧实现此时已完成锁内暂存（缺陷成立的交错），
+        // 新实现此时还没有开始计算。先等到这个条件再放行 A，交错才是确定的，不靠调度巧合。
+        await waitForPendingBatches(store, count: 2)
+
+        // A 在途：B/C 最多只是排在通道外，绝不可能已经开始落盘。
+        XCTAssertEqual(writer.writeCount, 1, "同一时刻只允许一批在途，实际已有 \(writer.writeCount) 批")
+
+        writer.release(0) // A 按脚本落盘失败返回
+        await writer.waitUntilEntered(2) // 下一批进入落盘：通道已把持有权按顺序交棒
+        XCTAssertEqual(writer.writeCount, 2, "第二批在途时第三批不能开始落盘")
+
+        // 第二批的载荷只能建立在已提交快照上：A 失败后不得出现在后续任何批次里。
+        // 并发两批谁先到通道不保证（都是 Task 调度），所以这里只断言"只有它自己"。
+        let payloadSecond = try writer.journal(at: 1)
+        let secondKeys = Set(payloadSecond.entries.keys)
+        XCTAssertNil(payloadSecond.entries[a.journalKey], "已失败的 A 不得出现在后续批次的落盘内容里")
+        XCTAssertTrue(secondKeys == [b.journalKey] || secondKeys == [c.journalKey],
+                      "第二批只能包含自己的记录，实际=\(secondKeys)")
+
+        writer.release(1)
+        await writer.waitUntilEntered(3)
+        let payloadThird = try writer.journal(at: 2)
+        let thirdKeys = Set(payloadThird.entries.keys)
+        XCTAssertNil(payloadThird.entries[a.journalKey], "已失败的 A 不得出现在后续批次的落盘内容里")
+        XCTAssertEqual(thirdKeys, [b.journalKey, c.journalKey],
+                       "第三批必须建立在第二批已提交内容之上，不能把它覆盖掉，实际=\(thirdKeys)")
+        writer.release(2)
+
+        let writeA = await batchA.value
+        let writeB = await batchB.value
+        let writeC = await batchC.value
+        XCTAssertFalse(writeA.isPersisted, "第 1 批必须按注入失败：\(writeA)")
+        XCTAssertTrue(writeB.isPersisted, "第 2 批必须落盘成功：\(writeB)")
+        XCTAssertTrue(writeC.isPersisted, "第 3 批必须落盘成功：\(writeC)")
+        XCTAssertEqual(writer.writeCount, 3, "三批各自只落盘一次")
+
+        // 内存快照、磁盘 JSON、重新构造的 store 三者逐字段一致：B/C 都在，A 不在。
+        let inMemory = store.snapshot
+        XCTAssertNil(inMemory.entries[a.journalKey], "失败批次绝不能留在内存快照里")
+        XCTAssertNotNil(inMemory.entries[b.journalKey], "已报成功的 B 不能被后来的批次抹掉")
+        XCTAssertNotNil(inMemory.entries[c.journalKey])
+
+        let onDisk = try diskJournal()
+        XCTAssertEqual(onDisk, inMemory, "磁盘 JSON 必须与内存快照一致")
+
+        let reopened = journalStore()
+        XCTAssertNil(reopened.loadIssue, "重新打开必须能读懂日志：\(reopened.loadIssue ?? "")")
+        XCTAssertEqual(reopened.snapshot, inMemory, "重启后读到的内容必须与内存/磁盘一致")
+        XCTAssertNil(reopened.entry(for: a), "失败批次不得被充当为已提交")
+        XCTAssertNotNil(reopened.entry(for: b))
+        XCTAssertNotNil(reopened.entry(for: c))
+
+        XCTAssertEqual(store.revision, 2, "只有成功落盘的两批推进序号，失败批不推进")
+    }
+
+    /// 序号语义：成功落盘才 +1，失败批次不推进；内存快照只反映已提交内容。
+    func testRevisionAdvancesOnlyOnPersistedBatches() async throws {
+        let writer = ScriptedJournalDiskWriter(outcomes: [.failed(reason: "注入：第 1 批落盘失败"),
+                                                          .persisted,
+                                                          .persisted])
+        let store = journalStore(writer: writer)
+        let b = HostFixtures.identity(1)
+        let c = HostFixtures.identity(2)
+
+        XCTAssertEqual(store.revision, 0, "新建日志序号从 0 开始")
+
+        let failed = await store.apply(journalTransaction(0))
+        XCTAssertFalse(failed.isPersisted)
+        XCTAssertEqual(store.revision, 0, "失败批次不许推进序号，否则后续序号守卫会被自己绕过")
+        XCTAssertTrue(store.snapshot.entries.isEmpty, "失败批次不得进入内存快照")
+
+        let first = await store.apply(journalTransaction(1))
+        XCTAssertTrue(first.isPersisted, "第 2 批必须落盘成功：\(first)")
+        XCTAssertEqual(store.revision, 1, "成功批次推进一次序号")
+        XCTAssertEqual(Set(store.snapshot.entries.keys), [b.journalKey])
+
+        let second = await store.apply(journalTransaction(2))
+        XCTAssertTrue(second.isPersisted, "第 3 批必须落盘成功：\(second)")
+        XCTAssertEqual(store.revision, 2, "序号只会随成功落盘单调递增")
+        XCTAssertEqual(Set(store.snapshot.entries.keys), [b.journalKey, c.journalKey])
+        XCTAssertEqual(try diskJournal(), store.snapshot, "内存与磁盘一致")
+    }
+
+    /// 后续批次以已提交快照为起点：中间批次失败不会让下一批把此前已提交的内容覆盖掉。
+    /// 同时核对序号守卫仍然基于已提交序号：过期写入在落盘前就被拒绝。
+    func testLaterBatchStartsFromCommittedSnapshotAfterFailedBatch() async throws {
+        let writer = ScriptedJournalDiskWriter(outcomes: [.persisted,
+                                                          .failed(reason: "注入：第 2 批落盘失败"),
+                                                          .persisted])
+        let store = journalStore(writer: writer)
+        let a = HostFixtures.identity(0)
+        let b = HostFixtures.identity(1)
+        let c = HostFixtures.identity(2)
+
+        let writeA = await store.apply(journalTransaction(0))
+        XCTAssertTrue(writeA.isPersisted, "第 1 批必须落盘成功：\(writeA)")
+        XCTAssertEqual(store.revision, 1)
+
+        let writeB = await store.apply(journalTransaction(1))
+        XCTAssertFalse(writeB.isPersisted, "第 2 批必须按注入失败：\(writeB)")
+        XCTAssertEqual(store.revision, 1, "失败批次不推进序号")
+        XCTAssertEqual(Set(store.snapshot.entries.keys), [a.journalKey], "失败批次不得留在内存快照")
+        XCTAssertEqual(try diskJournal(), store.snapshot, "失败批次不得留在磁盘")
+
+        let writeC = await store.apply(journalTransaction(2))
+        XCTAssertTrue(writeC.isPersisted, "第 3 批必须落盘成功：\(writeC)")
+        XCTAssertEqual(store.revision, 2)
+
+        // C 的载荷仍带着此前已提交的 A：后一批不会把已提交内容覆盖掉；失败的 B 不在其中。
+        let payloadC = try writer.journal(at: 2)
+        XCTAssertNotNil(payloadC.entries[a.journalKey], "已提交的 A 必须留在后续批次的落盘内容里")
+        XCTAssertNil(payloadC.entries[b.journalKey], "已失败的 B 不得出现在后续批次的落盘内容里")
+        XCTAssertNotNil(payloadC.entries[c.journalKey])
+
+        let inMemory = store.snapshot
+        XCTAssertEqual(Set(inMemory.entries.keys), [a.journalKey, c.journalKey])
+        XCTAssertEqual(try diskJournal(), inMemory, "磁盘 JSON 必须与内存快照一致")
+        XCTAssertEqual(journalStore().snapshot, inMemory, "重新构造 store 读到的内容必须一致")
+
+        // 序号守卫：过期基准在落盘前被拒绝，既不改内存也不写盘。
+        let writesBeforeRefusal = writer.writeCount
+        let stale = await store.apply(journalTransaction(3), expectedRevision: 1)
+        XCTAssertFalse(stale.isPersisted, "过期序号必须被拒绝：\(stale)")
+        XCTAssertEqual(store.revision, 2, "被拒绝的批次不推进序号")
+        XCTAssertEqual(writer.writeCount, writesBeforeRefusal, "被拒绝的批次不该落盘")
+        XCTAssertEqual(store.snapshot, inMemory, "被拒绝的批次不改内存快照")
+    }
+
+    /// 等落盘通道外已有 `count` 批在排队。只等条件成立，不睡固定时长：
+    /// 旧实现这时已经完成了锁内暂存，新实现这时还没开始计算，两种实现下的交错都确定。
+    private func waitForPendingBatches(_ store: WindowJournalStore, count: Int) async {
+        for _ in 0..<10_000 {
+            if store.pendingBatchCount >= count { return }
+            await Task.yield()
+        }
+        XCTFail("等待 \(count) 批进入落盘通道超时，实际排队 \(store.pendingBatchCount) 批")
+    }
+
+    // MARK: - 日志事务测试辅助
+
+    private func journalStore(writer: JournalDiskWriting? = nil) -> WindowJournalStore {
+        WindowJournalStore(fileName: "session-journal.json",
+                           sessionID: sessionID,
+                           baseDirectory: journalDirectory,
+                           journalWriter: writer)
+    }
+
+    private var diskJournalURL: URL {
+        journalDirectory.appendingPathComponent("Vistile").appendingPathComponent("session-journal.json")
+    }
+
+    /// 只读磁盘上的日志：解不出来直接失败，不允许把"读不出来"当成空日志。
+    private func diskJournal() throws -> SessionJournal {
+        try SessionJournal.decode(try Data(contentsOf: diskJournalURL))
+    }
+
+    /// 整秒时间戳：JSON 的 ISO8601 编码会丢小数秒，用整秒创建才能让内存与磁盘逐字段可比。
+    private func journalTransaction(_ index: Int) -> WindowTransaction {
+        let record = HostFixtures.record(index, slot: index)
+        return WindowTransaction(sessionID: sessionID,
+                                 identity: record.identity,
+                                 bundleID: record.bundleID,
+                                 originalFrame: record.frame,
+                                 originalDisplayID: displayID,
+                                 created: Date(timeIntervalSince1970: 1_700_000_000))
+            .markingPlanned(frame: record.frame.offsetBy(dx: 120, dy: 60), displayID: displayID)
+    }
+
     // MARK: - 组装辅助
 
     private func makeScratchDirectory() throws -> URL {
@@ -390,5 +581,114 @@ final class WorkbenchEntryTests: XCTestCase {
         }
         testDefaultsSuites.append(name)
         return defaults
+    }
+}
+
+/// 日志落盘的可控替身（方案 §15.1）：按批次脚本确定性失败/成功，并可在指定位次把落盘挂起，
+/// 由测试用 continuation 放行——不用真实 sleep、不赌时序，也不依赖真实磁盘故障。
+private final class ScriptedJournalDiskWriter: JournalDiskWriting {
+    enum Outcome {
+        case persisted
+        case failed(reason: String)
+    }
+
+    private let lock = NSLock()
+    private let outcomes: [Outcome]
+    private let gatedIndices: Set<Int>
+    private var enteredCount = 0
+    private var payloads: [Data] = []
+    private var entryWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+    private var gateWaiters: [Int: CheckedContinuation<Void, Never>] = [:]
+    private var releasedGates: Set<Int> = []
+
+    init(outcomes: [Outcome], gatedIndices: Set<Int> = []) {
+        self.outcomes = outcomes
+        self.gatedIndices = gatedIndices
+    }
+
+    /// 已经进入落盘入口的批次数（也是下一批的 0 起算序号）。
+    var writeCount: Int { withLock { enteredCount } }
+
+    /// 第 `index` 批（0 起算）实际写出的载荷。
+    func journal(at index: Int) throws -> SessionJournal {
+        let data: Data? = withLock { payloads.indices.contains(index) ? payloads[index] : nil }
+        return try SessionJournal.decode(try XCTUnwrap(data, "第 \(index) 批没有落盘载荷"))
+    }
+
+    /// 等到第 `count` 批（1 起算）已经进入落盘。
+    func waitUntilEntered(_ count: Int) async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            lock.lock()
+            if enteredCount >= count {
+                lock.unlock()
+                continuation.resume()
+            } else {
+                entryWaiters.append((count, continuation))
+                lock.unlock()
+            }
+        }
+    }
+
+    /// 放行第 `index` 批（0 起算）；没有挂在该批上的等待者时无副作用。
+    func release(_ index: Int) {
+        lock.lock()
+        releasedGates.insert(index)
+        let gate = gateWaiters.removeValue(forKey: index)
+        lock.unlock()
+        gate?.resume()
+    }
+
+    func writeJournal(_ data: Data, to url: URL) async -> JournalWrite {
+        let index: Int = withLock {
+            let index = enteredCount
+            enteredCount += 1
+            payloads.append(data)
+            return index
+        }
+        notifyEntryWaiters()
+        if withLock({ gatedIndices.contains(index) }) {
+            await waitForGate(index)
+        }
+        let outcome: Outcome = withLock { index < outcomes.count ? outcomes[index] : .persisted }
+        switch outcome {
+        case .persisted:
+            // 成功批次真的落到临时目录里的同一个 URL：这样磁盘 JSON 与 reopen 的断言才有对象。
+            do {
+                try data.write(to: url, options: [.atomic])
+                return .persisted
+            } catch {
+                return .failed(reason: error.localizedDescription)
+            }
+        case let .failed(reason):
+            return .failed(reason: reason)
+        }
+    }
+
+    private func notifyEntryWaiters() {
+        lock.lock()
+        let ready = entryWaiters.filter { enteredCount >= $0.count }
+        entryWaiters.removeAll { enteredCount >= $0.count }
+        lock.unlock()
+        for waiter in ready { waiter.continuation.resume() }
+    }
+
+    private func waitForGate(_ index: Int) async {
+        if withLock({ releasedGates.contains(index) }) { return }
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            lock.lock()
+            if releasedGates.contains(index) {
+                lock.unlock()
+                continuation.resume()
+            } else {
+                gateWaiters[index] = continuation
+                lock.unlock()
+            }
+        }
+    }
+
+    private func withLock<R>(_ body: () -> R) -> R {
+        lock.lock()
+        defer { lock.unlock() }
+        return body()
     }
 }

@@ -1,6 +1,20 @@
 import Foundation
 import VistileCore
 
+/// 通道令牌（#6）：只有从**同一次**通道执行里发出的嵌套请求才允许就地执行。
+///
+/// 之前用全局 `laneDepth > 0` 判断"在不在通道里"，但那是共享状态：`@MainActor` 的
+/// `await` 处会让其他独立任务观察到它，从而绕过串行队列。令牌挂在 `TaskLocal` 上，
+/// 只随当前通道执行的调用栈（含它派生的子任务）传播，独立任务拿不到同一份身份。
+private struct GeometryChannelToken: Hashable, Sendable {
+    let operationID: UUID
+}
+
+private enum GeometryChannel {
+    /// 当前任务继承到的通道令牌；独立任务为 nil。
+    @TaskLocal static var token: GeometryChannelToken?
+}
+
 /// 所有真实窗口几何变更的唯一入口（方案 §5.1–§5.5、§14.2）。
 ///
 /// 为什么要单独一层：原先每处写入各自起 `Task`/`tail` 链，取消只能翻转布尔标志，
@@ -69,7 +83,17 @@ final class GeometryOperationScheduler {
         let continuation: CheckedContinuation<Void, Never>
     }
 
+    /// 等排空的等待者（#5）：静默先到就返回 true，截止先到就返回 false，由先到者决定。
+    private struct DrainWaiter {
+        let deadline: Stamp?
+        let continuation: CheckedContinuation<Bool, Never>
+    }
+
     private var monotonicNow: () -> Stamp
+
+    /// 截止唤醒的注入点（#5）：生产用真实定时器按单调时钟睡到点；
+    /// 测试注入一个手动触发器，到点由用例自己触发，不靠真实 sleep 赌时序（方案 §14.4、§15.2）。
+    private let scheduleDeadlineWake: (Stamp, @escaping @MainActor () -> Void) -> Void
 
     /// 会话标识与代次：代次只在取消屏障处单调增加，永不复用。
     private var sessionIDValue = UUID()
@@ -78,27 +102,51 @@ final class GeometryOperationScheduler {
 
     private var pending: [Ticket] = []
     private var running: Ticket?
-    /// 当前正站在通道里执行（深度 > 0）：此时代码已经在队列头部，
-    /// 再排队一个子操作会自己等自己，必须就地执行（方案 §5.3）。
-    private var laneDepth = 0
+    /// 当前通道执行的身份（#6）：只有 `TaskLocal` 里带着同一个令牌的请求才允许就地执行，
+    /// 独立任务即使在 `await` 期间到达，看到的也是 nil 或不匹配，必须老老实实排队。
+    private var activeChannelToken: GeometryChannelToken?
     private var lane: Task<Void, Never>?
     private var records: [UUID: Record] = [:]
     /// 撤销后仍需补偿的操作：写过窗口的事实不能因为取消而消失（方案 §5.2）。
     private(set) var operationsNeedingCompensation: Set<UUID> = []
     private var fences: [FenceWaiter] = []
+    /// 正在等整条通道静默的排空者：按 #5 的"静默 vs 截止"竞速结算。
+    private var drainWaiters: [UUID: DrainWaiter] = [:]
     /// 补偿决策已做出、尚未落成队列项的占位：这段时间也算忙（方案 §6.1）。
     private var compensationReservations: Set<UUID> = []
     /// 拒绝准入的次数：只用于诊断与断言，不参与调度决策。
     private(set) var admissionRejections = 0
 
-    init(now: (() -> Stamp)? = nil) {
+    init(now: (() -> Stamp)? = nil,
+         scheduleDeadline: ((Stamp, @escaping @MainActor () -> Void) -> Void)? = nil) {
+        let clock: () -> Stamp
         if let now {
-            monotonicNow = now
-            return
+            clock = now
+        } else {
+            // 单调时钟：从对象创建那一刻起算，不受系统时间被调整影响（方案 §14）。
+            let reference = ContinuousClock.now
+            clock = { Self.stamp(reference.duration(to: ContinuousClock.now)) }
         }
-        // 单调时钟：从对象创建那一刻起算，不受系统时间被调整影响（方案 §14）。
-        let reference = ContinuousClock.now
-        monotonicNow = { Self.stamp(reference.duration(to: ContinuousClock.now)) }
+        monotonicNow = clock
+        scheduleDeadlineWake = scheduleDeadline ?? Self.realDeadlineWake(now: clock)
+    }
+
+    /// 生产用截止唤醒：按注入的单调时钟算出"还剩多久"，睡到点后回主线程触发。
+    /// 只负责唤醒；到期是否成立由 `DrainWaiter` 侧再核一次 `remaining(until:)` 决定（#5）。
+    private static func realDeadlineWake(
+        now: @escaping () -> Stamp
+    ) -> (Stamp, @escaping @MainActor () -> Void) -> Void {
+        { deadline, fire in
+            let current = now()
+            let wait = deadline > current ? deadline.nanoseconds - current.nanoseconds : 0
+            Task { @MainActor in
+                if wait > 0 {
+                    try? await Task.sleep(nanoseconds: wait)
+                }
+                guard !Task.isCancelled else { return }
+                fire()
+            }
+        }
     }
 
     private static func stamp(_ duration: Duration) -> Stamp {
@@ -115,8 +163,13 @@ final class GeometryOperationScheduler {
     @discardableResult
     func openSession() -> UUID {
         // 旧会话的未执行计划一律作废；旧会话的真实写入事实由日志负责，不靠内存队列。
-        revokePermits(ordinaryOnly: false)
+        // 但"作废"必须走同一个终态函数：排队中的 `request` 等待者只能靠 `onSkipped` 拿到
+        // "未写入"的结论，直接 `removeAll()` 会让它们永远悬挂（#3，方案 §5.4）。
+        // 在途那笔不在这里结算：它由自己的执行路径收口，许可撤销只阻止它继续写。
+        let abandoned = pending
         pending.removeAll()
+        for ticket in abandoned { skip(ticket, reason: .sessionChanged) }
+        revokePermits(ordinaryOnly: false)
         compensationReservations.removeAll()
         records.removeAll()
         sessionIDValue = UUID()
@@ -274,17 +327,32 @@ final class GeometryOperationScheduler {
 
     var hasPendingCompensation: Bool { !compensationReservations.isEmpty }
 
-    /// 是否正处在通道内：调用方据此判断"还能不能就地嵌套一个子操作"。
-    var isInsideChannel: Bool { laneDepth > 0 }
+    /// 是否正处在**当前这一笔**通道执行里：调用方据此判断"还能不能就地嵌套一个子操作"。
+    /// 判据是身份令牌相等（#6），不是全局深度：独立任务即使撞上 `await` 也只能排队。
+    var isInsideChannel: Bool {
+        guard let token = GeometryChannel.token else { return false }
+        return token == activeChannelToken
+    }
 
     /// 排队并等待结果；未准入或作业被丢弃时返回 nil，调用方据此保留事务/日志（方案 §5.4）。
     /// 恢复与补偿都走这里：把"许可、相位、代次、预算、顺序"一次性交给调度器。
-    /// 已经在通道里时就地执行：串行队列不会自等自。
+    /// 只有在同一笔通道执行内部发出的嵌套请求才就地执行：串行队列不会自等自（方案 §5.3、#6）。
     func request<T: Sendable>(context: GeometryOperationContext,
                               identities: [WindowIdentity],
                               coalesceKey: String? = nil,
                               deadline: Stamp? = nil,
                               work: @escaping (GeometryWritePermit) async -> T) async -> T? {
+        if isInsideChannel {
+            // 合法嵌套（补偿、同一次操作里的子动作）：已经在通道头部，直接就地执行，
+            // 但它同样要过准入与预算，并在结束时走自己的终态，不留半条记录。
+            guard let permit = begin(context) else { return nil }
+            guard canStartNewWrite(deadline: deadline) else {
+                finishInline(context)
+                return nil
+            }
+            defer { finishInline(context) }
+            return await work(permit)
+        }
         let shot = OneShot<T?>()
         let operation = Operation(context: context,
                                   identities: identities,
@@ -292,20 +360,19 @@ final class GeometryOperationScheduler {
                                   deadline: deadline,
                                   onSkipped: { _ in shot.send(nil) },
                                   run: { permit in shot.send(await work(permit)) })
-        if laneDepth > 0 {
-            guard let permit = begin(context) else { return nil }
-            guard canStartNewWrite(deadline: deadline) else {
-                operation.onSkipped?(.budgetExpired)
-                return nil
-            }
-            laneDepth += 1
-            defer { laneDepth -= 1 }
-            return await work(permit)
-        }
         guard perform(operation) else { return nil }
         return await withCheckedContinuation { continuation in
             shot.attach(continuation)
         }
+    }
+
+    /// 就地执行器的终态：删除记录、清掉补偿占位，并让栅栏/排空者有机会看到新的静默。
+    /// 就地执行没有 `onSkipped` 之外的第二条结算路径，所以这里只需要清理调度事实。
+    private func finishInline(_ context: GeometryOperationContext) {
+        records[context.operationID] = nil
+        compensationReservations.remove(context.operationID)
+        operationsNeedingCompensation.remove(context.operationID)
+        drainFences()
     }
 
     // MARK: - 栅栏与排空
@@ -321,12 +388,47 @@ final class GeometryOperationScheduler {
     }
 
     /// 等整条通道静默；预算到点仍未静默则返回 false（调用方据此保留日志并停止）。
+    ///
+    /// #5：不能用"`await fence` 之后再回循环顶部查截止"的写法——在途写入永不返回时
+    /// `fence` 也永不恢复，截止时间就永远没人看。这里让「静默」和「截止唤醒」直接竞速，
+    /// 两个信号都落在主线程，先到者删除等待者并结算，后到者查不到等待者，自动成为空操作。
+    /// 到期返回后不会再启动新的恢复写入：恢复侧每次写入前都要过 `canStartNewWrite(deadline:)`，
+    /// 调用方拿到 false 也会按"保留事务"收口（方案 §14.2–§14.5）。
     func drain(until deadline: Stamp?) async -> Bool {
-        while !isIdle {
-            if let deadline, remaining(until: deadline) == 0 { return false }
-            await fence(identities: [])
+        guard !isIdle else { return true }
+        if let deadline, remaining(until: deadline) == 0 { return false }
+        return await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            let id = UUID()
+            drainWaiters[id] = DrainWaiter(deadline: deadline, continuation: continuation)
+            guard let deadline else { return }
+            scheduleDeadlineWake(deadline) { [weak self] in
+                self?.drainDeadlineArrived(id)
+            }
         }
-        return true
+    }
+
+    /// 截止唤醒到点：先核一次是否真的到期（真实定时器偶发早醒时重新挂一次），
+    /// 到期且还没被静默结算，就按 false 收口。找不到等待者说明静默先到，什么都不做。
+    private func drainDeadlineArrived(_ id: UUID) {
+        guard let waiter = drainWaiters[id] else { return }
+        if let deadline = waiter.deadline, remaining(until: deadline) > 0 {
+            scheduleDeadlineWake(deadline) { [weak self] in
+                self?.drainDeadlineArrived(id)
+            }
+            return
+        }
+        drainWaiters[id] = nil
+        waiter.continuation.resume(returning: false)
+    }
+
+    /// 通道一静默就结算所有排空者；只有一次结算机会（先到者胜出）。
+    private func settleDrainWaitersIfIdle() {
+        guard !drainWaiters.isEmpty, isIdle else { return }
+        let waiters = drainWaiters
+        drainWaiters.removeAll()
+        for waiter in waiters.values {
+            waiter.continuation.resume(returning: true)
+        }
     }
 
     /// 空闲 = 队列空 + 无在途 + 无补偿占位（方案 §5.4）。
@@ -390,9 +492,14 @@ final class GeometryOperationScheduler {
     }
 
     private func execute(_ ticket: Ticket) async {
-        laneDepth += 1
-        defer { laneDepth -= 1 }
-        await ticket.operation.run(ticket.permit)
+        // 身份令牌只在这笔操作的执行期间生效（#6）：本操作派生的子任务会继承同一份令牌，
+        // 独立任务拿不到，因此它在 `await` 期间进来的请求只能排队。
+        let token = GeometryChannelToken(operationID: ticket.operation.context.operationID)
+        activeChannelToken = token
+        await GeometryChannel.$token.withValue(token) {
+            await ticket.operation.run(ticket.permit)
+        }
+        activeChannelToken = nil
         let operationID = ticket.operation.context.operationID
         running = nil
         records[operationID] = nil
@@ -408,6 +515,8 @@ final class GeometryOperationScheduler {
     }
 
     /// 丢弃一个尚未执行的队列项：撤销前只可能没写过窗口，因此不需要补偿事实。
+    /// 这是队列项的**唯一终态函数**：先把它从队列摘掉，再统一撤许可、清记录、通知等待者，
+    /// 所以同一张 ticket 不会被结算两次；`request` 侧的 `OneShot` 再兜一道"只恢复一次"（#3）。
     private func skip(_ ticket: Ticket, reason: Skip) {
         ticket.permit.revoke()
         records[ticket.operation.context.operationID] = nil
@@ -416,11 +525,9 @@ final class GeometryOperationScheduler {
     }
 
     private func dropPending(where predicate: (GeometryOperationKind) -> Bool) {
-        pending.removeAll { ticket in
-            guard predicate(ticket.operation.context.kind) else { return false }
-            skip(ticket, reason: .cancelled)
-            return true
-        }
+        let dropped = pending.filter { predicate($0.operation.context.kind) }
+        pending.removeAll { predicate($0.operation.context.kind) }
+        for ticket in dropped { skip(ticket, reason: .cancelled) }
     }
 
     private func revokePermits(ordinaryOnly: Bool) {
@@ -443,12 +550,14 @@ final class GeometryOperationScheduler {
     }
 
     private func drainFences() {
-        guard !fences.isEmpty else { return }
-        var remaining: [FenceWaiter] = []
-        for fence in fences {
-            if isQuiet(for: fence.identities) { fence.continuation.resume() } else { remaining.append(fence) }
+        if !fences.isEmpty {
+            var remaining: [FenceWaiter] = []
+            for fence in fences {
+                if isQuiet(for: fence.identities) { fence.continuation.resume() } else { remaining.append(fence) }
+            }
+            fences = remaining
         }
-        fences = remaining
+        settleDrainWaitersIfIdle()
     }
 }
 

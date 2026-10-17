@@ -151,23 +151,50 @@ final class FocusCoordinator {
                 report(token: token, reason: "\(current.applicationName) 的最小化窗口缺少 AX 句柄")
                 return
             }
-            let released = await writer.setMinimized(false, element: element)
-            guard isCurrent(token, identity) else { return }
-            guard released else {
+            // 解除最小化同样要带许可：撤销后队列里那笔命令不得再执行（方案 §5.2）。
+            var releasedMinimized = false
+            func undoMinimizedIfNeeded() async {
+                guard releasedMinimized else { return }
+                let back = await writer.setMinimized(true, element: element, permit: permit)
+                if back.didChange {
+                    releasedMinimized = false
+                    recorder.note("已按原样恢复 \(current.applicationName) 的最小化状态")
+                } else {
+                    recorder.record("最小化恢复", subject: current.applicationName, result: .failed,
+                                    detail: "解除最小化后未能恢复：\(back)")
+                }
+            }
+            switch await writer.setMinimized(false, element: element, permit: permit) {
+            case let .refused(reason):
+                report(token: token, reason: "解除最小化未获写入许可：\(reason)")
+                return
+            case let .notApplied(reason):
                 recorder.record("最小化解除", subject: current.applicationName, result: .failed,
-                                detail: "写入 kAXMinimized=false 后读回仍是最小化")
-                report(token: token, reason: "\(current.applicationName) 未解除最小化")
+                                detail: "写入 kAXMinimized=false 后未确认解除：\(reason)")
+                report(token: token, reason: "\(current.applicationName) 未解除最小化（\(reason)）")
+                return
+            case .changed:
+                // 解除成功就是一条已经发生的副作用：后面任何提前返回都要尽量收回去（方案 §6.4）。
+                releasedMinimized = true
+            }
+            guard isCurrent(token, identity) else {
+                await undoMinimizedIfNeeded()
                 return
             }
             // 解除最小化会让目录换代：句柄必须按身份重取，旧 AX 索引不得复用（方案 §11）。
             await catalog.refreshAndWait(reason: .windowEvent)
-            guard isCurrent(token, identity) else { return }
+            guard isCurrent(token, identity) else {
+                await undoMinimizedIfNeeded()
+                return
+            }
             guard let fresh = catalog.record(for: identity) else {
+                await undoMinimizedIfNeeded()
                 report(token: token, reason: "解除最小化后目录里找不到该窗口")
                 return
             }
             // "其他桌面"的禁用规则照旧：不因为刚解除最小化就绕过（方案 §11 第 7 条）。
             guard fresh.allowsAutoFocus else {
+                await undoMinimizedIfNeeded()
                 noteBlocked(fresh, "解除最小化后仍不能聚焦：\(fresh.restriction.map { "\($0)" } ?? "身份未唯一确定")")
                 report(token: token, reason: "\(fresh.applicationName) 的窗口当前不可聚焦")
                 return

@@ -315,15 +315,28 @@ public struct WorkbenchCompensationResult: Hashable, Sendable {
     public let items: [Item]
     /// 补偿后真正被激活的主区窗口；nil 表示焦点未回到旧主。
     public let activatedMain: WindowIdentity?
+    /// 宿主写前实读并落盘的操作前位置（与 operationID 绑定）：补偿判定的权威事实。
+    /// reducer 计划期算出的 `beforeOperation` 只是推测值；外部移动过窗口之后，
+    /// 用它判"补偿是否回到操作前"会把正确的补偿误判成失败（方案 §6.2、§6.4）。
+    public let beforeReads: [WindowIdentity: CGRect]
+    /// 本次操作解除过、但没能恢复的最小化状态（方案 §6.4、§10.1）。
+    /// 非空即表示补偿没有把真实系统状态收回原样：reducer 不能宣称"回滚完成/旧主仍在主区"。
+    public let unresolvedMinimizeRestorations: [WindowIdentity]
 
-    public init(items: [Item], activatedMain: WindowIdentity?) {
+    public init(items: [Item],
+                activatedMain: WindowIdentity?,
+                beforeReads: [WindowIdentity: CGRect] = [:],
+                unresolvedMinimizeRestorations: [WindowIdentity] = []) {
         self.items = items
         self.activatedMain = activatedMain
+        self.beforeReads = beforeReads
+        self.unresolvedMinimizeRestorations = unresolvedMinimizeRestorations
     }
 
-    /// 补偿完整：每个身份都已到位，且旧主确实被激活。
+    /// 补偿完整：每个身份都已到位、旧主确实被激活，且没有留下"解除后收不回来"的最小化副作用。
     public var isComplete: Bool {
         items.allSatisfy { $0.action.isResolved } && activatedMain != nil
+            && unresolvedMinimizeRestorations.isEmpty
     }
 
     public var unresolvedIdentities: [WindowIdentity] {

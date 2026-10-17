@@ -10,12 +10,39 @@ enum JournalWrite: Equatable {
     var reason: String? { if case let .failed(reason) = self { return reason }; return nil }
 }
 
+/// 日志整份落盘的接缝（方案 §15.1）：生产实现仍走宿主自己的串行 queue 做原子写；
+/// 测试注入可控实现，确定性构造"某批失败、某批阻塞"，不必碰真实磁盘故障也不必赌时序。
+protocol JournalDiskWriting {
+    /// 把整份日志 JSON 原子写入 `url`。`.failed` 表示本批没有落盘，调用方不得提交。
+    func writeJournal(_ data: Data, to url: URL) async -> JournalWrite
+}
+
+/// 生产落盘实现：与原来完全一致——同一个串行 queue、原子写入，崩溃中途不留半个 JSON。
+struct SerialQueueJournalWriter: JournalDiskWriting {
+    let queue: DispatchQueue
+
+    func writeJournal(_ data: Data, to url: URL) async -> JournalWrite {
+        await withCheckedContinuation { (continuation: CheckedContinuation<JournalWrite, Never>) in
+            queue.async {
+                do {
+                    try data.write(to: url, options: [.atomic])
+                    continuation.resume(returning: .persisted)
+                } catch {
+                    continuation.resume(returning: .failed(reason: error.localizedDescription))
+                }
+            }
+        }
+    }
+}
+
 /// 事务日志落盘服务（方案 §7、§6.2、§6.4）。
 ///
 /// 三条不变量：
 /// 1. 主线程不等磁盘：同步读只读锁内已提交快照，落盘一律走异步串行通道。
 ///    唯一允许的同步 IO 是启动那一次读取——不读就没法判断"有没有待恢复事务"。
 /// 2. 批次原子：`prepare` 一次提交一组变更；任一变更失败或落盘失败，内存与文件都还是提交前的内容。
+///    取快照 → 应用 → 编码 → 落盘 → 提交整段在同一个串行事务里，同一时刻只有一批在途，
+///    后一批必然基于前一批提交后的快照，失败批次不会把后来批次的内容抹掉。
 /// 3. 内存与磁盘一致：没落盘成功的变更不会出现在同步读结果里，
 ///    调用方不能拿着"以为记下了"的 entry 去宣称"写前有可靠记录"。
 final class WindowJournalStore {
@@ -29,18 +56,21 @@ final class WindowJournalStore {
 
     /// 提交序号：每次成功落盘 +1。后置写入可带着自己看到的序号，
     /// 对不上说明日志已被别的流程改过（例如回滚已删条目），必须拒绝而不是盲写。
-    private(set) var revision: UInt64 = 0
+    /// 加锁读取：外部会在任意线程读它，普通 stored property 会构成数据竞争。
+    var revision: UInt64 { withLock { revisionValue } }
+    private var revisionValue: UInt64 = 0
 
     private let url: URL
     private let backlogURL: URL
-    private let queue = DispatchQueue(label: "com.misswell.Vistile.journal.disk", qos: .utility)
+    private let queue: DispatchQueue
+    private let journalWriter: JournalDiskWriting
     private let lock = NSLock()
     /// 已提交（= 磁盘内容）快照；同步读走它，不等磁盘。
+    /// 它只在整批落盘成功之后、持有通道时被整体替换，是唯一提交点。
     private var committed: SessionJournal
-    /// 已接受但尚未落盘的批次结果；落盘成功后才并进 committed。
-    private var staged: SessionJournal
     private var backlog: [SettlementMarker] = []
-    /// 落盘串行通道（FIFO 异步互斥）：后一批必须看到前一批的结果，否则旧快照会覆盖新快照。
+    /// 落盘串行通道（FIFO 异步互斥）：一个完整的日志事务独占通道，
+    /// 同一时刻只有一批在途，否则旧快照会覆盖新快照。
     private var holdingChannel = false
     private var channelWaiters: [CheckedContinuation<Void, Never>] = []
     /// 启动时读取失败的原因；nil 表示没有历史文件或已成功读取。
@@ -48,7 +78,11 @@ final class WindowJournalStore {
 
     init(fileName: String = "session-journal.json",
          sessionID: UUID = UUID(),
-         baseDirectory: URL? = nil) {
+         baseDirectory: URL? = nil,
+         journalWriter: JournalDiskWriting? = nil) {
+        let diskQueue = DispatchQueue(label: "com.misswell.Vistile.journal.disk", qos: .utility)
+        queue = diskQueue
+        self.journalWriter = journalWriter ?? SerialQueueJournalWriter(queue: diskQueue)
         let directory = baseDirectory
             ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
@@ -71,7 +105,6 @@ final class WindowJournalStore {
             loadIssue = reason
             committed = SessionJournal(sessionID: sessionID)
         }
-        staged = committed
         backlog = Self.readBacklog(url: backlogURL)
     }
 
@@ -98,6 +131,10 @@ final class WindowJournalStore {
 
     var settlementBacklog: [SettlementMarker] { withLock { backlog } }
 
+    /// 诊断/测试用：当前排在落盘通道外等待的批次数（不含正在落盘的那一批）。
+    /// 生产路径不读它；宿主测试用它确定性地等到后续批次已经入队/暂存，再放行前一批的落盘。
+    var pendingBatchCount: Int { withLock { channelWaiters.count } }
+
     // MARK: - 异步写
 
     /// 写几何之前必须成功的原子批次（方案 §7.2）。
@@ -121,6 +158,26 @@ final class WindowJournalStore {
             }
             return .accept
         }, label: "update \(request.operationID?.uuidString.prefix(8) ?? "-")",
+           expectedRevision: expectedRevision)
+    }
+
+    /// 多条后置更新合成**一次**原子落盘（方案 §7.3）：写前实读既要纠正推测原位置、
+    /// 又要记下本次操作的 before 快照，两件事必须同批成功/同批失败，
+    /// 且不能因此多花一次磁盘往返。任一条不成立则整批作废，调用方据此拒绝写入。
+    func update(_ request: JournalUpdateRequest,
+                additional mutations: [JournalMutation],
+                expectedRevision: UInt64? = nil) async -> JournalWrite {
+        await mutate({ journal in
+            if let reason = Self.apply(request.mutation, to: &journal) {
+                return .rejected(reason: reason)
+            }
+            for mutation in mutations {
+                if let reason = Self.apply(mutation, to: &journal) {
+                    return .rejected(reason: reason)
+                }
+            }
+            return .accept
+        }, label: "update+\(mutations.count) \(request.operationID?.uuidString.prefix(8) ?? "-")",
            expectedRevision: expectedRevision)
     }
 
@@ -212,65 +269,64 @@ final class WindowJournalStore {
     }
 
     /// 留档本身也是原子写；写不进时内存清单仍在，下次启动照旧核对。
+    /// 与主日志共用可注入的落盘接缝：留档失败也要能被确定性测试注入，而不是只能靠真实磁盘故障。
     private func writeBacklog(_ markers: [SettlementMarker]) async -> JournalWrite {
-        let url = self.backlogURL
-        return await withCheckedContinuation { (continuation: CheckedContinuation<JournalWrite, Never>) in
-            self.queue.async {
-                do {
-                    try JSONEncoder().encode(markers).write(to: url, options: [.atomic])
-                    continuation.resume(returning: .persisted)
-                } catch {
-                    continuation.resume(returning: .failed(reason: error.localizedDescription))
-                }
-            }
+        guard let data = try? JSONEncoder().encode(markers) else {
+            return .failed(reason: "留档无法编码")
         }
+        return await journalWriter.writeJournal(data, to: backlogURL)
     }
 
-    // MARK: - 内部：暂存 + 落盘
+    // MARK: - 内部：串行事务（取快照 + 应用 + 编码 + 落盘 + 提交）
 
     private enum Step {
         case accept
         case rejected(reason: String)
     }
 
-    /// 在 staged 副本上跑一次变更；变更本身失败则整批作废，成功但落盘失败则回滚 staged。
+    /// 一个完整逻辑事务：取已提交快照 → 应用变更 → 编码 → 落盘 → 提交或失败。
+    ///
+    /// 整段都持有落盘通道（方案 §7.2 不变量 2）：同一时刻只有一批在途，
+    /// 后一批拿到的必然是前一批提交之后的已提交快照；失败批次只丢弃自己那一次计算结果，
+    /// `committed` 在落盘成功之前从未被改动，因此不存在"回滚把后来批次的暂存抹掉"的分叉。
     private func mutate(_ step: (inout SessionJournal) -> Step,
                         label: String,
                         expectedRevision: UInt64? = nil) async -> JournalWrite {
-        let outcome: Staged = withLock {
-            if let expectedRevision, expectedRevision != revision {
-                return .refused(reason: "日志序号已过期（期望 \(expectedRevision)，当前 \(revision)）：\(label) 未写入")
-            }
-            var next = staged
-            switch step(&next) {
-            case let .rejected(reason):
-                return .refused(reason: reason)
-            case .accept:
-                guard let data = try? next.encoded() else {
-                    return .refused(reason: "日志无法编码，\(label) 未写入")
+        await channel {
+            let outcome: BatchOutcome = withLock {
+                if let expectedRevision, expectedRevision != revisionValue {
+                    return .refused(reason: "日志序号已过期（期望 \(expectedRevision)，当前 \(revisionValue)）：\(label) 未写入")
                 }
-                staged = next
-                return .ready(next, data)
+                var next = committed
+                switch step(&next) {
+                case let .rejected(reason):
+                    return .refused(reason: reason)
+                case .accept:
+                    guard let data = try? next.encoded() else {
+                        return .refused(reason: "日志无法编码，\(label) 未写入")
+                    }
+                    return .ready(next, data)
+                }
             }
-        }
-        guard case let .ready(snapshotToCommit, data) = outcome else {
-            if case let .refused(reason) = outcome { return .failed(reason: reason) }
-            return .failed(reason: "日志变更未受理：\(label)")
-        }
-        let written = await channel { await self.writeToDisk(data) }
-        return withLock {
+            guard case let .ready(snapshotToCommit, data) = outcome else {
+                if case let .refused(reason) = outcome { return .failed(reason: reason) }
+                return .failed(reason: "日志变更未受理：\(label)")
+            }
+            let written = await journalWriter.writeJournal(data, to: url)
             guard written.isPersisted else {
-                // 落盘失败：staged 退回 committed，内存不留下"以为记下了"的内容。
-                staged = committed
+                // 失败批次不提交：已提交快照与磁盘都还是落盘前的内容，后续批次基于它继续。
                 return written
             }
-            committed = snapshotToCommit
-            revision &+= 1
+            withLock {
+                committed = snapshotToCommit
+                revisionValue &+= 1
+            }
             return .persisted
         }
     }
 
-    private enum Staged {
+    /// 一批变更的计算结果：`ready` 只是"算好并编码好"，真正提交要等落盘成功。
+    private enum BatchOutcome {
         case ready(SessionJournal, Data)
         case refused(reason: String)
     }
@@ -299,22 +355,8 @@ final class WindowJournalStore {
         }
     }
 
-    private func writeToDisk(_ data: Data) async -> JournalWrite {
-        let url = self.url
-        return await withCheckedContinuation { (continuation: CheckedContinuation<JournalWrite, Never>) in
-            queue.async {
-                do {
-                    // 原子写入：崩溃中途不会留下半个 JSON。
-                    try data.write(to: url, options: [.atomic])
-                    continuation.resume(returning: .persisted)
-                } catch {
-                    continuation.resume(returning: .failed(reason: error.localizedDescription))
-                }
-            }
-        }
-    }
-
-    /// FIFO 异步互斥：同一时刻只有一个批次在做 IO 并提交。
+    /// FIFO 异步互斥：一个完整日志事务独占通道（取快照 → 应用 → 编码 → 落盘 → 提交），
+    /// 同一时刻只有一批在途。
     private func channel<T>(_ work: () async -> T) async -> T {
         await acquire()
         let value = await work()

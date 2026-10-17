@@ -2198,6 +2198,178 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertFalse(hasSettleEffects(blocked), "recoveryRequired 之下新的几何操作一律不准入：\(blocked)")
     }
 
+    // MARK: - 操作前快照以宿主实读为准（方案 §6.2、§6.4、§9.1）
+
+    /// 固定尺寸窗口的目录记录：不可调尺寸，可移动与否由调用方指定。
+    private func fixedSizeRecord(_ pid: Int32,
+                                 _ window: UInt32,
+                                 frame: CGRect,
+                                 movable: Bool,
+                                 app: String = "FixedApp") -> WindowRecord {
+        WindowRecord(identity: Fixtures.identity(pid, window),
+                     bundleID: "com.test.fixed",
+                     applicationName: app,
+                     title: "固定尺寸窗口",
+                     confidence: .unique(score: 0.9, axIndex: 0),
+                     frame: frame,
+                     displayID: 1,
+                     isMovable: movable,
+                     isResizable: false,
+                     sessionGeneration: 1)
+    }
+
+    /// 第 4 条回归 (a)：计划期的 beforeOperation 已经过时（外部把 A 移动过），
+    /// 补偿结果带着宿主写前实读的 beforeReads。判定必须以实读为准：A 回到真实操作前位置、不进 recoveryRequired。
+    func testExternalMoveBeforeFailureCompensationUsesHostBeforeReads() throws {
+        var (state, list) = openState(count: 4)
+        let a = list[0].identity
+        let b = list[1].identity
+        enterWorkbench(&state, target: a)
+        let plan = try XCTUnwrap(switchPlan(selectRail(&state, identity: b)))
+        let plannedBeforeA = try XCTUnwrap(plan.intent.beforeOperation.entry(for: a)).compensationTarget
+
+        // 交换已放出写入，A 此刻的真实位置与计划期缓存不同（外部移动过）。
+        let realBeforeA = CGRect(x: 430, y: 260, width: 880, height: 620)
+        state.records[a]?.frame = realBeforeA
+        XCTAssertFalse(WindowTransaction.framesClose(plannedBeforeA, realBeforeA, tolerance: 2),
+                       "前提：计划期 before 必须与写前实读对不上，否则这条用例测不到真实判定")
+
+        _ = reportSwitchFailure(&state, token: plan.intent.token,
+                                reason: "测试注入：后半段写入失败",
+                                compensation: WorkbenchCompensationResult(
+                                  items: [WorkbenchCompensationResult.Item(
+                                            identity: b, action: .restoredTo(frame: list[1].frame)),
+                                          WorkbenchCompensationResult.Item(
+                                            identity: a, action: .restoredTo(frame: realBeforeA))],
+                                  activatedMain: a,
+                                  beforeReads: [a: realBeforeA, b: list[1].frame]))
+        XCTAssertNil(state.workbench.recoveryRequired,
+                     "补偿已回到写前实读的真实位置：几何没有未知，不该要求恢复")
+        if case .idle = state.workbench.mainSwitch {} else {
+            XCTFail("补偿完整就必须收口成 idle，不能停在 failed/rollingBack：\(state.workbench.mainSwitch)")
+        }
+        XCTAssertEqual(state.workbench.placement.main, a, "交换未提交：A 仍是主窗口")
+        XCTAssertEqual(state.phase, .focused(target: a))
+        XCTAssertTrue(state.workbench.acceptsNewOrdinaryOperation, "不误报失败结论：用户还能继续操作")
+        XCTAssertEqual(state.transactions[a]?.lastProvisionalFrame, realBeforeA,
+                       "补偿事实要按真实写前位置落盘，不能按过时的计划值")
+        XCTAssertEqual(state.transactions[b]?.lastProvisionalFrame, list[1].frame)
+    }
+
+    /// 第 4 条回归 (b)：同样的外部移动，但补偿结果没有 beforeReads（宿主未回报实读）。
+    /// 这是旧回退路径：仍按计划期落点判定，对不上就必须进 recoveryRequired——行为不许被放宽。
+    func testExternalMoveBeforeFailureWithoutBeforeReadsStillRequiresRecovery() throws {
+        var (state, list) = openState(count: 4)
+        let a = list[0].identity
+        let b = list[1].identity
+        enterWorkbench(&state, target: a)
+        let plan = try XCTUnwrap(switchPlan(selectRail(&state, identity: b)))
+        let plannedBeforeA = try XCTUnwrap(plan.intent.beforeOperation.entry(for: a)).compensationTarget
+        let realBeforeA = CGRect(x: 430, y: 260, width: 880, height: 620)
+        state.records[a]?.frame = realBeforeA
+        XCTAssertFalse(WindowTransaction.framesClose(plannedBeforeA, realBeforeA, tolerance: 2))
+
+        _ = reportSwitchFailure(&state, token: plan.intent.token,
+                                reason: "测试注入：后半段写入失败",
+                                compensation: WorkbenchCompensationResult(
+                                  items: [WorkbenchCompensationResult.Item(
+                                            identity: b, action: .restoredTo(frame: list[1].frame)),
+                                          WorkbenchCompensationResult.Item(
+                                            identity: a, action: .restoredTo(frame: realBeforeA))],
+                                  activatedMain: a))
+        XCTAssertNotNil(state.workbench.recoveryRequired,
+                        "没有宿主实读事实时只能按旧回退判定：对不上就必须显式要求恢复")
+        XCTAssertFalse(state.workbench.acceptsNewOrdinaryOperation)
+    }
+
+    /// 第 4 条回归 (e)：解除过的最小化没能收回来时，补偿事实不完整——即便几何与焦点都"看起来对"，
+    /// 状态机也不能宣称回滚完成（方案 §6.4、§10.1）。
+    func testUnrecoveredMinimizeRestorationForcesRecoveryRequired() throws {
+        var (state, list) = openState(count: 4)
+        let a = list[0].identity
+        let b = list[1].identity
+        enterWorkbench(&state, target: a)
+        let plan = try XCTUnwrap(switchPlan(selectRail(&state, identity: b)))
+        let beforeA = try XCTUnwrap(plan.intent.beforeOperation.entry(for: a)).compensationTarget
+        let beforeB = try XCTUnwrap(plan.intent.beforeOperation.entry(for: b)).compensationTarget
+
+        let effects = reportSwitchFailure(&state, token: plan.intent.token,
+                                          reason: "测试注入：后半段失败",
+                                          compensation: WorkbenchCompensationResult(
+                                            items: [WorkbenchCompensationResult.Item(
+                                                      identity: a, action: .restoredTo(frame: beforeA)),
+                                                    WorkbenchCompensationResult.Item(
+                                                      identity: b, action: .restoredTo(frame: beforeB))],
+                                            activatedMain: a,
+                                            unresolvedMinimizeRestorations: [b]))
+        XCTAssertNotNil(state.workbench.recoveryRequired,
+                        "最小化没恢复＝真实系统状态不一致，不能按回滚成功收口：\(effects)")
+        XCTAssertFalse(state.workbench.acceptsNewOrdinaryOperation)
+    }
+
+    /// 第 4 条回归 (c)：缓存 frame 过大但窗口可移动、主区有效——缓存只当乐观预检，
+    /// 进入与交换都要产生计划并交给宿主用写前实读重新决策，而不是立即给受限提示。
+    func testOversizedCachedFrameDefersToHostBeforeReadForMovableWindow() throws {
+        // 进入：固定尺寸窗口的缓存 frame 比主区大，但它可移动，真实尺寸可能放得下。
+        var entering = Fixtures.state(withCount: 0)
+        let oversized = fixedSizeRecord(900, 9_001,
+                                        frame: CGRect(x: 80, y: 80, width: 2_400, height: 1_600),
+                                        movable: true)
+        Fixtures.openToOverview(&entering, records: [oversized])
+        let enterEffects = select(&entering, fromOverview: oversized.identity)
+        let enter = try XCTUnwrap(enterPlan(enterEffects), "可移动窗口不该被缓存尺寸提前拒绝")
+        let enterMainRect = enter.snapshot.layout.mainRect
+        XCTAssertEqual(enter.targetFrame, enterMainRect, "临时计划目标取主区矩形")
+        XCTAssertEqual(enter.placement, .resizeAndMove(target: enterMainRect),
+                       "计划里的放置方式不能撒谎成 unavailable")
+        XCTAssertFalse(hints(enterEffects).contains { if case .restrictedWindow = $0 { return true } else { return false } },
+                       "不该出现提前拒绝的受限提示：\(hints(enterEffects))")
+        finishEntering(&entering)
+        XCTAssertEqual(entering.mode, .workbench, "交给宿主重新决策后仍应正常进入工作台")
+        XCTAssertEqual(entering.workbench.placement.main, oversized.identity)
+
+        // 交换：B 的缓存 frame 过大但可移动，同样要产生计划而不是立即给 workbenchMainFrameFailed。
+        var swapping = Fixtures.state(withCount: 0)
+        let a = Fixtures.record(910, 9_101,
+                                frame: CGRect(x: 40, y: 40, width: 1_280, height: 800),
+                                app: "AppA")
+        let b = fixedSizeRecord(911, 9_102,
+                                frame: CGRect(x: 60, y: 60, width: 2_400, height: 1_600),
+                                movable: true)
+        Fixtures.openToOverview(&swapping, records: [a, b])
+        enterWorkbench(&swapping, target: a.identity)
+        let switchEffects = selectRail(&swapping, identity: b.identity)
+        let swap = try XCTUnwrap(switchPlan(switchEffects), "可移动窗口不该被缓存尺寸提前拒绝交换")
+        let swapMainRect = swap.snapshot.layout.mainRect
+        XCTAssertEqual(swap.mainTargetFrame, swapMainRect, "交换的临时计划目标取主区矩形")
+        XCTAssertEqual(swap.placement, .resizeAndMove(target: swapMainRect))
+        XCTAssertFalse(hints(switchEffects).contains {
+            if case .workbenchMainFrameFailed = $0 { return true } else { return false }
+        }, "不该出现提前拒绝的主区提示：\(hints(switchEffects))")
+        XCTAssertEqual(swapping.workbench.placement.main, a.identity, "计划不等于提交：A 还在主区")
+    }
+
+    /// 第 4 条回归 (d)：不可移动窗口的缓存结论就是硬事实——仍然立即提示、零几何/日志效果。
+    func testOversizedCachedFrameStillRejectsImmovableWindow() {
+        var state = Fixtures.state(withCount: 0)
+        let immovable = fixedSizeRecord(920, 9_201,
+                                        frame: CGRect(x: 80, y: 80, width: 2_400, height: 1_600),
+                                        movable: false)
+        Fixtures.openToOverview(&state, records: [immovable])
+        let effects = select(&state, fromOverview: immovable.identity)
+        XCTAssertNil(enterPlan(effects), "不可移动的固定尺寸窗口放不下就是放不下，不许起步")
+        XCTAssertEqual(effects.count, 1, "除了一句提示之外不许有日志/几何效果：\(effects)")
+        guard case let .presentHint(.restrictedWindow(reason)) = effects[0] else {
+            XCTFail("必须是受限提示：\(effects)")
+            return
+        }
+        XCTAssertFalse(reason.isEmpty, "拒绝必须说清原因")
+        XCTAssertEqual(state.mode, .overview)
+        XCTAssertNil(state.workbench.modeTransition.token, "没有产生过渡，也没有留下悬空令牌")
+        XCTAssertNil(state.workbench.armed)
+        XCTAssertTrue(state.transactions.isEmpty, "一次 AX 都没写：不该有几何事务")
+    }
+
     /// A28（方案 §10、§15）：自动替补还在落盘时用户点了 C——最新手动意图生效，不出现两条并发通道。
     func testManualSelectionDuringPromotionArmingWins() throws {
         var (state, list) = openState(count: 4)

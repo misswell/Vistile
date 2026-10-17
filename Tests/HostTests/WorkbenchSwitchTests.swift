@@ -744,6 +744,80 @@ final class WorkbenchSwitchTests: XCTestCase {
                        "解除成功却报超时，等于把一次正常交换说成失败")
     }
 
+    // MARK: - H07c 最小化写入的许可与补偿（方案 §5.2、§6.4）
+
+    /// 解除最小化的命令已经排到队列头、还没执行时取消：放行后必须零执行，
+    /// 窗口仍是用户原来的最小化状态（许可要在 AX 队列内部再查一次，MainActor 上的取消传不进去）。
+    func testCancelledMinimizeReleaseNeverTouchesTheWindow() async throws {
+        let plan = try await beginHappyPath(minimized: [1])
+        writer.gatesNextMinimize = true
+
+        coordinator.perform(plan)
+        await pendingUntil { self.writer.isBlockedInMinimize }
+        XCTAssertTrue(committedTokens().isEmpty, "卡住的这一刻还没提交")
+
+        coordinator.cancel()
+        writer.openMinimizeGate()
+        await pendingUntil { !self.writer.isBlockedInMinimize }
+        await pendingUntil(timeout: 4) { !self.coordinator.isBusy }
+
+        XCTAssertEqual(writer.unminimizeAttempts, 0,
+                       "许可撤销后队列里那笔写入必须零执行：\(writer.recordedActions)")
+        XCTAssertTrue(writer.isMinimized(for: try element(of: b)),
+                      "隐藏/取消之后窗口必须还是用户原来的最小化状态")
+        XCTAssertFalse(writer.recordedActions.contains("解除最小化"),
+                       "迟到的解除最小化会让用户看到一个 Vistile 已经关掉却还展开着的窗口")
+        XCTAssertEqual(writer.totalWrites, 0, "取消后一个几何字节也不许写")
+        XCTAssertTrue(committedTokens().isEmpty)
+        XCTAssertFalse(stepEvents().contains { $0.step == .moveToMain },
+                       "取消已经把会话所有权交还：迟到的步骤回报不得再改状态机（方案 §5.5）")
+    }
+
+    /// 解除最小化已经成功、随后写前事实落盘失败：这条提前返回路径必须把它收回去，
+    /// 而不是等几何写入完成才登记副作用（方案 §6.4）。
+    func testJournalFailureAfterMinimizeReleaseRestoresMinimizedState() async throws {
+        let plan = try await beginHappyPath(minimized: [1])
+        makeJournalUnwritable()
+
+        coordinator.perform(plan)
+        await pendingUntil(timeout: 4) {
+            self.events.contains { if case .journalUpdateFailed = $0 { return true }; return false }
+        }
+        await pendingUntil(timeout: 4) { !self.coordinator.isBusy }
+        makeJournalWritable()
+
+        XCTAssertEqual(writer.recordedActions.filter { $0 == "解除最小化" }.count, 1, "先解除最小化")
+        XCTAssertTrue(writer.recordedActions.contains("最小化"),
+                      "解除之后提前返回，必须按原样恢复最小化：\(writer.recordedActions)")
+        XCTAssertTrue(writer.isMinimized(for: try element(of: b)),
+                      "窗口不能留在 Vistile 已经放弃的展开状态")
+        XCTAssertEqual(writer.totalWrites, 0, "日志落盘失败时不许写几何")
+        XCTAssertTrue(committedTokens().isEmpty)
+    }
+
+    /// 解除最小化成功、几何写入被应用拒绝：补偿除了回位几何，还必须把最小化恢复（方案 §6.4）。
+    func testRejectedGeometryAfterMinimizeReleaseRollsMinimizedStateBack() async throws {
+        let plan = try await beginHappyPath(minimized: [1])
+        writer.setScript(.rejects, for: try element(of: b))
+
+        coordinator.perform(plan)
+        await pendingUntil(timeout: 4) { !self.failureReasons().isEmpty }
+        await pendingUntil(timeout: 4) { !self.coordinator.isBusy }
+
+        XCTAssertTrue(writer.isMinimized(for: try element(of: b)),
+                      "交换失败回滚后窗口必须回到最小化：\(writer.recordedActions)")
+        XCTAssertEqual(writer.recordedActions.filter { $0 == "解除最小化" }.count, 1,
+                       "只允许为这次操作解除一次最小化")
+        XCTAssertTrue(committedTokens().isEmpty)
+        // 补偿回执必须带"写前实读"这一权威事实，reducer 才能按它判定回滚成功（方案 §6.4）。
+        let compensation = try XCTUnwrap(events.compactMap { event -> WorkbenchCompensationResult? in
+            if case let .mainSwitchFailed(_, _, result) = event { return result }
+            return nil
+        }.last)
+        XCTAssertEqual(compensation.beforeReads[b], FakeCatalogSource.frame(for: 1),
+                       "写前实读必须随补偿回执回报：\(compensation.beforeReads)")
+    }
+
     // MARK: - H07 途中句柄丢失：一个字节都不写
 
     func testVanishedHandlesWriteNothingAndKeepOnlyRealObligations() async throws {
@@ -1263,6 +1337,55 @@ final class WorkbenchSwitchTests: XCTestCase {
                        [try XCTUnwrap(plans.last).mainTargetFrame, FakeCatalogSource.frame(for: 0)],
                        "20 次连点只允许最新一次真的写窗口：写多了就是队列失控")
         XCTAssertFalse(coordinator.isBusy)
+    }
+
+    // MARK: - 写前实读的 original 修正必须与操作前快照同批落盘（方案 §6.2、§7.3）
+
+    /// 事务里的 originalFrame 起初只是目录推测值；写前实读与它不一致时必须按实读修正，
+    /// 而且**不能被随后那条"操作前快照"写回推测值**——两条事实必须同一批原子落盘。
+    func testCorrectedOriginalSurvivesTheSameBatchAsOperationBefore() async throws {
+        let speculative = FakeCatalogSource.frame(for: 1)
+        // 用户在 Vistile 之外把 B 挪走了 120/90pt：目录仍是旧位置，写前实读才是真值。
+        let realBefore = speculative.offsetBy(dx: 120, dy: 90)
+        let plan = try await beginHappyPath(bFrame: realBefore)
+        XCTAssertEqual(store.entry(for: b)?.originalFrame, speculative,
+                       "前置事实：计划期事务里只有目录推测的原位置")
+        XCTAssertTrue(store.entry(for: b)?.hasSpeculativeOriginal == true)
+
+        coordinator.perform(plan)
+        await pendingUntil { self.committedTokens().contains(plan.intent.token) }
+
+        XCTAssertEqual(store.entry(for: b)?.originalFrame, realBefore,
+                       "写前实读必须成为会话 original：同批落盘后不能被计划期推测值覆盖")
+        let reopened = WindowJournalStore(fileName: "session-journal.json",
+                                          sessionID: sessionID,
+                                          baseDirectory: journalDirectory)
+        XCTAssertEqual(reopened.entry(for: b)?.originalFrame, realBefore,
+                       "磁盘与内存必须一致：重启后按实读原位置恢复")
+    }
+
+    // MARK: - 最小化恢复失败必须进入补偿事实（方案 §6.4、§10.1）
+
+    /// 解除最小化成功、几何写入被拒、补偿又收不回最小化：不能让 reducer 在"回滚完成"的
+    /// 假前提下收口——这条事实必须随补偿结果回报，状态机据此进 recoveryRequired。
+    func testUnrecoveredMinimizeIsReportedInCompensationFacts() async throws {
+        let plan = try await beginHappyPath(minimized: [1])
+        writer.refusesMinimize = true
+        writer.setScript(.rejects, for: try element(of: b))
+
+        coordinator.perform(plan)
+        await pendingUntil(timeout: 4) { !self.failureReasons().isEmpty }
+        await pendingUntil(timeout: 4) { !self.coordinator.isBusy }
+
+        let compensation = try XCTUnwrap(events.compactMap { event -> WorkbenchCompensationResult? in
+            if case let .mainSwitchFailed(_, _, result) = event { return result }
+            return nil
+        }.last)
+        XCTAssertTrue(compensation.unresolvedMinimizeRestorations.contains(b),
+                      "收不回来的最小化必须如实上报：\(compensation.unresolvedMinimizeRestorations)")
+        XCTAssertFalse(compensation.isComplete, "有未收回的副作用时不能宣称补偿完整")
+        XCTAssertEqual(writer.isMinimized(for: try element(of: b)), false,
+                       "替身确认这次恢复真的失败了（窗口确实留在展开态）")
     }
 
     // MARK: - 辅助

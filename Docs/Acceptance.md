@@ -422,16 +422,16 @@ done
 
 | 编号 | 注入/操作 → 必须断言 | 覆盖测试 | 结果 |
 | --- | --- | --- | --- |
-| A01 | 目录复核期间取消 → 放行后零普通 AX 写入、恢复可完成 | [WorkbenchSwitchTests.swift:1104](../Tests/HostTests/WorkbenchSwitchTests.swift#L1104) `testCancelDuringCatalogRecheckWritesNothingAndSessionRecovers` | 通过 |
-| A02 | 能力读取期间取消 → 同上，不绕过令牌 | [WorkbenchSwitchTests.swift:1150](../Tests/HostTests/WorkbenchSwitchTests.swift#L1150) `testCancelDuringWriteabilityReadNeverWritesWithRevokedPermit` | 通过 |
-| A03 | 写前 frame 读取期间取消 → 不提交迟到 apply | [WorkbenchSwitchTests.swift:1179](../Tests/HostTests/WorkbenchSwitchTests.swift#L1179) `testCancelDuringPreWriteFrameReadNeverCommitsLateApply` | 通过 |
-| A04 | AX 队列已有未执行命令时取消 → 底层准入拒绝旧命令 | [WorkbenchSwitchTests.swift:1052](../Tests/HostTests/WorkbenchSwitchTests.swift#L1052) `testCancelDuringGatedWriteStopsTheSwitchAndLateCallbacksChangeNothing` | 通过 |
+| A01 | 目录复核期间取消 → 放行后零普通 AX 写入、恢复可完成 | [WorkbenchSwitchTests.swift:1178](../Tests/HostTests/WorkbenchSwitchTests.swift#L1178) `testCancelDuringCatalogRecheckWritesNothingAndSessionRecovers` | 通过 |
+| A02 | 能力读取期间取消 → 同上，不绕过令牌 | [WorkbenchSwitchTests.swift:1224](../Tests/HostTests/WorkbenchSwitchTests.swift#L1224) `testCancelDuringWriteabilityReadNeverWritesWithRevokedPermit` | 通过 |
+| A03 | 写前 frame 读取期间取消 → 不提交迟到 apply | [WorkbenchSwitchTests.swift:1253](../Tests/HostTests/WorkbenchSwitchTests.swift#L1253) `testCancelDuringPreWriteFrameReadNeverCommitsLateApply` | 通过 |
+| A04 | AX 队列已有未执行命令时取消 → 底层准入拒绝旧命令 | [WorkbenchSwitchTests.swift:1126](../Tests/HostTests/WorkbenchSwitchTests.swift#L1126) `testCancelDuringGatedWriteStopsTheSwitchAndLateCallbacksChangeNothing` | 通过 |
 | A05 | 写入执行中隐藏 → 恢复排在在途写入之后，最终 original | [T05T07GeometryTransactionTests.swift:422](../Tests/HostTests/T05T07GeometryTransactionTests.swift#L422) `testQuitQueuesBehindInFlightExpandAndKeepsUnfinishedIntent` | 通过 |
 | A06 | 旧队列积压后开启新会话 → 旧命令不复活、不改新状态 | [WorkbenchDividerTests.swift:321](../Tests/HostTests/WorkbenchDividerTests.swift#L321) `testSessionAdoptionWhileBacklogIsQueuedDiscardsOldCommands` | 通过 |
 | A07 | 连续分隔线调整再隐藏 → 至多一项最新 pending，隐藏后无迟到微调 | [WorkbenchDividerTests.swift:264](../Tests/HostTests/WorkbenchDividerTests.swift#L264) `testRapidSettlesKeepOnlyTheNewestPendingAndHideLeavesNoLateNudge`＋:223 `testSettleSerializesWritesAndFinalFrameWins` | 通过 |
 | A08 | B 进主区后激活失败 → B 回 beforeB、A 保持主区 | [WorkbenchSwitchTests.swift:466](../Tests/HostTests/WorkbenchSwitchTests.swift#L466) `testActivationFailureAfterMovingToMainRestoresTargetAndKeepsPreviousMain` | 通过 |
 | A09 | A 已离主区后 B 前景复核失败 → A 回 beforeA 主区、B 回 beforeB、激活 A | [WorkbenchSwitchTests.swift:497](../Tests/HostTests/WorkbenchSwitchTests.swift#L497) `testForegroundRecheckFailureAfterPreviousMainLeftsRollsBothBackAndReactivatesMain` | 通过 |
-| A10 | A 部分写入后失败 → 部分写入被识别并补偿 | [WorkbenchSwitchTests.swift:1211](../Tests/HostTests/WorkbenchSwitchTests.swift#L1211) `testStalledWriteTimesOutAndRollsBackExactlyOnce`（`gatesPositionWrite` 制造"尺寸已写、位置未写"） | 通过 |
+| A10 | A 部分写入后失败 → 部分写入被识别并补偿 | [WorkbenchSwitchTests.swift:1285](../Tests/HostTests/WorkbenchSwitchTests.swift#L1285) `testStalledWriteTimesOutAndRollsBackExactlyOnce`（`gatesPositionWrite` 制造"尺寸已写、位置未写"） | 通过 |
 | A11 | A/B 补偿任一失败 → journal 保留、进 recoveryRequired、不假 focused | [WorkbenchSwitchTests.swift:526](../Tests/HostTests/WorkbenchSwitchTests.swift#L526) `testCompensationFailureKeepsJournalAndNeverCommits` | 通过 |
 | A12 | 回滚成功留在工作台 → A 会话事务仍待最终恢复，不能被 drop | [WorkbenchSwitchTests.swift:430](../Tests/HostTests/WorkbenchSwitchTests.swift#L430) `testPreviousMainRestoreFailureIsReportedAndKeepsJournal`；同一条不变量另在 :749/:836/:888/:1104 四个用例里各自断言 | 通过 |
 | A13 | 首次 journal prepare 失败再重试 → 无 AX、busy 清理、第二次能进入 | [WorkbenchSwitchTests.swift:590](../Tests/HostTests/WorkbenchSwitchTests.swift#L590) `testJournalPrepareFailureBlocksWritesAndRetryProceeds`＋[WorkbenchTests.swift:1818](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L1818) | 通过 |
@@ -443,27 +443,27 @@ done
 | A19 | 跨屏移动后原屏仍在 → 恢复 originalDisplay 而非当前屏 | [WorkbenchTests.swift:1991](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L1991) `testCrossDisplayMoveRestoresOriginalDisplayNotCurrentOne` | 通过 |
 | A20 | 原屏拔除/分辨率变化 → 合法回退目标、原因、结算一致 | [WorkbenchTests.swift:2016](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2016) `testOriginalDisplayResizeAndUnplugGiveLegalDowngradeWithMatchingSettlement` | 通过 |
 | A21 | 用户 override 跨屏 → 选 override 对应屏，不夹错屏 | [WorkbenchTests.swift:2060](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2060) `testUserOverridePicksTheDisplayThatActuallyContainsIt` | 通过 |
-| A22 | constrained 但完全位于主区 → 可提交，保留实际读回 | [WorkbenchSwitchTests.swift:804](../Tests/HostTests/WorkbenchSwitchTests.swift#L804) `testConstrainedReadBackInsideMainIsRecordedAndSubmitted` | 通过 |
-| A23 | constrained 覆盖栏 → 有界纠正或补偿，不提交 | [WorkbenchSwitchTests.swift:836](../Tests/HostTests/WorkbenchSwitchTests.swift#L836) `testConstrainedReadBackOutsideMainIsCorrectedOnceAndThenCompensated` | 通过 |
+| A22 | constrained 但完全位于主区 → 可提交，保留实际读回 | [WorkbenchSwitchTests.swift:878](../Tests/HostTests/WorkbenchSwitchTests.swift#L878) `testConstrainedReadBackInsideMainIsRecordedAndSubmitted` | 通过 |
+| A23 | constrained 覆盖栏 → 有界纠正或补偿，不提交 | [WorkbenchSwitchTests.swift:910](../Tests/HostTests/WorkbenchSwitchTests.swift#L910) `testConstrainedReadBackOutsideMainIsCorrectedOnceAndThenCompensated` | 通过 |
 | A24 | 固定尺寸可移动、能容纳 → 只写 position，不写 size | [WorkbenchSwitchTests.swift:355](../Tests/HostTests/WorkbenchSwitchTests.swift#L355) `testFixedSizedWindowToFitIsMovedWithoutAnySizeWrite` | 通过 |
 | A25 | 固定尺寸太大/位置不可写 → 明确拒绝，原主与轨道不变 | [WorkbenchSwitchTests.swift:380](../Tests/HostTests/WorkbenchSwitchTests.swift#L380) `testConfirmedUnsizableWindowIsRefusedWithoutWrites` | 通过 |
 | A26 | 关闭 A、B 无历史事务 → prepare→写入→激活→提交顺序完整 | [WorkbenchTests.swift:2097](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2097) `testAutoPromotionAfterClosingMainRunsPrepareWriteActivateCommitInOrder` | 通过 |
 | A27 | 替补 journal/AX/激活分别失败 → B 留 slot、主区空、可手动选 C | [WorkbenchTests.swift:2128](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2128) `testFailedPromotionLeavesCandidateInSlotAndKeepsMainSelectable` | 通过 |
-| A28 | 自动替补同时用户选择 C → 最新手动意图生效，无无限排队 | [WorkbenchTests.swift:2202](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2202) `testManualSelectionDuringPromotionArmingWins` | 通过 |
-| A29 | 总览网格已满后新增 B → 无 gridCell 仍入 L 尾部，其他位置不动 | [WorkbenchTests.swift:2247](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2247) `testWindowBeyondGridCapacityStillEntersRailTail` | 通过 |
-| A30 | 标题更新/目录顺序改变 → 已有 occupant 不动 | [WorkbenchTests.swift:2281](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2281) `testTitleUpdateAndCatalogReorderNeverMoveOccupants` | 通过 |
-| A31 | 返回总览后再选原 A → 两栏非零偏移保留 | [WorkbenchTests.swift:2305](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2305) `testScrollOffsetsSurviveReturnAndReentry` | 通过 |
-| A32 | 返回后选轨道 B → A/B 正确交换、偏移保留 | [WorkbenchTests.swift:2334](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2334) `testRailSelectionAfterReturnSwapsAndKeepsOffsets` | 通过 |
-| A33 | 关闭内容或改变栏尺寸 → 只按合法范围 clamp | [WorkbenchTests.swift:2354](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2354) `testRailSizeAndContentShrinkClampToLegalRange` | 通过 |
+| A28 | 自动替补同时用户选择 C → 最新手动意图生效，无无限排队 | [WorkbenchTests.swift:2374](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2374) `testManualSelectionDuringPromotionArmingWins` | 通过 |
+| A29 | 总览网格已满后新增 B → 无 gridCell 仍入 L 尾部，其他位置不动 | [WorkbenchTests.swift:2419](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2419) `testWindowBeyondGridCapacityStillEntersRailTail` | 通过 |
+| A30 | 标题更新/目录顺序改变 → 已有 occupant 不动 | [WorkbenchTests.swift:2453](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2453) `testTitleUpdateAndCatalogReorderNeverMoveOccupants` | 通过 |
+| A31 | 返回总览后再选原 A → 两栏非零偏移保留 | [WorkbenchTests.swift:2477](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2477) `testScrollOffsetsSurviveReturnAndReentry` | 通过 |
+| A32 | 返回后选轨道 B → A/B 正确交换、偏移保留 | [WorkbenchTests.swift:2506](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2506) `testRailSelectionAfterReturnSwapsAndKeepsOffsets` | 通过 |
+| A33 | 关闭内容或改变栏尺寸 → 只按合法范围 clamp | [WorkbenchTests.swift:2526](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2526) `testRailSizeAndContentShrinkClampToLegalRange` | 通过 |
 | A34 | 可见/离屏混合超过预算 → 可见优先，离屏不阻止可见恢复直播 | [CaptureRunTests.swift:352](../Packages/VistileCore/Tests/VistileCoreTests/CaptureRunTests.swift#L352) `offscreenTargetsNeitherTakeSlotsNorBlockRestore` | 通过 |
 | A35 | 连续滚动 → 启停次数受控、最后可见集合调度正确 | [T08T09CaptureLifecycleTests.swift:284](../Tests/HostTests/T08T09CaptureLifecycleTests.swift#L284) `testScrollingSettlesOnTheLastVisibleSetWithoutRestartingCards`＋:257 `testRapidSizeDeltasCoalesceIntoLatestIntent`（滚动用例先钉住分母：滑过的每张卡片都起过一条流） | 通过 |
-| A36 | 工作台过渡中尺寸更新 → 延后重配，取消/停止仍立即有效 | [WorkbenchTests.swift:2386](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2386) `testSizeUpdateDuringTransitionDefersReconfigurationAndCancelIsImmediate` | 通过 |
+| A36 | 工作台过渡中尺寸更新 → 延后重配，取消/停止仍立即有效 | [WorkbenchTests.swift:2558](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2558) `testSizeUpdateDuringTransitionDefersReconfigurationAndCancelIsImmediate` | 通过 |
 | A37 | 旧捕获 run 回调迟到 → 不污染新 mailbox、资源计数不增 | [T08T09CaptureLifecycleTests.swift:175](../Tests/HostTests/T08T09CaptureLifecycleTests.swift#L175) `testLateCallbacksAfterStopAllCannotTouchTheNewRun` | 通过 |
 | A38 | 无响应 AX 到退出期限 → 等待有界、日志保留、无新恢复写入 | [T05T07GeometryTransactionTests.swift:483](../Tests/HostTests/T05T07GeometryTransactionTests.swift#L483) `testDeadlineDuringUnresponsiveRestoreKeepsJournalAndStartsNoFurtherWrite`（fake clock，`HostClock` 推进到期限）＋:523 `testTerminationWaitResolvesOnceWithWhicheverArrivesFirst` | 通过；**应用级 2s 真实上限属实机项（§19 M14），本轮未测** |
 | A39 | 两种退出入口重复触发 → 仅一恢复所有者、一次终止回调 | [WorkbenchEntryTests.swift:266](../Tests/HostTests/WorkbenchEntryTests.swift#L266) `testTwoQuitEntriesLeaveOneRecoveryOwnerAndOneTerminationCallback`（真 `AppCoordinator`：两个链入口＋状态机 `.restoreAll` 抢同一窗口，断言原 frame 只写一次、窗口回原位、日志清空、收尾一次）＋[T05T07GeometryTransactionTests.swift:546](../Tests/HostTests/T05T07GeometryTransactionTests.swift#L546)＋[TransitionSceneTests.swift:692](../Tests/HostTests/TransitionSceneTests.swift#L692)（retreat 走取消那一路，终止回调正好一个） | 通过 |
 | A40 | 动画中连点/退出 → 从当前呈现值接续，旧完成不提交 | [TransitionSceneTests.swift:459](../Tests/HostTests/TransitionSceneTests.swift#L459) `testInterruptContinuesFromPresentedRect` | 通过 |
 | A41 | reduceMotion → 同样几何与焦点结果，缩短/减少位移 | [TransitionSceneTests.swift:405](../Tests/HostTests/TransitionSceneTests.swift#L405) `testReduceMotionStaysFadeOnly`＋:1148 `testReduceMotionPresentsTheSameEndpointsWithoutAnyFlight`（承载层实测：中点已完整落位，终点/参与集合/焦点与完整动效逐项相同） | 通过；肉眼降级观感仍需录屏（§19 M13） |
-| A42 | 成功交换与往返组合循环 → placement 唯一、无漏窗、无 busy 悬挂、无未解释恢复义务 | [WorkbenchTests.swift:2434](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2434) `testRandomOperationSequencePreservesInvariants`（固定种子，失败打印种子与动作序列） | 通过；实机长跑由 §19 M03/M12 承担，本轮未测 |
+| A42 | 成功交换与往返组合循环 → placement 唯一、无漏窗、无 busy 悬挂、无未解释恢复义务 | [WorkbenchTests.swift:2606](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2606) `testRandomOperationSequencePreservesInvariants`（固定种子，失败打印种子与动作序列） | 通过；实机长跑由 §19 M03/M12 承担，本轮未测 |
 
 42 条都有自动用例且全部通过；A38/A41/A42 的实机那一半按方案要求单列未测，不合并成"全通过"。
 
@@ -476,21 +476,21 @@ done
 | §17 文件 | 要求 | 落点 / 状态 |
 | --- | --- | --- |
 | `App/AppCoordinator.swift` | 异步 journal prepare、统一 scheduler、隐藏取消屏障、可见性 captureTargets、统一 TransitionActivity、退出生命周期、删除分散写入入口 | 调度器是成员 [`geometry`](../App/AppCoordinator.swift#L24)，构造时建一次（[AppCoordinator.swift:156](../App/AppCoordinator.swift#L156)）；退出时 `.restoreAll` 效果被链接住的那道门在 [AppCoordinator.swift:694](../App/AppCoordinator.swift#L694) `canStartRestoreOutsideTermination()`；捕获需求按屏可见集合投影后交给 `capture.sync(targets:tier:activity:)`。分散写入入口已收口：宿主测试现在能通过 `catalog/capture/writer/journal/processIdentity` 五个注入口装配整个协调器（[WorkbenchEntryTests.swift:266](../Tests/HostTests/WorkbenchEntryTests.swift#L266) 的 A39 用例就是走这条装配） |
-| `Presentation/WorkbenchSwitchCoordinator.swift` | 去无代次 tail、operation context、写前准入、操作 before 快照、真实补偿结果、统一调度 | 唯一写入路径是 `scheduler.perform(GeometryOperationScheduler.Operation…)`（[WorkbenchSwitchCoordinator.swift:127](../Presentation/WorkbenchSwitchCoordinator.swift#L127)），文件头写明"所有真实写入只有一条路"（[:8](../Presentation/WorkbenchSwitchCoordinator.swift#L8)）；进主区方式由 `MainPlacementPolicy` 决定（[:11](../Presentation/WorkbenchSwitchCoordinator.swift#L11)）；补偿结果以 `WorkbenchCompensationResult` 全量回报（见下面 Events 行） |
+| `Presentation/WorkbenchSwitchCoordinator.swift` | 去无代次 tail、operation context、写前准入、操作 before 快照、真实补偿结果、统一调度 | 唯一写入路径是 `scheduler.perform(GeometryOperationScheduler.Operation…)`（[WorkbenchSwitchCoordinator.swift:129](../Presentation/WorkbenchSwitchCoordinator.swift#L129)），文件头写明"所有真实写入只有一条路"（[:8](../Presentation/WorkbenchSwitchCoordinator.swift#L8)）；进主区方式由 `MainPlacementPolicy` 决定（[:11](../Presentation/WorkbenchSwitchCoordinator.swift#L11)）；补偿结果以 `WorkbenchCompensationResult` 全量回报（见下面 Events 行） |
 | `Presentation/FocusCoordinator.swift` | 旧路径写入与 restoreAll 接入同一 scheduler，保留视图代理职责，不再另立几何所有权 | scheduler 是注入的同一个实例（[FocusCoordinator.swift:34](../Presentation/FocusCoordinator.swift#L34)），展开/收回写入也走 `scheduler.perform`（[:105](../Presentation/FocusCoordinator.swift#L105)）；代理动画活动并入 `TransitionActivity`（[:74](../Presentation/FocusCoordinator.swift#L74)），捕获层不再读零散的 `isAnimating` |
 | `Presentation/ModeTransitionCoordinator.swift` | 暴露真实过渡状态与取消完成、当前呈现值重定向、旧场景完成不提交新状态 | 过渡活动事实 [`activity`](../Presentation/ModeTransitionCoordinator.swift#L562)；"从当前呈现值接续"由 [TransitionSceneTests.swift:459](../Tests/HostTests/TransitionSceneTests.swift#L459) `testInterruptContinuesFromPresentedRect` 钉住（A40） |
-| `Discovery/AXWindowResolver.swift` | AX 执行时许可校验、实际写入事实、position-only 路径、能力读取与当前 frame 异步 | `apply(frame:element:permit:)` / `applyPosition(_:element:permit:)` 都要求带 permit（[AXWindowResolver.swift:35](../Discovery/AXWindowResolver.swift#L35)）；写前直接问窗口"位置/尺寸能不能写"（[:42](../Discovery/AXWindowResolver.swift#L42)），读不到按"事实不足"而不是"可写"处理（[:47](../Discovery/AXWindowResolver.swift#L47)）；一次写入的完整事实（写前 frame、两个属性各自的错误码、写后读回、结论）见同文件顶部的 `GeometryWriteReport` |
-| `Recovery/WindowJournalStore.swift` | async 批量 prepare、原子副本提交、revision、original 修正失败返回、不可变读快照、检查所有结算持久化 | revision 单调递增（[WindowJournalStore.swift:32](../Recovery/WindowJournalStore.swift#L32)），过期序号的写入被拒并给出原因（[:241](../Recovery/WindowJournalStore.swift#L241)）；A13/A14/A15/A16/A17 五条回归就是打这条缝的（§9） |
+| `Discovery/AXWindowResolver.swift` | AX 执行时许可校验、实际写入事实、position-only 路径、能力读取与当前 frame 异步 | `apply(frame:element:permit:)` / `applyPosition(_:element:permit:)` 都要求带 permit（[AXWindowResolver.swift:39](../Discovery/AXWindowResolver.swift#L39)）；写前直接问窗口"位置/尺寸能不能写"（[:41](../Discovery/AXWindowResolver.swift#L41)），读不到按"事实不足"而不是"可写"处理（[:47](../Discovery/AXWindowResolver.swift#L47)）；一次写入的完整事实（写前 frame、两个属性各自的错误码、写后读回、结论）见同文件顶部的 `GeometryWriteReport` |
+| `Recovery/WindowJournalStore.swift` | async 批量 prepare、原子副本提交、revision、original 修正失败返回、不可变读快照、检查所有结算持久化 | revision 单调递增（[WindowJournalStore.swift:60](../Recovery/WindowJournalStore.swift#L60)），过期序号的写入被拒并给出原因（[:297](../Recovery/WindowJournalStore.swift#L297)）；A13/A14/A15/A16/A17 五条回归就是打这条缝的（§9） |
 | `Recovery/RecoveryCoordinator.swift` | 单次规划 RestoreDestination、不按当前屏二次夹、支持截止时间与 scheduler、最终结算按事实 | 目标只规划一次（[RecoveryCoordinator.swift:152](../Recovery/RecoveryCoordinator.swift#L152) `planDestination`），逐项恢复接受同一份预算截止点（[:76](../Recovery/RecoveryCoordinator.swift#L76) `deadline:`），写入同样过 scheduler（[:45](../Recovery/RecoveryCoordinator.swift#L45)）；进程实例判定注入见下 §17 未列的一行 |
 | 新建 `Core/Domain/GeometryOperationContext.swift` | 会话代次 + 操作身份 + 操作类型 | `OperationKind` 含 `promoteCandidate`（[GeometryOperationContext.swift:19](../Packages/VistileCore/Sources/VistileCore/Domain/GeometryOperationContext.swift#L19)），迟到回执按整体代次判定 |
 | 新建 `Core/MainPlacementPolicy.swift` | 可测试的放置与 readBack 包含性判定 | A22/A23/A24/A25 四条的判据都在这里，不在宿主代码里 |
 | 新建 `Core/Recovery/RestoreDestination.swift`（§17 未列，§8 需要） | 跨屏恢复目标一次性规划 + 回退原因 | A19/A20/A21 的事实载体 |
-| 新建 `Presentation/GeometryOperationScheduler.swift`（§17 只列了同名文件） | 会话准入、按 identity 串行、fence、排空、恢复授权、截止时间 | `isAdmissible` / `drain(until:)` / `remaining(until:)` / `canStartNewWrite(deadline:)`（[GeometryOperationScheduler.swift:324](../Presentation/GeometryOperationScheduler.swift#L324) 起）；时间基是单调 Stamp（[:17](../Presentation/GeometryOperationScheduler.swift#L17)） |
+| 新建 `Presentation/GeometryOperationScheduler.swift`（§17 只列了同名文件） | 会话准入、按 identity 串行、fence、排空、恢复授权、截止时间 | `isAdmissible` / `drain(until:)` / `remaining(until:)` / `canStartNewWrite(deadline:)`（[GeometryOperationScheduler.swift:397](../Presentation/GeometryOperationScheduler.swift#L397) 起）；时间基是单调 Stamp（[:31](../Presentation/GeometryOperationScheduler.swift#L31)） |
 | `Core/Domain/Events.swift` | 操作级 journal 与补偿事件、替补事件、隐藏/排空事件 | `journalPrepared` / `journalPreparationFailed`（[Events.swift:81](../Packages/VistileCore/Sources/VistileCore/Domain/Events.swift#L81)）、写后落盘失败单列（[:87](../Packages/VistileCore/Sources/VistileCore/Domain/Events.swift#L87)）、`mainSwitchFailed(…compensation:)`（[:116](../Packages/VistileCore/Sources/VistileCore/Domain/Events.swift#L116)）、`promotionFinished`（[:118](../Packages/VistileCore/Sources/VistileCore/Domain/Events.swift#L118)）、`prepareJournal`（[:173](../Packages/VistileCore/Sources/VistileCore/Domain/Events.swift#L173)） |
 | `Core/Domain/SessionState.swift` | 会话代次与明确恢复状态，phase 与 workbench busy 不互相矛盾 | 会话代次（[SessionState.swift:7](../Packages/VistileCore/Sources/VistileCore/Domain/SessionState.swift#L7)）＋"普通操作与补偿都必须带它"的操作上下文（[:231](../Packages/VistileCore/Sources/VistileCore/Domain/SessionState.swift#L231)） |
 | `Core/Domain/SessionReducer.swift` | 隐藏入口统一、日志失败按 token 收口、恢复事实不因 UI 过期丢失、新增窗口入口可达 | A05/A15/A18/A39 的 reducer 侧；`.restoreAll` 效果仍由状态机发出（所有权在宿主链上收口） |
 | `Core/Domain/WorkbenchState.swift` | 操作上下文 / 待处理意图 / 保存 RailContext，scroll 唯一事实源 | `activeContext`、`armed` 待处理意图与偏移唯一来源；A31/A32/A33 覆盖偏移那条 |
-| `Core/Domain/WorkbenchReducer.swift` | prepare 成功后启动、失败不假 focused、替补成功后提交、stableOrder 去 gridCell 资格过滤、重入保留偏移 | 替补建模为完整操作 `promoteCandidate`（[WorkbenchReducer.swift:1505](../Packages/VistileCore/Sources/VistileCore/Domain/WorkbenchReducer.swift#L1505)），一次关闭只自动尝试一个候选（[:490](../Packages/VistileCore/Sources/VistileCore/Domain/WorkbenchReducer.swift#L490)），手动选择在武装期顶掉未写入的自动替补（[:634](../Packages/VistileCore/Sources/VistileCore/Domain/WorkbenchReducer.swift#L634)）；补偿事实不全时只转 `recoveryRequired`（[:917](../Packages/VistileCore/Sources/VistileCore/Domain/WorkbenchReducer.swift#L917)） |
+| `Core/Domain/WorkbenchReducer.swift` | prepare 成功后启动、失败不假 focused、替补成功后提交、stableOrder 去 gridCell 资格过滤、重入保留偏移 | 替补建模为完整操作 `promoteCandidate`（[WorkbenchReducer.swift:1557](../Packages/VistileCore/Sources/VistileCore/Domain/WorkbenchReducer.swift#L1557)），一次关闭只自动尝试一个候选（[:502](../Packages/VistileCore/Sources/VistileCore/Domain/WorkbenchReducer.swift#L502)），手动选择在武装期顶掉未写入的自动替补（[:659](../Packages/VistileCore/Sources/VistileCore/Domain/WorkbenchReducer.swift#L659)）；补偿事实不全时只转 `recoveryRequired`（[:944](../Packages/VistileCore/Sources/VistileCore/Domain/WorkbenchReducer.swift#L944)） |
 | `Core/Domain/WorkbenchSwitchIntent.swift` | 操作 before 信息或引用、完整补偿结果、constrained 不等于主区合格 | 身份与类型（[WorkbenchSwitchIntent.swift:120](../Packages/VistileCore/Sources/VistileCore/Domain/WorkbenchSwitchIntent.swift#L120)、[:145](../Packages/VistileCore/Sources/VistileCore/Domain/WorkbenchSwitchIntent.swift#L145) `isPromotion`） |
 | `Core/Domain/FocusGeometry.swift` | 固定尺寸保持原尺寸、主区策略与仅移动决策、不可容纳返回明确结果 | [`centeredOriginalRect`](../Packages/VistileCore/Sources/VistileCore/Domain/FocusGeometry.swift#L31) 只在**真实原尺寸**放得下时返回矩形，放不下返回 nil；原来的夹取版本改名为主区路径的兜底并明确"此时不得宣称保留原尺寸"（A24/A25） |
 | `Core/Recovery/WindowTransaction.swift` | 操作/写入事实字段、兼容老日志、original 与 before 分离、降级恢复结算 | `operationBeforeFrame` / `operationBeforeDisplayID`（[WindowTransaction.swift:45](../Packages/VistileCore/Sources/VistileCore/Recovery/WindowTransaction.swift#L45)）与会话 `originalFrame` 分开；老日志缺这两个字段时按"未写入过"读入，不影响恢复 |
@@ -555,16 +555,16 @@ done
 
 | R | 根因（方案原话的缩写） | 关键落点 | 新增/改正的行为 | 回归用例 | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| R01 | 取消、隐藏与恢复未统一排空写入 | `Presentation/GeometryOperationScheduler.swift`（新建）＋ [WorkbenchSwitchCoordinator.swift:127](../Presentation/WorkbenchSwitchCoordinator.swift#L127)、[FocusCoordinator.swift:106](../Presentation/FocusCoordinator.swift#L106) | 真实 AX 写入只有一条通道；会话代次准入；隐藏/退出先撤普通准入再排空，之后只允许恢复授权写入；同一窗口按 identity 串行 | A01–A07、A18、A39 | 代码完成；替身回归通过；实机未测 |
+| R01 | 取消、隐藏与恢复未统一排空写入 | `Presentation/GeometryOperationScheduler.swift`（新建）＋ [WorkbenchSwitchCoordinator.swift:129](../Presentation/WorkbenchSwitchCoordinator.swift#L129)、[FocusCoordinator.swift:106](../Presentation/FocusCoordinator.swift#L106) | 真实 AX 写入只有一条通道；会话代次准入；隐藏/退出先撤普通准入再排空，之后只允许恢复授权写入；同一窗口按 identity 串行 | A01–A07、A18、A39 | 代码完成；替身回归通过；实机未测 |
 | R02 | 交换失败回到 original，却宣称旧主仍在主区 | `Core/Domain/WorkbenchSwitchIntent.swift`、`WorkbenchReducer.swift`、[WorkbenchSwitchCoordinator.swift](../Presentation/WorkbenchSwitchCoordinator.swift) | 操作 before 快照与补偿结果全量回报；逆序补偿；补偿后做真实焦点/前景复核；**交换失败回 before，退出恢复才用会话 original** | A08–A12 | 代码完成；替身回归通过；实机未测 |
 | R03 | 日志失败使进入/交换状态卡住 | `Recovery/WindowJournalStore.swift`、`Core/Domain/Events.swift`、[AppCoordinator.swift:625](../App/AppCoordinator.swift#L625) | 异步原子批量 prepare；操作级 journal 事件；写后落盘失败单列并进补偿；老日志缺新字段按"未写入过"读入 | A13–A17 | 代码完成；替身回归通过；**强退实机恢复未测**（§11.8） |
 | R04 | 恢复目标被 clamp 到当前屏 | `Core/Recovery/RestoreDestination.swift`（新建）、[RecoveryCoordinator.swift:152](../Recovery/RecoveryCoordinator.swift#L152) | 跨屏恢复目标只规划一次；原始屏优先、备用屏回退并记原因；分辨率变化/拔屏给合法降级 | A19–A21 | 代码完成；替身回归通过；实机跨屏未测 |
-| R05 | constrained 直接提交、固定尺寸窗口被整体拒绝 | `Core/MainPlacementPolicy.swift`（新建）、`Core/Domain/FocusGeometry.swift`、[AXWindowResolver.swift:35](../Discovery/AXWindowResolver.swift#L35) | 按真实 readBack 的包含性判定；固定尺寸只写 position 不写 size；不可容纳时明确拒绝且不动原主与轨道 | A22–A25 | 代码完成；替身回归通过；固定尺寸真实应用未测 |
-| R06 | 关闭主窗口直接提交替补，未建事务、未激活 | [WorkbenchReducer.swift:1505](../Packages/VistileCore/Sources/VistileCore/Domain/WorkbenchReducer.swift#L1505) | 替补建模为完整提升事务（journal→写入→激活→提交），一次关闭只试一个候选；武装期手动选择顶掉自动替补 | A26–A28 | 代码完成；替身回归通过；实机替补未测 |
+| R05 | constrained 直接提交、固定尺寸窗口被整体拒绝 | `Core/MainPlacementPolicy.swift`（新建）、`Core/Domain/FocusGeometry.swift`、[AXWindowResolver.swift:39](../Discovery/AXWindowResolver.swift#L39) | 按真实 readBack 的包含性判定；固定尺寸只写 position 不写 size；不可容纳时明确拒绝且不动原主与轨道 | A22–A25 | 代码完成；替身回归通过；固定尺寸真实应用未测 |
+| R06 | 关闭主窗口直接提交替补，未建事务、未激活 | [WorkbenchReducer.swift:1557](../Packages/VistileCore/Sources/VistileCore/Domain/WorkbenchReducer.swift#L1557) | 替补建模为完整提升事务（journal→写入→激活→提交），一次关闭只试一个候选；武装期手动选择顶掉自动替补 | A26–A28 | 代码完成；替身回归通过；实机替补未测 |
 | R07 | 总览网格满时新增窗口不进轨道 | `Core/Domain/WorkbenchState.swift`、`stableOrder`（去 `gridCell` 资格过滤） | 展示成员与总览位置解耦：超出格子仍入 L 尾部，其它位置不动 | A29–A30 | 代码完成；替身回归通过 |
 | R08 | 返回后再次进入把滚动归零 | `Core/Domain/WorkbenchState.swift`（保存 `RailContext` 偏移） | 偏移唯一事实源、返回再入保留、按内容长度与栏尺寸 clamp 到合法范围 | A31–A33 | 代码完成；替身回归通过；肉眼滚动未测 |
 | R09 | 捕获不看可见性、新动画未参与重配抑制 | `Core/Capture/CaptureModes.swift`、[CaptureCoordinator.swift:297](../Capture/CaptureCoordinator.swift#L297) | 需求分级 `transition/visible/prefetch/offscreen/paused`；可见优先、离屏不占位不阻塞；升降级滞后；重配合并到下一周期；runID 隔离与资源清理 | A34–A37 | 代码完成；替身回归通过；30 分钟流量稳定性未测 |
-| R10 | TaskGroup 赛跑不能实现退出硬期限 | [GeometryOperationScheduler.swift:324](../Presentation/GeometryOperationScheduler.swift#L324) 起（`drain(until:)`/`canStartNewWrite(deadline:)`）、[AppCoordinator.swift:694](../App/AppCoordinator.swift#L694) | 单一恢复所有权；有界等待 + 到期留痕；不再仅依赖 `TaskGroup.cancelAll`；期限后不启动新的恢复写入 | A38–A40 | 代码完成；替身回归通过；**应用级 2s 真实上限属实机项，未测** |
+| R10 | TaskGroup 赛跑不能实现退出硬期限 | [GeometryOperationScheduler.swift:397](../Presentation/GeometryOperationScheduler.swift#L397) 起（`drain(until:)`/`canStartNewWrite(deadline:)`）、[AppCoordinator.swift:694](../App/AppCoordinator.swift#L694) | 单一恢复所有权；有界等待 + 到期留痕；不再仅依赖 `TaskGroup.cancelAll`；期限后不启动新的恢复写入 | A38–A40 | 代码完成；替身回归通过；**应用级 2s 真实上限属实机项，未测** |
 
 方案 §21 的提交边界（阶段 1–6）全部落在本轮，没有只提交计划或第一阶段。
 
@@ -773,3 +773,60 @@ run14 直接用同一份环境，只在解锁后补窗口数与真机读数：
 
 按方案 §22 的验收通过条件，**本轮不能宣布整体验收通过**：代码项（R01–R10 + 确定性回归）已完成，
 真机与性能两项在发布字节上还是空的。
+
+## 12. 第二轮代码审查（基线 `1235207`）修复记录（2026-10-18）
+
+本轮审查在 HEAD `1235207`（= `origin/main`，2026-10-17 20:40）上提出 6 项缺陷（3×P1、3×P2）。
+逐条回到真实代码核对：**6 项全部成立**，已全部修复并补确定性回归。**代码项完成；§19 真机项与 §20 性能数字
+仍是未测**（阻塞条件同 §11.12：桌面锁定），因此**仍不能宣布整体验收通过**。
+
+### 12.1 逐项：根因 / 改动 / 回归 / 状态
+
+| 编号 | 缺陷 | 核对后的根因 | 改动文件 | 回归用例 | 状态 |
+| --- | --- | --- | --- | --- | --- |
+| C01（P1） | 日志并发提交失败会丢失已成功提交的恢复记录 | `mutate()` 在锁内基于 `staged` 生成快照并**立即**写入 `staged`，之后才 await 落盘；失败时 `staged = committed` 是对共享暂存区的盲覆盖。两支后果：① 已失败的 A 被 B 的落盘冒充为已提交；② 已报成功的 B/C 被后一批基于旧 `staged` 的落盘静默抹掉。`revision` 还是无锁 stored property，被外部直接读 | [WindowJournalStore.swift](../Recovery/WindowJournalStore.swift)（整批事务进 channel，删 `staged`，`committed` 成唯一提交点；`revision` 改加锁 computed；新增 `JournalDiskWriting` 注入点） | `testConcurrentFailedBatchNeverErasesLaterSuccessfulBatches`、`testRevisionAdvancesOnlyOnPersistedBatches`、`testLaterBatchStartsFromCommittedSnapshotAfterFailedBatch`（[WorkbenchEntryTests.swift](../Tests/HostTests/WorkbenchEntryTests.swift)） | 代码完成；替身回归通过；反向验证：换回旧实现时 6 条断言确定性变红 |
+| C02（P1） | 最小化解除没有许可、副作用登记过晚、提前返回不补偿 | `GeometryWriting.setMinimized` 不带 `GeometryWritePermit`，AX 队列内也不查许可；`placeMain()` 解除成功后要等到几何写入阶段才 append `SideEffect`，中间 7 条提前返回路径（目录换代/句柄/实读/纠正/日志/撤销）都会把窗口留在"已展开"状态；`FocusCoordinator.performExpand` 同形 | [AXWindowResolver.swift](../Discovery/AXWindowResolver.swift)（新增 `MinimizeWriteOutcome`，许可在 AX 队列内检查）、[WorkbenchSwitchCoordinator.swift](../Presentation/WorkbenchSwitchCoordinator.swift)（解除成功即登记 `minimizeRelease`，全部提前返回走恢复授权收回；补偿先几何后最小化）、[FocusCoordinator.swift](../Presentation/FocusCoordinator.swift)（同一条许可 + 收口） | `testCancelledMinimizeReleaseNeverTouchesTheWindow`、`testJournalFailureAfterMinimizeReleaseRestoresMinimizedState`、`testRejectedGeometryAfterMinimizeReleaseRollsMinimizedStateBack`（[WorkbenchSwitchTests.swift](../Tests/HostTests/WorkbenchSwitchTests.swift)） | 代码完成；替身回归通过 |
+| C03（P1） | 新会话清队列不通知等待者，工作台可能永久忙碌 | `openSession()` 用 `pending.removeAll()`，绕过 `skip()`；`request()` 的 OneShot 只能靠 run/onSkipped 结算，排队项被移出后等待者永不恢复，`activeContext` 收不了口 | [GeometryOperationScheduler.swift](../Presentation/GeometryOperationScheduler.swift)（清队列逐项 `skip(.sessionChanged)`，`skip` 成为唯一终态函数） | `testOpenSessionReleasesQueuedWaiterAndKeepsNewSessionUsable`（[WorkbenchDividerTests.swift](../Tests/HostTests/WorkbenchDividerTests.swift)） | 代码完成；替身回归通过 |
+| C04（P2） | 操作前快照不是实读，补偿会被误判失败 | reducer 的 `beforeOperation` 取 `actualFrame`（事务临时值/目录缓存），宿主写前实读只落日志、不回写 reducer；`canClaimOldMainStillMain/canClaimCandidateIsHome` 拿补偿 frame 与计划期快照比 2pt → 外部移动过 A 后正确补偿被判失败并进 `recoveryRequired`。另：缓存 frame 调 `decide()` 会提前拒绝实际放得下的窗口 | [WorkbenchReducer.swift](../Packages/VistileCore/Sources/VistileCore/Domain/WorkbenchReducer.swift)（补偿判定优先用 `beforeReads`；缓存只作乐观预检 `canDeferPlacement`）、[GeometryOutcome.swift](../Packages/VistileCore/Sources/VistileCore/Recovery/GeometryOutcome.swift)（`WorkbenchCompensationResult.beforeReads`，默认参数兼容）、[WorkbenchSwitchCoordinator.swift](../Presentation/WorkbenchSwitchCoordinator.swift)（补偿回执填 journal 里绑定 operationID 的写前实读） | 核心 4 条：`testExternalMoveBeforeFailureCompensationUsesHostBeforeReads`、`testExternalMoveBeforeFailureWithoutBeforeReadsStillRequiresRecovery`、`testOversizedCachedFrameDefersToHostBeforeReadForMovableWindow`、`testOversizedCachedFrameStillRejectsImmovableWindow`（[WorkbenchTests.swift](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift)）＋宿主回执断言（`testRejectedGeometryAfterMinimizeReleaseRollsMinimizedStateBack` 内） | 代码完成；红测已验证（回退 reducer 时 (a) 落 `recoveryRequired`、(c) 拿不到计划） |
+| C05（P2） | `drain(until:)` 的截止保证不成立 | 循环里 `await fence(identities: [])`，在途写入永不返回时 fence 永不恢复，循环回不到顶部查截止 | [GeometryOperationScheduler.swift](../Presentation/GeometryOperationScheduler.swift)（`DrainWaiter`：静默与截止唤醒竞速，先到者结算；新增 `init(now:scheduleDeadline:)` 注入点，生产默认单调时钟定时器） | `testDrainDeadlineWinsAgainstHangingRestoreAndKeepsJournal` | 代码完成；替身回归通过（手动时钟/手动到点，无真实 sleep） |
+| C06（P2） | `laneDepth` 不能证明当前调用者是通道内部任务 | `laneDepth > 0` 是 @MainActor 共享状态，`await` 处其他独立任务也能看到并绕过串行队列 | [GeometryOperationScheduler.swift](../Presentation/GeometryOperationScheduler.swift)（删 `laneDepth`，改 `@TaskLocal` 通道令牌 + `activeChannelToken` 身份相等；独立任务必排队，同操作补偿嵌套仍就地执行） | `testIndependentRequestQueuesBehindSuspendedOperation`、`testNestedRequestInsideChannelRunsInlineAndKeepsOrder` | 代码完成；替身回归通过 |
+
+### 12.2 本轮自动回归（全部在本机重跑）
+
+- 核心包 `swift test --package-path Packages/VistileCore`：swift-testing **155 项 / 16 suites**、XCTest **69 项**，0 失败。
+- 宿主 `VistileHostTests`：**194 项执行、1 项跳过、0 失败**（`** TEST SUCCEEDED **`）。
+  跳过的仍是既有环境项 `T01ActionRoutingTests.testKeyboardFocusReallyLandsOnContentView`（需真实前台激活，按方案 §22 不计成功）。
+- 受影响三套（`WorkbenchEntryTests` / `WorkbenchDividerTests` / `WorkbenchSwitchTests`）**重复 5 轮**：
+  `Executed 265 tests, with 0 failures (0 unexpected)`（5×53），无新增真实 sleep 或墙钟等待。
+- 应用目标 `xcodebuild build -scheme Vistile`：`** BUILD SUCCEEDED **`。
+- 基线对比：改动前 182 宿主用例 / 155+64 核心用例；改动后 194 / 155+69，新增 **17 条**确定性用例
+  （3 日志并发 + 4 调度器 + 3 最小化许可/补偿 + 4 核心 beforeReads + 1 核心最小化事实 + 1 宿主 original 同批落盘 + 1 宿主最小化恢复事实）。
+
+### 12.3 本轮遗留与风险（直说）
+
+1. **真机项仍全部未测**：§19 M01–M14、§20 性能数字、30 分钟长跑、录屏、P0-19 对照、强退恢复实机——阻塞条件与 §11.12 相同（桌面锁定）。
+   本轮的 6 项修复只证明"代码与替身回归"，不证明真实桌面交互。
+2. `settleMainFrame`（拖动分隔线的布局结算）仍用缓存 frame 调 `decide()`，同类"缓存过大提前拒绝"**刻意不扩散**：
+   结算的契约是"放不下就只改投影、不写窗口"（§9.1），一旦为缓存不可知先起一次写入，
+   被宿主拒绝时会在日志里留下一条"计划过但从未写入"的事务，反而多出一条无从解释的恢复义务；
+   收益只有"缓存过期但真实放得下"这一种情形，不抵代价。要根治需要把"读一次真实 frame"提前到 reducer 之前，属单独设计。
+3. C04 的 deferral 让固定尺寸窗口在"缓存不知道真实尺寸"时按主区目标起动画：揭幕瞬间可能有一次收缩（动画端点与真实落点不同），正确性不受影响。
+   （缓存可推出的尺寸一定比主区大，无法在不读真实 frame 的前提下算出更准的端点；因此没有做"猜一个更小目标"的优化。）
+4. C02 的最小化恢复失败**已经进入补偿事实**（C08）：`unresolvedMinimizeRestorations` 非空时 reducer 不再宣称"回滚完成/候选归位"，
+   转入 `recoveryRequired`；残留风险只剩"权限丢失/窗口已消失导致连补偿授权也写不进去"，此时靠日志与下次启动核对。
+5. `JournalDiskWriting` 替身现已覆盖主日志与 settlement backlog 两条落盘路径（C09）；仍未覆盖的是 Windows 目录之外的 IO。
+6. 文案变化：缓存不可知但真实放不下时，提示从"受限尺寸"变成过渡失败/交换失败携带真实原因；若历史验收脚本按旧文案比对，需要更新。
+7. **本轮改动随 `v0.1.13` 发布**：工作树改动 `16 files changed`（代码 12 个 + 文档 4 个；两轮改动后共重算 50+ 处行锚，
+   全仓行锚自检 `links=188 named=46 problems=0`）。发布字节的 SHA、CI 链接与包内二进制哈希在发布后回填到 §12.5。
+
+### 12.4 同轮优化（在上表之后落地，2026-10-18）
+
+审查项的修复完成后，按"把修复本身再做扎实"补了三处改动（不改变对外行为，只减少不确定性与写放大）：
+
+| 编号 | 优化 | 根因/动机 | 改动文件 | 回归用例 | 状态 |
+| --- | --- | --- | --- | --- | --- |
+| C07 | 写前实读的 original 修正与操作前快照合并为**同一批**落盘 | 原来两次 `update`：先 `correctOriginal` 再写 operationBefore。虽然 `SessionJournal.apply` 的合并规则不会覆盖 originalFrame，但两次落盘之间会短暂出现"纠正已落、before 未落"的分叉，且每次放置多一次磁盘往返（方案 §20.3 第 1 项）。现在改成 `update(request, additional: [.correctOriginal(...)])`，同成同败、一次往返 | [WindowJournalStore.swift](../Recovery/WindowJournalStore.swift)（新增批量 `update` 重载）、[WorkbenchSwitchCoordinator.swift](../Presentation/WorkbenchSwitchCoordinator.swift)（placeMain 只发一批） | `testCorrectedOriginalSurvivesTheSameBatchAsOperationBefore`（新增）；原有 `testStaleCatalogSnapshotIsCorrectedBeforeFirstWrite` 继续通过（证明纠正仍到 device 与 journal） | 代码完成；替身回归通过 |
+| C08 | 最小化恢复失败进入补偿事实 | 上一轮只在诊断里记一行，reducer 仍可能按"补偿完整"收口（§6.4 要求失败必须显式）。现在 `WorkbenchCompensationResult.unresolvedMinimizeRestorations` 非空 ⇒ `isComplete` 为假、候选归位不成立 ⇒ `recoveryRequired` | [GeometryOutcome.swift](../Packages/VistileCore/Sources/VistileCore/Recovery/GeometryOutcome.swift)、[WorkbenchReducer.swift](../Packages/VistileCore/Sources/VistileCore/Domain/WorkbenchReducer.swift)、[WorkbenchSwitchCoordinator.swift](../Presentation/WorkbenchSwitchCoordinator.swift)、[_HostGeometryFakes.swift](../Tests/HostTests/_HostGeometryFakes.swift)（`refusesMinimize` 注入） | 宿主 `testUnrecoveredMinimizeIsReportedInCompensationFacts`、核心 `testUnrecoveredMinimizeRestorationForcesRecoveryRequired`（均新增） | 代码完成；替身回归通过 |
+| C09 | settlement backlog 落盘接入同一可注入接缝 | `recordSettlementFailure` 的留档写原本自己起 `queue.async`，故障只能靠真实磁盘坏掉才测得到（方案 §15.1 要求可注入） | [WindowJournalStore.swift](../Recovery/WindowJournalStore.swift)（`writeBacklog` 走 `journalDiskWriter`） | 既有 journal 用例覆盖主路径；留档失败注入未单独加例（风险低，已记入 §12.3 第 5 条） | 代码完成 |
+
+三项都只动内部时序/事实表达，不改产品交互；`git diff` 中对应测试均为确定性替身，无新增 sleep。

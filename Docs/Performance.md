@@ -169,11 +169,11 @@ P0-4 因此从"未测"转为拿到读数。
 | 有效间隔总数 | 计数 `过渡有效帧间隔·<场景>·<分组键>` | [App/AppCoordinator.swift:1246](../App/AppCoordinator.swift#L1246)，值取 `FrameIntervalStats.count`（该段里有限且 >0 的间隔条数） | §20.2「累计至少 1,000 个有效间隔」，按组判 |
 | journal prepare | `日志:批量 prepare` | [App/AppCoordinator.swift:632](../App/AppCoordinator.swift#L632) | 无独立阈值，用于分离"落盘慢"与"AX 慢" |
 | journal 事实追加 | `日志:事实追加` | [App/AppCoordinator.swift:657](../App/AppCoordinator.swift#L657) | 同上 |
-| AX 排队（提交→通道认领） | `工作台:AX 排队` | [Presentation/WorkbenchSwitchCoordinator.swift:106](../Presentation/WorkbenchSwitchCoordinator.swift#L106) | 同上；排队时长决定"点了没反应"是不是队列问题 |
-| 几何写入（含读回与重试的混合段） | `工作台:几何写入` | [Presentation/WorkbenchSwitchCoordinator.swift:654](../Presentation/WorkbenchSwitchCoordinator.swift#L654) | 历史口径见 §3.7，不与单次写入互引 |
-| 写后读回（单独一段） | `工作台:几何读回`、`几何读回` | [Presentation/WorkbenchSwitchCoordinator.swift:115](../Presentation/WorkbenchSwitchCoordinator.swift#L115)、[Presentation/FocusCoordinator.swift:188](../Presentation/FocusCoordinator.swift#L188)，取值 `GeometryWriteReport.readBackMS`（3×70ms 有界重试之和） | 同上 |
-| 激活 + Raise | `激活+Raise` | [Presentation/FocusCoordinator.swift:419](../Presentation/FocusCoordinator.swift#L419) | 同上；context 带"激活返回/raise 返回/焦点一致/前景一致" |
-| 最终 settle | `工作台:布局结算` | [Presentation/WorkbenchSwitchCoordinator.swift:355](../Presentation/WorkbenchSwitchCoordinator.swift#L355) | 同上 |
+| AX 排队（提交→通道认领） | `工作台:AX 排队` | [Presentation/WorkbenchSwitchCoordinator.swift:108](../Presentation/WorkbenchSwitchCoordinator.swift#L108) | 同上；排队时长决定"点了没反应"是不是队列问题 |
+| 几何写入（含读回与重试的混合段） | `工作台:几何写入` | [Presentation/WorkbenchSwitchCoordinator.swift:686](../Presentation/WorkbenchSwitchCoordinator.swift#L686) | 历史口径见 §3.7，不与单次写入互引 |
+| 写后读回（单独一段） | `工作台:几何读回`、`几何读回` | [Presentation/WorkbenchSwitchCoordinator.swift:117](../Presentation/WorkbenchSwitchCoordinator.swift#L117)、[Presentation/FocusCoordinator.swift:215](../Presentation/FocusCoordinator.swift#L215)，取值 `GeometryWriteReport.readBackMS`（3×70ms 有界重试之和） | 同上 |
+| 激活 + Raise | `激活+Raise` | [Presentation/FocusCoordinator.swift:446](../Presentation/FocusCoordinator.swift#L446) | 同上；context 带"激活返回/raise 返回/焦点一致/前景一致" |
+| 最终 settle | `工作台:布局结算` | [Presentation/WorkbenchSwitchCoordinator.swift:357](../Presentation/WorkbenchSwitchCoordinator.swift#L357) | 同上 |
 | 三条模式路径整体（点击→落定） | 逐组 `点击→落定p95·<路径>·<分组键>`；另有一行不带分组键的**合池概览**（只作概览，判定不看它） | 采样 [App/P0Probe.swift:1912](../App/P0Probe.swift#L1912)（`recordClickOutcome`），逐组判定与入表 [App/P0Probe.swift:1623](../App/P0Probe.swift#L1623) | ≤600 / ≤500 / ≤500ms（逐组判） |
 | 成功率与超时数 | 报告正文一行：`<路径> 成功率X%（落定/派发）、超时N` | [App/P0Probe.swift:1928](../App/P0Probe.swift#L1928)（`clickOutcomeText`），长跑侧 [:1794](../App/P0Probe.swift#L1794) | §20.2「同时记录成功率和超时率」 |
 

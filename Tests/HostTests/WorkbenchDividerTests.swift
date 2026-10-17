@@ -362,14 +362,197 @@ final class WorkbenchDividerTests: XCTestCase {
         XCTAssertEqual(rig.writer.writtenFrames, [fresh], "新会话的第一笔照常执行")
     }
 
+    // MARK: - #3/#5/#6 调度器契约回归
+
+    /// #3：在途一笔 + 排队一笔时会话换代。排队等待者必须被结算为 nil（不是永久悬挂），
+    /// 旧任务收口后不得改新会话，新会话照常准入并执行新操作。
+    func testOpenSessionReleasesQueuedWaiterAndKeepsNewSessionUsable() async {
+        let scheduler = HostScheduler.make(sessionID: sessionID)
+        let gate = TestGate()
+        var oldContextRejectedAfterSessionChange: Bool?
+        let oldContext = scheduler.makeContext(token: TransitionToken(generation: 1), kind: .settleLayout)
+        let inFlight = Task { () -> Void in
+            _ = await scheduler.request(context: oldContext, identities: []) { _ in
+                await gate.wait()
+                // 新会话已开：旧上下文再想拿许可见必须被拒，旧任务不许改新会话状态。
+                oldContextRejectedAfterSessionChange = scheduler.begin(oldContext) == nil
+            }
+        }
+        await pendingUntil { scheduler.inFlightCount == 1 }
+
+        // 第二笔在 A 在途时排队：正常情况下它只能等 A 执行完。
+        let queuedContext = scheduler.makeContext(token: TransitionToken(generation: 2), kind: .settleLayout)
+        var queuedSawNil: Bool?
+        let queued = Task { () -> Void in
+            let result: Bool? = await scheduler.request(context: queuedContext, identities: []) { _ in true }
+            queuedSawNil = result == nil
+        }
+        await pendingUntil { scheduler.queuedCount == 1 }
+        XCTAssertNil(queuedSawNil, "A 没结束前排队那笔不得提前拿到结论：\(scheduler.busyDescription)")
+
+        let oldSessionID = scheduler.sessionID
+        scheduler.openSession()
+
+        // 换代那一刻排队等待者就必须拿到 nil，而不是等 gate 打开才收口。
+        await queued.value
+        XCTAssertEqual(queuedSawNil, true, "换代后排队等待者必须返回 nil（未写入），不能永久悬挂")
+
+        // 在途那笔自己收口之后，旧上下文已彻底失去准入，通道回到静默。
+        gate.open()
+        await inFlight.value
+        XCTAssertEqual(oldContextRejectedAfterSessionChange, true,
+                       "旧上下文换代后不得再拿到新写入许可")
+        XCTAssertNotEqual(scheduler.sessionID, oldSessionID, "新会话身份必须已生效")
+        XCTAssertTrue(scheduler.isIdle, "旧任务收口后通道必须静默：\(scheduler.busyDescription)")
+
+        // 新会话不被旧积压拖死：新上下文照常准入并执行。
+        let freshContext = scheduler.makeContext(token: TransitionToken(generation: 3), kind: .settleLayout)
+        let freshResult: Bool? = await scheduler.request(context: freshContext, identities: []) { _ in true }
+        XCTAssertEqual(freshResult, true, "新会话必须能正常准入并执行新操作")
+        XCTAssertTrue(scheduler.isIdle, "新操作结束后通道必须静默：\(scheduler.busyDescription)")
+    }
+
+    /// #6：A 挂在 gate 上时，另一条独立任务提交 B。B 必须排队，不能在 A 的 `await` 期间
+    /// 借着共享的"在通道里"状态就地执行。判据是动作序列，不是时间。
+    func testIndependentRequestQueuesBehindSuspendedOperation() async {
+        let scheduler = HostScheduler.make(sessionID: sessionID)
+        let gate = TestGate()
+        var actions: [String] = []
+        let firstContext = scheduler.makeContext(token: TransitionToken(generation: 1), kind: .settleLayout)
+        let first = Task { () -> Void in
+            _ = await scheduler.request(context: firstContext, identities: []) { _ in
+                actions.append("A-开始")
+                await gate.wait()
+                actions.append("A-结束")
+            }
+        }
+        await pendingUntil { scheduler.inFlightCount == 1 && actions == ["A-开始"] }
+
+        // 独立任务在 A 的 await 处到达：它没有通道身份，只能排队。
+        let secondContext = scheduler.makeContext(token: TransitionToken(generation: 2), kind: .settleLayout)
+        let second = Task { () -> Void in
+            _ = await scheduler.request(context: secondContext, identities: []) { _ in actions.append("B") }
+        }
+        await pendingUntil { scheduler.queuedCount == 1 }
+        XCTAssertEqual(actions, ["A-开始"], "A 未结束或未合法取消前 B 不得开始：\(actions)")
+
+        gate.open()
+        await first.value
+        await second.value
+        XCTAssertEqual(actions, ["A-开始", "A-结束", "B"],
+                       "B 只能在 A 离开通道之后按顺序执行：\(actions)")
+        XCTAssertTrue(scheduler.isIdle)
+    }
+
+    /// #6 的另一半：合法嵌套（补偿、同一次操作里的子动作）必须继续就地执行，
+    /// 不能因为换成身份判断就把正常补偿路径卡死在队列里。
+    func testNestedRequestInsideChannelRunsInlineAndKeepsOrder() async {
+        let scheduler = HostScheduler.make(sessionID: sessionID)
+        var actions: [String] = []
+        var nestedResult: Int?
+        let outerContext = scheduler.makeContext(token: TransitionToken(generation: 1), kind: .mainSwitch)
+        let outer = Task { () -> Void in
+            _ = await scheduler.request(context: outerContext, identities: []) { _ in
+                actions.append("外层-开始")
+                let nestedContext = scheduler.makeContext(token: TransitionToken(generation: 1), kind: .compensation)
+                nestedResult = await scheduler.request(context: nestedContext, identities: []) { _ in
+                    actions.append("嵌套")
+                    return 7
+                }
+                actions.append("外层-结束")
+            }
+        }
+        await outer.value
+
+        XCTAssertEqual(nestedResult, 7, "嵌套请求必须就地拿到自己的结论")
+        XCTAssertEqual(actions, ["外层-开始", "嵌套", "外层-结束"],
+                       "嵌套只能在外层已有的通道位置就地执行、按原顺序完成：\(actions)")
+        XCTAssertEqual(scheduler.queuedCount, 0, "嵌套不得在队列里留下第二张票")
+        XCTAssertTrue(scheduler.isIdle)
+    }
+
+    /// #5：在途恢复写入永不返回时，注入的到点信号必须让 `drain(until:)` 返回 false。
+    /// 到期后不再发起新的恢复写入，未完成事务原样留在日志里。全程手动时钟 + 手动唤醒，不赌真实 sleep。
+    func testDrainDeadlineWinsAgainstHangingRestoreAndKeepsJournal() async throws {
+        let clock = HostClock()
+        let wakes = DeadlineWakes()
+        let scheduler = GeometryOperationScheduler(now: { clock.stamp },
+                                                   scheduleDeadline: { _, fire in wakes.append(fire) })
+        scheduler.adopt(sessionID: sessionID, epoch: 0)
+        let rig = try await makeRig(windowCount: 2, scheduler: scheduler)
+
+        let identities = [HostFixtures.identity(0), HostFixtures.identity(1)]
+        let expanded = CGRect(x: 120, y: 120, width: 1_000, height: 640)
+        for (index, identity) in identities.enumerated() {
+            await rig.store.apply(WindowTransaction(sessionID: sessionID,
+                                                    identity: identity,
+                                                    bundleID: "com.test.app\(identity.windowID)",
+                                                    originalFrame: FakeCatalogSource.frame(for: index),
+                                                    originalDisplayID: HostFixtures.display.id)
+                .markingPlanned(frame: expanded, displayID: HostFixtures.display.id)
+                .markingWritten(readBack: expanded, displayID: HostFixtures.display.id))
+            if let element = rig.catalogSource.element(for: identity) {
+                rig.writer.setInitialFrame(expanded, for: element)
+            }
+        }
+        XCTAssertEqual(rig.store.unfinished.count, 2, "前置事实：两条事务都还欠恢复")
+
+        let deadline = scheduler.deadline(after: .seconds(2))
+        // 第一笔恢复的 AX 写入停在"命令已排队、调用还没返回"这一刻：模拟无响应应用。
+        rig.writer.gatesNextWrite = true
+        let restore = Task {
+            await rig.recovery.restoreOnQuit(token: TransitionToken(generation: 1), deadline: deadline)
+        }
+        await pendingUntil { rig.writer.isBlockedInWrite }
+
+        var drained: Bool?
+        let drain = Task { drained = await scheduler.drain(until: deadline) }
+        await pendingUntil { wakes.count == 1 }
+        XCTAssertNil(drained, "写入永不返回时 drain 不得提前返回")
+
+        // 早醒一次：必须重新挂到点上，不能把"提前唤醒"误判成到期。
+        wakes.fireAll()
+        await pendingUntil { wakes.count == 1 }
+        XCTAssertNil(drained, "未真正到点时 drain 必须继续等待")
+        XCTAssertTrue(rig.writer.isBlockedInWrite, "前置事实：写入仍然挂在那里")
+
+        // 手动推进到点并触发唤醒：静默与截止竞速，截止先到 → false。
+        clock.advance(seconds: 3)
+        wakes.fireAll()
+        await drain.value
+        XCTAssertEqual(drained, false, "预算到点仍未静默时 drain 必须返回 false")
+        XCTAssertEqual(rig.writer.totalWrites, 0, "挂起的那笔还没落笔，此时不得有写入")
+
+        // 放行挂起的那一笔：它已在途，按事实结算；下一笔恢复必须因预算已尽而不再发起。
+        rig.writer.openGate()
+        let report = await restore.value
+        XCTAssertEqual(report.items.count, 1, "只有到期前已经开始的那一笔被恢复：\(report.items)")
+        XCTAssertEqual(report.deferredByDeadline.count, 1,
+                       "预算已尽时必须按「推迟」回报：\(report.deferredByDeadline)")
+        XCTAssertEqual(rig.writer.totalWrites, 1, "到期后不得再发起第二条恢复写入：\(rig.writer.writtenFrames)")
+
+        let deferred = try XCTUnwrap(report.deferredByDeadline.first)
+        XCTAssertEqual(rig.store.entry(for: deferred)?.state.requiresRestore, true,
+                       "未确认恢复的事务必须原样留在日志里")
+        XCTAssertEqual(rig.store.unfinished.map(\.identity), [deferred],
+                       "日志里只该剩那一条没动的未完成事务")
+        let deferredElement = try XCTUnwrap(rig.catalogSource.element(for: deferred))
+        let deferredFrame = await rig.writer.currentFrame(of: deferredElement)
+        XCTAssertEqual(deferredFrame, expanded, "被推迟的窗口必须还在展开尺寸：动过它就是新写入")
+        XCTAssertTrue(scheduler.isIdle, "在途那笔收口后通道应回到静默：\(scheduler.busyDescription)")
+    }
+
     /// 装配一条从交换协调器到写入器的真实链路：目录、日志、调度器、恢复、焦点全部是生产类型，
-    /// 只有 AX 与几何写入是替身。三条用例共用，避免同一处接线在三份拷贝里各自漂移。
-    private func makeRig(windowCount: Int = 1) async throws -> DividerRig {
+    /// 只有 AX 与几何写入是替身。共用同一处接线，避免在三份拷贝里各自漂移。
+    /// `scheduler` 只在需要注入手动时钟 / 截止唤醒的契约用例里传入（#5）。
+    private func makeRig(windowCount: Int = 1,
+                         scheduler: GeometryOperationScheduler? = nil) async throws -> DividerRig {
         let rig = DividerRig(sessionID: sessionID,
                              metal: metal,
                              journalDirectory: try makeScratchDirectory(),
                              defaults: transientDefaults(),
-                             windowCount: windowCount)
+                             windowCount: windowCount,
+                             scheduler: scheduler)
         await rig.catalog.refreshAndWait(reason: .reconcile)
         rig.coordinator.directive = { _ in .proceed }
         rig.coordinator.onEvent = { event in rig.events.append(event) }
@@ -429,7 +612,8 @@ final class DividerRig {
          metal: MetalContext,
          journalDirectory: URL,
          defaults: UserDefaults,
-         windowCount: Int) {
+         windowCount: Int,
+         scheduler suppliedScheduler: GeometryOperationScheduler? = nil) {
         let permissions = FakePermissions()
         let catalogSource = FakeCatalogSource()
         let writer = FakeGeometryWriter()
@@ -441,7 +625,7 @@ final class DividerRig {
         let store = WindowJournalStore(fileName: "session-journal.json",
                                        sessionID: sessionID,
                                        baseDirectory: journalDirectory)
-        let scheduler = HostScheduler.make(sessionID: sessionID)
+        let scheduler = suppliedScheduler ?? HostScheduler.make(sessionID: sessionID)
         let settings = SettingsModel(defaults: defaults)
         let recorder = CompatibilityRecorder(fileName: "workbench-divider-test-\(UUID().uuidString)")
         let recovery = RecoveryCoordinator(store: store,
@@ -489,5 +673,63 @@ final class DividerRig {
                                             originalDisplayID: HostFixtures.display.id)
             .markingPlanned(frame: original, displayID: HostFixtures.display.id)
             .markingWritten(readBack: original, displayID: HostFixtures.display.id))
+    }
+}
+
+/// 测试用门闩：把在途操作按确定点挂起，由用例决定何时放行（不靠真实 sleep 赌时序）。
+/// 用锁而不是 `@MainActor`：门闩本身要能在替身/调度器的闭包里直接 await。
+private final class TestGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        lock.lock()
+        let alreadyOpen = isOpen
+        lock.unlock()
+        if alreadyOpen { return }
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            lock.lock()
+            if isOpen {
+                lock.unlock()
+                continuation.resume()
+            } else {
+                waiters.append(continuation)
+                lock.unlock()
+            }
+        }
+    }
+
+    func open() {
+        lock.lock()
+        isOpen = true
+        let pending = waiters
+        waiters = []
+        lock.unlock()
+        for continuation in pending { continuation.resume() }
+    }
+}
+
+/// 注入给调度器的截止唤醒收集器：用例手动触发"到点"，不依赖真实计时器（方案 §14.4、§15.2）。
+private final class DeadlineWakes: @unchecked Sendable {
+    private let lock = NSLock()
+    private var pending: [@MainActor () -> Void] = []
+
+    var count: Int {
+        lock.lock(); defer { lock.unlock() }
+        return pending.count
+    }
+
+    func append(_ fire: @escaping @MainActor () -> Void) {
+        lock.lock(); pending.append(fire); lock.unlock()
+    }
+
+    @MainActor
+    func fireAll() {
+        lock.lock()
+        let fires = pending
+        pending = []
+        lock.unlock()
+        for fire in fires { fire() }
     }
 }

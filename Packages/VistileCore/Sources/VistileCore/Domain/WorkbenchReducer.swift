@@ -393,11 +393,23 @@ public enum WorkbenchReducer {
             return [.presentHint(.displayUnavailable(record.applicationName))]
         }
         // 放置路径由核心层算一次：不可容纳就不进主区，日志与写入都还没有开始（方案 §9.1）。
-        let decision = MainPlacementPolicy.decide(mainRect: baseLayout.mainRect,
+        // 但目录缓存只是乐观预检：缓存 frame 可能落后于真实窗口，固定尺寸窗口的缓存尺寸也可能过期。
+        // 可移动且主区有效时交给宿主用写前实读重新决策，不把其实放得下的窗口提前挡在门外（方案 §6.2）。
+        let mainRect = baseLayout.mainRect
+        let decision = MainPlacementPolicy.decide(mainRect: mainRect,
                                                   currentFrame: actualFrame(state, identity) ?? record.frame,
                                                   isMovable: record.isMovable,
                                                   isResizable: record.allowsGeometryControl)
-        guard let targetFrame = decision.targetFrame else {
+        let targetFrame: CGRect
+        let placement: MainPlacementDecision
+        if let planned = decision.targetFrame {
+            targetFrame = planned
+            placement = decision
+        } else if canDeferPlacement(record: record, mainRect: mainRect) {
+            // 临时计划目标取主区：宿主会拿写前实读重新算，真实放不下仍由它按失败/补偿收口。
+            targetFrame = mainRect
+            placement = .resizeAndMove(target: mainRect)
+        } else {
             return [.presentHint(.restrictedWindow(unavailableReason(decision)))]
         }
         // 本次进入后的轨道占用：只用于动画端点与展示事实；placement 在过渡成功后才提交。
@@ -444,7 +456,7 @@ public enum WorkbenchReducer {
                                            presentation: WorkbenchPresenter.make(state: state,
                                                                                  snapshot: snapshot,
                                                                                  placement: prospective),
-                                           placement: decision)
+                                           placement: placement)
         // 写前事务与操作快照先原子落盘，宿主确认后才允许第一笔 AX 写入（方案 §7.1、§6.2）。
         return arm(&state,
                    context: context,
@@ -661,11 +673,22 @@ public enum WorkbenchReducer {
         let token = state.nextTransitionToken()
         let context = state.nextOperationContext(kind: kind, token: token)
         // 放置方式在核心层算一次：仅移动路径不写 size，不可容纳就根本不发起操作（方案 §9.1）。
-        let decision = MainPlacementPolicy.decide(mainRect: snapshot.layout.mainRect,
+        // 与进入同理：缓存 frame 只当乐观预检，可移动且主区有效时让宿主用写前实读重新决策（方案 §6.2）。
+        let mainRect = snapshot.layout.mainRect
+        let decision = MainPlacementPolicy.decide(mainRect: mainRect,
                                                   currentFrame: actualFrame(state, identity) ?? record.frame,
                                                   isMovable: record.isMovable,
                                                   isResizable: record.allowsGeometryControl)
-        guard let mainTarget = decision.targetFrame else {
+        let mainTarget: CGRect
+        let placementDecision: MainPlacementDecision
+        if let planned = decision.targetFrame {
+            mainTarget = planned
+            placementDecision = decision
+        } else if canDeferPlacement(record: record, mainRect: mainRect) {
+            // 临时计划目标取主区：宿主会拿写前实读重新算，真实放不下仍由它按失败/补偿收口。
+            mainTarget = mainRect
+            placementDecision = .resizeAndMove(target: mainRect)
+        } else {
             return [.presentHint(.workbenchMainFrameFailed(unavailableReason(decision)))]
         }
         // 旧主（若存在）回到它的 resting frame：原始尺寸或用户明确保留的尺寸（方案 §8.1）。
@@ -731,7 +754,7 @@ public enum WorkbenchReducer {
                                        presentation: WorkbenchPresenter.make(state: state,
                                                                               snapshot: snapshot,
                                                                               placement: placement),
-                                       placement: decision)
+                                       placement: placementDecision)
         return arm(&state,
                    context: context,
                    transactions: transactions,
@@ -947,6 +970,7 @@ public enum WorkbenchReducer {
     }
 
     /// 「A 仍在主区」的判定：placement 从未提交、补偿事实齐全、A 回到本次操作写入前的位置、且 A 确实被激活。
+    /// 写入前位置以宿主写前实读（`compensation.beforeReads`）为准，缺它才退回计划期快照（方案 §6.2、§6.4）。
     private static func canClaimOldMainStillMain(_ state: SessionState,
                                                  intent: WorkbenchSwitchIntent,
                                                  old: WindowIdentity?,
@@ -954,13 +978,16 @@ public enum WorkbenchReducer {
         guard let old, state.records[old] != nil else { return false }
         guard state.workbench.placement.main == old else { return false }
         guard compensation.activatedMain == old, compensation.isComplete else { return false }
-        guard let entry = intent.beforeOperation.entry(for: old) else { return false }
+        // 落点以宿主写前实读为准；没有实读事实时才退回计划期推测值（方案 §6.2、§6.4）。
+        guard let target = compensationTarget(for: old, intent: intent, compensation: compensation) else {
+            return false
+        }
         switch compensation.action(for: old) {
         case .notWritten:
             // A 从未被写过：它本来就在 beforeA 的位置，这是事实而不是推定。
             return true
         case let .restoredTo(frame), let .alreadyInPlace(frame):
-            return WindowTransaction.framesClose(frame, entry.compensationTarget, tolerance: 2)
+            return WindowTransaction.framesClose(frame, target, tolerance: 2)
         case .refused, nil:
             return false
         }
@@ -974,17 +1001,24 @@ public enum WorkbenchReducer {
         guard state.workbench.placement.main == nil, state.workbench.placement.slot(of: intent.to) != nil else {
             return false
         }
+        // 解除过但没恢复的最小化：真实系统状态没有收回原样，不能宣称"候选已归位"（方案 §6.4）。
+        guard compensation.unresolvedMinimizeRestorations.isEmpty else { return false }
         for identity in intent.beforeOperation.writtenOrder {
-            guard intent.beforeOperation.entry(for: identity) != nil else { return false }
+            // 有宿主写前实读时不需要计划期条目；两者都没有才算缺事实。
+            guard compensationTarget(for: identity, intent: intent, compensation: compensation) != nil else {
+                return false
+            }
             guard let action = compensation.action(for: identity), action.isResolved else { return false }
         }
-        guard let entry = intent.beforeOperation.entry(for: intent.to) else { return false }
+        guard let target = compensationTarget(for: intent.to, intent: intent, compensation: compensation) else {
+            return false
+        }
         switch compensation.action(for: intent.to) {
         case .notWritten:
             // 候选从未被写过：它还停在原格，这是事实而不是推定。
             return true
         case let .restoredTo(frame), let .alreadyInPlace(frame):
-            return WindowTransaction.framesClose(frame, entry.compensationTarget, tolerance: 2)
+            return WindowTransaction.framesClose(frame, target, tolerance: 2)
         case .refused, nil:
             return false
         }
@@ -1267,6 +1301,24 @@ public enum WorkbenchReducer {
     private static func unavailableReason(_ decision: MainPlacementDecision) -> String {
         if case let .unavailable(reason) = decision { return reason }
         return "窗口无法放进主区"
+    }
+
+    /// 缓存 frame 的"放不下"只是乐观预检，不能据此提前拒绝（方案 §6.2、§9.1）。
+    /// 窗口可移动且主区本身有效时，宿主会用写前实读重新决策——缓存尺寸过大不等于真实尺寸过大；
+    /// 不可移动或主区无效时缓存结论就是硬事实，宿主也动不了它，没必要起步。
+    private static func canDeferPlacement(record: WindowRecord, mainRect: CGRect) -> Bool {
+        guard record.isMovable else { return false }
+        return mainRect.width > MainPlacementPolicy.containmentTolerance
+            && mainRect.height > MainPlacementPolicy.containmentTolerance
+    }
+
+    /// 补偿判定的操作前位置：宿主写前实读是权威事实，缺它时才退回计划期推测值（方案 §6.2、§6.4）。
+    /// 外部把窗口移动过之后，计划期算出的落点已经不成立，拿它判补偿成败会误报失败。
+    private static func compensationTarget(for identity: WindowIdentity,
+                                           intent: WorkbenchSwitchIntent,
+                                           compensation: WorkbenchCompensationResult) -> CGRect? {
+        if let observed = compensation.beforeReads[identity] { return observed }
+        return intent.beforeOperation.entry(for: identity)?.compensationTarget
     }
 
     /// 读回是否仍在主区且不侵入两条栏；没有读回值时不凭猜测否定（方案 §9.2）。

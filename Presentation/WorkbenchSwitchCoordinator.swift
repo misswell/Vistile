@@ -67,6 +67,8 @@ final class WorkbenchSwitchCoordinator {
             case geometry(restoredMinimized: Bool)
             /// 只把它带到过前台：不需要写几何，但补偿必须重新确认真实前台。
             case activation
+            /// Vistile 为本次操作解除过最小化：解除成功当场登记，任何提前返回都必须收回去（方案 §6.4）。
+            case minimizeRelease
         }
         let identity: WindowIdentity
         let kind: Kind
@@ -376,6 +378,12 @@ final class WorkbenchSwitchCoordinator {
                                                                                        permit: permit,
                                                                                        activate: false,
                                                                                        fallbackTarget: targetFrame)
+                                                 if placement.step.isFailure {
+                                                     // 布局微调失败不走交换补偿：这里单独把解除过的最小化收回去。
+                                                     await self.undoMinimizeRelease(identity: identity,
+                                                                                   context: context,
+                                                                                   reason: placement.step.message)
+                                                 }
                                                  self.finishSettle(identity: identity,
                                                                    token: token,
                                                                    context: context,
@@ -493,13 +501,17 @@ final class WorkbenchSwitchCoordinator {
     ///
     /// 序号守卫挡的是**别人**：同一次操作自己连续追加（原位置纠正、操作前快照、写后事实）
     /// 每落一条就刷新基准，否则第二次追加会被自己的第一次判成过期。
+    /// 追加一条（或一批）已发生的事实；整批同成同败，调用方据返回值决定是否继续写窗口。
     private func updateJournal(context: GeometryOperationContext,
                                identity: WindowIdentity,
-                               mutation: JournalMutation) async -> Bool {
-        let written = await store.update(JournalUpdateRequest(operationID: context.operationID,
-                                                              identity: identity,
-                                                              mutation: mutation),
-                                         expectedRevision: preparedRevision)
+                               mutation: JournalMutation,
+                               additional: [JournalMutation] = []) async -> Bool {
+        let request = JournalUpdateRequest(operationID: context.operationID,
+                                           identity: identity,
+                                           mutation: mutation)
+        let written = additional.isEmpty
+            ? await store.update(request, expectedRevision: preparedRevision)
+            : await store.update(request, additional: additional, expectedRevision: preparedRevision)
         guard written.isPersisted else {
             let reason = written.reason ?? "未知原因"
             VistileLog.session.log(level: .error,
@@ -559,16 +571,27 @@ final class WorkbenchSwitchCoordinator {
             guard let element = catalog.axEntry(for: record)?.element else {
                 return .refused("\(record.applicationName) 的最小化窗口缺少 AX 句柄")
             }
-            let released = await writer.setMinimized(false, element: element)
-            guard released else {
-                return .refused("\(record.applicationName) 未解除最小化")
+            // 最小化写入与几何写入共用同一条许可：撤销后队列里那笔命令不得再执行（方案 §5.2）。
+            switch await writer.setMinimized(false, element: element, permit: permit) {
+            case let .refused(reason):
+                return .refused("解除最小化未获写入许可：\(reason)")
+            case let .notApplied(reason):
+                return .refused("\(record.applicationName) 未解除最小化（\(reason)）")
+            case .changed:
+                break
             }
             restoredFromMinimized = true
+            // 解除成功就是一条已经发生的副作用：当场登记，之后任何提前返回都要把它收回去（方案 §6.4）。
+            sideEffects.append(SideEffect(identity: identity, kind: .minimizeRelease))
             await catalog.refreshAndWait(reason: .windowEvent)
             guard let fresh = catalog.record(for: identity) else {
+                await undoMinimizeRelease(identity: identity, context: context,
+                                          reason: "解除最小化后目录里找不到该窗口")
                 return PlacementResult(step: .targetGone, geometry: .targetGone)
             }
             guard fresh.allowsAutoFocus else {
+                await undoMinimizeRelease(identity: identity, context: context,
+                                          reason: "解除最小化后仍不可聚焦")
                 return .refused("解除最小化后该窗口仍不可聚焦")
             }
             record = fresh
@@ -577,10 +600,14 @@ final class WorkbenchSwitchCoordinator {
         // 句柄取不到先复核目录（带截止时间反复复核：窗口移动中的瞬时坏采样，或捕捉权限成串短暂被拒），
         // 预算用尽仍拿不到才按事实拒绝。
         guard let ax = await catalog.axEntryAfterReview(for: record) else {
+            await undoMinimizeRelease(identity: identity, context: context,
+                                      reason: "拿不到 AX 句柄（身份未唯一确定）")
             return .refused("拿不到 AX 句柄（身份未唯一确定）")
         }
         // 写前实读：读不到就不写。目录快照可能落后一整轮，不能拿来当基准（方案 §6.2）。
         guard let before = await writer.currentFrame(of: ax.element) else {
+            await undoMinimizeRelease(identity: identity, context: context,
+                                      reason: "写前读不到当前 frame")
             return .refused("写前读不到当前 frame，拒绝盲目写入")
         }
         // 可移动/可尺寸必须是这次实读的事实：目录里的布尔会把一次读超时折叠成 false（方案 §6.1）。
@@ -610,34 +637,39 @@ final class WorkbenchSwitchCoordinator {
                                                   isResizable: resizable)
         guard let planned = decision.targetFrame else {
             // 放不下：不宣布进入主区，A 与两栏保持不动（方案 §9.1）。
-            if restoredFromMinimized {
-                await restoreMinimizedIfNeeded(identity: identity, element: ax.element, wasRestored: true)
-            }
+            await undoMinimizeRelease(identity: identity, context: context,
+                                      reason: decisionUnavailableReason(decision))
             return .refused(decisionUnavailableReason(decision))
         }
-        // 只有从未写过的事务才用实读纠正推测原位置；写过的原位置已经过读回验证（方案 §6.2、§7.3）。
-        if entry.hasSpeculativeOriginal,
-           !WindowTransaction.framesClose(before, entry.originalFrame, tolerance: 2) {
-            let corrected = await store.correctOriginal(identity, frame: before, displayID: record.displayID)
-            guard corrected.isPersisted else {
-                // 纠正失败 = 基准不可信：这次写入没有可回退的事实，拒绝写入（方案 §7.3）。
-                return .refused("原位置纠正未能落盘（\(corrected.reason ?? "")），已拒绝写入")
-            }
-            // 纠正本身也是一次落盘：基准跟着走，否则下一条追加会被自己写的这条判成过期。
-            preparedRevision = store.revision
-            VistileLog.session.log(level: .info,
-                                   "[原位置] \(identity.journalKey, privacy: .public) 目录快照=\(RecoveryCoordinator.text(entry.originalFrame), privacy: .public) 写前实读=\(RecoveryCoordinator.text(before), privacy: .public) 结论=按实读修正")
+        // 写前实读同时决定两件事：推测原位置的修正，和本次操作的 before 快照。
+        // 两者放进**同一批**原子落盘：同成同败，且只花一次磁盘往返（方案 §6.2、§7.3）。
+        // 纠正只能走 `.correctOriginal`——upsert 的合并规则故意不覆盖 originalFrame。
+        let correctedOriginal = entry.hasSpeculativeOriginal
+            && !WindowTransaction.framesClose(before, entry.originalFrame, tolerance: 2)
+        var extraMutations: [JournalMutation] = []
+        if correctedOriginal {
+            extraMutations.append(.correctOriginal(identity, frame: before, displayID: record.displayID))
         }
-        // 操作前快照：补偿回到这里，会话退出仍回 originalFrame（方案 §6.2、§6.3）。
         let recorded = await updateJournal(context: context,
                                           identity: identity,
                                           mutation: .upsert(entry.markingOperationBefore(frame: before,
-                                                                                        displayID: record.displayID,
-                                                                                        operationID: context.operationID)))
+                                                                                         displayID: record.displayID,
+                                                                                         operationID: context.operationID)),
+                                          additional: extraMutations)
         guard recorded else {
-            return .refused("操作前几何未能记入日志，已拒绝写入")
+            // 纠正与操作前快照是同一批：落盘失败＝基准不可信，一次 AX 写入都不许发生（方案 §7.3）。
+            let reason = correctedOriginal
+                ? "原位置（写前实读）与操作前快照未能同批落盘"
+                : "操作前几何未能记入日志"
+            await undoMinimizeRelease(identity: identity, context: context, reason: reason)
+            return .refused("\(reason)，已拒绝写入")
+        }
+        if correctedOriginal {
+            VistileLog.session.log(level: .info,
+                                   "[原位置] \(identity.journalKey, privacy: .public) 目录快照=\(RecoveryCoordinator.text(entry.originalFrame), privacy: .public) 写前实读=\(RecoveryCoordinator.text(before), privacy: .public) 结论=按实读修正（与操作前快照同批落盘）")
         }
         guard stillValid(context, token: context.transitionToken) else {
+            await undoMinimizeRelease(identity: identity, context: context, reason: "操作已被撤销")
             return .refused("操作已被撤销，未写入几何")
         }
 
@@ -853,14 +885,52 @@ final class WorkbenchSwitchCoordinator {
             : "写后事实未能落盘，按写前实读 \(RecoveryCoordinator.text(before)) 回位也未确认：\(back.outcome.message)")
     }
 
-    /// Vistile 为本次操作解除的最小化：补偿时按原样恢复（方案 §10.1）。
-    private func restoreMinimizedIfNeeded(identity: WindowIdentity, element: AXUIElement, wasRestored: Bool) async {
-        guard wasRestored else { return }
-        guard let record = catalog.record(for: identity) else { return }
-        // 只有仍然没有用户改动的迹象才重新最小化：用户已经动过就不越权。
-        if record.isMinimized { return }
-        _ = await writer.setMinimized(true, element: element)
-        recorder.note("已按原样恢复 \(record.applicationName) 的最小化状态")
+    /// 把「Vistile 本次解除的最小化」收回去（方案 §6.4、§10.1）。
+    ///
+    /// 三条约束：
+    /// - 走**恢复授权**（`.compensation`）而不是普通许可：普通许可可能已经被取消屏障撤销，
+    ///   但"把已经发生的副作用收回去"不属于新操作，不能被同一道屏障挡住；
+    /// - 只收回我们改过的那一条事实：目录已经显示最小化就当作已恢复，不重复写；
+    /// - 窗口消失/没有句柄/恢复写入失败时无法收口，返回 false：调用方必须把它计入补偿事实，
+    ///   不能让状态机在没有证据的情况下宣称"回滚成功"。
+    @discardableResult
+    private func undoMinimizeRelease(identity: WindowIdentity,
+                                     context: GeometryOperationContext,
+                                     reason: String) async -> Bool {
+        guard sideEffects.contains(where: { $0.identity == identity && $0.kind == .minimizeRelease }) else {
+            return true
+        }
+        guard let record = catalog.record(for: identity) else {
+            sideEffects.removeAll { $0.identity == identity && $0.kind == .minimizeRelease }
+            recorder.note("解除最小化后窗口已不在目录里，无需恢复（\(reason)）")
+            return true
+        }
+        if record.isMinimized {
+            // 已经是用户（或应用自己）想要的最小化状态：状态一致，不再写一次。
+            sideEffects.removeAll { $0.identity == identity && $0.kind == .minimizeRelease }
+            return true
+        }
+        guard let element = catalog.axEntry(for: record)?.element else {
+            recorder.note("解除最小化后取不到 AX 句柄，未恢复 \(identity.journalKey) 的最小化状态")
+            return false
+        }
+        let compensationContext = scheduler.makeContext(token: context.transitionToken, kind: .compensation)
+        let outcome: MinimizeWriteOutcome? = await scheduler.request(
+            context: compensationContext,
+            identities: [identity],
+            work: { [weak self] permit in
+                guard let self else { return .refused(reason: "执行器已释放") }
+                return await self.writer.setMinimized(true, element: element, permit: permit)
+            })
+        if outcome?.didChange == true {
+            sideEffects.removeAll { $0.identity == identity && $0.kind == .minimizeRelease }
+            recorder.note("已按原样恢复 \(record.applicationName) 的最小化状态（\(reason)）")
+            return true
+        }
+        // 恢复失败：义务留在 sideEffects 里，后续补偿路径还会再试，并在诊断里留痕。
+        recorder.record("最小化恢复", subject: record.applicationName, result: .failed,
+                        detail: "解除最小化后未能恢复（\(reason)）：\(outcome.map(String.init(describing:)) ?? "未获调度器受理")")
+        return false
     }
 
     private func decisionUnavailableReason(_ decision: MainPlacementDecision) -> String {
@@ -927,11 +997,32 @@ final class WorkbenchSwitchCoordinator {
 
         var items: [WorkbenchCompensationResult.Item] = []
         var seen = Set<WindowIdentity>()
+        var minimizeReleases: [WindowIdentity] = []
+        /// 写前实读（与本次 operationID 绑定）：补偿判定的权威目标。
+        /// reducer 手里的计划期快照可能落后于用户在 Vistile 之外对窗口的移动（方案 §6.2、§6.4）。
+        var beforeReads: [WindowIdentity: CGRect] = [:]
         // 逆序：后写的先回位，避免中间态把已回位的窗口再次顶走（方案 §6.3）。
-        for effect in sideEffects.reversed() where seen.insert(effect.identity).inserted {
+        for effect in sideEffects.reversed() {
+            if effect.kind == .minimizeRelease {
+                if !minimizeReleases.contains(effect.identity) { minimizeReleases.append(effect.identity) }
+                continue
+            }
+            guard seen.insert(effect.identity).inserted else { continue }
             let action = await compensateWindow(effect.identity, context: context)
             let displayID = catalog.record(for: effect.identity)?.displayID
             items.append(.init(identity: effect.identity, action: action, displayID: displayID))
+            if let entry = store.entry(for: effect.identity),
+               entry.operationID == context.operationID,
+               let before = entry.operationBeforeFrame {
+                beforeReads[effect.identity] = before
+            }
+        }
+        // 最小化在几何回位之后再恢复：顺序反过来会先把窗口藏起来，几何补偿就写不进"看不见的窗口"。
+        var unresolvedMinimizeRestorations: [WindowIdentity] = []
+        for identity in minimizeReleases {
+            let restored = await undoMinimizeRelease(identity: identity, context: context,
+                                                     reason: "本次操作失败，回滚最小化状态")
+            if !restored { unresolvedMinimizeRestorations.append(identity) }
         }
         sideEffects.removeAll()
         // 这批里"落盘了计划但一次都没写"的身份没有恢复依据：把义务从账上撤掉。
@@ -946,7 +1037,9 @@ final class WorkbenchSwitchCoordinator {
             if !facts.isProvenBehind { activatedMain = reActivate }
         }
         // 模式过渡失败：没有"旧主"要带回，焦点事实按未确认处理（isComplete 自然为假）。
-        let compensation = WorkbenchCompensationResult(items: items, activatedMain: activatedMain)
+        let compensation = WorkbenchCompensationResult(items: items, activatedMain: activatedMain,
+                                                       beforeReads: beforeReads,
+                                                       unresolvedMinimizeRestorations: unresolvedMinimizeRestorations)
         // 补偿事实先于失败事件回报：reducer 只能在看到真实结局后收口（方案 §6.4）。
         onEvent?(.geometryRestoreSettled(token: token,
                                          items: items.map {

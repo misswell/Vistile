@@ -41,7 +41,8 @@ protocol GeometryWriting: AnyObject {
     func applyPosition(_ origin: CGPoint, element: AXUIElement, permit: GeometryWritePermit) async -> GeometryWriteReport
     func raise(element: AXUIElement) async -> Bool
     func focus(element: AXUIElement) async -> Bool
-    func setMinimized(_ minimized: Bool, element: AXUIElement) async -> Bool
+    /// 最小化状态也是一次真实 AX 变更：与几何写入共用许可校验，撤销时不得执行（方案 §5.2）。
+    func setMinimized(_ minimized: Bool, element: AXUIElement, permit: GeometryWritePermit) async -> MinimizeWriteOutcome
     func focusedWindow(pid: pid_t) async -> AXWindowEntry?
     /// 写前直接问窗口一次"位置/尺寸能不能写"：目录快照里的 isMovable/isResizable
     /// 会把读取失败折叠成 false，一次读不到不能当成"窗口不可调整"的事实（方案 §6.1）。
@@ -55,6 +56,18 @@ enum GeometryWriteability: Equatable {
     case sizeNotSettable
     case positionNotSettable
     case unreadable
+}
+
+/// 最小化写入的三种事实（方案 §5.2、§6.4）：
+/// - `changed`：真的写入并被读回确认，调用方必须立刻登记可逆副作用；
+/// - `notApplied`：尝试过但应用没接受（或读不回），不能宣称已改；
+/// - `refused`：许可已撤销，命令根本不该执行——这是"没写过"，不是"写失败"。
+enum MinimizeWriteOutcome: Equatable, Sendable {
+    case changed
+    case notApplied(reason: String)
+    case refused(reason: String)
+
+    var didChange: Bool { self == .changed }
 }
 
 extension AXWindowResolver: GeometryWriting {}
@@ -356,13 +369,29 @@ final class AXWindowResolver: @unchecked Sendable {
             abs(a.width - b.width), abs(a.height - b.height))
     }
 
-    /// 解除最小化。写后读回确认，不返回未验证的成功。
-    func setMinimized(_ minimized: Bool, element: AXUIElement) async -> Bool {
+    /// 修改最小化状态：写后读回确认，不返回未验证的成功。
+    ///
+    /// 许可是在 AX 执行队列**内部**再查一次（方案 §5.2）：命令可能已经排进队列，
+    /// MainActor 上的"已取消"传不到这里，只有真正开始执行前那一次检查才拦得住。
+    func setMinimized(_ minimized: Bool,
+                      element: AXUIElement,
+                      permit: GeometryWritePermit) async -> MinimizeWriteOutcome {
         await executor.submit {
+            guard permit.isGranted else {
+                return .refused(reason: "写入许可已撤销，未改动最小化状态")
+            }
             let error = AXUIElementSetAttributeValue(element, kAXMinimizedAttribute as CFString,
                                                      minimized ? kCFBooleanTrue : kCFBooleanFalse)
-            guard error == .success else { return false }
-            return self.boolean(element, kAXMinimizedAttribute) == minimized
+            guard error == .success else {
+                return .notApplied(reason: "写入 kAXMinimized 报错 \(error.rawValue)")
+            }
+            guard let readBack = self.boolean(element, kAXMinimizedAttribute) else {
+                return .notApplied(reason: "写后读不到 kAXMinimized，不能宣称已改")
+            }
+            guard readBack == minimized else {
+                return .notApplied(reason: "写后读回最小化=\(readBack)，与目标 \(minimized) 不符")
+            }
+            return .changed
         }
     }
 

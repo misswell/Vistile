@@ -621,6 +621,8 @@ final class FakeGeometryWriter: GeometryWriting, @unchecked Sendable {
 
     /// true 时解除最小化"写入成功但读回不变"：应用自己不肯把窗口放回来。
     var refusesUnminimize = false
+    /// true 时"重新最小化"写入成功但读回不变：补偿想把窗口收回去却收不回来。
+    var refusesMinimize = false
 
     /// 替身里的应用侧事实。
     func setMinimizedState(_ value: Bool, for element: AXUIElement) {
@@ -637,16 +639,65 @@ final class FakeGeometryWriter: GeometryWriting, @unchecked Sendable {
         return unminimizeCount
     }
 
-    func setMinimized(_ minimized: Bool, element: AXUIElement) async -> Bool {
+    func setMinimized(_ minimized: Bool, element: AXUIElement, permit: GeometryWritePermit) async -> MinimizeWriteOutcome {
+        await waitForMinimizeGate()
         lock.lock()
+        // 与真实 AX 队列同一条规则：命令已经排到队列头，真正执行前再查一次许可。
+        // 撤销后这里必须"零执行"，而不是先改状态再报告失败（方案 §5.2）。
+        guard permit.isGranted else {
+            lock.unlock()
+            return .refused(reason: "写入许可已撤销")
+        }
         unminimizeCount += 1
         actions.append(minimized ? "最小化" : "解除最小化")
         let key = Self.key(of: element)
         // 拒绝的脚本模拟真实失败：属性写入本身不报错，但读回还是原来的值。
-        if !(refusesUnminimize && !minimized) { self.minimized[key] = minimized }
+        let refused = (minimized ? refusesMinimize : refusesUnminimize)
+        if !refused { self.minimized[key] = minimized }
         let readBack = self.minimized[key] ?? false
         lock.unlock()
-        return readBack == minimized
+        return readBack == minimized ? .changed : .notApplied(reason: "写后读回仍是最小化=\(readBack)")
+    }
+
+    // MARK: 最小化写入的挂起点
+
+    /// 与几何写入的 `.entry` 门同一个位置：AX 调用还没开始那一刻。
+    /// 取消必须拦得住这一半——放行后不得发生迟到的解除最小化（方案 §5.2、§18）。
+    private var armedMinimizeGate = false
+    private var pendingMinimizeResume: CheckedContinuation<Void, Never>?
+
+    /// true 时下一次最小化写入停在"AX 调用还没开始"这一刻，直到 `openMinimizeGate()`。
+    var gatesNextMinimize: Bool {
+        get { lock.lock(); defer { lock.unlock() }; return armedMinimizeGate }
+        set {
+            lock.lock(); armedMinimizeGate = newValue; lock.unlock()
+        }
+    }
+
+    var isBlockedInMinimize: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return pendingMinimizeResume != nil
+    }
+
+    func openMinimizeGate() {
+        lock.lock()
+        let resume = pendingMinimizeResume
+        pendingMinimizeResume = nil
+        armedMinimizeGate = false
+        lock.unlock()
+        resume?.resume()
+    }
+
+    private func waitForMinimizeGate() async {
+        lock.lock()
+        guard armedMinimizeGate else { lock.unlock(); return }
+        lock.unlock()
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            lock.lock()
+            armedMinimizeGate = false
+            pendingMinimizeResume = continuation
+            lock.unlock()
+        }
     }
 
     /// 替身看到的动作顺序（写 = 几何写入，其余是最小化/解除最小化）。
