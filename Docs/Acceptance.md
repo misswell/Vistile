@@ -358,13 +358,13 @@ ls "$TMPDIR/Vistile Diagnostics/" | grep -c '^host-test-'          # 期望 > 0�
 
 重点应用覆盖（方案 §19 末段）：同应用多文档窗口已有 Code（0.1.4/0.1.5/0.1.6 三轮通过）与访达（0.1.6 通过）、Chrome（至 0.1.10 未定性）；**Electron 应用（Slack/微信/钉钉）、Java/IDEA、固定尺寸原生应用一律未测**——按方案要求，"应用类型相似"不批量填通过。
 
-## 9. 方案 §18 A01–A42 逐项状态（本轮 0.1.11）
+## 9. 方案 §18 A01–A42 逐项状态（本轮 0.1.11 起、0.1.12 收尾）
 
-本轮最终回归（2026-10-17 15:46–15:48，提交前最后一轮；同一天 15:06 那轮的 63/178 是加「首帧呈现事实」三条用例之前）：
+本轮最终回归（下面两行是 2026-10-17 15:46–15:48 那一轮，`v0.1.11` 提交前的最后一轮；发布之后又跑了两轮——18:42–18:43 的确定性复跑与 19:18–19:19 清空构建目录后的重跑，逐条命令与退出码记在 §11.3；同一天 15:06 那轮的 63/178 是加「首帧呈现事实」三条用例之前）：
 
 - 核心包 `swift test`：swift-testing **148 项 / 15 个 suite** ＋ XCTest **64 项**，0 失败，`CORE_EXIT=0`（日志 `/tmp/core_test.log`）。
 - 宿主 `VistileHostTests`：**180 项执行、1 项跳过、0 失败**，`HOST_EXIT=0`（日志 `/tmp/host_test.log`，15:48:11 那轮）。
-- **上面两行是 0.1.11 发布字节那一轮的读数，不与发布后的数字合并。** §20.2 样本分组改动落在发布之后（未发版，见 §11.10）：
+- **上面两行是 0.1.11 发布字节那一轮的读数，不与发布后的数字合并。** §20.2 样本分组改动落在发布之后，现已随 `v0.1.12` 发版（见 §11.10）：
   核心包 **155 项 / 16 个 suite** ＋ XCTest **64 项**、`CORE_EXIT=0`（日志 `/tmp/core_group2.log`，17:17:17）；
   宿主 **182 项执行、1 项跳过、0 失败**、`HOST_EXIT=0`（日志 `/tmp/host_group2.log`，17:18:17，`** TEST SUCCEEDED **`）。
   涨出来的 9 项是 `PerformanceGroupTests` 的 7 条纯逻辑用例（[Packages/VistileCore/Tests/VistileCoreTests/PerformanceGroupTests.swift](../Packages/VistileCore/Tests/VistileCoreTests/PerformanceGroupTests.swift)）
@@ -378,7 +378,8 @@ ls "$TMPDIR/Vistile Diagnostics/" | grep -c '^host-test-'          # 期望 > 0�
   （本轮在同文件前部追加了首帧事实用例，行号整体后移）。测试本身一直都在、名字也没变，是文档的锚点旧了。
   那 14 行当时只改了 `#L` 链接、链接**文字**里的行号还是旧的（点开跳到新行，读起来却指向上一个用例）；本轮把 16 处 label 与 `#L` 对齐（14 处遗留＋本轮新漂移 2 处），核对脚本改为同时比对两者。
   可复跑的核对（19:04 全仓 188 条行锚链接、46 条带符号名的全部命中，0 处失配；§20.2 分组改动后 `P0Probe.swift` 行号又后移过一次，§11.11 去时钟依赖那轮改了三个文件的前部行数，
-  由此漂移的 6 处锚点（`ModeTransitionCoordinator.swift:432→435`、`TransitionSceneTests.swift:1335→1337`/`1374→1376`、`T05T07GeometryTransactionTests.swift:399→422`/`460→483`/`523→546`）已按新行号核对）：
+  由此漂移的 6 处锚点（`ModeTransitionCoordinator.swift:432→435`、`TransitionSceneTests.swift:1335→1337`/`1374→1376`、`T05T07GeometryTransactionTests.swift:399→422`/`460→483`/`523→546`）已按新行号核对。
+  **`v0.1.12` 字节回填之后再原样重跑一次（20:04:51）：`links=188 named=46 problems=0`，计数与上一轮一字不差**）：
 
   ```bash
   cd "$(git rev-parse --show-toplevel)"
@@ -407,7 +408,7 @@ ls "$TMPDIR/Vistile Diagnostics/" | grep -c '^host-test-'          # 期望 > 0�
 
 写法约定（方案 §18 原文要求）：测试名可调整；用可控 gate、fake clock 与可核对动作序列，不加真实 sleep 赌时序；每条断言外部结果或稳定不变量，不只镜像内部实现。下表「覆盖测试」给的是断言真正落点，多对一的行把共用例都列出。
 
-「A01–A42 每条都有用例」这一句怎么自己复核（16:22 跑过，42 条全部命中，无 `MISS`）：
+「A01–A42 每条都有用例」这一句怎么自己复核（16:22 与 20:04:51 各跑一次，42 条全部命中，无 `MISS`）：
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
@@ -514,10 +515,10 @@ done
 
 
 
-## 11. 本轮（0.1.11，方案 §22）交付报告
+## 11. 本轮（0.1.11 起、0.1.12 发出，方案 §22）交付报告
 
 方案 §22 的每一项在下面单列。**这一节里"未测"很多，这是如实记录而不是笔误**：方案 §19 要求发布包与探针运行包必须对应、
-不能用不同源码轮次拼成一个"全通过"，而本轮 0.1.11 的真机项还没在发布字节上跑过（§34 待办）。
+不能用不同源码轮次拼成一个"全通过"，而本轮的真机项还没在发布字节上跑过——该字节现在是 `v0.1.12`（`dbf2204`，构建 26，已装进 `/Applications/Vistile.app`），§34 待办。
 凡引用 0.1.10 及更早轮次的读数，都标明它属于**哪一个源码轮次**，不与本轮互证。
 
 ### 11.1 基线、最终 SHA、构建号、实际运行包 hash
@@ -531,6 +532,22 @@ done
 | dmg 内包体 hash | `Vistile.app/Contents/MacOS/Vistile` = `0ddf55e60a4de0e628f80254380443e5bd84c64f2a3274e48fff5c94c348e0a6`（`lipo -archs` = `arm64`；`Identifier=com.misswell.Vistile`、`Authority=Developer ID Application: Guofeng Liu (U8U443D7ZL)`、`TeamIdentifier=U8U443D7ZL`、`flags=0x10000(runtime)`；`codesign --verify --deep --strict` 通过；`xcrun stapler validate` 通过；`spctl --assess --type execute` = accepted，source=Notarized Developer ID） | 挂载后对 dmg 内 bundle 逐条跑上面的命令 |
 | 实际运行包 hash | `0ddf55e60a4de0e628f80254380443e5bd84c64f2a3274e48fff5c94c348e0a6`——`ditto` 从 dmg 装进 `/Applications/Vistile.app` 后实测，与 dmg 内那份**完全相同**；签名/装订/gatekeeper 在安装位置重跑同样全通过。替换下来的 0.1.10+24 旧包（`9f830aa5aa43499034d149d7197a06418fdf5b8d3901f070a29f2370ae30a40f`）移到了 `/tmp/Vistile_0110_backup`，没有删除。bundle id 与签名团队未变，所以已有的屏幕录制/辅助功能授权继续生效 | `shasum -a 256 /Applications/Vistile.app/Contents/MacOS/Vistile` |
 | 真机项是否已在这份字节上跑过 | **没有**。2026-10-17 16:06、16:09、16:17 三次读 `CGSessionCopyCurrentDictionary` 都是 `CGSSessionScreenIsLocked=1`（桌面锁定，`onDisplay=1`），方案 §19 与既有约束都不允许在锁屏上取证，故 §11.4–§11.8 仍全部为未测 | `xcrun swift /tmp/lockcheck.swift`（脚本在 [Evidence/README.md](Evidence/README.md)「run14 起跑前」） |
+
+**发布后的两轮改动（§11.10 分组、§11.11 去时钟依赖）已随 `v0.1.12` 发出，上面的表描述的是 `v0.1.11` 那批字节。**
+0.1.11 的表保留原样，因为那一轮的真机项确实没跑；下面这行才是现在该装、该跑的那一份：
+
+| 项 | 值 | 怎么核对 |
+| --- | --- | --- |
+| 0.1.12 代码 SHA / 标签 | `dbf22046f4de4ab949e465b7fa6cad346b1deaff`，标签 `v0.1.12`（指向同一提交）；`git ls-remote origin refs/tags/v0.1.12 refs/heads/main` 两者相同 | 提交链：`889a923`（0.1.11）→ `dcbd7f4`（§11.10）→ `84071c0`（§11.11）→ `dbf2204`（版本号） |
+| 构建号 | `0.1.12 / 26`；dmg 内与 `/Applications/Vistile.app` 内两份 `Info.plist` 各读一次，一致 | `defaults read /Applications/Vistile.app/Contents/Info CFBundleShortVersionString` |
+| 发布包 hash | dmg `Vistile_v0.1.12_macos_arm64.dmg`：`d342dbd49d60c123878c9a71103c1d033a583ce690370294264f2245fd29761b`，`2349001` 字节，与 GitHub 资产 `digest` 一字不差。**第一次下载截断成 `515333` 字节**（哈希自然对不上），删掉重下才一致——截断这一步必须先看字节数 | `ls -l` ＋ `shasum -a 256` 对照 `gh release view v0.1.12 --json assets` |
+| dmg 内包体 hash | `Vistile.app/Contents/MacOS/Vistile` = `dd07d34a8d9fd4fa1d6a8e27fea3b3deada140945c5cd49ba9ade2e04b55d9e9`；`Identifier=com.misswell.Vistile`、`Authority=Developer ID Application: Guofeng Liu (U8U443D7ZL)`、`TeamIdentifier=U8U443D7ZL`；`codesign --verify --deep --strict` 通过、`xcrun stapler validate` 通过、`spctl -a -t install` = source=Notarized Developer ID | 挂载后逐条跑上面的命令 |
+| 实际运行包 hash | `dd07d34a…5d9e9`——`ditto` 装进 `/Applications/Vistile.app` 后实测，与 dmg 内那份**完全相同**；签名/装订/gatekeeper 在安装位置重跑同样全通过。替换下来的 0.1.11 旧包（`0ddf55e6…4e0a6`）移到 `/tmp/Vistile-0.1.11-backup.app`，没有删除。bundle id 与签名团队未变，**屏幕录制/辅助功能授权继续生效，不需要重新授权** | `shasum -a 256 /Applications/Vistile.app/Contents/MacOS/Vistile` |
+| 流水线 | CI 与 Release 两条都在 `dbf2204` 上 success：<https://github.com/misswell/Vistile/actions/runs/39028389804>（CI）与 <https://github.com/misswell/Vistile/actions/runs/39028401485>（Release：`verify` ✓ → `probe-credentials` 跳过 → `build-macos` ✓ → `release` ✓，`publishedAt` 19:25:52 +0800）。§11.11 那条修复自身的 CI 是 <https://github.com/misswell/Vistile/actions/runs/39027671256>，**attempt 1 就绿**（同一条流水线在 `31d40ca` 上是首跑红、重跑绿） | `gh run view <id> --json conclusion,attempt,jobs` |
+| 真机项是否已在这份字节上跑过 | **还没有**。16:06 / 16:09 / 16:17 / 17:49 / 19:23:39 / 19:44:01 / 19:53:19 七次读数全是 `CGSSessionScreenIsLocked=1`（`onDisplay=1`，`online=1 active=0`）。包已就位（19:54 重读运行包 hash 仍是 `dd07d34a…5d9e9`、版本仍是 `0.1.12 / 26`），缺的只是能看见桌面的那一刻 | 同上，`swift /tmp/lockcheck.swift` |
+| 事后复核（20:32:46–47） | dmg 仍在 `/tmp`（`2349001` 字节 / `d342dbd49d60c123878c9a71…`），重新挂载后包内二进制仍是 `dd07d34a8d9fd4fa1d6a8e27…`，`spctl -a -t install` 仍回 `source=Notarized Developer ID` ＋ `origin=Developer ID Application: Guofeng Liu (U8U443D7ZL)`——上面每一行都能原地重放，不是只跑过一次的历史 | `shasum -a 256 /tmp/Vistile_v0.1.12_macos_arm64.dmg`；挂载见下一列 |
+| 挂载命令的口径变化 | `hdiutil attach -nobrowse -readonly -mountpoint` 现在会打 deprecated 警告（仍能工作）。复核这轮改用 `diskutil image attach --mountOptions nobrowse --readOnly --mountPoint /tmp/v0112_rc2 <dmg>` ＋ `diskutil eject` | 两种都跑过：安装前那次用 `hdiutil`（dmg 落盘时间 19:41，见文件 `mtime`），20:32 这次用 `diskutil` |
+
 
 ### 11.2 R01–R10 逐项：根因 / 修改文件 / 关键行为 / 回归用例 / 状态
 
@@ -563,6 +580,14 @@ done
   `CLEAN_CORE_EXIT=0`（148 swift-testing ＋ 64 XCTest）、
   `CLEAN_RELEASE_BUILD_EXIT=0` 且 Release 配置下 `error:` 计数为 0（`xcodebuild -scheme Vistile -configuration Release ARCHS=arm64 ONLY_ACTIVE_ARCH=NO`，不签名）、
   `CLEAN_HOST_EXIT=0`（180 项、1 skip、0 失败）。日志：`/tmp/clean_core.log`、`/tmp/clean_release.log`、`/tmp/clean_host.log`。
+- **`v0.1.12` 之前再清一次构建目录**（同一套命令，`rm -rf build .build Packages/VistileCore/.build`）：19:18–19:19 那轮
+  `CLEAN_CORE_EXIT=0`（155 swift-testing ＋ 64 XCTest）、`CLEAN_RELEASE_BUILD_EXIT=0` 且 `error:` 计数 0、
+  `CLEAN_HOST_EXIT=0`（**182 项、1 skip、0 失败**，18.13s）。日志：`/tmp/clean_core.log`、`/tmp/clean_release.log`、`/tmp/clean_host.log`。
+  发版提交 `dbf2204` 上 CI 与 Release 两条 run 均 success（§11.1 表内有链接），也就是"花一个版本号"之前本机与 runner 两边都干净。
+- **`v0.1.12` 那一轮的 runner 侧数字**（run <https://github.com/misswell/Vistile/actions/runs/39028389804>，两条 job 都 success）：
+  **核心** `Test run with 155 tests passed` ＋ `Executed 64 tests, with 0 failures`；**宿主** `Executed 182 tests, with 1 test skipped and 0 failures`
+  ＋ `** TEST SUCCEEDED **`。与本机 18:42–18:43、19:18–19:19 两轮计数一字不差。取法：
+  `gh run view 39028389804 --log | grep -E "Test run with|Executed [0-9]+ tests|TEST SUCCEEDED"`
 - CI（推送后 `main` = `889a923`，两条都在同一提交上，结论均为 success）：
   测试任务 <https://github.com/misswell/Vistile/actions/runs/39015752380>（`.github/workflows/ci.yml`，不需要签名凭据）。
   runner 侧数字与本机同一份：**核心** `Test run with 148 tests passed` ＋ `Executed 64 tests, with 0 failures`；
@@ -572,10 +597,15 @@ done
 - Release 正文来源核对：`gh release view v0.1.11 --json body` 与 `RELEASE_NOTES.md` 逐行 `diff`，**唯一差别是工作流在末尾追加的
   「## 下载」表格**（9 行），正文其余部分一字不差——即发布说明确实来自仓库文件，不是手工拼的。
   **因此 `RELEASE_NOTES.md` 本轮之后不再改**：这一节的回填只动 `Docs/`，改它会让仓库文件与已发布正文不再对应（中途误动过一次空行，已 `git restore` 还原）。
+- 同一核对对 `v0.1.12` 再做一次，并且换了更硬的做法——不再逐行 diff，直接证明"正文是文件的前缀"：
+  `gh release view v0.1.12 --json body -q .body > /tmp/body12.md`、`git show v0.1.12:RELEASE_NOTES.md > /tmp/notes12.md`，
+  比 `body.startswith(notes)` → **True**，`notes_len=23210`、`body_len=23324`，多出来的 111 个字符正是工作流末尾追加的
+  「`\n## 下载\n\n| 平台 | 文件 |\n|------|------|\n| Apple Silicon | \`Vistile_v0.1.12_macos_arm64.dmg\` |\n\nIntel 未提供安装包，也未做真机验证。\n\n`」
+  （`.github/workflows/release.yml:253-268` 那段 `cat RELEASE_NOTES.md` ＋ 表格）。也就是说 0.1.12 的发布说明与 `dbf2204` 里那份文件**逐字节相同**，没有手工成分。
 - 跳过项只有 1 条，原因与处置：`testKeyboardFocusReallyLandsOnContentView` 需要真实前台激活，宿主环境取不到时显式 `XCTSkip`；
   按方案 §22 它不计为成功，对应真机项是 M04/M11（未测）。
 
-### 11.4 §19 真机矩阵 M01–M14 逐项（本轮 0.1.11）
+### 11.4 §19 真机矩阵 M01–M14 逐项（本轮 0.1.12）
 
 三类证据分列：**真实应用**（只有解锁桌面上跑发布字节才算）、**脚手架**（UITestHarness 的可控异常时序，只证明时序形状）、
 **纯逻辑**（W/H 替身）。方案 §19 明令脚手架不能代替真实应用兼容性，也不能按应用类型批量填通过。
@@ -592,14 +622,14 @@ run14 直接用同一份环境，只在解锁后补窗口数与真机读数：
 | 设备 | `Mac17,2`，`arm64`，Apple M5（10 核 GPU，Metal 4） | `sysctl -n hw.model`、`system_profiler SPDisplaysDataType` |
 | 显示器布局 | **只有一块内置屏，单屏无副屏**：`CGGetOnlineDisplayList` 回 `online=1 ids=[1]`、`CGMainDisplayID()=1`、`CGDisplayBounds = (0,0,1800,1169)`（点），面板为 Built-in Liquid Retina XDR、`3024 x 1964 Retina`、`Main Display: Yes`、`Mirror: Off`。锁屏熄屏期间 `CGGetActiveDisplayList` 回 `total=0`、`system_profiler` 回 `Display Asleep: Yes`——**这两条只说明"当前没有活动模式"，不代表屏幕消失**，刷新率要走 online 列表才取到 | `system_profiler SPDisplaysDataType`、online/active 两个列表的 swift 片段（[Evidence/README.md](Evidence/README.md)「run14 起跑前」） |
 | 刷新率 | 内置面板在线模式报 **`Hz=120.0`**（`CGDisplayCopyDisplayMode(1).refreshRate`，16:17 实测，与 `asleep=true` 同时成立）。§20.2 的 60Hz/120Hz 分组因此有明确落点：这台机器只有这一档面板，ProMotion 会在静止内容与动画之间升降，**run14 必须在动画进行中重读 `refreshRate`**，不能拿一个静态读数给整轮分组 | 同上 |
-| 应用版本 / SHA / 二进制 hash | `0.1.11 / 25`，源码 `889a923`，运行包 `0ddf55e60a4de0e628f80254380443e5bd84c64f2a3274e48fff5c94c348e0a6`（见 §11.1） | §11.1 的核对命令 |
-| 桌面锁与窗口数 | `CGSSessionScreenIsLocked=1`（16:06、16:09、16:17 三次一致）且 `onDisplay=1`——会话在但屏幕锁着。**阻塞的是"锁"本身，不是屏幕消失**：锁屏态下 AX 窗口列表读不到、捕获拿不到真实画面，历史三轮（0.1.6 17:37、0.1.8 18:14/18:17）就是这么废掉的。窗口数在锁屏态下无意义，故整表仍为未测 | `xcrun swift /tmp/lockcheck.swift`（脚本见 [Evidence/README.md](Evidence/README.md)） |
+| 应用版本 / SHA / 二进制 hash | `0.1.12 / 26`，源码 `dbf2204`，运行包 `dd07d34a8d9fd4fa1d6a8e27fea3b3deada140945c5cd49ba9ade2e04b55d9e9`（见 §11.1，19:54 重读仍是这一份） | §11.1 的核对命令 |
+| 桌面锁与窗口数 | `CGSSessionScreenIsLocked=1`（16:06、16:09、16:17、17:49、19:23:39、19:44:01、19:53:19 七次一致）且 `onDisplay=1`——会话在但屏幕锁着。**阻塞的是"锁"本身，不是屏幕消失**：锁屏态下 AX 窗口列表读不到、捕获拿不到真实画面，历史三轮（0.1.6 17:37、0.1.8 18:14/18:17）就是这么废掉的。窗口数在锁屏态下无意义，故整表仍为未测 | `xcrun swift /tmp/lockcheck.swift`（脚本见 [Evidence/README.md](Evidence/README.md)） |
 
 按 §20.2 的口径，"锁屏、授权弹窗、系统睡眠"这一类只能记成**环境中断**，既不能静默删除，也不能反填通过。
 
 | M | 路径 | 真实应用 | 脚手架 | 纯逻辑 | 本轮状态 |
 | --- | --- | --- | --- | --- | --- |
-| M01 | 总览先行 + 6 窗组合（Safari/访达/终端/VS Code/Xcode） | 未测 | — | — | **未测**：0.1.10 的 `P0-15`/`P0-12` 读数属于 +16…+23 与 run12 那批字节，不能给 0.1.11 用 |
+| M01 | 总览先行 + 6 窗组合（Safari/访达/终端/VS Code/Xcode） | 未测 | — | — | **未测**：0.1.10 的 `P0-15`/`P0-12` 读数属于 +16…+23 与 run12 那批字节，不能给 0.1.12 用 |
 | M02 | 固定交换（顶栏 50 + 侧栏 50） | 未测 | — | W23/W01 通过 | **未测**：`P0-16` 100/100 是 +20/+22/+23 的读数，源码轮次不同 |
 | M03 | 进度监看（被遮挡仍实时、终端计数肉眼可见） | 未测 | — | A34/A35 通过 | **未测** |
 | M04 | 原生输入（中文候选/右键/菜单栏/Sheet/拖放/预览不透点） | 未测 | — | `T14` 只数了激活调用次数 | **未测**（Compatibility「输入」列整列为空） |
@@ -651,12 +681,15 @@ run14 直接用同一份环境，只在解锁后补窗口数与真机读数：
   **真机上的旧日志文件升级后能否正确恢复未测**。
 - **强退恢复**：按方案只对"已经可靠落盘的写入义务"负责——journal 落盘失败时不假装写过（A17 断言停后续步骤但保留补偿义务）。
   实机强杀后重启的恢复路径**未测**。
-- **新旧安装包**：同 Developer ID 覆盖安装保留 TCC 授权已被实测多次（0.1.1→0.1.10，见 Compatibility §1）。本轮 0.1.11 已完成**安装动作本身**的核对：
-  `ditto` 把 dmg 内 bundle 装回 `/Applications/Vistile.app`，安装后包内二进制 `sha256 0ddf55e6…e0a6` 与 dmg 内那份一字不差，
+- **新旧安装包**：同 Developer ID 覆盖安装保留 TCC 授权已被实测多次（0.1.1→0.1.10，见 Compatibility §1）。本轮把**安装动作本身**核对了两次：
+  0.1.11 那次——`ditto` 把 dmg 内 bundle 装回 `/Applications/Vistile.app`，安装后包内二进制 `sha256 0ddf55e6…e0a6` 与 dmg 内那份一字不差，
   签名（`Identifier=com.misswell.Vistile`、`U8U443D7ZL`、`flags=0x10000(runtime)`）、`stapler validate`、`spctl --assess` 在安装位置重跑仍全通过，
-  bundle id 与签名团队未变，旧 0.1.10+24 移到 `/tmp/Vistile_0110_backup` 未删。**但"这一跳之后权限还在不在"要靠启动一次读 `P0-0` 才能算证据**，
-  而锁屏态下启动一次既读不到 AX 窗口列表、也拿不到真实画面（16:06/16:09/16:17 三次 `CGSSessionScreenIsLocked=1`），不构成 §19 的有效取证环境，
-  所以 0.1.10→0.1.11 这一跳的授权保留**仍未测**（run14 第一行 `P0-0` 就是它）。
+  bundle id 与签名团队未变，旧 0.1.10+24 移到 `/tmp/Vistile_0110_backup` 未删；
+  0.1.12 那次——发布之后（`publishedAt` 19:25:52）下载 dmg、逐条核对再 `ditto` 装回，装进去的是 `dd07d34a…5d9e9`，被替换下来的 0.1.11 移到 `/tmp/Vistile-0.1.11-backup.app` 未删，
+  19:54 重读 `/Applications/Vistile.app` 仍是 `0.1.12 / 26` 与这一串 hash。
+  **但"这一跳之后权限还在不在"要靠启动一次读 `P0-0` 才能算证据**，
+  而锁屏态下启动一次既读不到 AX 窗口列表、也拿不到真实画面（16:06 起七次 `CGSSessionScreenIsLocked=1`，最近一次 19:53:19），不构成 §19 的有效取证环境，
+  所以 0.1.10→0.1.11 与 0.1.11→0.1.12 **两跳的授权保留都仍未测**（run14 第一行 `P0-0` 就是它）。
 
 ### 11.10 发布后的测量面补齐：§20.2 样本分组（代码完成，真机数字仍是未测）
 
@@ -681,8 +714,9 @@ run14 直接用同一份环境，只在解锁后补窗口数与真机读数：
   （[Tests/HostTests/TransitionSceneTests.swift:1337](../Tests/HostTests/TransitionSceneTests.swift#L1337)、
   [:1376](../Tests/HostTests/TransitionSceneTests.swift#L1376)）。契约断掉的表现是读取侧一行都匹配不到、报告只写"没有帧样本"，
   那是测量坏了不是产品慢，所以先让测试红。
-- **状态**：代码完成、确定性回归通过（核心 155/64、宿主 182，见 §9）。**这份改动不在 `v0.1.11` 的发布字节里**，
-  解锁后要么在它上面重跑 run14，要么先发版再跑——在跑之前，§20.1 的全部数字（含分组后的）仍是**未测**，
+- **状态**：代码完成、确定性回归通过（核心 155/64、宿主 182，见 §9），**并已随 `v0.1.12` 发进正式字节**（`dbf2204`，运行包 hash 见 §11.1）。
+  发版前这条改动只在工作树里、`v0.1.11` 的字节还在写不带分组键的合池名字，所以那批数字不能拿来交分组这一项；现在字节对了，
+  **但仍未在真机跑过**：解锁后 run14 之前的 §20.1 全部数字（含分组后的）仍是**未测**，
   120Hz 组能按本机帧间隔给更严预算这一点也只是把口径写清楚，没有任何本机样本。
 
 ### 11.11 两条宿主用例去掉真实时钟赌时序（代码完成，已复跑）
@@ -719,14 +753,18 @@ run14 直接用同一份环境，只在解锁后补窗口数与真机读数：
 ### 11.12 未完成项（直说未完成）
 
 1. §19 M01–M14 全部真机项、§20 的性能数字、30 分钟长跑、录屏、P0-19 真机对照、强退恢复实机——**全部未测**。
-   阻塞条件是**桌面锁定**（`CGSSessionScreenIsLocked=1`，16:06/16:09/16:17/17:49 共四次读数）＋熄屏（活动显示器数 0），不是代码缺东西；
-   发布字节已经按 §11.1 装到 `/Applications/Vistile.app`，解锁后一条命令即可跑（任务 §34，命令在本文档 §4「怎么跑」与
-   [Evidence/README.md](Evidence/README.md) 的"run14 起跑前"一节）。
-   **但 §11.10 的分组改动改变了这件事的前提**：带分组键的指标名只存在于工作树里这份代码，`v0.1.11` 的字节还是合池的老名字。
-   所以解锁后跑在 0.1.11 上只能拿到"没有分组"的那套数字——正好是本轮要修的缺陷。取 §20.2 的分组证据必须先把这份改动装进正式版
-   （同 Developer ID、同 bundle id `com.misswell.Vistile`，授权不用重给），也就是**先发版再跑**，或在本地重装这份构建后跑并如实记下重装包的 hash。
-2. `v0.1.11` 已提交（`889a923`）、打标签、发布，两条 run 均 success；发布包与运行包 hash 已回填进 §11.1（任务 §35 完成）。
-   这条限制的残留部分现在更严重：**代码和文档都比包新**（§11.10 的测量面改动未发版）。
+   阻塞条件**只有一个：桌面锁定**。七个读数（16:06、16:09、16:17、17:49、19:23:39、19:44:01、19:53:19）全是
+   `CGSSessionScreenIsLocked=1`、`onDisplay=1`，同时 `CGGetActiveDisplayList` 回 `active=0`（`online=1`）——
+   会话在、屏在，只是锁着，AX 窗口列表读不到、捕获拿不到真实画面。不是代码缺东西，也不是权限缺东西。
+   **上一轮卡住这件事的前提已经解掉了**：§11.10 的分组测量面随 `v0.1.12`（`dbf2204`，构建 26）发出，
+   并按 §11.1 装进 `/Applications/Vistile.app`（运行包 `dd07d34a…5d9e9`，与 dmg 内那份一字不差；同 Developer ID
+   `U8U443D7ZL`、同 bundle id `com.misswell.Vistile`，**授权不用重给**）。所以解锁后跑的就是带分组键的那套指标名，
+   取到的是 §20.2 要的数字，不会再退回 0.1.11 的合池老名字。解锁后一条命令即可起跑（任务 §34，
+   命令在本文档 §4「怎么跑」与 [Evidence/README.md](Evidence/README.md) 的"run14 起跑前"一节）。
+2. `v0.1.12` 已提交（`dbf2204`）、打标签、发布，CI 与 Release 两条 run 均 success；发布包与运行包 hash 已回填进 §11.1。
+   工作树里现在只有这一份文档改动（`git status` 只列 `Docs/Acceptance.md`），**代码与已发布字节完全一致**，
+   上一轮"代码和文档都比包新"里的**代码**那一半已经不成立。残留的是"文档比字节新一条 doc 提交"——
+   这一条不影响被测对象，只要求写回时如实标明它是发布之后补的。
 3. §20.1 目标里"点击反馈 P95 ≤50ms"的锚定实现（首帧延迟 + 呈现核对）本轮才落进代码，
    **没有任何真机样本证明它达标**；上一轮（0.1.10）的帧间隔样本 n=36/61/53、p95 32.6–50.7ms 是不同源码轮次、不同口径的读数，只作趋势，不作达标证据。
 

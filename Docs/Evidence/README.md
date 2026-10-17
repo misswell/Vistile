@@ -27,18 +27,23 @@
 | `2026-10-17-013723-0.1.10+22-capability-report.md` | 0.1.10+22 | 01:37:23 | **诊断轮**：1 个自动项失败——P0-16 转通过（100/100，p95=552ms）；P0-17=3/100（第 4 轮 Chrome 位置写入报 -25204、读回其实已在目标位（66,184≈66,183），分类没认读回而按错误码拒绝并回滚）＋漂移 2263 偏 241.0pt（基线在窗口服务器几何提交滞后的约 0.6s 窗口内采样）与 19645 偏 44.0pt（ZCode 自播动画，产品侧已回报）。修复在 +23（分类读回优先、补偿回报、稳定基线、漂移分账）。本轮另留 `-live-log.txt`/`-snapshots.txt` 原件 |
 | `2026-10-17-015830-0.1.10+23-capability-report.md` | 0.1.10+23 | 01:58:30 | **诊断轮**：P0-16=通过（100/100，p95=554ms）；P0-17=61/100——第 62 轮 Chrome 写入双侧错误码=0、单次读回读不到被按「不能宣称到位」拒绝并补偿回滚，但恢复路径 32ms 后就读到了 66,184（应用刚被改几何时 AX 短暂忙）：单次读失败被当成终审。幻影提示与真实漂移本轮均已消失（+23 四项修复生效）。修复在 +24（写后读回有界重试）。本轮 P0-3/P0-9 因中途锁定段记未测、桌面另有系统授权弹窗干扰，只作诊断不作验收；`-live-log.txt` 为原始流转换件（当时捕获命令少了 `--signpost` 且非 compact，区间行缺失；run12 起恢复标准命令） |
 
-## run14 起跑前（0.1.11 发布字节已就位，原件还没产生）
+## run14 起跑前（0.1.12 发布字节已就位，原件还没产生）
 
-**先决定跑哪一份字节**：17:18 那轮回归之后工作树比包新——§20.2 的样本分组改动（[Acceptance.md §11.10](../Acceptance.md)）只在树里，
-`v0.1.11` 的 `P0-18` 还在写不带分组键的合池指标名。直接跑在装好的 0.1.11 上，M01–M14 与三条路径的数字有效，
-但"60Hz/120Hz、reduceMotion、冷/热分组"这一项只能记**未测**（名字里没有分组键，逐组判定读不到任何行）。
-要一次拿全，先把这份改动装进 `/Applications/Vistile.app`（同 Developer ID `U8U443D7ZL`、同 bundle id `com.misswell.Vistile`，
-授权不用重给），并在 Acceptance §11.1 记下重装包的实际 hash 与版本号——**报告里的构建行必须与那串 hash 对得上**，否则这轮不算在发布字节上。
+**跑哪一份字节：`v0.1.12`，已经装好，这一项不再需要决定。** 上一轮这个位置写的是"工作树比包新，先决定跑 0.1.11 还是重装"——
+19:19 清空构建目录复跑、19:25 发布 `v0.1.12`（代码 `dbf2204`，构建 26），并按方案 §19 核对后装回 `/Applications/Vistile.app`：
+包内二进制 = `sha256 dd07d34a8d9fd4fa1d6a8e27fea3b3deada140945c5cd49ba9ade2e04b55d9e9`，与 dmg 内那份一字不差；dmg 本身
+`2349001` 字节 / `sha256 d342dbd4…761b`，与 GitHub 资产 `digest` 相同（第一次下载被截断成 `515333` 字节，哈希自然对不上——**先看字节数再哈希**）。
+§11.10 的分组测量面现在在字节里，跑出来的 `P0-18` 才会带分组键。替换下来的 0.1.11 移到 `/tmp/Vistile-0.1.11-backup.app`，没有删除。
+同 Developer ID `U8U443D7ZL`、同 bundle id `com.misswell.Vistile`，**授权不用重给**。起跑前一条命令确认在 `/Applications` 里的还是这一份（19:54 实测一致）：
 
-0.1.11 的发布包已按方案 §19 核对并装到 `/Applications/Vistile.app`（`/Applications/Vistile.app/Contents/MacOS/Vistile`
-= `sha256 0ddf55e60a4de0e628f80254380443e5bd84c64f2a3274e48fff5c94c348e0a6`，与 dmg 内那份一字不差；dmg 本身
-`2328935` 字节 / `sha256 5facbd52…0061` 与 GitHub 资产 `digest` 相同）。**但 run14 到现在一次都没跑**，因为桌面是锁的：
-16:06、16:09、16:17 与 17:49 四次读会话字典都是 `CGSSessionScreenIsLocked=1`（`onDisplay=1`，会话在、屏幕锁着），
+```bash
+shasum -a 256 /Applications/Vistile.app/Contents/MacOS/Vistile   # 期望 dd07d34a…5d9e9
+defaults read /Applications/Vistile.app/Contents/Info CFBundleShortVersionString  # 0.1.12
+defaults read /Applications/Vistile.app/Contents/Info CFBundleVersion              # 26
+```
+
+**但 run14 到现在一次都没跑**，因为桌面是锁的：16:06、16:09、16:17、17:49、19:23:39、19:44:01、19:53:19 七次读会话字典都是
+`CGSSessionScreenIsLocked=1`（`onDisplay=1`，会话在、屏幕锁着），
 锁屏态下 AX 窗口列表读不到、捕获不到真实画面，历史三轮（0.1.6 17:37、0.1.8 18:14/18:17）就是这么废掉的。
 判据脚本先落盘再跑（`/tmp` 里的副本会没，别依赖上一次留下的）：
 
@@ -49,6 +54,13 @@ import Foundation
 if let d = CGSessionCopyCurrentDictionary() as? [String: Any] {
     print("locked=\(d["CGSSessionScreenIsLocked"] ?? "absent") onDisplay=\(d["kCGSSessionOnConsoleKey"] ?? "absent")")
 } else { print("no session dictionary") }
+var online = Array(repeating: CGDirectDisplayID(0), count: 16)
+var oCount: UInt32 = 0
+CGGetOnlineDisplayList(16, &online, &oCount)
+var active = Array(repeating: CGDirectDisplayID(0), count: 16)
+var aCount: UInt32 = 0
+CGGetActiveDisplayList(16, &active, &aCount)
+print("online=\(oCount) active=\(aCount)")
 EOF
 
 cat > /tmp/disp.swift <<'EOF'
@@ -95,12 +107,12 @@ open -n -g -W --env VISTILE_P0_MODE=1 --env VISTILE_P0_LONG_MINUTES=30 /Applicat
 /tmp/vistile_snapshot_loop > /tmp/vistile_snapshots_run14.log 2>&1 &
 ```
 
-跑完必须复核的四件事，任一条不成立就把那轮记为作废而不是"通过"：`P0-0` 两权限仍为 true（这一跳 0.1.10→0.1.11 的授权保留到此刻才算有证据）；
-报告里的构建行与实际运行的二进制哈希一致（跑的是上面那串 `0ddf55e6…e0a6`，还是重装后的新 hash，两者都要写进 Acceptance §11.1）；
+跑完必须复核的四件事，任一条不成立就把那轮记为作废而不是"通过"：`P0-0` 两权限仍为 true（这一跳 0.1.11→0.1.12 的授权保留到此刻才算有证据）；
+报告里的构建行与实际运行的二进制哈希一致（应为 `dd07d34a…5d9e9` / `0.1.12 / 26`；如果跑的是别的 hash，两者都要写进 Acceptance §11.1 并说明来源）；
 `P0-18` 每一行都带分组键（`档位·reduceMotion=开/关·冷启动|热路径`），逐组的样本 n≥100／累计有效间隔≥1,000 各自过门才判，
 不足按 §20.2 写"未判"；三条路径各自的"落定核对：成功率X%（落定/派发）、超时N"一行都要在报告里读得到，缺行就是没测而不是 100%；
 中途出现锁屏/睡眠/授权弹窗的段落单列环境中断，不静默删除。
-分组键一个都不出现，说明跑的是没带 §20.2 分组改动的旧字节——那一轮的分组项按**未测**记，不能拿合池数字顶。
+分组键一个都不出现，先怀疑跑的不是这一份字节（用上面的 `shasum` 复核），确认后那一轮的分组项按**未测**记，不能拿合池数字顶。
 
 ## 一轮能不能用，怎么当场判
 
