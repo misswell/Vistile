@@ -588,6 +588,9 @@ done
   **核心** `Test run with 155 tests passed` ＋ `Executed 64 tests, with 0 failures`；**宿主** `Executed 182 tests, with 1 test skipped and 0 failures`
   ＋ `** TEST SUCCEEDED **`。与本机 18:42–18:43、19:18–19:19 两轮计数一字不差。取法：
   `gh run view 39028389804 --log | grep -E "Test run with|Executed [0-9]+ tests|TEST SUCCEEDED"`
+- 只动 `Docs/` 的那次回填（`5a8fb74`）也照样过 CI：<https://github.com/misswell/Vistile/actions/runs/39033164047>
+  （`gh run list --workflow=ci.yml --limit 1 --json headSha,conclusion` 回 `success`，20:38 确认）。
+  文档提交不改任何计数，跑它只为证明"写回证据的这一笔也没把仓库弄红"。
 - CI（推送后 `main` = `889a923`，两条都在同一提交上，结论均为 success）：
   测试任务 <https://github.com/misswell/Vistile/actions/runs/39015752380>（`.github/workflows/ci.yml`，不需要签名凭据）。
   runner 侧数字与本机同一份：**核心** `Test run with 148 tests passed` ＋ `Executed 64 tests, with 0 failures`；
@@ -753,7 +756,7 @@ run14 直接用同一份环境，只在解锁后补窗口数与真机读数：
 ### 11.12 未完成项（直说未完成）
 
 1. §19 M01–M14 全部真机项、§20 的性能数字、30 分钟长跑、录屏、P0-19 真机对照、强退恢复实机——**全部未测**。
-   阻塞条件**只有一个：桌面锁定**。七个读数（16:06、16:09、16:17、17:49、19:23:39、19:44:01、19:53:19）全是
+   阻塞条件**只有一个：桌面锁定**。八个读数（16:06、16:09、16:17、17:49、19:23:39、19:44:01、19:53:19、20:38:18）全是
    `CGSSessionScreenIsLocked=1`、`onDisplay=1`，同时 `CGGetActiveDisplayList` 回 `active=0`（`online=1`）——
    会话在、屏在，只是锁着，AX 窗口列表读不到、捕获拿不到真实画面。不是代码缺东西，也不是权限缺东西。
    **上一轮卡住这件事的前提已经解掉了**：§11.10 的分组测量面随 `v0.1.12`（`dbf2204`，构建 26）发出，
