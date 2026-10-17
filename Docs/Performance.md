@@ -185,6 +185,9 @@ P0-4 因此从"未测"转为拿到读数。
   「(无点击锚点)」单列，**不允许混进点击反馈的 P95**。
 - 样本不足一律标未判：每条模式路径 ≥100 次操作、短场景累计 ≥1,000 个有效间隔；
   60Hz/120Hz、reduceMotion、冷启动/热路径分组，锁屏/授权弹窗/系统睡眠记为环境中断，不静默删除。
+  **本机的档位已有实测依据**：内置面板 `CGDisplayCopyDisplayMode(1).refreshRate` 报 `120.0`（2026-10-17 16:17，锁屏熄屏态下测得；
+  注意 `CGGetActiveDisplayList` 在熄屏时回 0 块，必须走 `CGGetOnlineDisplayList` 才拿得到模式与刷新率，脚本见
+  [Evidence/README.md](Evidence/README.md)「run14 起跑前」）。ProMotion 会随内容升降，所以分组标签要在动画进行中重读该值，不能沿用一格的静态读数。
 - §3.1–§3.7 的自报 CPU（0.2–0.42）与"总览帧率"仍在同一个未核区间，**不作为改善基线**（方案 §20.3）。
   要引用 CPU 必须先与 Activity Monitor / Instruments 对表并写清对表方式。
 

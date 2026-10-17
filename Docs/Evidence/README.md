@@ -27,6 +27,72 @@
 | `2026-10-17-013723-0.1.10+22-capability-report.md` | 0.1.10+22 | 01:37:23 | **诊断轮**：1 个自动项失败——P0-16 转通过（100/100，p95=552ms）；P0-17=3/100（第 4 轮 Chrome 位置写入报 -25204、读回其实已在目标位（66,184≈66,183），分类没认读回而按错误码拒绝并回滚）＋漂移 2263 偏 241.0pt（基线在窗口服务器几何提交滞后的约 0.6s 窗口内采样）与 19645 偏 44.0pt（ZCode 自播动画，产品侧已回报）。修复在 +23（分类读回优先、补偿回报、稳定基线、漂移分账）。本轮另留 `-live-log.txt`/`-snapshots.txt` 原件 |
 | `2026-10-17-015830-0.1.10+23-capability-report.md` | 0.1.10+23 | 01:58:30 | **诊断轮**：P0-16=通过（100/100，p95=554ms）；P0-17=61/100——第 62 轮 Chrome 写入双侧错误码=0、单次读回读不到被按「不能宣称到位」拒绝并补偿回滚，但恢复路径 32ms 后就读到了 66,184（应用刚被改几何时 AX 短暂忙）：单次读失败被当成终审。幻影提示与真实漂移本轮均已消失（+23 四项修复生效）。修复在 +24（写后读回有界重试）。本轮 P0-3/P0-9 因中途锁定段记未测、桌面另有系统授权弹窗干扰，只作诊断不作验收；`-live-log.txt` 为原始流转换件（当时捕获命令少了 `--signpost` 且非 compact，区间行缺失；run12 起恢复标准命令） |
 
+## run14 起跑前（0.1.11 发布字节已就位，原件还没产生）
+
+0.1.11 的发布包已按方案 §19 核对并装到 `/Applications/Vistile.app`（`/Applications/Vistile.app/Contents/MacOS/Vistile`
+= `sha256 0ddf55e60a4de0e628f80254380443e5bd84c64f2a3274e48fff5c94c348e0a6`，与 dmg 内那份一字不差；dmg 本身
+`2328935` 字节 / `sha256 5facbd52…0061` 与 GitHub 资产 `digest` 相同）。**但 run14 到现在一次都没跑**，因为桌面是锁的：
+16:06、16:09、16:17 三次读会话字典都是 `CGSSessionScreenIsLocked=1`（`onDisplay=1`，会话在、屏幕锁着），
+锁屏态下 AX 窗口列表读不到、捕获不到真实画面，历史三轮（0.1.6 17:37、0.1.8 18:14/18:17）就是这么废掉的。
+判据脚本先落盘再跑（`/tmp` 里的副本会没，别依赖上一次留下的）：
+
+```bash
+cat > /tmp/lockcheck.swift <<'EOF'
+import CoreGraphics
+import Foundation
+if let d = CGSessionCopyCurrentDictionary() as? [String: Any] {
+    print("locked=\(d["CGSSessionScreenIsLocked"] ?? "absent") onDisplay=\(d["kCGSSessionOnConsoleKey"] ?? "absent")")
+} else { print("no session dictionary") }
+EOF
+
+cat > /tmp/disp.swift <<'EOF'
+import CoreGraphics
+import Foundation
+func dump(_ ids: [CGDirectDisplayID], _ name: String) {
+    print("\(name)=\(ids.count) ids=\(ids)")
+    for id in ids {
+        if let mm = CGDisplayCopyDisplayMode(id) {
+            print("   id=\(id) px=\(mm.width)x\(mm.height) Hz=\(mm.refreshRate) asleep=\(CGDisplayIsAsleep(id) == 1)"
+                + " on=\(CGDisplayIsOnline(id) == 1) main=\(CGDisplayIsMain(id) == 1) bounds=\(CGDisplayBounds(id))")
+        } else { print("   id=\(id) mode=nil asleep=\(CGDisplayIsAsleep(id) == 1)") }
+    }
+}
+func grab(_ n: inout UInt32) -> [CGDirectDisplayID] { [CGDirectDisplayID](repeating: 0, count: Int(n)) }
+var n1: UInt32 = 0; CGGetActiveDisplayList(0, nil, &n1); var a = grab(&n1); CGGetActiveDisplayList(n1, &a, &n1)
+dump(Array(a.prefix(Int(n1))), "active")
+var n2: UInt32 = 0; CGGetOnlineDisplayList(0, nil, &n2); var o = grab(&n2); CGGetOnlineDisplayList(n2, &o, &n2)
+dump(Array(o.prefix(Int(n2))), "online")
+print("main=\(CGMainDisplayID())")
+EOF
+
+xcrun swift /tmp/lockcheck.swift   # 期望 locked=0 才能起跑；locked=1 就停，别跑
+xcrun swift /tmp/disp.swift        # 刷新率与布局读 online 那一段（active 在熄屏时是 0）
+```
+
+**为什么两套列表都要打**：16:17 实测本机 `active=0` 但 `online=1`——同一块内置屏 `id=1`、`px=1800x1169`、
+**`Hz=120.0`**、`asleep=true`、`main=true`、`bounds=(0,0,1800,1169)`。只看 active 会误判成"屏幕消失了、刷新率取不到"，
+而 §20.2 的 60Hz/120Hz 分组要靠 online 的 `refreshRate`。ProMotion 会在静止内容与动画之间升降，
+所以 run14 的分组读数必须在动画进行中再重读一次，不能拿静态一格给整轮定性。
+
+两条判据都绿了再按顺序跑下面三条（§19/§20 都要，别只跑第一条）：
+
+```bash
+# ① 常规轮：M01–M14 + §20 三条路径 + P0-19 台账
+open -n -g -W --env VISTILE_P0_MODE=1 /Applications/Vistile.app
+
+# ② 30 分钟长跑（§22「30 分钟资源曲线与隐藏后清理」）
+open -n -g -W --env VISTILE_P0_MODE=1 --env VISTILE_P0_LONG_MINUTES=30 /Applications/Vistile.app
+
+# ③ 跑之前先起两条原始记录，跑完立刻按下面「怎么保持不丢」归档
+/usr/bin/log stream --level debug --signpost --style compact \
+  --predicate 'subsystem == "com.misswell.Vistile"' > /tmp/vistile_run14_live.log 2>&1 &
+/tmp/vistile_snapshot_loop > /tmp/vistile_snapshots_run14.log 2>&1 &
+```
+
+跑完必须复核的三件事，任一条不成立就把那轮记为作废而不是"通过"：`P0-0` 两权限仍为 true（这一跳 0.1.10→0.1.11 的授权保留到此刻才算有证据）；
+报告里的构建行是 `0.1.11 / 25` 且二进制哈希与上面那串相同；`P0-18` 的首帧延迟与帧间隔样本 n≥100／累计有效间隔≥1,000，
+不足按 §20.2 写"未判"，中途出现锁屏/睡眠/授权弹窗的段落单列环境中断，不静默删除。
+
 ## 一轮能不能用，怎么当场判
 
 报告里「运行环境自检」那一行会直接给结论（帧 + AX + 会话锁定）。要自己复核，三条公开接口就够：
