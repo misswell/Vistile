@@ -830,3 +830,33 @@ run14 直接用同一份环境，只在解锁后补窗口数与真机读数：
 | C09 | settlement backlog 落盘接入同一可注入接缝 | `recordSettlementFailure` 的留档写原本自己起 `queue.async`，故障只能靠真实磁盘坏掉才测得到（方案 §15.1 要求可注入） | [WindowJournalStore.swift](../Recovery/WindowJournalStore.swift)（`writeBacklog` 走 `journalDiskWriter`） | 既有 journal 用例覆盖主路径；留档失败注入未单独加例（风险低，已记入 §12.3 第 5 条） | 代码完成 |
 
 三项都只动内部时序/事实表达，不改产品交互；`git diff` 中对应测试均为确定性替身，无新增 sleep。
+
+### 12.5 0.1.13 发布字节核对（2026-10-18 00:25 发布）
+
+本节记录 `v0.1.13` 的发布事实，供后续 `run14` 真机轮次与下次发布核对。
+**发布已成功，但本版仍未在真机上跑过任何一轮**——真机项状态同 §11.12、§12.3 第 1 条。
+
+- 标签 / 提交：`v0.1.13` → `8211f3b`（轻量标签，`git ls-remote` 与 `refs/heads/main` 同 SHA；代码提交 `8ccda2b` + 版本提交 `8211f3b`）。
+- CI：CI run [`39049342084`](https://github.com/misswell/Vistile/actions/runs/39049342084) success（核心包 + 宿主构建与测试）。
+- Release：run [`39049344986`](https://github.com/misswell/Vistile/actions/runs/39049344986) success；发布页 <https://github.com/misswell/Vistile/releases/tag/v0.1.13>。
+  `prerelease=true` 是仓库既有约定（`v0.1.12` 同为 prerelease），不是"候选包"标记。
+- 发布资产：`Vistile_v0.1.13_macos_arm64.dmg`，**2,375,689 字节**，
+  `sha256 7a9eec18feba590d8bd172bccf488521819c6ed988d830f42244ee49f5bd5a8a`——与 `gh release view v0.1.13 --json assets` 的 `digest` 一字不差
+  （下载后先看字节数再哈希：历史上出现过 `gh release download` 截断导致哈希假性不符）。
+- dmg 内包体：`Vistile.app/Contents/MacOS/Vistile` 的 `sha256 113109b58256ac860e979250f08152518dd56e07703e460c5e56314de78b5745`，
+  `CFBundleShortVersionString=0.1.13`、`CFBundleVersion=27`、`lipo -archs=arm64`；
+  `codesign --verify --deep --strict` 通过、`Identifier=com.misswell.Vistile`、`TeamIdentifier=U8U443D7ZL`、
+  `flags=0x10000(runtime)`、`xcrun stapler validate` 通过、`spctl -a -t exec -vv` = `accepted` / `source=Notarized Developer ID`。
+- **没有做的事**：没有把 0.1.13 装进 `/Applications`（当前仍是 0.1.12 的正式字节），因此也没有 `P0-0` 权限读数与
+  任何 `run14` 报告。真机轮次需要按 [Docs/Evidence/README.md](Evidence/README.md) 的「run14 起跑前」：先
+  `ditto` 把 dmg 内包体装进 `/Applications`（同 bundle id + 同 Developer ID，屏幕录制/辅助功能授权不需要重给），
+  再核对 `P0-0` 与二进制哈希一致，然后才起跑。
+
+复核命令：
+
+```bash
+gh release view v0.1.13 --json assets -q '.assets[] | .name+" "+(.size|tostring)+" "+.digest'
+shasum -a 256 /tmp/vistile013/Vistile_v0.1.13_macos_arm64.dmg   # 期望 7a9eec18…5bd5a8a
+hdiutil attach -nobrowse -readonly /tmp/vistile013/Vistile_v0.1.13_macos_arm64.dmg
+shasum -a 256 "/Volumes/Vistile v0.1.13/Vistile.app/Contents/MacOS/Vistile"   # 期望 113109b5…8b5745
+```
