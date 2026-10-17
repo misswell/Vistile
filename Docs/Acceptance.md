@@ -983,3 +983,20 @@ shasum -a 256 "/Volumes/Vistile v0.1.13/Vistile.app/Contents/MacOS/Vistile"   # 
    尚未接自有服务器凭据；可后续用 ECS 部署任务自动化）。
 2. 镜像下载在 Safari/系统下载器里的手工验收未做；弹窗四个按钮的真实点击路径未做（只有接缝回归）。
 3. 镜像域名与证书归用户自有（Let's Encrypt，2026-12-07 到期）；证书续期失效会让更新通道退回 GitHub 直链语义。
+
+### 12.10 0.1.15 发布字节、镜像上传与安装（2026-10-18 01:28）
+
+- 发布页：<https://github.com/misswell/Vistile/releases/tag/v0.1.15>；标签 `v0.1.15` → `4a1e82e`
+  （代码 `e008f8f`：D02 镜像与镜像优先更新通道；`4a1e82e`：版本 0.1.15/29）。
+- Release run [`39053562601`](https://github.com/misswell/Vistile/actions/runs/39053562601) success。
+- 发布资产：`Vistile_v0.1.15_macos_arm64.dmg`，**2,421,139 字节**，
+  `sha256 87dc55eb952c2ebbbb727098263d27595d2928f2d29a925bfd0c41412a9a9201`（与 asset digest 一致）。
+- 包内二进制：`sha256 800190cf2a6e387957ae832aeb2efa542d4eb6f531f14b417fa4c0d4b866e16d`，
+  `0.1.15 / 29`，`arm64`；codesign / stapler / spctl（Notarized Developer ID，Team `U8U443D7ZL`）全通过。
+- **镜像已上传**：`/home/wwwroot/autocrop.liuguofeng.com/vistile/releases/v0.1.15/` 下 dmg + `.sha256`；
+  镜像直连（不走代理）实测 HTTP 200、2,421,139 字节、4.5s、`sha256 87dc55eb…9201` 与 GitHub 资产一致。
+  0.1.14 的镜像也保留在 `releases/v0.1.14/`。
+- **已安装到 `/Applications`**：装前把 0.1.14 移到 `/tmp/Vistile-0.1.14-backup.app`（未删）；
+  安装后二进制哈希与 dmg 内一致，并已重启应用（0.1.15/29）。
+- 仍未做的手工验收：更新弹窗四个按钮的真实点击路径、Safari/系统下载器下载镜像的体验、
+  C10 原始操作序列在 0.1.15 上的复跑（见 §12.6 的"待用户复跑"）。
