@@ -103,6 +103,10 @@ final class AppCoordinator {
     /// 但补偿事件需要完整上下文（会话、代次、令牌、类型），所以在 prepare 时登记（方案 §7.2）。
     private var operationContexts: [UUID: GeometryOperationContext] = [:]
 
+    /// 打开总览时激活 App 的动作（测试可注入）：菜单栏点击时 App 通常不是活动应用，
+    /// 不激活就只是在自己的进程内 orderFront，前台应用的同级窗口仍会盖住总览。
+    var activateApplication: () -> Void = { NSApp.activate(ignoringOtherApps: true) }
+
     /// 排空完成回调（宿主侧事件）：`drainGeometry` 发出后，只有这里才算"几何任务已终止"。
     /// 核心层目前没有对应的回执事件，宿主先把事实暴露出来，reducer 补上后改成 dispatch（方案 §5.4）。
     var onGeometryDrainFinished: ((GeometryOperationContext, Bool) -> Void)?
@@ -1300,6 +1304,10 @@ final class AppCoordinator {
             catalog.registerOwnWindow(id: controller.windowNumber)
         }
         // 画面由新帧驱动、装饰层由状态变化驱动：这里不再挂 60Hz 空转定时器（方案 §13.3、§14 空闲 CPU）。
+        // 激活本身会把 App 的窗口整体提前；再显式置前一次，避免个别系统版本里
+        // "非激活面板 + orderFrontRegardless" 仍压不过前台应用的同级窗口。
+        activateApplication()
+        for controller in controllers.values { controller.raisePanel() }
         if let preferredDisplay, let controller = controllers[preferredDisplay] {
             controller.setKeyboardFocus(true)
         }

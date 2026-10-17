@@ -141,6 +141,19 @@ final class WorkbenchEntryTests: XCTestCase {
         return controller.contentView
     }
 
+    /// 打开总览必须把 App 激活并置前：菜单栏点击时 App 通常不是活动应用，
+    /// 只 orderFrontRegardless 会被前台应用的同级窗口盖住（实机反馈"总览没有放到最前"）。
+    func testOpeningOverviewActivatesApplicationAndRaisesPanels() throws {
+        let coordinator = makeCoordinator()
+        var activations = 0
+        coordinator.activateApplication = { activations += 1 }
+        coordinator.toggleOverview()
+        try waitForVisibleOverview()
+        XCTAssertGreaterThanOrEqual(activations, 1,
+                                    "打开总览必须显式激活 App，否则可能落在前台应用窗口后面")
+        XCTAssertTrue(try XCTUnwrap(coordinator.controllers[displayID]).isVisible)
+    }
+
     // MARK: - H15 全部入口：先显示总览，不写 AX
 
     func testEveryEntryOpensOverviewFirstWithoutAnyGeometryWrite() throws {

@@ -29,6 +29,9 @@ final class WorkbenchSwitchCoordinator {
     /// 一次动作的总限时：AX 无响应或应用挂起必须有界收敛（方案 §8.3、§10.5）。
     /// 每步 AX 调用本身带 0.35s 消息超时，所以到期后最多再等一个步骤就能到检查点。
     static let switchDeadline: Duration = .milliseconds(2_500)
+    /// 交互路径的 AX 句柄复核预算：目录偶发读超时时，2s 的默认预算会让点击看起来"卡住/模糊很久"。
+    /// 交互路径用完 1s 就按失败收口；恢复/退出仍走 `WindowCatalog.axConfirmBudget` 的 2s（宁可慢也要还原）。
+    static let interactiveAXBudget: TimeInterval = 1.0
 
     private let catalog: WindowCatalog
     private let writer: GeometryWriting
@@ -52,6 +55,8 @@ final class WorkbenchSwitchCoordinator {
     private var didRollback = false
     /// 本次动作真正动过的窗口与动过的方式：补偿只允许覆盖这些事实（方案 §6.3）。
     private var sideEffects: [SideEffect] = []
+    /// 步骤耗时打点：连到统一日志里，实机调优才有"哪一步慢"的证据，而不是只看总时长。
+    private var stepClock: CFTimeInterval = 0
     /// 本次动作名义上负责的窗口：清理"计划已落盘但从未写入"的事务时只能按这份名单，
     /// 别的操作名下的事务一个都不许碰（方案 §6.4、A12）。
     private var activeIdentities: [WindowIdentity] = []
@@ -594,7 +599,7 @@ final class WorkbenchSwitchCoordinator {
 
         // 句柄取不到先复核目录（带截止时间反复复核：窗口移动中的瞬时坏采样，或捕捉权限成串短暂被拒），
         // 预算用尽仍拿不到才按事实拒绝。
-        guard let ax = await catalog.axEntryAfterReview(for: record) else {
+        guard let ax = await catalog.axEntryAfterReview(for: record, budget: Self.interactiveAXBudget) else {
             await undoMinimizeRelease(identity: identity, context: context,
                                       reason: "拿不到 AX 句柄（身份未唯一确定）")
             return .refused("拿不到 AX 句柄（身份未唯一确定）")
@@ -605,25 +610,32 @@ final class WorkbenchSwitchCoordinator {
                                       reason: "写前读不到当前 frame")
             return .refused("写前读不到当前 frame，拒绝盲目写入")
         }
-        // 可移动/可尺寸必须是这次实读的事实：目录里的布尔会把一次读超时折叠成 false（方案 §6.1）。
+        // 放置能力：可调尺寸窗口的决策只看"可 resize"这一条（策略恒定走 resize+move），
+        // 再单独探测一次可写性纯属多一次跨进程往返（实机每笔 5–20ms，读超时时 0.35s）。
+        // 只有固定尺寸/不可移动的窗口才需要这次探测；最终判据仍是写后读回（方案 §6.1、§9.2）。
         let movable: Bool
         let resizable: Bool
-        switch await writer.geometryWriteability(element: ax.element) {
-        case .writeable:
+        if record.allowsGeometryControl {
             movable = true
             resizable = true
-        case .sizeNotSettable:
-            movable = true
-            resizable = false
-        case .positionNotSettable:
-            movable = false
-            resizable = false
-        case .unreadable:
-            // 读不到不是事实：交给写入自身的读回结论，但可移动性只能按目录最新采样保守处理。
-            let current = catalog.record(for: identity) ?? record
-            record = current
-            movable = current.isMovable
-            resizable = current.isResizable
+        } else {
+            switch await writer.geometryWriteability(element: ax.element) {
+            case .writeable:
+                movable = true
+                resizable = true
+            case .sizeNotSettable:
+                movable = true
+                resizable = false
+            case .positionNotSettable:
+                movable = false
+                resizable = false
+            case .unreadable:
+                // 读不到不是事实：交给写入自身的读回结论，但可移动性只能按目录最新采样保守处理。
+                let current = catalog.record(for: identity) ?? record
+                record = current
+                movable = current.isMovable
+                resizable = current.isResizable
+            }
         }
 
         let decision = MainPlacementPolicy.decide(mainRect: mainRect,
@@ -1197,9 +1209,12 @@ final class WorkbenchSwitchCoordinator {
                         token: TransitionToken,
                         context: GeometryOperationContext) {
         guard activeContext == context else { return }
-        // 每一步的真实结论进诊断日志：实机验收要靠它还原"哪一步、什么事实"（方案 §14）。
+        // 每一步的真实结论与耗时进诊断日志：实机调优要靠它还原"哪一步、什么事实、花了多久"。
+        let stamp = CACurrentMediaTime()
+        let deltaMS = stepClock > 0 ? Int((stamp - stepClock) * 1000) : 0
+        stepClock = stamp
         VistileLog.session.log(level: .info,
-                               "[交换] 步骤=\(step.displayName, privacy: .public) 对象=\(identity?.journalKey ?? "-", privacy: .public) 结论=\(outcome.message, privacy: .public)")
+                               "[交换] 步骤=\(step.displayName, privacy: .public) 对象=\(identity?.journalKey ?? "-", privacy: .public) 耗时=\(deltaMS)ms 结论=\(outcome.message, privacy: .public)")
         onEvent?(.mainSwitchStepFinished(WorkbenchSwitchStepResult(token: token,
                                                                    step: step,
                                                                    outcome: outcome,
@@ -1230,6 +1245,7 @@ final class WorkbenchSwitchCoordinator {
         didTimeOut = false
         didRollback = false
         sideEffects = []
+        stepClock = CACurrentMediaTime()
         watchdog?.cancel()
         watchdog = Task { @MainActor [weak self, deadline] in
             guard let deadline else { return }

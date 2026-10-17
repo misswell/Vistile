@@ -96,6 +96,11 @@ final class OverviewWindowController {
         contentView.needsDisplay = true
     }
 
+    /// 让 App 激活之后再置前一次：仅凭 show() 的 orderFrontRegardless，前台应用的同级窗口仍可能盖住总览。
+    func raisePanel() {
+        panel.orderFrontRegardless()
+    }
+
     func hide() {
         // 隐藏时正在进行的手势不能残留到下一次打开（方案 §13.1）。
         contentView.cancelMouseGesture()

@@ -378,9 +378,15 @@ final class FakeGeometryWriter: GeometryWriting, @unchecked Sendable {
         lock.unlock()
     }
 
+    /// 诊断/测试：真机每笔跨进程探测约 5–20ms（读超时 0.35s），用例据此确认不必要的探测没有被发出。
+    private var writeabilityProbes = 0
+    var writeabilityProbeCount: Int { lock.lock(); defer { lock.unlock() }; return writeabilityProbes }
+
     func geometryWriteability(element: AXUIElement) async -> GeometryWriteability {
         await waitForReadGate(.writeability)
-        lock.lock(); defer { lock.unlock() }
+        lock.lock()
+        writeabilityProbes += 1
+        defer { lock.unlock() }
         return writeabilityByElement[Self.key(of: element)] ?? writeability
     }
 

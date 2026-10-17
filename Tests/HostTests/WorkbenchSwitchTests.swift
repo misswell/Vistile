@@ -368,6 +368,8 @@ final class WorkbenchSwitchTests: XCTestCase {
         await pendingUntil { !self.coordinator.isBusy }
 
         XCTAssertEqual(committedTokens(), [plan.intent.token], "仅移动路径也是合格落位：交换要能提交")
+        XCTAssertGreaterThanOrEqual(writer.writeabilityProbeCount, 1,
+                                    "固定尺寸窗口仍必须做一次可写性探测：这决定 move-only 还是拒绝")
         XCTAssertEqual(writer.writtenFrames, [moveOnly, FakeCatalogSource.frame(for: 0)])
         XCTAssertEqual(writer.recordedActions.first, "移", "B 这一步只许写位置：\(writer.recordedActions)")
         let bFrame = await writer.currentFrame(of: try element(of: b))
@@ -873,6 +875,17 @@ final class WorkbenchSwitchTests: XCTestCase {
                        "桥过去之后目录必须已经回到唯一身份")
     }
 
+    /// 性能：可调尺寸窗口的放置策略只看"能 resize"，不需要再做一次跨进程可写性探测；
+    /// 只有固定尺寸/不可移动窗口才需要（探测结果决定 move-only 还是拒绝）。最终判据仍是写后读回。
+    func testResizableSwitchSkipsRedundantWriteabilityProbe() async throws {
+        let plan = try await beginHappyPath()
+        coordinator.perform(plan)
+        await pendingUntil { self.committedTokens().contains(plan.intent.token) }
+        XCTAssertTrue(failureReasons().isEmpty, "\(failureReasons())")
+        XCTAssertEqual(writer.writeabilityProbeCount, 0,
+                       "可调尺寸窗口不该为每笔放置多付一次跨进程能力查询（实机 5–20ms、读超时 0.35s）")
+    }
+
     // MARK: - A22 受限但仍在主区：记事实、提交、不覆盖预览栏（方案 §9.2、§9.3）
 
     func testConstrainedReadBackInsideMainIsRecordedAndSubmitted() async throws {
@@ -1221,8 +1234,11 @@ final class WorkbenchSwitchTests: XCTestCase {
     // MARK: - A02/A03 写前两趟实读在途时取消（方案 §18 A02/A03、§6.2）
 
     /// A02：可移动/可尺寸能力查询挂在跨进程调用里时取消——放行后不得绕过已撤销的许可。
+    /// 只有固定尺寸窗口才需要这次探测（可调尺寸窗口的放置策略不需要它，宿主已跳过）。
     func testCancelDuringWriteabilityReadNeverWritesWithRevokedPermit() async throws {
         _ = try await beginHappyPath()
+        catalogSource.setPublishedResizable(false, for: b)
+        await catalog.refreshAndWait(reason: .windowEvent)
         let plan = try await switchPlan(token: TransitionToken(generation: 2))
         writer.gatesNextWriteabilityRead = true
 

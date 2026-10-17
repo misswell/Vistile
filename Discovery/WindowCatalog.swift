@@ -110,9 +110,11 @@ final class WindowCatalog {
     /// 预算用尽仍拿不到才返回 nil，由调用方按事实拒绝（方案 §6.1、§6.2）。
     static let axConfirmBudget: TimeInterval = 2.0
 
-    func axEntryAfterReview(for record: WindowRecord, reason: DiscoveryReason = .windowEvent) async -> AXWindowEntry? {
+    func axEntryAfterReview(for record: WindowRecord,
+                            reason: DiscoveryReason = .windowEvent,
+                            budget: TimeInterval = WindowCatalog.axConfirmBudget) async -> AXWindowEntry? {
         if let entry = axEntry(for: record) { return entry }
-        let deadline = CACurrentMediaTime() + Self.axConfirmBudget
+        let deadline = CACurrentMediaTime() + budget
         while CACurrentMediaTime() < deadline {
             await refreshAndWait(reason: reason)
             if let fresh = self.record(for: record.identity), let entry = axEntry(for: fresh) {
