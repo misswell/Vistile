@@ -60,6 +60,11 @@ final class AppCoordinator {
     /// 锚在 `play()` 自己的进入时刻会把"点击后卡在目录复核里几百毫秒才起动画"这段洗掉。
     private(set) var lastInputStamp: CFTimeInterval = 0
 
+    /// 每条场景在本进程的第一次飞行算冷启动，之后都算热路径（方案 §20.2 分组维度）。
+    /// 分组在 `playTransition` 那一刻定下来，帧间隔与首帧延迟两条回调共用同一个键，不各读一次系统状态。
+    private var flightCountByKind: [TransitionScene.Kind: Int] = [:]
+    private var flightGroupByKind: [TransitionScene.Kind: PerformanceGroup] = [:]
+
     private var eventQueue: [SessionEvent] = []
     private var isDraining = false
     private var isSyncing = false
@@ -1171,6 +1176,11 @@ final class AppCoordinator {
 
     private func playTransition(_ scene: TransitionScene?) {
         guard let scene else { return }
+        // 冷/热在这一次飞行起飞的这一刻定（方案 §20.2）。中途重定向会让同场景再起飞一次，
+        // 分组键以最后一段为准——它只是样本标签，不改变任何判据。
+        let flights = (flightCountByKind[scene.kind] ?? 0) + 1
+        flightCountByKind[scene.kind] = flights
+        flightGroupByKind[scene.kind] = PerformanceEnvironment.current(coldStart: flights == 1)
         // 锚点用完即清：每段过渡只由触发它的那次输入锚定，没有输入（自动替补、探针直接 dispatch）
         // 就按 play() 进入时刻算，并在 context 里如实标出来（方案 §20.2）。
         let anchor = lastInputStamp
@@ -1219,13 +1229,22 @@ final class AppCoordinator {
     }
 
     /// 过渡飞行的帧事实（方案 §20.3/§20.4）：逐场景记 P95 与掉帧，连续超预算的观测驱动降级（带滞后）。
+    /// 指标名带 §20.2 的分组键，`Metrics` 按名字分桶 → 不同刷新率/reduceMotion/冷热的样本不混进同一个 P95。
     private func handleSceneStats(kind: TransitionScene.Kind, stats: FrameIntervalStats) {
-        metrics.measure("过渡帧间隔p95·\(kind.displayName)",
+        let group = flightGroupByKind[kind] ?? PerformanceEnvironment.current(coldStart: false)
+        metrics.measure(PerformanceMetricName.qualified("过渡帧间隔p95·\(kind.displayName)", group: group),
                         milliseconds: stats.p95MS,
                         context: "n=\(stats.count)"
                             + " 掉帧占比\(String(format: "%.1f%%", stats.longFrameRatio * 100))"
-                            + " 最长连续=\(stats.longestStutterRun)")
-        metrics.increment(stats.meetsTarget ? "过渡帧预算内" : "过渡超帧预算")
+                            + " 最长连续=\(stats.longestStutterRun)"
+                            + " 分组=\(group.key)"
+                            + " 本机帧间隔=\(String(format: "%.2f", group.nativeFrameIntervalMS))ms")
+        metrics.increment(stats.meetsTarget ? PerformanceMetricName.qualified("过渡帧预算内", group: group)
+                                            : PerformanceMetricName.qualified("过渡超帧预算", group: group))
+        // §20.2 的第二个闸门是"累计至少 1,000 个有效间隔"，数的是帧间隔条数不是动画段数，
+        // 所以要单独攒：只有段数（n≥100）能对上"每条路径 100 次操作"，间隔总数没人记就永远判不了。
+        metrics.increment(PerformanceMetricName.qualified("过渡有效帧间隔·\(kind.displayName)", group: group),
+                          by: stats.count)
         if let changed = motionController.observe(stats) {
             log("motion", "动效等级变化：\(motionController.reason)")
             metrics.increment("动效等级.\(changed.rawValue)")
@@ -1235,13 +1254,17 @@ final class AppCoordinator {
     /// 呈现事实（方案 §20.2）：首帧延迟单独一条；动画 present 与 displayLink 回调分开核对。
     /// 只记帧间隔会把"点了之后很久没出第一帧"和"整段一个像素都没呈现"都藏起来。
     private func handleSceneFacts(kind: TransitionScene.Kind, facts: TransitionFlightFacts) {
+        let group = flightGroupByKind[kind] ?? PerformanceEnvironment.current(coldStart: false)
         if let delay = facts.firstPresentDelayMS {
             // 没有点击锚点的段（自动替补、探针直接 dispatch）单列，不混进"点击反馈"的 P95。
-            metrics.measure(facts.anchoredAtRealInput ? "过渡首帧延迟·\(kind.displayName)"
-                                                      : "过渡首帧延迟(无点击锚点)·\(kind.displayName)",
+            metrics.measure(PerformanceMetricName.qualified(
+                                facts.anchoredAtRealInput ? "过渡首帧延迟·\(kind.displayName)"
+                                                          : "过渡首帧延迟(无点击锚点)·\(kind.displayName)",
+                                group: group),
                             milliseconds: delay,
                             context: "锚点=\(facts.anchoredAtRealInput ? "真实点击" : "动画进入")"
-                                + " ticks=\(facts.ticks) present=\(facts.presentedFrames)")
+                                + " ticks=\(facts.ticks) present=\(facts.presentedFrames)"
+                                + " 分组=\(group.key)")
         } else {
             metrics.increment("过渡零呈现段")
         }

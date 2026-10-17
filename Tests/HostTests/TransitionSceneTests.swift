@@ -1327,6 +1327,62 @@ final class TransitionSceneTests: XCTestCase {
         view.stopNow()
     }
 
+    // MARK: - 分组样本链路（方案 §20.2）
+
+    /// 分组指标名是生产侧（协调器写样本）与读取侧（P0 探针取每组的行）之间唯一的契约。
+    /// 这里用真的 `Metrics` 走一遍：写进两个分组、读回来必须是两行、每行的 n 只数自己那份，
+    /// 且名字能被读取侧解析回同一个分组键。解析不出来的形状必须还给 nil，不许猜。
+    func testGroupedSamplesStaySeparateThroughRealMetrics() throws {
+        let metrics = Metrics()
+        let base = "过渡帧间隔p95·总览→L 型"
+        let hot = PerformanceGroup(refreshHz: 119.88, reduceMotion: false, coldStart: false)
+        let cold = PerformanceGroup(refreshHz: 119.88, reduceMotion: false, coldStart: true)
+        for _ in 0..<3 { metrics.measure(PerformanceMetricName.qualified(base, group: hot), milliseconds: 8, context: "n=9") }
+        metrics.measure(PerformanceMetricName.qualified(base, group: cold), milliseconds: 40, context: "n=1")
+
+        let summary = metrics.summary()
+        let rows = summary.compactMap { sample -> (String, PerformanceSample)? in
+            guard let key = PerformanceMetricName.groupKey(fromSummaryRow: sample.name, base: base) else { return nil }
+            return (key, sample)
+        }
+        XCTAssertEqual(Set(rows.map { $0.0 }), Set([hot.key, cold.key]), "两个分组要各自成行，不能合池")
+        let hotRow = try XCTUnwrap(rows.first { $0.0 == hot.key }?.1)
+        let coldRow = try XCTUnwrap(rows.first { $0.0 == cold.key }?.1)
+        // `Metrics.summary()` 的 context 形状是「n=<样本数>, median=…」；探针按这个形状取 n，
+        // 形状变了这条要先红，而不是让 P0-18 静默读成 0 个样本。
+        XCTAssertTrue(hotRow.context.starts(with: "n=3,"), "热路径那行的 n 只数自己这 3 段：\(hotRow.context)")
+        XCTAssertTrue(coldRow.context.starts(with: "n=1,"), "冷启动那行只有自己 1 段：\(coldRow.context)")
+        XCTAssertEqual(hotRow.valueMS, 8, accuracy: 0.001, "合池会把冷启动那段 40ms 混进热路径的 P95")
+        XCTAssertEqual(coldRow.valueMS, 40, accuracy: 0.001)
+
+        // 计数器同形：写进去、按基名读回分组键。
+        metrics.increment(PerformanceMetricName.qualified("过渡有效帧间隔·总览→L 型", group: hot), by: 30)
+        let counters = metrics.snapshotCounters()
+        XCTAssertEqual(counters[PerformanceMetricName.qualified("过渡有效帧间隔·总览→L 型", group: hot)], 30)
+        XCTAssertEqual(counters.compactMap { PerformanceMetricName.groupKey(fromCounterName: $0.key, base: "过渡有效帧间隔·总览→L 型") }, [hot.key])
+
+        // 解析失败一律是 nil：漏尾巴、别的族、空分组键，都不能被读成"这一组没样本"之外的东西。
+        XCTAssertNil(PerformanceMetricName.groupKey(fromSummaryRow: base + "·" + hot.key, base: base))
+        XCTAssertNil(PerformanceMetricName.groupKey(fromSummaryRow: "过渡首帧延迟·总览→L 型·\(hot.key) p95", base: base))
+        XCTAssertNil(PerformanceMetricName.groupKey(fromSummaryRow: "\(base)· p95", base: base))
+        XCTAssertNil(PerformanceMetricName.groupKey(fromCounterName: "过渡零呈现段", base: "过渡帧预算内"))
+        XCTAssertNil(PerformanceMetricName.groupKey(fromCounterName: "\(base)·", base: base))
+    }
+
+    /// 采样那一刻的环境读数本身也要能被解析回分组键：真实 Hz 是 59.94/119.88 这类小数，
+    /// reduceMotion 是系统开关，两者都进键。读不到刷新率时必须落在"刷新率未知"而不是假装 60Hz。
+    func testEnvironmentGroupKeyRoundTrips() throws {
+        let group = PerformanceEnvironment.current(coldStart: true)
+        let rate = PerformanceGroup.refreshLabel(hz: group.refreshHz)
+        XCTAssertTrue(rate.hasSuffix("Hz") || rate == "刷新率未知", "刷新率档位要落在可比较的形状上：\(rate)")
+        XCTAssertTrue(group.key.hasPrefix(rate), "键的第一段就是刚读到的档位：\(group.key)")
+        XCTAssertTrue(group.key.contains(group.reduceMotion ? "reduceMotion=开" : "reduceMotion=关"))
+        XCTAssertTrue(group.key.hasSuffix("冷启动"))
+        XCTAssertEqual(PerformanceMetricName.groupKey(fromSummaryRow: PerformanceMetricName.qualified("过渡帧间隔p95·L 型内交换", group: group) + " p95",
+                                                      base: "过渡帧间隔p95·L 型内交换"),
+                       group.key)
+    }
+
     // MARK: - 组装
 
     private func distance(_ rect: CGRect, to other: CGRect) -> CGFloat {

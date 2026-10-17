@@ -1,6 +1,36 @@
+import AppKit
+import CoreGraphics
 import Foundation
 import os
 import VistileCore
+
+/// 采样那一刻的性能环境（方案 §20.2 的三个分组维度里需要读系统的那两个）。
+///
+/// 刷新率走 `CGGetOnlineDisplayList`：显示休眠时 `CGGetActiveDisplayList` 返回 0 个（2026-10-17 实测），
+/// 而 online 列表仍能读到面板真实 Hz；取不到就记 0，让分组键落在"刷新率未知"，不假装是 60Hz。
+enum PerformanceEnvironment {
+    static func current(coldStart: Bool) -> PerformanceGroup {
+        PerformanceGroup(refreshHz: mainRefreshHz(),
+                         reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+                         coldStart: coldStart)
+    }
+
+    static func mainRefreshHz() -> Double {
+        if let rate = displayRefreshHz(CGMainDisplayID()) { return rate }
+        var ids = [CGDirectDisplayID](repeating: 0, count: 16)
+        var count: UInt32 = 0
+        CGGetOnlineDisplayList(UInt32(ids.count), &ids, &count)
+        for id in ids.prefix(Int(count)) {
+            if let rate = displayRefreshHz(id) { return rate }
+        }
+        return 0
+    }
+
+    private static func displayRefreshHz(_ id: CGDirectDisplayID) -> Double? {
+        guard id != 0, let mode = CGDisplayCopyDisplayMode(id) else { return nil }
+        return mode.refreshRate > 0 ? mode.refreshRate : nil
+    }
+}
 
 /// os_signpost 区间与轻量计数。正常用户界面不显示这些技术参数（方案 §13）。
 final class Metrics {

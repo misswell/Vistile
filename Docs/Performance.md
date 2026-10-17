@@ -161,30 +161,49 @@ P0-4 因此从"未测"转为拿到读数。
 
 | 端点 | 指标名（`Metrics.measure` 的 name） | 打点位置 | §20.1 判据 |
 | --- | --- | --- | --- |
-| 真实输入 | 不单独成项，是首帧延迟的**锚点**：两处 view-action 入口写 `lastInputStamp` | [App/AppCoordinator.swift:1458](../App/AppCoordinator.swift#L1458)（总览卡片）、[:1510](../App/AppCoordinator.swift#L1510)（工作台轨道） | — |
-| 首帧反馈（present 出去的那一刻） | `过渡首帧延迟·<场景>` / `过渡首帧延迟(无点击锚点)·<场景>` | 锚点消费 [App/AppCoordinator.swift:1176](../App/AppCoordinator.swift#L1176)，判据是渲染器 `diagnostics().presents` 增量 [Presentation/ModeTransitionCoordinator.swift:432](../Presentation/ModeTransitionCoordinator.swift#L432)，入表 [App/AppCoordinator.swift:1240](../App/AppCoordinator.swift#L1240) | 点击反馈 P95 ≤50ms |
-| 呈现 vs 回调 | 计数 `过渡零呈现段`、`过渡回调多于呈现` | [App/AppCoordinator.swift:1246](../App/AppCoordinator.swift#L1246)、[:1249](../App/AppCoordinator.swift#L1249)，缺口算式 `ticks − presentedFrames` | 任一非 0 即不能宣布该项达标 |
-| 帧间隔（按场景分段） | `过渡帧间隔p95·<场景>` | [App/AppCoordinator.swift:1223](../App/AppCoordinator.swift#L1223)，段内统计由 `FrameIntervalStats.measure` 做 | P95 ≤20ms、>33.3ms 占比 ≤1%、无连续 3 帧 |
-| journal prepare | `日志:批量 prepare` | [App/AppCoordinator.swift:627](../App/AppCoordinator.swift#L627) | 无独立阈值，用于分离"落盘慢"与"AX 慢" |
-| journal 事实追加 | `日志:事实追加` | [App/AppCoordinator.swift:652](../App/AppCoordinator.swift#L652) | 同上 |
+| 真实输入 | 不单独成项，是首帧延迟的**锚点**：两处 view-action 入口写 `lastInputStamp` | [App/AppCoordinator.swift:1481](../App/AppCoordinator.swift#L1481)（总览卡片）、[:1533](../App/AppCoordinator.swift#L1533)（工作台轨道） | — |
+| 首帧反馈（present 出去的那一刻） | `过渡首帧延迟·<场景>·<分组键>` / `过渡首帧延迟(无点击锚点)·<场景>·<分组键>` | 锚点消费 [App/AppCoordinator.swift:1186](../App/AppCoordinator.swift#L1186)，判据是渲染器 `diagnostics().presents` 增量 [Presentation/ModeTransitionCoordinator.swift:432](../Presentation/ModeTransitionCoordinator.swift#L432)，入表 [App/AppCoordinator.swift:1260](../App/AppCoordinator.swift#L1260) | 点击反馈 P95 ≤50ms（逐组判） |
+| 呈现 vs 回调 | 计数 `过渡零呈现段`、`过渡回调多于呈现` | [App/AppCoordinator.swift:1269](../App/AppCoordinator.swift#L1269)、[:1272](../App/AppCoordinator.swift#L1272)，缺口算式 `ticks − presentedFrames`。这两条不按分组拆：它们是"有没有画面证据"的核对，不是 §20.1 带目标值的数字 | 任一非 0 即不能宣布该项达标 |
+| 帧间隔（按场景×分组分段） | `过渡帧间隔p95·<场景>·<分组键>` | [App/AppCoordinator.swift:1235](../App/AppCoordinator.swift#L1235)，段内统计由 `FrameIntervalStats.measure` 做 | P95 ≤20ms（逐组判） |
+| 段级帧预算（掉帧占比与连续卡顿） | 计数 `过渡帧预算内·<分组键>` / `过渡超帧预算·<分组键>` | [App/AppCoordinator.swift:1242](../App/AppCoordinator.swift#L1242)；`meetsTarget` = P95≤20ms 且 >33.3ms 占比 ≤1% 且无连续 3 帧 [Packages/VistileCore/Sources/VistileCore/Domain/MotionLevel.swift:50](../Packages/VistileCore/Sources/VistileCore/Domain/MotionLevel.swift#L50) | 任一组的「超预算」>0 即该组未达标 |
+| 有效间隔总数 | 计数 `过渡有效帧间隔·<场景>·<分组键>` | [App/AppCoordinator.swift:1246](../App/AppCoordinator.swift#L1246)，值取 `FrameIntervalStats.count`（该段里有限且 >0 的间隔条数） | §20.2「累计至少 1,000 个有效间隔」，按组判 |
+| journal prepare | `日志:批量 prepare` | [App/AppCoordinator.swift:632](../App/AppCoordinator.swift#L632) | 无独立阈值，用于分离"落盘慢"与"AX 慢" |
+| journal 事实追加 | `日志:事实追加` | [App/AppCoordinator.swift:657](../App/AppCoordinator.swift#L657) | 同上 |
 | AX 排队（提交→通道认领） | `工作台:AX 排队` | [Presentation/WorkbenchSwitchCoordinator.swift:106](../Presentation/WorkbenchSwitchCoordinator.swift#L106) | 同上；排队时长决定"点了没反应"是不是队列问题 |
 | 几何写入（含读回与重试的混合段） | `工作台:几何写入` | [Presentation/WorkbenchSwitchCoordinator.swift:654](../Presentation/WorkbenchSwitchCoordinator.swift#L654) | 历史口径见 §3.7，不与单次写入互引 |
 | 写后读回（单独一段） | `工作台:几何读回`、`几何读回` | [Presentation/WorkbenchSwitchCoordinator.swift:115](../Presentation/WorkbenchSwitchCoordinator.swift#L115)、[Presentation/FocusCoordinator.swift:188](../Presentation/FocusCoordinator.swift#L188)，取值 `GeometryWriteReport.readBackMS`（3×70ms 有界重试之和） | 同上 |
 | 激活 + Raise | `激活+Raise` | [Presentation/FocusCoordinator.swift:419](../Presentation/FocusCoordinator.swift#L419) | 同上；context 带"激活返回/raise 返回/焦点一致/前景一致" |
 | 最终 settle | `工作台:布局结算` | [Presentation/WorkbenchSwitchCoordinator.swift:355](../Presentation/WorkbenchSwitchCoordinator.swift#L355) | 同上 |
-| 三条模式路径整体（点击→落定） | `点击→落定p95·<路径>`（探针侧算，见 `soakLatencyMS`） | [App/P0Probe.swift:1539-1552](../App/P0Probe.swift#L1539) | ≤600 / ≤500 / ≤500ms |
+| 三条模式路径整体（点击→落定） | 逐组 `点击→落定p95·<路径>·<分组键>`；另有一行不带分组键的**合池概览**（只作概览，判定不看它） | 采样 [App/P0Probe.swift:1912](../App/P0Probe.swift#L1912)（`recordClickOutcome`），逐组判定与入表 [App/P0Probe.swift:1623](../App/P0Probe.swift#L1623) | ≤600 / ≤500 / ≤500ms（逐组判） |
+| 成功率与超时数 | 报告正文一行：`<路径> 成功率X%（落定/派发）、超时N` | [App/P0Probe.swift:1928](../App/P0Probe.swift#L1928)（`clickOutcomeText`），长跑侧 [:1794](../App/P0Probe.swift#L1794) | §20.2「同时记录成功率和超时率」 |
 
 **口径约定（本轮统一）**：
 - 所有时长、deadline、动画进度一律单调时钟：App 侧 `CACurrentMediaTime()`（`mach_absolute_time`），
-  探针侧 `monotonicNow()`（[App/P0Probe.swift:2038](../App/P0Probe.swift#L2038)）。
+  探针侧 `monotonicNow()`（[App/P0Probe.swift:2180](../App/P0Probe.swift#L2180)）。
   墙钟只用于报告日期与日志时间戳。改口径之前跨睡眠/改表的读数不能与本轮互引。
 - `Metrics.summary()` 会把每个名字改写成「<name> p95」并把 context 覆盖成「n=…, median=…」，
   所以**每条样本自己的 context 只通过 `onSample` → 报告正文**落盘。消费端（含 P0-18）必须按前缀匹配，
-  不能按全名相等（[App/P0Probe.swift:1527](../App/P0Probe.swift#L1527)）。
+  不能按全名相等；名字形状由 `PerformanceMetricName` 单点定义，生产侧与读取侧共用
+  （[App/AppCoordinator.swift:1235](../App/AppCoordinator.swift#L1235) 写、[App/P0Probe.swift:1652](../App/P0Probe.swift#L1652) 读）。
+  两侧各自拼字符串会静默失效——读取侧一行都匹配不到，报告只写"没有帧样本"，那是测量坏了。
+  这条契约由两组测试钉住：核心包的命名往返
+  （[Packages/VistileCore/Tests/VistileCoreTests/PerformanceGroupTests.swift:78](../Packages/VistileCore/Tests/VistileCoreTests/PerformanceGroupTests.swift#L78)）
+  与宿主里走真实 `Metrics` 的分组合池检查
+  （[Tests/HostTests/TransitionSceneTests.swift:1335](../Tests/HostTests/TransitionSceneTests.swift#L1335)）。
 - 首帧延迟的锚点只在"由真实点击触发的那一段"生效，且用完即清：探针直接 `dispatch`、自动替补段走
   「(无点击锚点)」单列，**不允许混进点击反馈的 P95**。
 - 样本不足一律标未判：每条模式路径 ≥100 次操作、短场景累计 ≥1,000 个有效间隔；
-  60Hz/120Hz、reduceMotion、冷启动/热路径分组，锁屏/授权弹窗/系统睡眠记为环境中断，不静默删除。
+  锁屏/授权弹窗/系统睡眠记为环境中断，不静默删除。
+  **分组已落地**（此前所有 P95 都是跨刷新率、跨 reduceMotion、跨冷热合池的，那不符合 §20.2）：
+  分组键 = 「刷新率档位·reduceMotion=开/关·冷启动/热路径」三维，由 `PerformanceGroup` 单点定义
+  （[Packages/VistileCore/Sources/VistileCore/Domain/PerformanceGroup.swift:7](../Packages/VistileCore/Sources/VistileCore/Domain/PerformanceGroup.swift#L7)），
+  环境读数在每次飞行开始时现取（[Diagnostics/Metrics.swift:12](../Diagnostics/Metrics.swift#L12) 的 `PerformanceEnvironment.current(coldStart:)`，
+  刷新率走 [Diagnostics/Metrics.swift:18](../Diagnostics/Metrics.swift#L18)），"冷启动"就是该场景的第一次飞行
+  （[App/AppCoordinator.swift:1183](../App/AppCoordinator.swift#L1183)）。判定阈值与未判口径同样单点：
+  `PerformanceGate.minSamples = 100` 与 `judge(...)`
+  （[Packages/VistileCore/Sources/VistileCore/Domain/PerformanceGroup.swift:80](../Packages/VistileCore/Sources/VistileCore/Domain/PerformanceGroup.swift#L80)），
+  「≥1,000 个有效间隔」这一维以前没有测量支撑（只有段数），现在由 `过渡有效帧间隔` 计数按组累加，P0-18 双门都过才判。
+  120Hz 组可以按本机帧间隔给更严的预算，但 §20.1 的 20ms 判据对 60Hz/120Hz 一视同仁，保留 60Hz 基准便于与历史比较。
   **本机的档位已有实测依据**：内置面板 `CGDisplayCopyDisplayMode(1).refreshRate` 报 `120.0`（2026-10-17 16:17，锁屏熄屏态下测得；
   注意 `CGGetActiveDisplayList` 在熄屏时回 0 块，必须走 `CGGetOnlineDisplayList` 才拿得到模式与刷新率，脚本见
   [Evidence/README.md](Evidence/README.md)「run14 起跑前」）。ProMotion 会随内容升降，所以分组标签要在动画进行中重读该值，不能沿用一格的静态读数。
@@ -199,6 +218,7 @@ P0-4 因此从"未测"转为拿到读数。
 4. **遮挡窗口**：被完全遮住的窗口其 `publishedCount` 是否继续增长（这是"实时"的判据，不是肉眼判断）。**探针已给出四轮数据**：16 个里 9 个、16 个里 12 个、17 个里 9 个、16 个里 12 个在 1.5s 内收到新帧（§3.1–§3.4）；还缺的是**长时间稳定性**（连续几分钟不掉流）。
 5. **热状态路径**：`serious`/`critical` 下降级是否按阶梯发生、优先窗口是否最后被牺牲。
 6. **过渡动画**：24 帧内是否稳定、代理层与真实窗口衔接有无闪白。0.1.10 工作台的过渡帧间隔采样已经在跑（§3.7：两轮 n=13/18/12 与 36/61/53，p95 在 32.6–50.7ms），但样本没到 §20.2 的 ≥100、结果也超其 P95≤20ms 预算——这一项从"全未测"变成"有初步样本、离判据还差"。
+   **§3.7 那批样本没有分组维度**（当时指标名里没有刷新率/reduceMotion/冷热），按 §20.2 只能作趋势，不能和新分的组并成同一个 P95，也不能拿来判"60Hz 组"或"120Hz 组"。
 7. **跨缩放屏**：Retina 与外屏混合时纹理尺寸选择是否仍按格子宽度。
 8. **长时间停留**：30 分钟内是否有纹理/事务/观察器泄漏（`inFlightTextureCount`、`retained.count`、`journal.unfinished`）。
 9. **呈现健康度**：`RendererDiagnostics` 的 `missingDrawables`、`submissionFailures`、`gpuErrors` 在长时间运行与显示器变更后是否保持为 0（P0-9 每轮记增量）。

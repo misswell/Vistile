@@ -364,13 +364,19 @@ ls "$TMPDIR/Vistile Diagnostics/" | grep -c '^host-test-'          # 期望 > 0�
 
 - 核心包 `swift test`：swift-testing **148 项 / 15 个 suite** ＋ XCTest **64 项**，0 失败，`CORE_EXIT=0`（日志 `/tmp/core_test.log`）。
 - 宿主 `VistileHostTests`：**180 项执行、1 项跳过、0 失败**，`HOST_EXIT=0`（日志 `/tmp/host_test.log`，15:48:11 那轮）。
+- **上面两行是 0.1.11 发布字节那一轮的读数，不与发布后的数字合并。** §20.2 样本分组改动落在发布之后（未发版，见 §11.10）：
+  核心包 **155 项 / 16 个 suite** ＋ XCTest **64 项**、`CORE_EXIT=0`（日志 `/tmp/core_group2.log`，17:17:17）；
+  宿主 **182 项执行、1 项跳过、0 失败**、`HOST_EXIT=0`（日志 `/tmp/host_group2.log`，17:18:17，`** TEST SUCCEEDED **`）。
+  涨出来的 9 项是 `PerformanceGroupTests` 的 7 条纯逻辑用例（[Packages/VistileCore/Tests/VistileCoreTests/PerformanceGroupTests.swift](../Packages/VistileCore/Tests/VistileCoreTests/PerformanceGroupTests.swift)）
+  与宿主 `TransitionSceneTests` 的 2 条走真实 `Metrics` 的分组合池检查（[Tests/HostTests/TransitionSceneTests.swift:1335](../Tests/HostTests/TransitionSceneTests.swift#L1335)）。
+  真机数字仍然一个都没有——这 9 条测的是**测量本身**，不是产品性能。
 - 新增的三条就是这轮涨出来的：`TransitionSceneTests.testCarrierReportsFirstFrameAnchoredAtInputAndSeparatesPresentsFromTicks`、
   `testFlightFactsWithoutInputAnchorAreMarkedNotAnchored`（方案 §20.2 首帧锚点与"回调≠呈现"）、
   `WorkbenchTests.testTransitionFlightFactsSeparatePresentsFromTicks`（缺口算式 `ticks − presentedFrames`）。
 - 跳过的仍是同一条 `T01ActionRoutingTests.testKeyboardFocusReallyLandsOnContentView`（宿主取不到前台激活，按方案 §22 不计为成功）。
 - **本轮核对时改正了 14 处行号漂移**：`WorkbenchTests.swift` 里 A15/A19/A20/A21/A26/A27/A28/A29/A30/A31/A32/A33/A36/A42 那 14 行的锚点比实际早了 18–20 行
   （本轮在同文件前部追加了首帧事实用例，行号整体后移）。测试本身一直都在、名字也没变，是文档的锚点旧了。
-  可复跑的核对（16:23 全仓 154 条行锚链接、45 条带符号名的全部命中，0 处失配）：
+  可复跑的核对（17:54 全仓 179 条行锚链接、46 条带符号名的全部命中，0 处失配；§20.2 分组改动后 `P0Probe.swift` 行号又后移过一次，下面表内的锚点已按新行号核对）：
 
   ```bash
   cd "$(git rev-parse --show-toplevel)"
@@ -463,7 +469,7 @@ done
 
 | §17 文件 | 要求 | 落点 / 状态 |
 | --- | --- | --- |
-| `App/AppCoordinator.swift` | 异步 journal prepare、统一 scheduler、隐藏取消屏障、可见性 captureTargets、统一 TransitionActivity、退出生命周期、删除分散写入入口 | 调度器是成员 [`geometry`](../App/AppCoordinator.swift#L24)，构造时建一次（[AppCoordinator.swift:151](../App/AppCoordinator.swift#L151)）；退出时 `.restoreAll` 效果被链接住的那道门在 [AppCoordinator.swift:685](../App/AppCoordinator.swift#L685) `canStartRestoreOutsideTermination()`；捕获需求按屏可见集合投影后交给 `capture.sync(targets:tier:activity:)`。分散写入入口已收口：宿主测试现在能通过 `catalog/capture/writer/journal/processIdentity` 五个注入口装配整个协调器（[WorkbenchEntryTests.swift:266](../Tests/HostTests/WorkbenchEntryTests.swift#L266) 的 A39 用例就是走这条装配） |
+| `App/AppCoordinator.swift` | 异步 journal prepare、统一 scheduler、隐藏取消屏障、可见性 captureTargets、统一 TransitionActivity、退出生命周期、删除分散写入入口 | 调度器是成员 [`geometry`](../App/AppCoordinator.swift#L24)，构造时建一次（[AppCoordinator.swift:156](../App/AppCoordinator.swift#L156)）；退出时 `.restoreAll` 效果被链接住的那道门在 [AppCoordinator.swift:694](../App/AppCoordinator.swift#L694) `canStartRestoreOutsideTermination()`；捕获需求按屏可见集合投影后交给 `capture.sync(targets:tier:activity:)`。分散写入入口已收口：宿主测试现在能通过 `catalog/capture/writer/journal/processIdentity` 五个注入口装配整个协调器（[WorkbenchEntryTests.swift:266](../Tests/HostTests/WorkbenchEntryTests.swift#L266) 的 A39 用例就是走这条装配） |
 | `Presentation/WorkbenchSwitchCoordinator.swift` | 去无代次 tail、operation context、写前准入、操作 before 快照、真实补偿结果、统一调度 | 唯一写入路径是 `scheduler.perform(GeometryOperationScheduler.Operation…)`（[WorkbenchSwitchCoordinator.swift:127](../Presentation/WorkbenchSwitchCoordinator.swift#L127)），文件头写明"所有真实写入只有一条路"（[:8](../Presentation/WorkbenchSwitchCoordinator.swift#L8)）；进主区方式由 `MainPlacementPolicy` 决定（[:11](../Presentation/WorkbenchSwitchCoordinator.swift#L11)）；补偿结果以 `WorkbenchCompensationResult` 全量回报（见下面 Events 行） |
 | `Presentation/FocusCoordinator.swift` | 旧路径写入与 restoreAll 接入同一 scheduler，保留视图代理职责，不再另立几何所有权 | scheduler 是注入的同一个实例（[FocusCoordinator.swift:34](../Presentation/FocusCoordinator.swift#L34)），展开/收回写入也走 `scheduler.perform`（[:105](../Presentation/FocusCoordinator.swift#L105)）；代理动画活动并入 `TransitionActivity`（[:74](../Presentation/FocusCoordinator.swift#L74)），捕获层不再读零散的 `isAnimating` |
 | `Presentation/ModeTransitionCoordinator.swift` | 暴露真实过渡状态与取消完成、当前呈现值重定向、旧场景完成不提交新状态 | 过渡活动事实 [`activity`](../Presentation/ModeTransitionCoordinator.swift#L527)；"从当前呈现值接续"由 [TransitionSceneTests.swift:459](../Tests/HostTests/TransitionSceneTests.swift#L459) `testInterruptContinuesFromPresentedRect` 钉住（A40） |
@@ -499,7 +505,7 @@ done
 | `Docs/Compatibility.md` | 真实应用按捕获/移动/resize/激活/输入/恢复分别记录 | 矩阵列已补「激活」「输入」两列（原表只有捕获/关联/移动/resize/层级/Sheet/恢复），新列一律未测，等 §19 M07/M11 的实机读数填 |
 | `Docs/Architecture.md` | 新调度所有权、取消与补偿时序、状态与日志边界 | 见 Architecture §5.1（可见性分级）与新增的 §7.1（一条调度通道、取消与补偿时序、状态与日志边界） |
 
-方案 §17 的 33 行里，31 行落在本轮改动内；`WorkbenchPresentation.swift` 与 `WorkbenchWindowController.swift` 两行核对后判定基线已满足、未改代码，证据如上。另外新建了 §17 清单没列但方案正文要求的三个文件（`GeometryOperationContext.swift`、`RestoreDestination.swift`、`GeometryOperationScheduler` 的会话代次部分），以及 `AppCoordinator` 的 `processIdentity` 注入口——没有它，宿主里的退出恢复只会读成"进程已不存在"，A39 走不到写回原 frame 那一步（[AppCoordinator.swift:133](../App/AppCoordinator.swift#L133)）。
+方案 §17 的 33 行里，31 行落在本轮改动内；`WorkbenchPresentation.swift` 与 `WorkbenchWindowController.swift` 两行核对后判定基线已满足、未改代码，证据如上。另外新建了 §17 清单没列但方案正文要求的三个文件（`GeometryOperationContext.swift`、`RestoreDestination.swift`、`GeometryOperationScheduler` 的会话代次部分），以及 `AppCoordinator` 的 `processIdentity` 注入口——没有它，宿主里的退出恢复只会读成"进程已不存在"，A39 走不到写回原 frame 那一步（[AppCoordinator.swift:138](../App/AppCoordinator.swift#L138)）。
 
 
 
@@ -536,7 +542,7 @@ done
 | R07 | 总览网格满时新增窗口不进轨道 | `Core/Domain/WorkbenchState.swift`、`stableOrder`（去 `gridCell` 资格过滤） | 展示成员与总览位置解耦：超出格子仍入 L 尾部，其它位置不动 | A29–A30 | 代码完成；替身回归通过 |
 | R08 | 返回后再次进入把滚动归零 | `Core/Domain/WorkbenchState.swift`（保存 `RailContext` 偏移） | 偏移唯一事实源、返回再入保留、按内容长度与栏尺寸 clamp 到合法范围 | A31–A33 | 代码完成；替身回归通过；肉眼滚动未测 |
 | R09 | 捕获不看可见性、新动画未参与重配抑制 | `Core/Capture/CaptureModes.swift`、[CaptureCoordinator.swift:297](../Capture/CaptureCoordinator.swift#L297) | 需求分级 `transition/visible/prefetch/offscreen/paused`；可见优先、离屏不占位不阻塞；升降级滞后；重配合并到下一周期；runID 隔离与资源清理 | A34–A37 | 代码完成；替身回归通过；30 分钟流量稳定性未测 |
-| R10 | TaskGroup 赛跑不能实现退出硬期限 | [GeometryOperationScheduler.swift:324](../Presentation/GeometryOperationScheduler.swift#L324) 起（`drain(until:)`/`canStartNewWrite(deadline:)`）、[AppCoordinator.swift:685](../App/AppCoordinator.swift#L685) | 单一恢复所有权；有界等待 + 到期留痕；不再仅依赖 `TaskGroup.cancelAll`；期限后不启动新的恢复写入 | A38–A40 | 代码完成；替身回归通过；**应用级 2s 真实上限属实机项，未测** |
+| R10 | TaskGroup 赛跑不能实现退出硬期限 | [GeometryOperationScheduler.swift:324](../Presentation/GeometryOperationScheduler.swift#L324) 起（`drain(until:)`/`canStartNewWrite(deadline:)`）、[AppCoordinator.swift:694](../App/AppCoordinator.swift#L694) | 单一恢复所有权；有界等待 + 到期留痕；不再仅依赖 `TaskGroup.cancelAll`；期限后不启动新的恢复写入 | A38–A40 | 代码完成；替身回归通过；**应用级 2s 真实上限属实机项，未测** |
 
 方案 §21 的提交边界（阶段 1–6）全部落在本轮，没有只提交计划或第一阶段。
 
@@ -601,10 +607,14 @@ run14 直接用同一份环境，只在解锁后补窗口数与真机读数：
 ### 11.5 三条交互路径：成功率、P50/P95、超时数、帧间隔与有效样本数
 
 **本轮未测**。测量面已就绪（端点清单与口径见 [Performance.md](Performance.md) §3.8，判定与不足样本的措辞在 `P0-18`，
-[App/P0Probe.swift:1519](../App/P0Probe.swift#L1519)）：每条路径的点击→落定按 n≥100 判、P95 对 §20.1 目标；
-首帧延迟单独一条（锚在真实点击上，无锚点段单列）；帧间隔按场景分段算 P95 / >33.3ms 占比 / 连续 3 帧停顿；
-`过渡零呈现段`、`过渡回调多于呈现` 两个计数非 0 即不能宣布达标。
-run14 的输出要同时给成功数、超时数与失败次数，不能只报成功样本的 P95——这一条在报告里由 `P0-18` 的 detail 承担。
+[App/P0Probe.swift:1526](../App/P0Probe.swift#L1526)）：每条路径的点击→落定**逐组**按 n≥100 判、P95 对 §20.1 目标；
+首帧延迟单独一条（锚在真实点击上，无锚点段单列）；帧间隔按场景×分组分段算 P95
+（[App/P0Probe.swift:1538](../App/P0Probe.swift#L1538)），段级再看 >33.3ms 占比与连续 3 帧停顿
+（[App/P0Probe.swift:1564](../App/P0Probe.swift#L1564) 起的逐组帧预算）；「累计 ≥1,000 个有效间隔」按 `过渡有效帧间隔` 计数逐组累加，
+样本门与间隔门都过才判；`过渡零呈现段`、`过渡回调多于呈现` 两个计数非 0 即不能宣布达标。
+成功率与超时数已有专门一行：`<路径> 落定核对：成功率X%（落定/派发）、超时N`
+（[App/P0Probe.swift:1929](../App/P0Probe.swift#L1929) `clickOutcomeText`，长跑侧 [:1794](../App/P0Probe.swift#L1794)），
+未落定的样本照样进派发数，不会被只报成功样本的 P95 洗掉。
 
 ### 11.6 录屏
 
@@ -614,15 +624,15 @@ run14 的输出要同时给成功数、超时数与失败次数，不能只报�
 ### 11.7 每个被写窗口的 original / before / target / readBack / displayID 对照
 
 探针侧已实现：`P0-19` 在工作台在途与退出恢复后两个阶段逐窗口采样并输出对照表
-（[App/P0Probe.swift:1404](../App/P0Probe.swift#L1404) `captureLedger(stage:)`、[:1470](../App/P0Probe.swift#L1470) 输出 markdown 表、
-[:1507](../App/P0Probe.swift#L1507) `ledgerUnrestoredReport()` 用"曾有写入读回的窗口"名单收尾，收尾时 journal 里还剩什么都不能当依据）。
+（[App/P0Probe.swift:1413](../App/P0Probe.swift#L1413) `captureLedger(stage:)`、[:1479](../App/P0Probe.swift#L1479) 输出 markdown 表、
+[:1516](../App/P0Probe.swift#L1516) `ledgerUnrestoredReport()` 用"曾有写入读回的窗口"名单收尾，收尾时 journal 里还剩什么都不能当依据）。
 判据是退出恢复后每个被写窗口的真实 frame 与会话 original 偏离 ≤4pt；全是未写入事务时明确写"不能据此判定恢复正确"。
 **真实应用上的输出未测**（等 run14）。
 
 ### 11.8 30 分钟资源曲线与隐藏后清理
 
 **未测**。`longRun(minutes:)` 会周期采 RSS、进程 CPU 秒、活跃流数，结束时隐藏并核对活跃流最终为零
-（[App/P0Probe.swift:1588](../App/P0Probe.swift#L1588)）。CPU/RSS 数字必须能与 Activity Monitor / Instruments 对表才能引用（Performance §3.8 末条）。
+（[App/P0Probe.swift:1671](../App/P0Probe.swift#L1671)）。CPU/RSS 数字必须能与 Activity Monitor / Instruments 对表才能引用（Performance §3.8 末条）。
 
 ### 11.9 日志 schema 兼容性、强退恢复、新旧安装包行为
 
@@ -638,14 +648,44 @@ run14 的输出要同时给成功数、超时数与失败次数，不能只报�
   而锁屏态下启动一次既读不到 AX 窗口列表、也拿不到真实画面（16:06/16:09/16:17 三次 `CGSSessionScreenIsLocked=1`），不构成 §19 的有效取证环境，
   所以 0.1.10→0.1.11 这一跳的授权保留**仍未测**（run14 第一行 `P0-0` 就是它）。
 
-### 11.10 未完成项（直说未完成）
+### 11.10 发布后的测量面补齐：§20.2 样本分组（代码完成，真机数字仍是未测）
+
+- **根因**：方案 §20.2 明令「60Hz/120Hz、reduceMotion、冷启动/热路径分别分组」，但 0.1.11 的字节里所有 P95 都是**合池**的——
+  `Metrics` 只按指标名聚合，名字里没有环境维度，于是"120Hz 热路径很快"和"60Hz 冷启动很慢"被平均成一个谁都对不上的数字。
+  同一轮还发现第二条更硬缺的：「短场景累计至少 1,000 个有效间隔」这条门**没有测量支撑**——报告里只有段数（一次过渡算一段），
+  每段里到底有几条有效间隔从未被计数，所以这条门既判不了、也不会被如实记成未判，等于写了个不存在的判据。
+- **修改文件**：`Packages/VistileCore/Sources/VistileCore/Domain/PerformanceGroup.swift`（新，纯逻辑：三维分组键、
+  `PerformanceGate` 的 n≥100 门与 nearest-rank P95、`PerformanceMetricName` 命名契约）、
+  [Diagnostics/Metrics.swift:12](../Diagnostics/Metrics.swift#L12)（`PerformanceEnvironment` 现取刷新率/reduceMotion/冷热）、
+  [App/AppCoordinator.swift:1183](../App/AppCoordinator.swift#L1183) 起（飞行开始时定组，四处指标改用带组名）、
+  [App/P0Probe.swift:1526](../App/P0Probe.swift#L1526) 起（P0-18 逐组判定与措辞、有效间隔计数、成功率/超时数）、
+  两份测试。
+- **关键行为**：分组键 = 「档位·reduceMotion=开/关·冷启动/热路径」，档位把 59.94/119.88 归一成 60Hz/120Hz，
+  取不到时写「刷新率未知」而不是假装 60Hz；"冷启动"就是该场景在本进程里的第一次飞行；判定逐组给，
+  样本不足写**未判**（不写成达标、也不写成超目标）；`点击→落定` 另留一行不带分组键的合池概览，报告里明写"只作概览，判定不看它"；
+  `过渡零呈现段`/`过渡回调多于呈现` 两条**故意不按分组拆**——它们是"有没有画面证据"的核对，不是 §20.1 带目标值的数字。
+- **回归用例**：核心 7 条（档位归一、本机帧间隔只是事实不当目标、三维各自能把组隔开、样本门、nearest-rank、命名往返、
+  分组后热路径达标与冷启动未判不互相掩盖）在
+  [Packages/VistileCore/Tests/VistileCoreTests/PerformanceGroupTests.swift:12](../Packages/VistileCore/Tests/VistileCoreTests/PerformanceGroupTests.swift#L12) 起；
+  宿主 2 条走**真实 `Metrics`**，钉住"生产侧写的名字读取侧取得回"这条契约
+  （[Tests/HostTests/TransitionSceneTests.swift:1335](../Tests/HostTests/TransitionSceneTests.swift#L1335)、
+  [:1374](../Tests/HostTests/TransitionSceneTests.swift#L1374)）。契约断掉的表现是读取侧一行都匹配不到、报告只写"没有帧样本"，
+  那是测量坏了不是产品慢，所以先让测试红。
+- **状态**：代码完成、确定性回归通过（核心 155/64、宿主 182，见 §9）。**这份改动不在 `v0.1.11` 的发布字节里**，
+  解锁后要么在它上面重跑 run14，要么先发版再跑——在跑之前，§20.1 的全部数字（含分组后的）仍是**未测**，
+  120Hz 组能按本机帧间隔给更严预算这一点也只是把口径写清楚，没有任何本机样本。
+
+### 11.11 未完成项（直说未完成）
 
 1. §19 M01–M14 全部真机项、§20 的性能数字、30 分钟长跑、录屏、P0-19 真机对照、强退恢复实机——**全部未测**。
-   阻塞条件是**桌面锁定**（`CGSSessionScreenIsLocked=1`，16:06/16:09 两次）＋熄屏（活动显示器数 0），不是代码缺东西；
+   阻塞条件是**桌面锁定**（`CGSSessionScreenIsLocked=1`，16:06/16:09/16:17/17:49 共四次读数）＋熄屏（活动显示器数 0），不是代码缺东西；
    发布字节已经按 §11.1 装到 `/Applications/Vistile.app`，解锁后一条命令即可跑（任务 §34，命令在本文档 §4「怎么跑」与
    [Evidence/README.md](Evidence/README.md) 的"run14 起跑前"一节）。
+   **但 §11.10 的分组改动改变了这件事的前提**：带分组键的指标名只存在于工作树里这份代码，`v0.1.11` 的字节还是合池的老名字。
+   所以解锁后跑在 0.1.11 上只能拿到"没有分组"的那套数字——正好是本轮要修的缺陷。取 §20.2 的分组证据必须先把这份改动装进正式版
+   （同 Developer ID、同 bundle id `com.misswell.Vistile`，授权不用重给），也就是**先发版再跑**，或在本地重装这份构建后跑并如实记下重装包的 hash。
 2. `v0.1.11` 已提交（`889a923`）、打标签、发布，两条 run 均 success；发布包与运行包 hash 已回填进 §11.1（任务 §35 完成）。
-   这条限制的残留部分仍然成立：**本文档这次提交在标签之后，文档比包新**。
+   这条限制的残留部分现在更严重：**代码和文档都比包新**（§11.10 的测量面改动未发版）。
 3. §20.1 目标里"点击反馈 P95 ≤50ms"的锚定实现（首帧延迟 + 呈现核对）本轮才落进代码，
    **没有任何真机样本证明它达标**；上一轮（0.1.10）的帧间隔样本 n=36/61/53、p95 32.6–50.7ms 是不同源码轮次、不同口径的读数，只作趋势，不作达标证据。
 

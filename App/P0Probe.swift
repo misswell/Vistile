@@ -21,7 +21,11 @@ final class P0Probe {
     /// soak 开始前的真实 frame 基准（P0-16 进入工作台之前取）：收尾用它核对窗口有没有被写漂移。
     private var soakFrameBaseline: [WindowIdentity: CGRect] = [:]
     /// 三条路径的「点击→落定」延迟样本（毫秒，单调时钟）：enter / swap / return。
-    private var soakLatencyMS: [String: [Double]] = [:]
+    /// 按方案 §20.2 分组攒着：`路径 → 分组键（60/120Hz·reduceMotion·冷热）→ 样本`，
+    /// P0-18 逐组判定，不同环境的数字不合并成同一个 P95。
+    private var soakLatencyMS: [String: [String: [Double]]] = [:]
+    /// 每条路径的派发次数与落定次数（方案 §20.2「同时记录成功率和超时率」；超时数 = 差值）。
+    private var clickTally: [String: (attempts: Int, settled: Int)] = [:]
     /// 几何事务对照行（方案 §22）：工作台在途时按 journal 事实逐窗口采样，收尾再与真实 frame 对一次。
     private var ledgerRows: [LedgerRow] = []
     /// 曾出现过真实写入读回的窗口：`journalKey → 该窗口的全部几何事实`。
@@ -1164,7 +1168,9 @@ final class P0Probe {
             let converged = await waitUntil(timeout: 8.0) {
                 self.isSettled(main: identity) && self.coordinator.workbenchControllers.values.contains(where: \.isVisible)
             }
-            latencyMS.append((monotonicNow() - started) * 1000)
+            let latency = (monotonicNow() - started) * 1000
+            latencyMS.append(latency)
+            recordClickOutcome(path: "swap", ms: latency, settled: converged)
             if !converged {
                 let state = coordinator.state
                 var note = "-"
@@ -1208,13 +1214,15 @@ final class P0Probe {
             }
             if consecutiveFailures >= 3 { break }
         }
-        soakLatencyMS["swap"] = latencyMS
-        let p95 = Self.percentile(of: latencyMS, 0.95)
+        // 样本已在每次点击时按分组记进 soakLatencyMS（方案 §20.2），这里只算本轮的概览数字。
+        let swapTimes = latencyMS
+        let p95 = Self.percentile(of: swapTimes, 0.95)
         record("P0-16", "固定交换 100 次",
                passed: failures.isEmpty && swaps == 100,
                detail: failures.isEmpty
                     ? "真实点击交换 \(swaps) 次（顶栏 \(topClicks)、侧栏 \(sideClicks)）全部收敛：每轮被点卡进主区、"
                       + "原主回该 slot、其余占用与滚动偏移不变；点击→落定 p95=\(String(format: "%.0f", p95))ms（目标 ≤500ms）；"
+                      + clickOutcomeText("swap", "交换") + "；"
                       + "非参与窗口 frame 对照在 P0-17 收尾统查"
                     : "已完成 \(swaps)/100 次；问题：" + failures.prefix(3).joined(separator: "；"),
                check: "P0-16 固定交换 soak")
@@ -1273,7 +1281,7 @@ final class P0Probe {
                 break
             }
             let returned = await waitUntil(timeout: 8.0) { self.isSettled(overviewVisible: true) }
-            soakLatencyMS["return", default: []].append((monotonicNow() - returnStarted) * 1000)
+            recordClickOutcome(path: "return", ms: (monotonicNow() - returnStarted) * 1000, settled: returned)
             if !returned {
                 failures.append("第 \(index + 1) 轮没回到总览（阶段=\(phaseDebug(coordinator.state.phase))）")
                 break
@@ -1307,7 +1315,7 @@ final class P0Probe {
             let entered = await waitUntil(timeout: 8.0) {
                 self.isSettled(main: identity) && self.coordinator.workbenchControllers.values.contains(where: \.isVisible)
             }
-            soakLatencyMS["enter", default: []].append((monotonicNow() - enterStarted) * 1000)
+            recordClickOutcome(path: "enter", ms: (monotonicNow() - enterStarted) * 1000, settled: entered)
             if !entered {
                 let state = coordinator.state
                 failures.append("第 \(index + 1) 轮进入没落定到 \(identity.journalKey)"
@@ -1358,8 +1366,8 @@ final class P0Probe {
             if again.silent == drift.silent, again.reported == drift.reported { break }
             drift = again
         }
-        let enterTimes = soakLatencyMS["enter"] ?? []
-        let returnTimes = soakLatencyMS["return"] ?? []
+        let enterTimes = latencyTotal("enter")
+        let returnTimes = latencyTotal("return")
         var issues = failures
         if rounds != 100 { issues.append("完成 \(rounds)/100 轮") }
         if !drift.silent.isEmpty { issues.append("真实 frame 静默漂移（产品没有任何记录）：" + drift.silent.prefix(4).joined(separator: "、")) }
@@ -1371,7 +1379,8 @@ final class P0Probe {
                                                 : "无静默漂移（\(drift.reported.count) 项已由产品回报："
                                                   + drift.reported.prefix(3).joined(separator: "、") + "）") + "；"
                       + "进入 p95=\(String(format: "%.0f", Self.percentile(of: enterTimes, 0.95)))ms（目标 ≤600ms）、"
-                      + "返回 p95=\(String(format: "%.0f", Self.percentile(of: returnTimes, 0.95)))ms（目标 ≤500ms）"
+                      + "返回 p95=\(String(format: "%.0f", Self.percentile(of: returnTimes, 0.95)))ms（目标 ≤500ms）；"
+                      + clickOutcomeText("enter", "进入") + "；" + clickOutcomeText("return", "返回")
                     : "已完成 \(rounds)/100 轮；问题：" + issues.prefix(3).joined(separator: "；"),
                check: "P0-17 往返 soak")
         manual("P0-17", "往返录屏", "点「全部窗口」回总览、再点同一/不同窗口，往返 30 次：总览位置、轨道位置、滚动都不变，退出后再开仍从总览开始。")
@@ -1522,33 +1531,72 @@ final class P0Probe {
         var facts: [String] = []
         var shortfalls: [String] = []
         var misses: [String] = []
+        let env = PerformanceEnvironment.current(coldStart: false)
+        facts.append("分组环境：\(env.environmentLabel)，本机帧间隔 \(String(format: "%.2f", env.nativeFrameIntervalMS))ms"
+            + "（§20.2 要求 60Hz/120Hz、reduceMotion、冷启动/热路径分别分组，下面的判定逐组给）")
+        // ① 帧间隔：每个 (场景, 分组) 一行。判据 §20.1 P95≤20ms；闸门 §20.2 每路径 ≥100 次操作、累计 ≥1,000 个有效间隔。
         for kind in ["总览→L 型", "L 型内交换", "L 型→总览"] {
-            // Metrics.summary() 会在 measure 名后再拼「 p95」，按前缀匹配，不按全名相等。
-            guard let sample = summary.first(where: { $0.name.hasPrefix("过渡帧间隔p95·\(kind)") }) else {
-                shortfalls.append("\(kind) 没有帧样本")
+            let rows = groupedRows(in: summary, base: "过渡帧间隔p95·\(kind)")
+            guard !rows.isEmpty else {
+                shortfalls.append("\(kind) 没有帧样本（一个分组都没有）")
                 continue
             }
-            let n = Self.sampleCount(from: sample.context)
-            facts.append("\(kind) n=\(n) 帧 p95=\(String(format: "%.1f", sample.valueMS))ms")
-            if n < 100 { shortfalls.append("\(kind) 帧样本 \(n) < 100") }
+            // 逐组累计有效间隔条数：§20.2 的 1,000 个间隔闸门按分组判；出现同名重复也直接相加，不崩。
+            var intervals: [String: Int] = [:]
+            for entry in groupedCounters(counters, base: "过渡有效帧间隔·\(kind)") {
+                intervals[entry.groupKey, default: 0] += entry.value
+            }
+            for row in rows {
+                let segments = Self.sampleCount(from: row.sample.context)
+                let verdict = PerformanceGate.judge(groupKey: row.groupKey, count: segments,
+                                                   p95MS: row.sample.valueMS, targetMS: 20)
+                let iv = intervals[row.groupKey] ?? 0
+                facts.append("\(kind)「\(row.groupKey)」\(verdict.factText)，有效间隔 \(iv)")
+                if segments < PerformanceGate.minSamples {
+                    shortfalls.append("\(kind)「\(row.groupKey)」操作样本 \(segments) < \(PerformanceGate.minSamples)（§20.2 记未判）")
+                } else if iv < Self.minIntervalsPerPath {
+                    shortfalls.append("\(kind)「\(row.groupKey)」有效间隔 \(iv) < \(Self.minIntervalsPerPath)（§20.2 记未判）")
+                } else if verdict.status == .miss {
+                    misses.append("\(kind)「\(row.groupKey)」帧间隔 p95 超 20ms 目标")
+                }
+            }
         }
-        let overBudget = counters["过渡超帧预算"] ?? 0
-        facts.append("帧预算：\(counters["过渡帧预算内"] ?? 0) 段在内、\(overBudget) 段超预算（判据 P95≤20ms 且掉帧占比≤1% 且无连续 3 帧卡顿）")
-        if overBudget > 0 { misses.append("有 \(overBudget) 段过渡超出 §20.2 帧预算") }
+        // ② 段级帧预算（掉帧占比 ≤1%、无连续 3 帧）按分组给，池化会看不出是哪一组在掉帧。
+        let within = groupedCounters(counters, base: "过渡帧预算内")
+        let over = groupedCounters(counters, base: "过渡超帧预算")
+        let budgetGroups = Set(within.map { $0.groupKey }).union(over.map { $0.groupKey })
+        for groupKey in budgetGroups.sorted() {
+            let w = within.first { $0.groupKey == groupKey }?.value ?? 0
+            let o = over.first { $0.groupKey == groupKey }?.value ?? 0
+            facts.append("分组「\(groupKey)」帧预算：\(w) 段在内、\(o) 段超预算")
+            if o > 0 { misses.append("分组「\(groupKey)」有 \(o) 段超出 §20.2 帧预算") }
+        }
+        if budgetGroups.isEmpty {
+            facts.append("帧预算：没有任何分组计数（本轮没有过渡飞行完成）")
+        }
         // 点击→第一帧单独判（方案 §20.2「把每段动画的首帧延迟单独记录」+ §20.1 点击反馈 P95 ≤50ms）。
         // 帧间隔统计只覆盖动画内部，看不见"点了很久没出第一帧"，所以两段各算各的。
         for kind in ["总览→L 型", "L 型内交换", "L 型→总览"] {
-            guard let sample = summary.first(where: { $0.name.hasPrefix("过渡首帧延迟·\(kind)") }) else {
+            let rows = groupedRows(in: summary, base: "过渡首帧延迟·\(kind)")
+            guard !rows.isEmpty else {
                 shortfalls.append("\(kind) 没有锚在真实点击上的首帧样本")
                 continue
             }
-            let n = Self.sampleCount(from: sample.context)
-            facts.append("\(kind) 点击→首帧 p95=\(String(format: "%.1f", sample.valueMS))ms（目标 ≤50ms，n=\(n)）")
-            if n < 100 { shortfalls.append("\(kind) 首帧样本 \(n) < 100") }
-            else if sample.valueMS > 50 { misses.append("\(kind) 点击→首帧 p95 超 50ms 目标") }
-            if let unanchored = summary.first(where: { $0.name.hasPrefix("过渡首帧延迟(无点击锚点)·\(kind)") }) {
-                facts.append("\(kind) 无点击锚点段 p95=\(String(format: "%.1f", unanchored.valueMS))ms"
-                    + "（\(Self.sampleCount(from: unanchored.context)) 段，不计入点击反馈）")
+            for row in rows {
+                let n = Self.sampleCount(from: row.sample.context)
+                let verdict = PerformanceGate.judge(groupKey: row.groupKey, count: n,
+                                                   p95MS: row.sample.valueMS, targetMS: 50)
+                facts.append("\(kind) 点击→首帧「\(row.groupKey)」\(verdict.factText)")
+                if n < PerformanceGate.minSamples {
+                    shortfalls.append("\(kind)「\(row.groupKey)」首帧样本 \(n) < \(PerformanceGate.minSamples)（§20.2 记未判）")
+                } else if verdict.status == .miss {
+                    misses.append("\(kind)「\(row.groupKey)」点击→首帧 p95 超 50ms 目标")
+                }
+            }
+            // 无锚点的段（自动替补、探针直接 dispatch）单列，不参与"点击反馈"判定。
+            for row in groupedRows(in: summary, base: "过渡首帧延迟(无点击锚点)·\(kind)") {
+                facts.append("\(kind) 无点击锚点段「\(row.groupKey)」p95=\(String(format: "%.1f", row.sample.valueMS))ms"
+                    + "（\(Self.sampleCount(from: row.sample.context)) 段，不计入点击反馈）")
             }
         }
         // 回调次数不能代替呈现（方案 §20.2）：present=0 的段没有画面证据，回调多于 present 的差额是真实丢帧。
@@ -1561,16 +1609,31 @@ final class P0Probe {
         let paths: [(key: String, kind: String, targetMS: Double)] = [
             ("enter", "总览→L 型", 600), ("swap", "L 型内交换", 500), ("return", "L 型→总览", 500)]
         for path in paths {
-            let values = soakLatencyMS[path.key] ?? []
-            let p95 = Self.percentile(of: values, 0.95)
-            facts.append("\(path.kind) 点击→落定 p95=\(String(format: "%.0f", p95))ms（目标 ≤\(Int(path.targetMS))ms，n=\(values.count)）")
-            if !values.isEmpty {
-                recorder.recordPerformance(PerformanceSample(name: "点击→落定p95·\(path.kind)",
-                                                             valueMS: p95,
-                                                             context: "n=\(values.count)，目标 ≤\(Int(path.targetMS))ms"))
+            let groups = soakLatencyMS[path.key] ?? [:]
+            guard !groups.isEmpty else {
+                shortfalls.append("\(path.kind) 没有「点击→落定」样本（\(clickOutcomeText(path.key, path.kind))）")
+                continue
             }
-            if values.count < 100 { shortfalls.append("\(path.kind) 延迟样本 \(values.count) < 100") }
-            else if p95 > path.targetMS { misses.append("\(path.kind) 点击→落定 p95 超 \(Int(path.targetMS))ms 目标") }
+            facts.append("\(path.kind) 落定核对：\(clickOutcomeText(path.key, path.kind))")
+            let total = latencyTotal(path.key)
+            recorder.recordPerformance(PerformanceSample(name: "点击→落定p95·\(path.kind)（\(groups.count) 个分组合池）",
+                                                         valueMS: Self.percentile(of: total, 0.95),
+                                                         context: "n=\(total.count)，成功率\(String(format: "%.1f%%", successRate(path.key)))，"
+                                                            + "目标 ≤\(Int(path.targetMS))ms；合池只作概览，判定见逐组行"))
+            for groupKey in groups.keys.sorted() {
+                let values = groups[groupKey] ?? []
+                let verdict = PerformanceGate.judge(groupKey: groupKey, values: values, targetMS: path.targetMS)
+                let p95 = verdict.p95MS.isFinite ? String(format: "%.0fms", verdict.p95MS) : "无有效值"
+                facts.append("\(path.kind) 点击→落定「\(groupKey)」p95=\(p95)（目标 ≤\(Int(path.targetMS))ms，n=\(values.count)，\(verdict.status.label)）")
+                recorder.recordPerformance(PerformanceSample(name: "点击→落定p95·\(path.kind)·\(groupKey)",
+                                                             valueMS: values.isEmpty ? 0 : verdict.p95MS,
+                                                             context: "n=\(values.count)，目标 ≤\(Int(path.targetMS))ms，\(verdict.status.label)"))
+                switch verdict.status {
+                case .undetermined: shortfalls.append("\(path.kind)「\(groupKey)」延迟样本 \(values.count) < \(PerformanceGate.minSamples)（§20.2 记未判）")
+                case .miss: misses.append("\(path.kind)「\(groupKey)」点击→落定 p95 超 \(Int(path.targetMS))ms 目标")
+                case .pass: break
+                }
+            }
         }
         record("P0-18", "样本与帧预算", passed: shortfalls.isEmpty ? misses.isEmpty : nil,
                detail: (shortfalls.isEmpty ? "" : "样本不足（不能判）：\(shortfalls.joined(separator: "；"))；")
@@ -1578,6 +1641,26 @@ final class P0Probe {
                     + facts.joined(separator: "；"),
                check: "P0-18 样本与帧预算")
         manual("P0-18", "录屏对照", "用 QuickTime 录总览→L型、交换、返回各一段，对照报告里的 p95 与录屏观感（无回跳、无输入积压）。")
+    }
+
+    /// §20.2「短场景累计至少 1,000 个有效间隔」：一条路径在一个分组里的帧间隔样本总数下限。
+    private static let minIntervalsPerPath = 1_000
+
+    /// `Metrics` 的指标名在分组后长这样：`<基名>·<分组键>`，summary 再拼「 p95」。
+    /// 名字形状由 `PerformanceMetricName` 单点定义（生产侧与这里共用），解析不自己拼字符串——
+    /// 两侧一改就走偏，报告会变成"一行样本都没有"，那是测量失效。
+    private func groupedRows(in summary: [PerformanceSample], base: String) -> [(groupKey: String, sample: PerformanceSample)] {
+        summary.compactMap { sample -> (String, PerformanceSample)? in
+            guard let key = PerformanceMetricName.groupKey(fromSummaryRow: sample.name, base: base) else { return nil }
+            return (key, sample)
+        }.sorted { $0.groupKey < $1.groupKey }
+    }
+
+    /// 分组计数器的同一种形状：`<基名>·<分组键>` → 值。
+    private func groupedCounters(_ counters: [String: Int], base: String) -> [(groupKey: String, value: Int)] {
+        counters.compactMap { name, value in
+            PerformanceMetricName.groupKey(fromCounterName: name, base: base).map { ($0, value) }
+        }.sorted { $0.groupKey < $1.groupKey }
     }
 
     // MARK: - 长时运行（方案 §19.11、§20.3 P8；样本闸门 §19.13 也走这一轮）
@@ -1611,7 +1694,7 @@ final class P0Probe {
                     break
                 }
                 let returned = await waitUntil(timeout: 8.0) { self.isSettled(overviewVisible: true) }
-                soakLatencyMS["return", default: []].append((monotonicNow() - returnStarted) * 1000)
+                recordClickOutcome(path: "return", ms: (monotonicNow() - returnStarted) * 1000, settled: returned)
                 guard returned else {
                     failures.append("第 \(rounds + 1) 轮没回到总览（阶段=\(phaseDebug(coordinator.state.phase))）")
                     break
@@ -1633,7 +1716,7 @@ final class P0Probe {
             let entered = await waitUntil(timeout: 10.0) {
                 self.isSettled(main: candidate.identity) && self.coordinator.workbenchControllers.values.contains(where: \.isVisible)
             }
-            soakLatencyMS["enter", default: []].append((monotonicNow() - enterStarted) * 1000)
+            recordClickOutcome(path: "enter", ms: (monotonicNow() - enterStarted) * 1000, settled: entered)
             guard entered else {
                 failures.append("第 \(rounds + 1) 轮进入没落定到 \(candidate.identity.journalKey)"
                               + "（阶段=\(phaseDebug(coordinator.state.phase))）")
@@ -1650,7 +1733,7 @@ final class P0Probe {
                     break
                 }
                 let swapped = await waitUntil(timeout: 8.0) { self.isSettled(main: identity) }
-                soakLatencyMS["swap", default: []].append((monotonicNow() - swapStarted) * 1000)
+                recordClickOutcome(path: "swap", ms: (monotonicNow() - swapStarted) * 1000, settled: swapped)
                 if !swapped {
                     consecutiveFailures += 1
                     if consecutiveFailures >= 3 {
@@ -1695,13 +1778,20 @@ final class P0Probe {
         if rounds == 0 { issues.append("一轮完整往返都没跑成") }
         if grew { issues.append("RSS 末段均值 \(mb(lastAvg ?? 0))MB 高于首段 \(mb(firstAvg ?? 0))MB 超 50MB") }
         if streamsNow != 0 { issues.append("隐藏后 10s 内活跃流未归零（现 \(streamsNow) 路）") }
-        let walls = ["enter", "swap", "return"].map { key -> String in
-            let values = soakLatencyMS[key] ?? []
-            return "\(key) n=\(values.count) p95=\(String(format: "%.0f", Self.percentile(of: values, 0.95)))ms"
+        let walls = [("enter", "进入"), ("swap", "交换"), ("return", "返回")].map { key, label -> String in
+            let values = latencyTotal(key)
+            // 分组数写出来：长跑跨了 ProMotion 升降档或冷热两种路径时，这里先露出"数字来自几个组"，
+            // 逐组的 P95 与判定在 P0-18（§20.2）。
+            let groups = soakLatencyMS[key]?.count ?? 0
+            return "\(label) n=\(values.count) p95=\(String(format: "%.0f", Self.percentile(of: values, 0.95)))ms"
+                + (groups > 1 ? "（\(groups) 个分组）" : "")
         }
+        let outcomes = [("enter", "进入"), ("swap", "交换"), ("return", "返回")]
+            .map { key, label in clickOutcomeText(key, label) }
         record("P0-长跑", "\(minutes) 分钟长时运行", passed: issues.isEmpty,
                detail: (issues.isEmpty ? "" : "问题：" + issues.prefix(3).joined(separator: "；") + "；")
                     + "\(rounds) 轮完整往返、\(walls.joined(separator: "、"))；"
+                    + "成功率与超时数：\(outcomes.joined(separator: "；"))；"
                     + "RSS 首段均值 \(firstAvg.map(mb) ?? "-")MB → 末段 \(lastAvg.map(mb) ?? "-")MB，峰值 \(rssMax.map(mb) ?? "-")MB；"
                     + "平均 CPU \(cpuAverage.map { String(format: "%.1f", $0) } ?? "-")%（100% = 一个逻辑核满载）；"
                     + "隐藏后活跃流 \(streamsNow) 路；窗口 \(coordinator.state.records.count) 个",
@@ -1814,9 +1904,36 @@ final class P0Probe {
     }
 
     private static func percentile(of values: [Double], _ q: Double) -> Double {
-        guard !values.isEmpty else { return .nan }
-        let sorted = values.sorted()
-        return sorted[min(sorted.count - 1, Int(Double(sorted.count - 1) * q))]
+        PerformanceGate.percentile(of: values, q)
+    }
+
+    /// 记一次真实点击的样本与结果（方案 §20.2）：按分组攒延迟，同时累计该路径的派发/落定次数。
+    /// 冷热在这里按"该路径本进程是否还没有过样本"判——第一次是冷启动，之后每一次都是热路径。
+    private func recordClickOutcome(path: String, ms: Double, settled: Bool) {
+        let seen = soakLatencyMS[path]?.values.reduce(0) { $0 + $1.count } ?? 0
+        let group = PerformanceEnvironment.current(coldStart: seen == 0)
+        soakLatencyMS[path, default: [:]][group.key, default: []].append(ms)
+        var tally = clickTally[path] ?? (attempts: 0, settled: 0)
+        tally.attempts += 1
+        if settled { tally.settled += 1 }
+        clickTally[path] = tally
+    }
+
+    /// 某条路径跨分组的样本合计：只用于 P0-16/P0-17 各自那行的概览数字，判定一律走分组（P0-18）。
+    private func latencyTotal(_ path: String) -> [Double] {
+        guard let groups = soakLatencyMS[path] else { return [] }
+        return groups.values.flatMap { $0 }
+    }
+
+    /// §20.2 的成功率与超时数：派发过几次、落定几次、超时几次，按路径给。
+    private func clickOutcomeText(_ path: String, _ kind: String) -> String {
+        guard let tally = clickTally[path] else { return "\(kind) 没有派发过点击" }
+        return "\(kind) 成功率\(String(format: "%.1f%%", successRate(path)))（\(tally.settled)/\(tally.attempts)）、超时\(tally.attempts - tally.settled)"
+    }
+
+    private func successRate(_ path: String) -> Double {
+        guard let tally = clickTally[path], tally.attempts > 0 else { return 0 }
+        return Double(tally.settled) / Double(tally.attempts) * 100
     }
 
     private static func slotLabel(_ slot: RailSlotID) -> String {
@@ -1852,7 +1969,8 @@ final class P0Probe {
         let presented = coordinator.rendererDiagnostics.presents
         let locked = sessionLocked()
         let line = "窗口 \(records.count) 个（AX 可解析 \(readable) 个），活跃流 \(streams) 路，"
-            + "本次启动累计捕获帧 \(frames)、累计 present \(presented)，会话锁定=\(locked ? "是" : "否")"
+            + "本次启动累计捕获帧 \(frames)、累计 present \(presented)，会话锁定=\(locked ? "是" : "否")，"
+            + "性能分组环境 \(PerformanceEnvironment.current(coldStart: false).environmentLabel)"
         var voids: [String] = []
         if records.isEmpty || frames == 0 {
             voids.append("可见态 2.5s 观察窗内 0 帧 → 依赖帧的 P0-2/P0-9/P0-10/性能采样 不能当产品结论")
