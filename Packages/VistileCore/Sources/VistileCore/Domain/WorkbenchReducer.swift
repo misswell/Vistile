@@ -109,9 +109,12 @@ public enum WorkbenchReducer {
     }
 
     /// `recoveryRequired` 之下只允许重试补偿或安全退出：新的普通操作一律拒绝并说清原因（方案 §6.4、§15）。
-    private static func recoveryBlock(_ state: SessionState) -> [SessionEffect]? {
+    /// 拒绝不能等于"点什么都不动"：说出原因后按日志收口退出恢复，下一次打开才是干净会话。
+    private static func recoveryBlock(_ state: inout SessionState) -> [SessionEffect]? {
         guard let recovery = state.workbench.recoveryRequired else { return nil }
-        return [.presentHint(.workbenchSwitchFailed(recovery.reason))]
+        var effects: [SessionEffect] = [.presentHint(.workbenchSwitchFailed(recovery.reason))]
+        effects.append(contentsOf: SessionReducer.exitToHidden(&state))
+        return effects
     }
 
     // MARK: - 日志闸门（方案 §7.1、§7.2）
@@ -391,7 +394,7 @@ public enum WorkbenchReducer {
               state.workbench.modeTransition == .idle else { return [] }
         // 上一笔操作还在落盘：不覆盖它备好的意图，第二次点击必须等前一次收敛（方案 §7.1、§10.4）。
         guard state.workbench.armed == nil else { return [] }
-        if let blocked = recoveryBlock(state) { return blocked }
+        if let blocked = recoveryBlock(&state) { return blocked }
         return startEnterWorkbench(&state, identity: identity)
     }
 
@@ -570,7 +573,7 @@ public enum WorkbenchReducer {
     private static func beginReturnOverview(_ state: inout SessionState) -> [SessionEffect] {
         guard state.mode == .workbench else { return [] }
         guard state.workbench.modeTransition == .idle else { return [] }
-        if let blocked = recoveryBlock(state) { return blocked }
+        if let blocked = recoveryBlock(&state) { return blocked }
         if state.workbench.mainSwitch.isBusy {
             // 交换进行中：记住意图，等这次收敛后再回总览（方案 §4.5、§7.2）。
             state.workbench.pendingReturnToOverview = true
@@ -648,7 +651,7 @@ public enum WorkbenchReducer {
                                            slot: RailSlotID,
                                            identity: WindowIdentity) -> [SessionEffect] {
         guard state.mode == .workbench, state.workbench.modeTransition == .idle else { return [] }
-        if let blocked = recoveryBlock(state) { return blocked }
+        if let blocked = recoveryBlock(&state) { return blocked }
         // 事实对不上（占用已变化）就不写几何；以 placement 为准。
         guard state.workbench.placement.occupant(at: slot) == identity else { return [] }
         guard state.workbench.placement.main != identity else { return [] }
@@ -1097,7 +1100,7 @@ public enum WorkbenchReducer {
     private static func handleSideChanged(_ state: inout SessionState, side: RailSide) -> [SessionEffect] {
         guard state.mode == .workbench, state.workbench.modeTransition == .idle,
               !state.workbench.mainSwitch.isBusy else { return [] }
-        if let blocked = recoveryBlock(state) { return blocked }
+        if let blocked = recoveryBlock(&state) { return blocked }
         guard state.workbench.side != side, let snapshot = state.workbench.snapshot,
               let display = state.displays.first(where: { $0.id == snapshot.displayID }) else { return [] }
         state.workbench.side = side
@@ -1132,7 +1135,7 @@ public enum WorkbenchReducer {
             return []
         }
         guard state.mode == .workbench else { return [] }
-        if let blocked = recoveryBlock(state) { return blocked }
+        if let blocked = recoveryBlock(&state) { return blocked }
         state.workbench.railSizeRecomputePending = false
         guard applyRailSize(&state, topHeight: topHeight, sideWidth: sideWidth) != nil else { return [] }
         guard let updated = state.workbench.snapshot else { return [] }

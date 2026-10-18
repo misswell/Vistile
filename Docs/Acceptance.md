@@ -1490,3 +1490,31 @@ hover 触发一次主区抓帧、阈值/计数不退化）。
   `0.1.23 / 37`，`arm64`；codesign 通过（Notarized Developer ID，Team `U8U443D7ZL`）。
 - 镜像已上传 `releases/v0.1.23/`，直连实测 HTTP 200、5.7s、哈希一致。
 - 已安装到 `/Applications` 并启动；0.1.22 备份在 `/tmp/Vistile-0.1.22-backup.app`。
+
+### 12.31 补全 recoveryRequired 的安全退出（P09 余项，0.1.24）
+
+**用户报告**：0.1.23 上仍然"点过一次再切回来没有任何反应"。
+
+**日志证据（0.1.23，19:17:54–19:19:23）**
+
+- 19:17:56.242 从 Qoder 主窗口交换到 82289:1792028999250438:45201：目标 `63,183 1508x973`，
+  写前/读回都是 `63,40 1747x1129`，结论「应用按自身尺寸约束返回」；随后
+  「越出主区：读回 … 超出主区 …」→ `阶段 switching→recoveryRequired`。
+- 19:17:57 起连续点击顶栏 #0/#4/#3/#2/#1，每条都有 `[点击] 轨道卡片 …`，但只重复
+  「主窗口交换未完成：交换失败且未能恢复一致…」，阶段始终 `recoveryRequired`。
+- 19:18:20 外部应用激活触发「确证外部应用在前台，退出会话」，但焦点丢失被工作台
+  新窗口分支改写成 `.returnToOverviewRequested`，同样被 `beginReturnOverview` 的恢复闸门吞掉。
+- 19:19:xx 仍每 2 秒打印 `performSync … 阶段=recoveryRequired`，没有自动收口。
+
+**根因**：0.1.23 的 P09 只改了 `SessionReducer.handleTargetRequest` 的 `.recoveryRequired` 分支；
+工作台轨道点击走的是 `WorkbenchReducer.beginRailSelection`，返回总览走 `beginReturnOverview`，
+两者共用 `recoveryBlock`，而它仍然只返回 `.presentHint`，不改变状态。视图与输入链路正常，
+是状态机把点击吞掉了。
+
+**修复**：`WorkbenchReducer.recoveryBlock` 统一改成「提示 + `SessionReducer.exitToHidden`」：
+轨道点击、返回总览、侧栏/尺寸调整等所有工作台入口在几何不可信时都先说明原因，再按日志收口退出；
+有欠恢复事务时走 `recovering → hidden`，落地时 `resetForHiddenSession` 清掉 `recoveryRequired`，
+下一次打开是干净会话。新增 `testRailClickInRecoveryRequiredExitsAndReopensClean`：
+断言提示、`restoreAll` 收口、恢复落地后标记清空、重新打开可再次进入工作台并换主。
+
+**验证**：核心 XCTest 81 + Swift Testing 155 全过；宿主 212 项（1 项既有环境跳过）0 失败。

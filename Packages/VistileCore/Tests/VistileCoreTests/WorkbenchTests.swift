@@ -2212,6 +2212,61 @@ final class WorkbenchTests: XCTestCase {
         }
     }
 
+    /// 日志回归：交换失败进入 recoveryRequired 后，再点轨道卡片不能只重复提示、"点什么都不动"。
+    /// 必须先说明原因，再安全收口退出恢复；恢复落地后下一次打开是干净会话。
+    func testRailClickInRecoveryRequiredExitsAndReopensClean() throws {
+        var (state, list) = openState(count: 4)
+        let a = list[0].identity
+        let b = list[1].identity
+        enterWorkbench(&state, target: a)
+        let plan = try XCTUnwrap(switchPlan(selectRail(&state, identity: b)))
+        _ = reportSwitchFailure(&state, token: plan.intent.token, reason: "测试注入：回位被拒",
+                                compensation: WorkbenchCompensationResult(
+                                    items: [WorkbenchCompensationResult.Item(
+                                        identity: b, action: .refused(reason: "测试注入：AX 拒绝"),
+                                        displayID: nil)],
+                                    activatedMain: nil))
+        let recovery = try XCTUnwrap(state.workbench.recoveryRequired, "补偿被拒后几何不可信")
+
+        // 用户再点别的卡片：提示失败原因，并立刻开始收口，而不是原地空转。
+        let clicked = selectRail(&state, identity: list[2].identity)
+        XCTAssertTrue(clicked.contains { effect in
+            if case .presentHint(.workbenchSwitchFailed) = effect { return true }
+            return false
+        }, "收口前必须说明交换失败：\(clicked)")
+        XCTAssertFalse(hasSettleEffects(clicked), "收口过程不许再叠加几何写入：\(clicked)")
+
+        let token: TransitionToken
+        switch state.phase {
+        case let .recovering(destination, recoveringToken):
+            XCTAssertEqual(destination, .hidden)
+            token = recoveringToken
+        case .hidden:
+            // 没有欠恢复的事务时直接落地：recoveryRequired 必须随会话重置清掉。
+            XCTAssertNil(state.workbench.recoveryRequired, "落地后不得残留 \(recovery.reason)")
+            return
+        default:
+            return XCTFail("点击后必须离开 recoveryRequired，实际：\(state.phase)")
+        }
+        XCTAssertTrue(clicked.contains { effect in
+            if case .restoreAll(let restoreToken, _) = effect { return restoreToken == token }
+            return false
+        }, "必须发出恢复批次：\(clicked)")
+
+        _ = dispatchConfirmed(&state, .restoreCompleted(token))
+        XCTAssertEqual(state.phase, .hidden)
+        XCTAssertNil(state.workbench.recoveryRequired, "恢复落地后必须清掉恢复标记")
+        XCTAssertNil(state.workbench.placement.main)
+
+        // 重新打开：从总览开始，点击卡片仍能正常进入工作台，不再被旧恢复标记吞掉。
+        Fixtures.openToOverview(&state, records: list)
+        XCTAssertEqual(state.phase, .overview)
+        XCTAssertNil(state.workbench.recoveryRequired)
+        enterWorkbench(&state, target: list[0].identity)
+        XCTAssertEqual(state.mode, .workbench)
+        XCTAssertEqual(state.workbench.placement.main, list[0].identity)
+    }
+
     // MARK: - 操作前快照以宿主实读为准（方案 §6.2、§6.4、§9.1）
 
     /// 固定尺寸窗口的目录记录：不可调尺寸，可移动与否由调用方指定。
