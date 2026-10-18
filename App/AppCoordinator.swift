@@ -75,6 +75,10 @@ final class AppCoordinator {
     /// 每个窗口第一次出现在会话里的时刻：用来判断"焦点丢失是不是因为开了新窗口"。
     private var recordFirstSeenAt: [WindowIdentity: CFTimeInterval] = [:]
     private var pendingWorkbenchFocusLoss: (bundleID: String, event: SessionEvent)?
+    /// 打开总览那一刻已经在布局里的身份：之后只有基线之外、最近才出现的窗口才算"用户开了新 App"。
+    /// 没有基线就会误伤普通切换——会话开场时所有记录都是"刚出现"，首次出现时刻全等于打开时刻。
+    private var overviewBaselineIdentities: Set<WindowIdentity> = []
+    private var pendingOverviewFocusLoss: (bundleID: String, event: SessionEvent)?
 
     /// 工作台"壁纸底"：铺满目标屏、压在真实主窗口下面，让背景看起来只有这一个窗口。
     private var workbenchBackdrops: [UInt32: WorkbenchBackdropWindow] = [:]
@@ -131,7 +135,11 @@ final class AppCoordinator {
 
     /// 打开总览时激活 App 的动作（测试可注入）：菜单栏点击时 App 通常不是活动应用，
     /// 不激活就只是在自己的进程内 orderFront，前台应用的同级窗口仍会盖住总览。
-    var activateApplication: () -> Void = { NSApp.activate(ignoringOtherApps: true) }
+    /// 新系统上 `NSApp.activate` 不一定真的把 App 带回前台，再走一次运行中应用句柄。
+    var activateApplication: () -> Void = {
+        NSApp.activate(ignoringOtherApps: true)
+        _ = NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
+    }
 
     /// 排空完成回调（宿主侧事件）：`drainGeometry` 发出后，只有这里才算"几何任务已终止"。
     /// 核心层目前没有对应的回执事件，宿主先把事实暴露出来，reducer 补上后改成 dispatch（方案 §5.4）。
@@ -453,33 +461,12 @@ final class AppCoordinator {
 
     /// 事件排队处理：effect 内再次派发的同类事件排到后面，避免递归展开。
     func dispatch(_ event: SessionEvent) {
-        // 工作台里切到别的应用：如果对方是刚出现的新窗口，把它纳入布局（回冻结总览），
-        // 而不是整场退出。新窗口的目录记录可能比前台变更晚到，所以先等 250ms 再判。
-        if case let .focusLost(origin) = event,
-           case let .otherApplication(bundleID?) = origin,
-           state.mode == .workbench,
-           state.workbench.modeTransition == .idle,
-           !state.workbench.mainSwitch.isBusy,
-           pendingWorkbenchFocusLoss == nil {
-            // 窗口记录通常已经先到：直接判断，能命中就不延迟。
-            if hasRecentlyAppearedWindow() {
-                dispatch(.returnToOverviewRequested)
-                return
-            }
-            pendingWorkbenchFocusLoss = (bundleID, event)
-            Task { [weak self] in
-                try? await Task.sleep(nanoseconds: 250_000_000)
-                guard let self, let pending = self.pendingWorkbenchFocusLoss,
-                      pending.bundleID == bundleID else { return }
-                self.pendingWorkbenchFocusLoss = nil
-                if self.hasRecentlyAppearedWindow() {
-                    self.dispatch(.returnToOverviewRequested)
-                } else {
-                    self.dispatch(pending.event)
-                }
-            }
-            return
-        }
+        // 焦点丢失会决定整场会话的去留，先由宿主按"有没有带来新窗口"分流（方案 §6.2、§8.2）。
+        if interceptFocusLoss(event) { return }
+        enqueue(event)
+    }
+
+    private func enqueue(_ event: SessionEvent) {
         let dispatchStarted = CACurrentMediaTime()
         eventQueue.append(event)
         guard !isDraining else { return }
@@ -511,6 +498,100 @@ final class AppCoordinator {
     }
 
     private var recentlyAppearedCutoff: CFTimeInterval { CACurrentMediaTime() - 3 }
+
+    /// 工作台/总览里切到别的应用：如果对方带来了此前不在布局里的新窗口，把它纳入卡片，
+    /// 而不是整场退出。返回 true 表示这次焦点丢失已被宿主接管。
+    private func interceptFocusLoss(_ event: SessionEvent) -> Bool {
+        guard case let .focusLost(origin) = event,
+              case let .otherApplication(bundleID?) = origin,
+              state.workbench.modeTransition == .idle,
+              !state.workbench.mainSwitch.isBusy else { return false }
+        if state.mode == .workbench {
+            guard pendingWorkbenchFocusLoss == nil else { return false }
+            // 窗口记录通常已经先到：直接判断，能命中就不延迟。
+            if hasRecentlyAppearedWindow() {
+                dispatch(.returnToOverviewRequested)
+                return true
+            }
+            // 新窗口的目录记录可能比前台变更晚到，先等 250ms 再判。
+            pendingWorkbenchFocusLoss = (bundleID, event)
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                guard let self, let pending = self.pendingWorkbenchFocusLoss,
+                      pending.bundleID == bundleID else { return }
+                self.pendingWorkbenchFocusLoss = nil
+                if self.hasRecentlyAppearedWindow() {
+                    self.dispatch(.returnToOverviewRequested)
+                } else {
+                    // 直接入队：再走一次分流会让每次宽限结束都重新开始等待，永远退不出去。
+                    self.enqueue(pending.event)
+                }
+            }
+            return true
+        }
+        guard case .overview = state.phase else { return false }
+        // 宽限期内再来一次焦点丢失（例如用户连续切应用）：仍按第一次的决定收口，
+        // 不能在这里抢先退出，否则新窗口还在路上就先把总览关了。
+        guard pendingOverviewFocusLoss == nil else { return true }
+        return handleOverviewDeparture(bundleID: bundleID, event: event)
+    }
+
+    /// 总览里的外部激活：只有"打开总览后新出现的窗口"才留下总览，
+    /// 切到布局里已有的应用仍是正常离开（否则用别的方式切走就再也关不掉总览）。
+    private func handleOverviewDeparture(bundleID: String, event: SessionEvent) -> Bool {
+        if let identity = newlyAppearedOverviewWindow() {
+            keepOverviewAfterNewWindow(identity)
+            return true
+        }
+        // 目标应用在打开总览时就有窗口：普通切换，立即退出，不额外等待。
+        guard !bundleHadBaselineWindows(bundleID) else { return false }
+        pendingOverviewFocusLoss = (bundleID, event)
+        // 刚启动的应用窗口可能比前台变更晚一轮目录才出现：主动核对并在宽限内等它。
+        dispatch(.reconcileTick)
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            guard let self, self.pendingOverviewFocusLoss?.bundleID == bundleID else { return }
+            if let identity = self.newlyAppearedOverviewWindow() {
+                self.pendingOverviewFocusLoss = nil
+                self.keepOverviewAfterNewWindow(identity)
+                return
+            }
+            if !self.state.isDiscoveryInFlight { self.dispatch(.reconcileTick) }
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            guard self.pendingOverviewFocusLoss?.bundleID == bundleID else { return }
+            self.pendingOverviewFocusLoss = nil
+            guard case .overview = self.state.phase else { return }
+            if let identity = self.newlyAppearedOverviewWindow() {
+                self.keepOverviewAfterNewWindow(identity)
+            } else {
+                // 宽限结束仍没有新窗口：直接入队，不能再被分流接住（否则每次宽限都从头开始）。
+                self.enqueue(event)
+            }
+        }
+        return true
+    }
+
+    /// 基线之外、最近 3 秒内第一次出现的窗口 = 用户刚打开的新应用。
+    private func newlyAppearedOverviewWindow() -> WindowIdentity? {
+        let cutoff = recentlyAppearedCutoff
+        return state.records.keys.first { identity in
+            !overviewBaselineIdentities.contains(identity) && (recordFirstSeenAt[identity] ?? 0) > cutoff
+        }
+    }
+
+    private func bundleHadBaselineWindows(_ bundleID: String) -> Bool {
+        state.records.values.contains {
+            $0.bundleID == bundleID && overviewBaselineIdentities.contains($0.identity)
+        }
+    }
+
+    /// 新窗口已由目录合并落进空格：把总览重新激活并置前，让新卡片真的呈现在用户眼前。
+    private func keepOverviewAfterNewWindow(_ identity: WindowIdentity) {
+        log("session", "总览里出现新窗口 \(identity.journalKey)：纳入布局并保持总览，不退出会话")
+        activateApplication()
+        for controller in controllers.values { controller.raisePanel() }
+        applyKeyboardFocus(.overview)
+    }
 
     /// 最近 3 秒内是否有窗口第一次出现：这是"用户打开了新软件"的可靠信号，
     /// 不要求 bundleID 对得上（新进程的 bundle 识别可能晚一拍）。
@@ -546,6 +627,22 @@ final class AppCoordinator {
         let now = CACurrentMediaTime()
         for identity in state.records.keys where recordFirstSeenAt[identity] == nil {
             recordFirstSeenAt[identity] = now
+        }
+        // 总览基线：进入总览那一刻已有的窗口。之后基线之外、最近才出现的身份才算新打开的应用。
+        // 离开总览就作废，下次进入重新取；宽限中的焦点丢失也一并取消。
+        if case .overview = state.phase {
+            if case .overview = beforePhase {} else {
+                overviewBaselineIdentities = Set(state.records.keys)
+            }
+        } else {
+            overviewBaselineIdentities.removeAll()
+            pendingOverviewFocusLoss = nil
+        }
+        // 目录先于宽限期到达：不用等满，立即把总览要回来并展示新卡片。
+        if pendingOverviewFocusLoss != nil, case .overview = state.phase,
+           let identity = newlyAppearedOverviewWindow() {
+            pendingOverviewFocusLoss = nil
+            keepOverviewAfterNewWindow(identity)
         }
         // 会话身份只有一个来源：状态机算完就把 sessionID/代次下发给调度器，
         // 否则两边各数一次，真实写入永远拿不到准入（方案 §5.3、§15）。

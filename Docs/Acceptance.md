@@ -1535,3 +1535,41 @@ hover 触发一次主区抓帧、阈值/计数不退化）。
   `recoveryRequired` 后，再点任意轨道卡片：应先看到失败提示，随后工作台收起；
   日志应出现 `阶段 recoveryRequired(...)→recovering(...)` 或 `→hidden`，而不是停在原地。
   下一次打开是干净总览，可再次进入工作台换主。
+
+### 12.33 总览里打开新 App 不再关闭整场会话（0.1.25）
+
+**用户报告**：新打开一个 App 时，整个总览窗口消失；期望新窗口作为新卡片加入总览。
+
+**日志证据（0.1.24，19:44:16–19:44:22）**
+
+- 19:44:16.406 全局快捷键打开总览；19:44:16.488 `preparing→overview`，
+  随后只有 4 路捕获（pid 74755 / 63286 / 41485 / 42979），没有 `ai.opencode.desktop`（pid 1449）。
+- 19:44:21.988 `[focus] 应用激活 ai.opencode.desktop pid=1449（受控目标=无）`。
+- 19:44:22.296 `[focus] 激活确认 … 确证外部应用在前台，退出会话`，
+  紧接着 `阶段 overview→hidden … 由 focusLost(别的应用(ai.opencode.desktop))`。
+  总览不是被盖住，而是整场会话被关掉。
+
+**根因**：0.1.22 的"新窗口"豁免只写在工作台分支（`state.mode == .workbench`，250ms 宽限）；
+总览直接进入 `SessionReducer.handleFocusLost`，任何外部应用激活都会 `exitToHidden`。
+总览又是会话开场模式，不能简单沿用"最近 3 秒有新窗口"：开场时所有记录都是刚出现，
+会把普通 Cmd+Tab 误判成开新 App。
+
+**修复**
+
+- `AppCoordinator` 在进入总览时记录 `overviewBaselineIdentities`；
+  "新 App"必须同时满足：不在基线里、首次出现距现在 ≤3 秒。
+- 新窗口已进目录：立即保持总览、重新激活并置前，卡片由既有的 `mergeCatalog` 放进空格。
+- 新窗口比前台变更晚到：`pendingOverviewFocusLoss` + 主动 `.reconcileTick`，
+  在 600+600ms 宽限内等目录；目录合并到达即提前结算，宽限结束仍无新窗口才 `exitToHidden`。
+- 切到总览里已有的应用立即退出；宽限期内的重复焦点丢失按第一次的决定收口。
+- 延迟结算走 `enqueue` 而不是 `dispatch`：再进一次分流会让每次宽限结束都重新开始等待。
+  0.1.22 工作台的旧路径也有同一隐患，一并修正。
+- `activateApplication` 在 `NSApp.activate` 之后补一次运行中应用句柄激活，
+  避免新系统上"总览仍在、但没回到前台"。
+
+**验证**：核心 XCTest 81 + Swift Testing 155 全过；宿主 216 项（1 项既有环境跳过）0 失败。
+新增 `testNewAppInOverviewKeepsOverviewAndAddsCard`、
+`testNewAppDiscoveredDuringGraceKeepsOverview`、
+`testSwitchingToExistingAppFromOverviewStillHides`、
+`testUnknownBundleWithoutNewWindowExitsAfterGrace`。
+显式未测：真实 App 启动、真实 Cmd+Tab 与 Dock 点击的物理输入，留给安装后的实机日志验收。

@@ -366,6 +366,87 @@ final class WorkbenchEntryTests: XCTestCase {
         XCTAssertNotNil(coordinator.state.records[HostFixtures.identity(4)])
     }
 
+    // MARK: - 总览里出现新窗口：纳入卡片而不是整场消失
+
+    /// 总览里打开新应用：新窗口作为新卡片留下，总览保持可见并重新置前。
+    /// 以前这里会被当成"用户切走了"，整个总览直接消失。
+    func testNewAppInOverviewKeepsOverviewAndAddsCard() throws {
+        let coordinator = makeCoordinator()
+        var activations = 0
+        coordinator.activateApplication = { activations += 1 }
+        coordinator.toggleOverview()
+        try waitForVisibleOverview()
+        let activationsAtOpen = activations
+
+        catalogSource.addWindows([4])
+        catalog.refresh(reason: .windowEvent)
+        waitUntil(timeout: 3) { coordinator.state.records[HostFixtures.identity(4)] != nil }
+        XCTAssertNotNil(coordinator.state.records[HostFixtures.identity(4)])
+
+        let bundleID = "com.test.app\(HostFixtures.identity(4).windowID)"
+        coordinator.dispatch(.focusLost(origin: .otherApplication(bundleID: bundleID)))
+        waitUntil(timeout: 2) { activations > activationsAtOpen }
+        XCTAssertEqual(coordinator.state.phase, .overview,
+                       "开新 App 必须保持总览，而不是整场隐藏（phase=\(coordinator.state.phase)）")
+        XCTAssertNotNil(coordinator.state.records[HostFixtures.identity(4)],
+                        "新窗口必须作为卡片留在布局里")
+        XCTAssertGreaterThan(activations, activationsAtOpen,
+                             "总览被新应用抢走前台后必须重新激活并置前")
+    }
+
+    /// 新应用的窗口可能比前台变更晚一轮目录才出现：宽限期里目录合并到就必须保下总览。
+    func testNewAppDiscoveredDuringGraceKeepsOverview() throws {
+        let coordinator = makeCoordinator()
+        var activations = 0
+        coordinator.activateApplication = { activations += 1 }
+        coordinator.toggleOverview()
+        try waitForVisibleOverview()
+        let activationsAtOpen = activations
+
+        // 只让替身"系统里有这个窗口"，先不推目录：模拟焦点先到、目录后到。
+        catalogSource.addWindows([4])
+        let bundleID = "com.test.app\(HostFixtures.identity(4).windowID)"
+        coordinator.dispatch(.focusLost(origin: .otherApplication(bundleID: bundleID)))
+
+        waitUntil(timeout: 3) { coordinator.state.records[HostFixtures.identity(4)] != nil }
+        XCTAssertNotNil(coordinator.state.records[HostFixtures.identity(4)],
+                        "宿主必须主动核对目录，不能只等 2s 轮询")
+        waitUntil(timeout: 2) { activations > activationsAtOpen }
+        XCTAssertGreaterThan(activations, activationsAtOpen,
+                             "新窗口到达后必须把总览重新置前")
+
+        // 越过完整宽限期（600+600ms）：决策必须已经作废，不能再补一次退出。
+        RunLoop.current.run(until: Date().addingTimeInterval(1.4))
+        XCTAssertEqual(coordinator.state.phase, .overview,
+                       "新窗口在宽限内出现，不能被当成普通离开（phase=\(coordinator.state.phase)）")
+    }
+
+    /// 切到总览里已经存在的应用：仍然是普通离开，不能被新窗口宽限拖住。
+    func testSwitchingToExistingAppFromOverviewStillHides() throws {
+        let coordinator = makeCoordinator()
+        coordinator.toggleOverview()
+        try waitForVisibleOverview()
+        let existing = HostFixtures.identity(1)
+        let bundleID = try XCTUnwrap(coordinator.state.records[existing]?.bundleID,
+                                     "前提：已有卡片必须带 bundle 身份")
+        coordinator.dispatch(.focusLost(origin: .otherApplication(bundleID: bundleID)))
+        waitUntil(timeout: 2) { self.coordinator.state.phase == .hidden }
+        XCTAssertEqual(coordinator.state.phase, .hidden,
+                       "切到总览里已有的应用必须按正常离开处理")
+    }
+
+    /// 目标应用在打开总览时没有窗口、又没有带来新窗口（纯切换）：宽限结束必须退出。
+    /// 这条同时守住"延迟结算不能再次进入分流"——否则每次宽限结束都会重新开始等待，永远退不出去。
+    func testUnknownBundleWithoutNewWindowExitsAfterGrace() throws {
+        let coordinator = makeCoordinator()
+        coordinator.toggleOverview()
+        try waitForVisibleOverview()
+        coordinator.dispatch(.focusLost(origin: .otherApplication(bundleID: "com.test.noWindowApp")))
+        waitUntil(timeout: 3) { self.coordinator.state.phase == .hidden }
+        XCTAssertEqual(coordinator.state.phase, .hidden,
+                       "没有新窗口的焦点丢失必须在宽限后收口，不能无限延期（phase=\(coordinator.state.phase)）")
+    }
+
     // MARK: - A39 两种退出入口重复触发：仅一恢复所有者、一次终止回调（方案 §14.2、§14.4）
 
     /// 退出时同时存在两个恢复入口：⌘Q 走进来的终止链，和状态机为同一批窗口算出的 `.restoreAll` 效果；
