@@ -59,8 +59,8 @@ final class AppCoordinator {
     /// 最近一次真实视图动作的时刻（单调时钟）：过渡首帧延迟以它为锚点（方案 §20.2）。
     /// 锚在 `play()` 自己的进入时刻会把"点击后卡在目录复核里几百毫秒才起动画"这段洗掉。
     private(set) var lastInputStamp: CFTimeInterval = 0
-    /// 交换动画起飞后，真实 AX 交换的开始延迟（动画 180ms，留出前 110ms 满帧飞行）。
-    static let swapExecutionDelayNS: UInt64 = 110_000_000
+    /// 过渡动画起飞后，真实 AX 几何执行的开始延迟（动画 180–240ms，前 110ms 留满帧飞行）。
+    static let transitionExecutionDelayNS: UInt64 = 110_000_000
 
     /// 过渡动效的画面源预取：hover/点击时提前按主区分辨率抓一帧。
     /// 飞行期间如果还在放大轨道/总览尺寸的帧，观感就是“糊”；预取把这一帧提前准备好。
@@ -759,14 +759,27 @@ final class AppCoordinator {
             // 承载层先上屏（同一 tick 内同步画第一帧），真实窗口的 resize/聚焦都发生在遮罩之后（方案 §10.1）。
             playTransition(sceneFactory.entering(plan))
             refreshFlightTexture(plan.identity, cellWidth: plan.targetFrame.width)
-            switchCoordinator.perform(plan)
+            // 丝滑优先：动画先飞，真实 AX 几何在后段开始；令牌失效则整笔丢弃。
+            let enterToken = plan.token
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: AppCoordinator.transitionExecutionDelayNS)
+                guard let self else { return }
+                guard case let .expanding(_, current) = self.state.phase, current == enterToken else { return }
+                self.switchCoordinator.perform(plan)
+            }
 
         case let .returnToOverview(plan):
             registerContext(plan.operationContext)
             pendingReveal = PendingReveal(token: plan.token)
             playTransition(sceneFactory.returning(plan))
             refreshFlightTexture(plan.identity, cellWidth: plan.snapshot.layout.mainRect.width)
-            switchCoordinator.perform(plan)
+            let returnToken = plan.token
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: AppCoordinator.transitionExecutionDelayNS)
+                guard let self else { return }
+                guard case let .collapsing(_, current) = self.state.phase, current == returnToken else { return }
+                self.switchCoordinator.perform(plan)
+            }
 
         case let .beginMainSwitch(plan):
             registerContext(plan.intent.operationContext)
@@ -783,7 +796,7 @@ final class AppCoordinator {
             // 落定预算还有余量（~250ms 对 500ms 目标），把几何执行后移换取满帧。
             let swapToken = plan.intent.token
             Task { [weak self] in
-                try? await Task.sleep(nanoseconds: AppCoordinator.swapExecutionDelayNS)
+                try? await Task.sleep(nanoseconds: AppCoordinator.transitionExecutionDelayNS)
                 guard let self else { return }
                 guard case let .switching(intent, _) = self.state.workbench.mainSwitch,
                       intent.token == swapToken else { return }
