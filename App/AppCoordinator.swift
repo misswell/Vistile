@@ -452,6 +452,10 @@ final class AppCoordinator {
             }
             handleEvent(next)
         }
+        if lastInputStamp > 0 {
+            let delta = Int((CACurrentMediaTime() - lastInputStamp) * 1000)
+            VistileLog.session.log(level: .info, "[首帧] dispatch 结束 距输入=\(delta)ms 队列事件=\(processed)")
+        }
         syncIfRequired()
     }
 
@@ -640,6 +644,11 @@ final class AppCoordinator {
             registerContext(request.context)
             Task { [weak self, request] in
                 guard let self else { return }
+                let anchor = self.lastInputStamp
+                if anchor > 0 {
+                    VistileLog.session.log(level: .info,
+                                           "[首帧] prepare 开始 距输入=\(Int((CACurrentMediaTime() - anchor) * 1000))ms")
+                }
                 let started = CACurrentMediaTime()
                 let written = await self.journal.prepare(request)
                 // §20.2 要求 journal prepare 单独打点：写盘等待混在"进入主区"总耗时里就永远分不开。
@@ -648,6 +657,10 @@ final class AppCoordinator {
                                      context: written.isPersisted ? "整体落盘成功"
                                                                   : (written.reason ?? "落盘失败"))
                 if written.isPersisted {
+                    if anchor > 0 {
+                        VistileLog.session.log(level: .info,
+                                               "[首帧] prepare 完成 距输入=\(Int((CACurrentMediaTime() - anchor) * 1000))ms 落盘=\(Int((CACurrentMediaTime() - started) * 1000))ms")
+                    }
                     self.dispatch(.journalPrepared(context: request.context))
                 } else {
                     let reason = written.reason ?? "未知原因"
@@ -1570,6 +1583,7 @@ final class AppCoordinator {
 
     private func handle(_ action: OverviewContentView.Action) {
         lastInputStamp = CACurrentMediaTime()
+        VistileLog.session.log(level: .info, "[首帧] 输入到达 视图=总览")
         switch action {
         case let .cardClicked(identity):
             Task { [weak self] in await self?.prefetchFlightFrame(identity) }
@@ -1623,6 +1637,7 @@ final class AppCoordinator {
     /// 工作台视图动作同样只转成事件：命中、滚动、搜索都不在视图里改状态（方案 §7.1）。
     private func handle(_ action: WorkbenchWindowController.Action) {
         lastInputStamp = CACurrentMediaTime()
+        VistileLog.session.log(level: .info, "[首帧] 输入到达 视图=工作台")
         switch action {
         case let .railCardClicked(slot, identity):
             Task { [weak self] in await self?.prefetchFlightFrame(identity) }
