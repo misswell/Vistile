@@ -1243,3 +1243,43 @@ hover 触发一次主区抓帧、阈值/计数不退化）。
    P0 的“落定”必须同时核对视觉帧与几何事实，避免跳过同步造成的假收敛。
 3. 验收门槛：120Hz 下帧间隔 p95 ≤8.33ms、掉帧率 <1%、无连续 2 帧掉帧；点击→首帧 p95 ≤33ms；
    P0-16/P0-17 100/100 且格心/真实 frame 零漂移。
+
+### 12.19 Mission Control 级丝滑：交互期不再 orderOut（P04，0.1.18）
+
+**根因（真机打点）**
+
+- 单帧渲染 p95 0.06–0.17ms；帧间隔 p95 8.3–41.5ms，掉帧来自主线程同步。
+- `syncOverviewPanels` 内 `controller.hide()` 的 `panel.orderOut` 单次 **460–496ms**（14 次/探针），
+  焦点交接 0ms；飞行期间 `updateObservers` 单次 **43–101ms**（91 次/探针）。
+
+**改动**
+
+1. `OverviewWindowController`：新增 `hideCheaply()`（取消手势 → `alpha=0` → `ignoresMouseEvents=true`）
+   与 `presented`/`isOrderedButHidden` 事实；`show()` 恢复 alpha 与命中；`hide()` 仍是真正的 `orderOut`。
+   `syncOverviewPanels` 在 `modes.isPresenting || modeTransition.isTransitioning || pendingReveal != nil`
+   时走 `hideCheaply()`，隐藏/退出/换屏的收尾统一在 `performSync` 的 `!phase.isVisible` 分支真正下屏。
+2. `performSync`：`modes.isPresenting` 时推迟 `updateObservers()`，场景结束由 `requestSync()` 补齐。
+3. 回归：`testCheapHideKeepsWindowOrderedForCheapHandoff`（210 项宿主测试全绿）。
+
+**真机实测（120Hz ProMotion；两轮探针）**
+
+| 指标 | 0.1.17 | 0.1.18 |
+| --- | --- | --- |
+| P0-16 交换落定 p95 | 624–640ms | **252ms / 249ms**（两轮，目标 ≤500） |
+| P0-17 进入 p95 | 498–750ms | **128ms / —**（第二轮 28 轮后锁屏中断） |
+| P0-17 返回 p95 | 298–323ms | **255ms / —** |
+| 首帧 p95（热路径） | 345–422ms | **11ms**（n=101，达标） |
+| 返回帧间隔 p95 | 24–40ms | **8.3ms**（n=101，120Hz 满帧） |
+| 交换帧间隔 p95 | 21–26ms | 16.7–19.5ms（仍高于 8.33，待下一步） |
+
+**环境事实**：第二轮 P0-17 在 28/100 中断，日志为 `阶段 overview→hidden，由 screenLocked`，
+属系统锁屏，不是产品回归；第一轮 P0-17 100/100、格心 0.00pt、真实 frame 无漂移。
+
+**剩余（下一轮）**
+
+- 交换动画帧间隔 16.7–19.5ms 仍高于 8.33ms：需单独看交换期间的主线程活（journal 事实追加、
+  AX 写入回执）与渲染节拍，不能再靠"推迟同步"掩盖。
+- P0-18 的 120Hz 分组仍要求每条路径 ≥100 操作样本；本轮 P0-17 样本够、P0-16 也够，
+  但长跑需要防锁屏（`caffeinate` 或系统设置），否则样本会被环境截断。
+
+### 12.20 0.1.18 发布与安装待回填（占位，发布后补字节）

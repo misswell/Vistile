@@ -61,7 +61,12 @@ final class OverviewWindowController {
                               scale: display.backingScale)
     }
 
-    var isVisible: Bool { panel.isVisible }
+    /// 实际"在交互里可见"的事实。交互期间收起用 alpha 隐藏（下屏 orderOut 实测 460–496ms），
+    /// 窗口仍 ordered；只有隐藏/退出/换屏才真正 orderOut。
+    private var presented = false
+    var isVisible: Bool { presented }
+    /// ordered 但已视觉收起的窗口：隐藏态收尾时要真正下屏。
+    var isOrderedButHidden: Bool { panel.isVisible && !presented }
     var frameInCG: CGRect { display.visibleFrame }
     /// 面板实际落在屏幕上的 AppKit frame：宿主测试用它验证翻转结果，而不是只看 mapper 往返。
     var appKitPanelFrame: CGRect { panel.frame }
@@ -92,7 +97,10 @@ final class OverviewWindowController {
 
     func show() {
         panel.isReleasedWhenClosed = false
-        panel.orderFrontRegardless()
+        presented = true
+        panel.alphaValue = 1
+        panel.ignoresMouseEvents = false
+        if !panel.isVisible { panel.orderFrontRegardless() }
         contentView.needsDisplay = true
     }
 
@@ -104,7 +112,17 @@ final class OverviewWindowController {
     func hide() {
         // 隐藏时正在进行的手势不能残留到下一次打开（方案 §13.1）。
         contentView.cancelMouseGesture()
+        presented = false
         panel.orderOut(nil)
+    }
+
+    /// 交互路径的快速收起：只改透明度与命中，不触发 orderOut 的 460–496ms 下屏成本。
+    func hideCheaply() {
+        guard presented else { return }
+        contentView.cancelMouseGesture()
+        presented = false
+        panel.alphaValue = 0
+        panel.ignoresMouseEvents = true
     }
 
     func applyOrdering(strategy: OrderingStrategy, relativeToWindowID: CGWindowID?) {
@@ -159,6 +177,8 @@ final class OverviewWindowController {
     /// 不依赖系统此刻把前台给了谁，因此可以在宿主测试里确定。
     var canBecomeKey: Bool { panel.canBecomeKey }
     var level: NSWindow.Level { panel.level }
+    /// 测试：廉价收起后窗口仍 ordered、只是 alpha=0 且不接鼠标。
+    var panelAlpha: CGFloat { panel.alphaValue }
     var ignoresMouseEvents: Bool { panel.ignoresMouseEvents }
 }
 

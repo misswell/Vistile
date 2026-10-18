@@ -67,6 +67,8 @@ final class AppCoordinator {
     /// 诊断/测试：预取请求与实际缓存的次数。
     private(set) var prefetchRequestCount = 0
     private(set) var prefetchedFrameCount = 0
+    /// 飞行期间推迟的 AX 观察者同步：场景结束后必须补一次。
+    private var observersDeferredWhilePresenting = false
 
     /// 每条场景在本进程的第一次飞行算冷启动，之后都算热路径（方案 §20.2 分组维度）。
     /// 分组在 `playTransition` 那一刻定下来，帧间隔与首帧延迟两条回调共用同一个键，不各读一次系统状态。
@@ -937,7 +939,10 @@ final class AppCoordinator {
         mark("布局")
         // 被拔掉的屏不再保留承载层：过渡画面只属于还在的屏幕（方案 §9.1）。
         modes.retireDisplays(keeping: Set(catalog.mapper.displays.map(\.id)))
-        guard state.phase.isVisible else { return }
+        guard state.phase.isVisible else {
+            for controller in controllers.values where controller.isOrderedButHidden { controller.hide() }
+            return
+        }
         mark("退屏")
 
         // 统一的过渡活动（方案 §13.2）：三路事实合并后交给捕获层。
@@ -958,7 +963,14 @@ final class AppCoordinator {
         mark("工作台面板")
         applyOrdering()
         mark("层级")
-        updateObservers()
+        // 飞行期间 AX 观察者增删实测 43–101ms/次，会直接挤掉 displayLink 的 tick；
+        // 订阅变化不需要在飞行中立即生效，场景结束的 requestSync 会补一次。
+        if modes.isPresenting {
+            observersDeferredWhilePresenting = true
+        } else {
+            observersDeferredWhilePresenting = false
+            updateObservers()
+        }
         mark("观察者")
 
         let total = state.records.count
@@ -996,7 +1008,12 @@ final class AppCoordinator {
                 }
             } else if controller.isVisible {
                 controller.setKeyboardFocus(false)
-                controller.hide()
+                // 过渡/揭示期间用 alpha 收起：orderOut 单次实测 460–496ms，会把 displayLink 直接挤停。
+                if modes.isPresenting || state.workbench.modeTransition.isTransitioning || pendingReveal != nil {
+                    controller.hideCheaply()
+                } else {
+                    controller.hide()
+                }
             }
         }
     }

@@ -146,6 +146,20 @@ final class T01ActionRoutingTests: XCTestCase {
         XCTAssertTrue(recorder.actions.isEmpty, "隐藏/布局变化后残留手势不能在下一次抬起时展开窗口")
     }
 
+    /// 交互路径的收起必须走 alpha（orderOut 单次 460–496ms，会挤掉 displayLink 帧）：
+    /// 收起后对外 isVisible=false，但窗口仍 ordered，等隐藏/退出时才真正下屏。
+    func testCheapHideKeepsWindowOrderedForCheapHandoff() {
+        controller.show()
+        XCTAssertTrue(controller.isVisible)
+        controller.hideCheaply()
+        XCTAssertFalse(controller.isVisible, "对状态机/测试而言已经收起")
+        XCTAssertTrue(controller.isOrderedButHidden, "窗口仍 ordered，避免 460ms 的下屏成本")
+        XCTAssertEqual(controller.panelAlpha, 0)
+        XCTAssertTrue(controller.ignoresMouseEvents, "收起的窗口不能接鼠标")
+        controller.hide()
+        XCTAssertFalse(controller.isOrderedButHidden)
+    }
+
     // MARK: - 键盘
 
     /// 方向键按冻结网格的实际邻接走：右到头保持选择，不循环跳到下一行开头。
