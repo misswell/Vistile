@@ -333,6 +333,39 @@ final class WorkbenchEntryTests: XCTestCase {
         }
     }
 
+    // MARK: - 工作台里出现新窗口：纳入布局而不是整场消失
+
+    /// 工作台里打开新应用：新窗口应当被纳入布局（回到冻结总览），
+    /// 而不是触发 focusLost → 整场隐藏，用户看到"所有窗口都不见了"。
+    func testNewWindowFocusLossReturnsToOverviewInsteadOfHiding() throws {
+        let coordinator = makeCoordinator()
+        coordinator.toggleOverview()
+        try waitForVisibleOverview()
+
+        let view = try overviewView()
+        view.layoutSubtreeIfNeeded()
+        let identity = HostFixtures.identity(0)
+        let cell = try XCTUnwrap(coordinator.cardRects[identity])
+        let point = HostFixtures.viewPoint(of: cell, in: view, cgOrigin: HostFixtures.offscreenOrigin)
+        view.mouseDown(with: HostEvents.mouse(.leftMouseDown, in: view.window, point: point))
+        view.mouseUp(with: HostEvents.mouse(.leftMouseUp, in: view.window, point: point))
+        waitUntil(timeout: 5) { self.coordinator.state.mode == .workbench }
+        XCTAssertEqual(coordinator.state.mode, .workbench)
+
+        // 新应用窗口出现（目录里多一个不属于当前布局成员的窗口）。
+        catalogSource.addWindows([4])
+        catalog.refresh(reason: .windowEvent)
+        waitUntil(timeout: 3) { self.coordinator.state.records[HostFixtures.identity(4)] != nil }
+        XCTAssertNotNil(coordinator.state.records[HostFixtures.identity(4)])
+
+        // 新应用抢到前台：不能整场退出，应回到冻结总览把这个窗口纳入布局。
+        coordinator.dispatch(.focusLost(origin: .otherApplication(bundleID: "com.test.app4")))
+        waitUntil(timeout: 5) { self.coordinator.state.mode == .overview }
+        XCTAssertEqual(coordinator.state.mode, .overview,
+                       "开新窗口应回总览并纳入新卡片，而不是整场隐藏（phase=\(coordinator.state.phase)）")
+        XCTAssertNotNil(coordinator.state.records[HostFixtures.identity(4)])
+    }
+
     // MARK: - A39 两种退出入口重复触发：仅一恢复所有者、一次终止回调（方案 §14.2、§14.4）
 
     /// 退出时同时存在两个恢复入口：⌘Q 走进来的终止链，和状态机为同一批窗口算出的 `.restoreAll` 效果；

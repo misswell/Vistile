@@ -72,6 +72,10 @@ final class AppCoordinator {
     private(set) var prefetchedFrameCount = 0
     /// 飞行期间推迟的 AX 观察者同步：场景结束后必须补一次。
     private var observersDeferredWhilePresenting = false
+    /// 每个窗口第一次出现在会话里的时刻：用来判断"焦点丢失是不是因为开了新窗口"。
+    private var recordFirstSeenAt: [WindowIdentity: CFTimeInterval] = [:]
+    private var pendingWorkbenchFocusLoss: (bundleID: String, event: SessionEvent)?
+
     /// 工作台"壁纸底"：铺满目标屏、压在真实主窗口下面，让背景看起来只有这一个窗口。
     private var workbenchBackdrops: [UInt32: WorkbenchBackdropWindow] = [:]
     private(set) var backdropIsOrderedBelowMain = false
@@ -449,6 +453,33 @@ final class AppCoordinator {
 
     /// 事件排队处理：effect 内再次派发的同类事件排到后面，避免递归展开。
     func dispatch(_ event: SessionEvent) {
+        // 工作台里切到别的应用：如果对方是刚出现的新窗口，把它纳入布局（回冻结总览），
+        // 而不是整场退出。新窗口的目录记录可能比前台变更晚到，所以先等 250ms 再判。
+        if case let .focusLost(origin) = event,
+           case let .otherApplication(bundleID?) = origin,
+           state.mode == .workbench,
+           state.workbench.modeTransition == .idle,
+           !state.workbench.mainSwitch.isBusy,
+           pendingWorkbenchFocusLoss == nil {
+            // 窗口记录通常已经先到：直接判断，能命中就不延迟。
+            if hasRecentlyAppearedWindow() {
+                dispatch(.returnToOverviewRequested)
+                return
+            }
+            pendingWorkbenchFocusLoss = (bundleID, event)
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                guard let self, let pending = self.pendingWorkbenchFocusLoss,
+                      pending.bundleID == bundleID else { return }
+                self.pendingWorkbenchFocusLoss = nil
+                if self.hasRecentlyAppearedWindow() {
+                    self.dispatch(.returnToOverviewRequested)
+                } else {
+                    self.dispatch(pending.event)
+                }
+            }
+            return
+        }
         let dispatchStarted = CACurrentMediaTime()
         eventQueue.append(event)
         guard !isDraining else { return }
@@ -479,6 +510,15 @@ final class AppCoordinator {
         syncIfRequired()
     }
 
+    private var recentlyAppearedCutoff: CFTimeInterval { CACurrentMediaTime() - 3 }
+
+    /// 最近 3 秒内是否有窗口第一次出现：这是"用户打开了新软件"的可靠信号，
+    /// 不要求 bundleID 对得上（新进程的 bundle 识别可能晚一拍）。
+    private func hasRecentlyAppearedWindow() -> Bool {
+        let cutoff = recentlyAppearedCutoff
+        return state.records.keys.contains { (recordFirstSeenAt[$0] ?? 0) > cutoff }
+    }
+
     private func syncIfRequired() {
         guard needsSync else { return }
         needsSync = false
@@ -503,6 +543,10 @@ final class AppCoordinator {
         let beforeMode = state.mode
         let beforeTransition = state.workbench.modeTransition
         let effects = SessionReducer.reduce(&state, event)
+        let now = CACurrentMediaTime()
+        for identity in state.records.keys where recordFirstSeenAt[identity] == nil {
+            recordFirstSeenAt[identity] = now
+        }
         // 会话身份只有一个来源：状态机算完就把 sessionID/代次下发给调度器，
         // 否则两边各数一次，真实写入永远拿不到准入（方案 §5.3、§15）。
         geometry.adopt(sessionID: state.sessionID, epoch: state.sessionEpoch)
@@ -802,8 +846,13 @@ final class AppCoordinator {
             // 实机：AX 步骤在飞行动画期间持续占用主线程，丢帧稳定为 16.7ms（每两帧一次）；
             // 落定预算还有余量（~250ms 对 500ms 目标），把几何执行后移换取满帧。
             let swapToken = plan.intent.token
+            // 主窗口切换：真实 AX 交换等动画完整播完（旧主缩回、新主放大）再执行，
+            // 落在承载层保持/淡出阶段，避免动画中途真实窗口"跳"一下。
+            let swapAnimationMS = state.workbench.snapshot?.layout.style
+                .switchAnimationMS(reduceMotion: state.policy.reduceMotion) ?? 180
+            let swapDelayNS = UInt64(max(80, swapAnimationMS)) * 1_000_000
             Task { [weak self] in
-                try? await Task.sleep(nanoseconds: AppCoordinator.transitionExecutionDelayNS)
+                try? await Task.sleep(nanoseconds: swapDelayNS)
                 guard let self else { return }
                 guard case let .switching(intent, _) = self.state.workbench.mainSwitch,
                       intent.token == swapToken else { return }
