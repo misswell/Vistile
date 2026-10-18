@@ -1354,3 +1354,20 @@ hover 触发一次主区抓帧、阈值/计数不退化）。
 间切换，本轮进入只归到 120Hz 组 37 条；交换/返回已 100/101 条且 p95=8.3ms。
 要拿到正式“通过”，需要把显示器刷新率固定在 120Hz 后重跑（或用 `displayplacer`），
 这是取证条件，不是性能缺口。
+
+### 12.24 0.1.20 发布、镜像与安装（2026-10-18 17:58）
+
+- 发布页：<https://github.com/misswell/Vistile/releases/tag/v0.1.20>；标签 `v0.1.20` → `d2c4fc1`
+  （代码 `f4664a5`：P06 三条动画满帧；`d2c4fc1`：版本 0.1.20/34）。
+- CI run `39117440241` success；Release run `39117442879` success。
+- 资产：`Vistile_v0.1.20_macos_arm64.dmg`，**2,442,386 字节**，
+  `sha256 515f0439161c22a05e1b7d33272458793c6255058e36bca577e2f4e09a48fdd3`（与 asset digest 一致）。
+- 包内二进制：`sha256 5f3fd19f43cf45ae419e4525d44a832d531f33d99ec4f730551f21d540c25e33`，
+  `0.1.20 / 34`，`arm64`；codesign / stapler 通过（Notarized Developer ID，Team `U8U443D7ZL`）。
+- 镜像已上传 `releases/v0.1.20/`（dmg + `.sha256`），直连实测 HTTP 200、2,442,386 字节、4.35s、哈希一致。
+- 已安装到 `/Applications` 并启动；0.1.19 备份在 `/tmp/Vistile-0.1.19-backup.app`。
+- 探针期间使用的 `caffeinate -dimsu` 已结束，环境无残留后台进程。
+
+**当前结论**：三条动画帧间隔 p95 均 8.3ms（交换/返回 n=100/101；进入 n=37 受 ProMotion 分组影响），
+首帧 p95 3/4/9ms，落定 249/252/256ms，P0-16/17 100/100 零漂移。
+唯一未判项是 P0-18 的“同一刷新率分组 ≥100 样本”取证条件，需要固定 120Hz 后补跑；不是性能缺口。
