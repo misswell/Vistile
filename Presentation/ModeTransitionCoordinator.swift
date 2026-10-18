@@ -264,7 +264,13 @@ final class TransitionCarrierView: NSView {
             tickCount += 1
             // 第一个 tick 没有参考间隔；其余按真实到帧时间记样本（方案 §20.3）。
             if previousTick > 0 {
-                frameIntervalsMS.append((timestamp - previousTick) * 1000)
+                let gapMS = (timestamp - previousTick) * 1000
+                frameIntervalsMS.append(gapMS)
+                if gapMS > 12, let scene {
+                    let progressPercent = Int(min(100, max(0, (now - startTimestamp) / max(0.001, duration) * 100)))
+                    VistileLog.session.log(level: .info,
+                                           "[帧] 慢帧 场景=\(scene.kind.displayName, privacy: .public) 间隔=\(String(format: "%.2f", gapMS), privacy: .public)ms 进度=\(progressPercent)%")
+                }
             }
             let raw = duration > 0 ? (now - startTimestamp) / duration : 1
             let progress = CGFloat(min(1, max(0, raw)))

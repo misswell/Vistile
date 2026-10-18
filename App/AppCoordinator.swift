@@ -59,6 +59,9 @@ final class AppCoordinator {
     /// 最近一次真实视图动作的时刻（单调时钟）：过渡首帧延迟以它为锚点（方案 §20.2）。
     /// 锚在 `play()` 自己的进入时刻会把"点击后卡在目录复核里几百毫秒才起动画"这段洗掉。
     private(set) var lastInputStamp: CFTimeInterval = 0
+    /// 交换动画起飞后，真实 AX 交换的开始延迟（动画 180ms，留出前 110ms 满帧飞行）。
+    static let swapExecutionDelayNS: UInt64 = 110_000_000
+
     /// 过渡动效的画面源预取：hover/点击时提前按主区分辨率抓一帧。
     /// 飞行期间如果还在放大轨道/总览尺寸的帧，观感就是“糊”；预取把这一帧提前准备好。
     private var prefetchedFlightFrames: [WindowIdentity: (frame: MetalFrame, at: CFTimeInterval)] = [:]
@@ -456,9 +459,11 @@ final class AppCoordinator {
             handleEvent(next)
         }
         let dispatchCostMS = (CACurrentMediaTime() - dispatchStarted) * 1000
-        if dispatchCostMS > 20 {
+        if dispatchCostMS > 20 || (modes.isPresenting && dispatchCostMS > 8) {
+            let presenting = modes.isPresenting
+            let label = Self.eventLabel(event)
             VistileLog.session.log(level: .info,
-                                   "[主线程] dispatch 耗时=\(Int(dispatchCostMS))ms 事件=\(processed) 末事件=\(Self.eventLabel(event))")
+                                   "[主线程] dispatch 耗时=\(Int(dispatchCostMS))ms 事件=\(processed) 飞行=\(presenting) 末事件=\(label, privacy: .public)")
         }
         if lastInputStamp > 0 {
             let delta = Int((CACurrentMediaTime() - lastInputStamp) * 1000)
@@ -773,7 +778,17 @@ final class AppCoordinator {
                     ?? plan.mainTargetFrame.width
                 refreshFlightTexture(from, cellWidth: restingWidth)
             }
-            switchCoordinator.perform(plan)
+            // 丝滑优先：交换动画先飞，真实 AX 交换在动画中后段再开始。
+            // 实机：AX 步骤在飞行动画期间持续占用主线程，丢帧稳定为 16.7ms（每两帧一次）；
+            // 落定预算还有余量（~250ms 对 500ms 目标），把几何执行后移换取满帧。
+            let swapToken = plan.intent.token
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: AppCoordinator.swapExecutionDelayNS)
+                guard let self else { return }
+                guard case let .switching(intent, _) = self.state.workbench.mainSwitch,
+                      intent.token == swapToken else { return }
+                self.switchCoordinator.perform(plan)
+            }
 
         case .cancelWorkbenchTransition:
             // 目标消失或超时：停止后续步骤；已写入的窗口由事务日志交回恢复路径（方案 §10.5）。
@@ -924,7 +939,7 @@ final class AppCoordinator {
         defer {
             isSyncing = false
             let cost = (CACurrentMediaTime() - syncStarted) * 1000
-            if cost > 40 {
+            if cost > 40 || (modes.isPresenting && cost > 8) {
                 let breakdown = marks
                     .filter { $0.1 > 8 }
                     .map { "\($0.0)=\(Int($0.1))ms" }
