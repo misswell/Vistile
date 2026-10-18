@@ -1518,3 +1518,20 @@ hover 触发一次主区抓帧、阈值/计数不退化）。
 断言提示、`restoreAll` 收口、恢复落地后标记清空、重新打开可再次进入工作台并换主。
 
 **验证**：核心 XCTest 81 + Swift Testing 155 全过；宿主 212 项（1 项既有环境跳过）0 失败。
+
+### 12.32 0.1.24 发布、镜像与安装（2026-10-18 19:45）
+
+- 发布页：<https://github.com/misswell/Vistile/releases/tag/v0.1.24>；标签 `v0.1.24` → `eef732d`
+  （代码 `60b8c97`：P09 余项收口；`eef732d`：版本 0.1.24/38）。
+- CI run `39123682235` success；Release run `39123688728` success。
+- 资产：`Vistile_v0.1.24_macos_arm64.dmg`，**2,450,681 字节**，
+  `sha256 592d8704c9a4d3126072b335c0d39c9a8ab2727b3efb01ca4feb18d8307dbb59`
+  （与 asset digest 一致；镜像 `.sha256` 同值）。
+- 包内二进制：`sha256 13a1cd3cde7bab8445be7b394ada22150ce7afd5338dce9a878880f9bda5f7ec`，
+  `0.1.24 / 38`，`arm64`；codesign / stapler / spctl（Notarized Developer ID，Team `U8U443D7ZL`）全通过。
+- 镜像已上传 `releases/v0.1.24/`（dmg + `.sha256`），直连实测 HTTP 200、2,450,681 字节、6.2s、哈希一致。
+- 已安装到 `/Applications` 并启动（pid 99000）；0.1.23 备份在 `/tmp/Vistile-0.1.23-backup.app`。
+- 真机复现路径：换主到一个拒绝缩小的窗口（例如 Qoder 1747×1129 > 主区 1508×973）进入
+  `recoveryRequired` 后，再点任意轨道卡片：应先看到失败提示，随后工作台收起；
+  日志应出现 `阶段 recoveryRequired(...)→recovering(...)` 或 `→hidden`，而不是停在原地。
+  下一次打开是干净总览，可再次进入工作台换主。
