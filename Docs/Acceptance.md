@@ -1282,4 +1282,14 @@ hover 触发一次主区抓帧、阈值/计数不退化）。
 - P0-18 的 120Hz 分组仍要求每条路径 ≥100 操作样本；本轮 P0-17 样本够、P0-16 也够，
   但长跑需要防锁屏（`caffeinate` 或系统设置），否则样本会被环境截断。
 
-### 12.20 0.1.18 发布与安装待回填（占位，发布后补字节）
+### 12.20 0.1.18 发布、镜像与安装（2026-10-18 17:02）
+
+- 发布页：<https://github.com/misswell/Vistile/releases/tag/v0.1.18>；标签 `v0.1.18` → `274f635`
+  （代码 `4746f8e`：P04 交互期不再 orderOut；`274f635`：版本 0.1.18/32）。
+- CI run `39113542751` success；Release run `39113546992` success。
+- 资产：`Vistile_v0.1.18_macos_arm64.dmg`，**2,441,305 字节**，
+  `sha256 708608fc72dceb8066bd0bcae3eb3ff0c0349828cbdc8e57249ac9e89177eaf1`（与 asset digest 一致）。
+- 包内二进制：`sha256 b57daf3597fc2b877d8a3ce698f99411f4db0551a6af47ee5b67d88e135f9ae9`，
+  `0.1.18 / 32`，`arm64`；codesign / stapler / spctl 全通过（Notarized Developer ID，Team `U8U443D7ZL`）。
+- 镜像已上传 `releases/v0.1.18/`（dmg + `.sha256`），直连实测 HTTP 200、2,441,305 字节、5.9s、哈希一致。
+- 已安装到 `/Applications` 并启动；0.1.17 备份在 `/tmp/Vistile-0.1.17-backup.app`。
