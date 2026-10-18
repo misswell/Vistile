@@ -431,7 +431,11 @@ public enum SessionReducer {
             return []
         case let .recoveryRequired(_, reason):
             // 未能恢复一致：新的选择只会叠加写入，必须先把这一次收口（方案 §15）。
-            return [.presentHint(.workbenchSwitchFailed(reason))]
+            // 但用户不能被"点什么都不动"卡死：点击任何卡片 = 按日志收口并退出恢复，
+            // 下一次再打开就是干净会话。
+            var effects: [SessionEffect] = [.presentHint(.workbenchSwitchFailed(reason))]
+            effects.append(contentsOf: exitToHidden(&state))
+            return effects
         }
     }
 

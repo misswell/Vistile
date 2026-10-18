@@ -2198,6 +2198,18 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertNotNil(s4.workbench.recoveryRequired, "补偿失败就是几何不可信：\(refused)")
         let blocked = selectRail(&s4, identity: list4[2].identity)
         XCTAssertFalse(hasSettleEffects(blocked), "recoveryRequired 之下新的几何操作一律不准入：\(blocked)")
+        // 但不能把用户关死：点击任何卡片应当收口并退出恢复（方案 §6.4、§15 的安全退出入口）。
+        if case .recoveryRequired = s4.phase {
+            XCTAssertTrue(blocked.contains { effect in
+                if case .presentHint = effect { return true }
+                return false
+            }, "点击至少要给失败提示：\(blocked)")
+        } else {
+            XCTAssertTrue(blocked.contains { effect in
+                if case .hideWorkbench = effect { return true }
+                return false
+            }, "点击应触发退出恢复（hideWorkbench 收口）：\(blocked) phase=\(s4.phase)")
+        }
     }
 
     // MARK: - 操作前快照以宿主实读为准（方案 §6.2、§6.4、§9.1）
