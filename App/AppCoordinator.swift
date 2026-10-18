@@ -437,6 +437,7 @@ final class AppCoordinator {
 
     /// 事件排队处理：effect 内再次派发的同类事件排到后面，避免递归展开。
     func dispatch(_ event: SessionEvent) {
+        let dispatchStarted = CACurrentMediaTime()
         eventQueue.append(event)
         guard !isDraining else { return }
         isDraining = true
@@ -451,6 +452,11 @@ final class AppCoordinator {
                 break
             }
             handleEvent(next)
+        }
+        let dispatchCostMS = (CACurrentMediaTime() - dispatchStarted) * 1000
+        if dispatchCostMS > 20 {
+            VistileLog.session.log(level: .info,
+                                   "[主线程] dispatch 耗时=\(Int(dispatchCostMS))ms 事件=\(processed) 末事件=\(Self.eventLabel(event))")
         }
         if lastInputStamp > 0 {
             let delta = Int((CACurrentMediaTime() - lastInputStamp) * 1000)
@@ -904,12 +910,35 @@ final class AppCoordinator {
 
     private func performSync() {
         guard !isSyncing else { return }
+        let syncStarted = CACurrentMediaTime()
         isSyncing = true
-        defer { isSyncing = false }
+        var marks: [(String, Double)] = []
+        var lastMark = syncStarted
+        func mark(_ label: String) {
+            let now = CACurrentMediaTime()
+            marks.append((label, (now - lastMark) * 1000))
+            lastMark = now
+        }
+        defer {
+            isSyncing = false
+            let cost = (CACurrentMediaTime() - syncStarted) * 1000
+            if cost > 40 {
+                let breakdown = marks
+                    .filter { $0.1 > 8 }
+                    .map { "\($0.0)=\(Int($0.1))ms" }
+                    .joined(separator: " ")
+                let phaseName = Self.phaseLabel(state.phase)
+                let presenting = modes.isPresenting
+                VistileLog.session.log(level: .info,
+                                       "[主线程] performSync 总=\(Int(cost))ms 阶段=\(phaseName, privacy: .public) 飞行=\(presenting) \(breakdown, privacy: .public)")
+            }
+        }
         rebuildLayouts()
+        mark("布局")
         // 被拔掉的屏不再保留承载层：过渡画面只属于还在的屏幕（方案 §9.1）。
         modes.retireDisplays(keeping: Set(catalog.mapper.displays.map(\.id)))
         guard state.phase.isVisible else { return }
+        mark("退屏")
 
         // 统一的过渡活动（方案 §13.2）：三路事实合并后交给捕获层。
         // 过渡飞行在屏上时，捕获层的重配会与 displayLink 抢主线程，是帧间隔抖动的来源之一；
@@ -921,10 +950,16 @@ final class AppCoordinator {
             deferredCaptureSync = false
             capture.sync(targets: captureTargets(), tier: state.policy.tier, activity: transitionActivity)
         }
+        mark("捕获")
+        // 诊断：飞行期间这里若耗时数百毫秒，会直接挤掉 displayLink tick（渲染本身约 0.1ms）。
         syncOverviewPanels()
+        mark("总览面板")
         syncWorkbenchPanels()
+        mark("工作台面板")
         applyOrdering()
+        mark("层级")
         updateObservers()
+        mark("观察者")
 
         let total = state.records.count
         for (displayID, controller) in controllers {
@@ -941,6 +976,7 @@ final class AppCoordinator {
                                   shown: records.values.filter { matchesSearch($0) }.count,
                                   query: state.searchQuery,
                                   hint: pendingHint)
+            mark("面板内容")
         }
     }
 

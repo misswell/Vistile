@@ -78,6 +78,8 @@ final class TransitionCarrierView: NSView {
     private var lastTickAt: CFTimeInterval = 0
     /// 本段场景飞行期间的帧间隔样本（ms）；播放结束按场景给出 P95 与掉帧事实（方案 §20.3）。
     private var frameIntervalsMS: [Double] = []
+    /// 本段场景每帧的绘制耗时（ms）：把"画得慢"与"主线程被占住"区分开。
+    private var renderTimesMS: [Double] = []
     /// 首帧延迟的锚点：真实输入的时刻（方案 §20.2）。用 play() 自己的进入时间会把
     /// "点击后卡在目录复核里几百毫秒才起动画"这段洗掉。
     private var firstPresentAnchor: CFTimeInterval = 0
@@ -175,6 +177,7 @@ final class TransitionCarrierView: NSView {
         duration = max(0.016, TimeInterval(scene.durationMS) / 1000)
         lastProgress = 0
         frameIntervalsMS.removeAll()
+        renderTimesMS.removeAll()
         firstPresentAnchor = anchorAt ?? CACurrentMediaTime()
         anchorIsRealInput = anchorAt != nil
         firstPresentDelayMS = nil
@@ -265,7 +268,9 @@ final class TransitionCarrierView: NSView {
             }
             let raw = duration > 0 ? (now - startTimestamp) / duration : 1
             let progress = CGFloat(min(1, max(0, raw)))
+            let renderStarted = CACurrentMediaTime()
             render(progress: progress)
+            renderTimesMS.append((CACurrentMediaTime() - renderStarted) * 1000)
             if progress >= 1 {
                 phase = .holding
                 stopClock()
@@ -278,6 +283,13 @@ final class TransitionCarrierView: NSView {
                                                                      anchoredAtRealInput: anchorIsRealInput))
                     if let stats = FrameIntervalStats.measure(frameIntervalsMS) {
                         onFlightStats?(scene.kind, stats)
+                    }
+                    if let renderStats = FrameIntervalStats.measure(renderTimesMS) {
+                        let renderP95 = String(format: "%.2f", renderStats.p95MS)
+                        let intervalP95 = String(format: "%.2f", FrameIntervalStats.measure(frameIntervalsMS)?.p95MS ?? 0)
+                        let sampleCount = renderStats.count
+                        VistileLog.session.log(level: .info,
+                                               "[帧] 场景=\(scene.kind.displayName, privacy: .public) 绘制p95=\(renderP95, privacy: .public)ms 间隔p95=\(intervalP95, privacy: .public)ms n=\(sampleCount, privacy: .public)")
                     }
                 }
                 // 到位事件也只属于本段场景：协调器据此判断它是否仍然是当前令牌（方案 §16.2）。
