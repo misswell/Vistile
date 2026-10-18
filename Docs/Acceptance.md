@@ -1317,3 +1317,15 @@ hover 触发一次主区抓帧、阈值/计数不退化）。
 **未完成**：进入动画 120Hz 分组本轮样本仅 1 条（P0-18 要求 ≥100，记未判）；原始慢帧仍有
 120 帧 14–19ms（集中在进入/返回的个别进度点）。下一步：对进入/返回做同样的"几何执行后移"验证，
 并补足每路径 100 条样本（探针期间用 `caffeinate` 防锁屏）。
+
+### 12.22 0.1.19 发布、镜像与安装（2026-10-18 17:42）
+
+- 发布页：<https://github.com/misswell/Vistile/releases/tag/v0.1.19>；标签 `v0.1.19` → `07949c0`
+  （代码 `9c1168e`：P05 交换动画满帧；`07949c0`：版本 0.1.19/33）。
+- CI run `39116069836` success；Release run `39116072437` success。
+- 资产：`Vistile_v0.1.19_macos_arm64.dmg`，**2,438,625 字节**，
+  `sha256 75c6653d250ee2827a50d08258e033ee55fa0ada8b34c03d2641672b16f3ea0f`（与 asset digest 一致）。
+- 包内二进制：`sha256 b4b0443d000a10f6f2ccc0531d7c0202c8f4bffee741a4cf41f5863e97100aab`，
+  `0.1.19 / 33`，`arm64`；codesign / stapler 通过（Notarized Developer ID，Team `U8U443D7ZL`）。
+- 镜像已上传 `releases/v0.1.19/`（dmg + `.sha256`），直连实测 HTTP 200、2,438,625 字节、4.3s、哈希一致。
+- 已安装到 `/Applications` 并启动；0.1.18 备份在 `/tmp/Vistile-0.1.18-backup.app`。
