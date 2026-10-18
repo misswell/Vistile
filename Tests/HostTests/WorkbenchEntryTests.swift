@@ -295,6 +295,44 @@ final class WorkbenchEntryTests: XCTestCase {
                       "写过的窗口必须留下待恢复事务，退出时才能还原")
     }
 
+    // MARK: - 壁纸底：看起来只有一个真实窗口在最前
+
+    /// 工作台必须有一层壁纸底，且**压在真实主窗口下一层**；窗口编号登记为自有窗口，
+    /// 否则目录/采集会把它当成一张新卡片。返回总览时必须撤掉并注销。
+    func testWorkbenchBackdropIsBelowMainAndFollowsLifecycle() throws {
+        let coordinator = makeCoordinator()
+        coordinator.toggleOverview()
+        try waitForVisibleOverview()
+
+        let view = try overviewView()
+        view.layoutSubtreeIfNeeded()
+        let identity = HostFixtures.identity(0)
+        let cell = try XCTUnwrap(coordinator.cardRects[identity], "初选目标必须有总览格子")
+        let point = HostFixtures.viewPoint(of: cell, in: view, cgOrigin: HostFixtures.offscreenOrigin)
+        view.mouseDown(with: HostEvents.mouse(.leftMouseDown, in: view.window, point: point))
+        view.mouseUp(with: HostEvents.mouse(.leftMouseUp, in: view.window, point: point))
+        waitUntil(timeout: 5) { self.coordinator.state.mode == .workbench }
+        XCTAssertEqual(coordinator.state.mode, .workbench)
+
+        XCTAssertEqual(coordinator.backdropWindowCount, 1, "工作台必须铺一层壁纸底")
+        XCTAssertTrue(coordinator.backdropIsOrderedBelowMain,
+                      "壁纸底必须压在真实主窗口下一层，不能盖住主窗口")
+        let backdropNumbers = coordinator.backdropWindowNumbers
+        XCTAssertFalse(backdropNumbers.isEmpty)
+        for number in backdropNumbers {
+            XCTAssertTrue(catalog.isRegisteredOwnWindow(id: number),
+                          "壁纸底必须登记为自有窗口，避免被目录当成一张卡片")
+        }
+
+        coordinator.dispatch(.returnShortcut)
+        waitUntil(timeout: 5) { self.coordinator.state.phase == .overview }
+        XCTAssertEqual(coordinator.backdropWindowCount, 0, "返回总览必须撤掉壁纸底")
+        for number in backdropNumbers {
+            XCTAssertFalse(catalog.isRegisteredOwnWindow(id: number),
+                           "撤掉后必须注销自有窗口编号，不能残留过滤规则")
+        }
+    }
+
     // MARK: - A39 两种退出入口重复触发：仅一恢复所有者、一次终止回调（方案 §14.2、§14.4）
 
     /// 退出时同时存在两个恢复入口：⌘Q 走进来的终止链，和状态机为同一批窗口算出的 `.restoreAll` 效果；

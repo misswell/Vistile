@@ -1371,3 +1371,31 @@ hover 触发一次主区抓帧、阈值/计数不退化）。
 **当前结论**：三条动画帧间隔 p95 均 8.3ms（交换/返回 n=100/101；进入 n=37 受 ProMotion 分组影响），
 首帧 p95 3/4/9ms，落定 249/252/256ms，P0-16/17 100/100 零漂移。
 唯一未判项是 P0-18 的“同一刷新率分组 ≥100 样本”取证条件，需要固定 120Hz 后补跑；不是性能缺口。
+
+### 12.25 工作台壁纸底（P07，0.1.21）
+
+**目标**：当前覆盖式工作台下面露出其他应用窗口和桌面，观感"没有填满/杂乱"。
+在不改架构、不动真实窗口几何的前提下，加一层"看起来像壁纸"的全屏底图，让用户以为背景只有当前主窗口。
+
+**实现**
+
+- 新增 `Presentation/WorkbenchBackdropWindow.swift`：全屏 borderless 窗口（layer 0、ignoresMouseEvents），
+  显示桌面壁纸（`NSWorkspace.desktopImageURL`）并叠 18% 暗化；壁纸不可用时退回深色底。
+- `syncWorkbenchPanels` 末尾调用 `syncWorkbenchBackdrop`：创建/更新底图，`order(.below, relativeTo: 主窗口
+  CGWindowID)`，随后 `controller.raisePanels()` 把两栏提回底图之上；主窗口缺失时直接不铺（宁露桌面不误盖）。
+- 底图窗口编号登记为自有窗口（`catalog.registerOwnWindow`），避免被目录/采集当成新卡片；返回总览、
+  隐藏、退出时 `hideWorkbenchBackdrops()` 撤掉并注销。
+- 回归：`testWorkbenchBackdropIsBelowMainAndFollowsLifecycle`（壁纸底存在、压在主窗口下一层、
+  自有窗口登记、返回总览后撤掉并注销）。宿主 211 项（1 环境跳过）0 失败。
+
+**真机层级核对**（探针运行中读 CGWindowList，`screencapture` 无屏幕录制权限）：
+
+- 底图：Vistile layer 0、1800×1169 全屏；
+- 顺序（前→后）：承载层(layer 3) → 两栏面板 → 主窗口(真实) → 壁纸底 → 其他应用窗口；
+- 即：主窗口在底图之上、其他应用被底图盖住、两栏在底图之上，符合"只有一个窗口在最前"。
+
+**未做/风险**
+
+- 壁纸为系统桌面图片；动态壁纸（aerial）加载失败会退回深色底。
+- 若主窗口在别的 Space/全屏，底图可能盖住当前 Space 的其他窗口（与主窗口同 Space 时行为正确）。
+- macOS 的 Mission Control/台前调度会把这个全屏底图视为 Vistile 的一个窗口；是否接受需要真机观感确认。

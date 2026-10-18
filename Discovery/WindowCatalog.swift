@@ -154,6 +154,8 @@ final class WindowCatalog {
 
     func registerOwnWindow(id: UInt32) { ownWindowIDs.insert(id) }
     func forgetOwnWindow(id: UInt32) { ownWindowIDs.remove(id) }
+    /// 测试：某个窗口编号是否被登记为"自己的窗口"（用来证明壁纸底不会被当成卡片）。
+    func isRegisteredOwnWindow(id: UInt32) -> Bool { ownWindowIDs.contains(id) }
 
     var currentRecords: [WindowRecord] {
         records.values.sorted {

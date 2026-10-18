@@ -170,6 +170,11 @@ final class WorkbenchWindowController {
         if let hint { topRailView.toolTip = hint }
     }
 
+    /// 壁纸底铺好后调用：两栏必须重新压回壁纸底之上（底图会为了压住主窗口而下调层级）。
+    func raisePanels() {
+        for panel in [topPanel, sidePanel] { panel.orderFrontRegardless() }
+    }
+
     /// 同一块屏的倍率/可用区变化：只更新坐标基准，几何重投影由下一次 update(presentation:) 完成。
     /// 屏幕集合变化（增删/分辨率）在工作台里走安全退出路径，不在这里悄悄改坐标。
     func updateDisplay(_ display: DisplayInfo, mapper: CoordinateMapper) {

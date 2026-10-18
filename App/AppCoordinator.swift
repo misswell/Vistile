@@ -72,6 +72,13 @@ final class AppCoordinator {
     private(set) var prefetchedFrameCount = 0
     /// 飞行期间推迟的 AX 观察者同步：场景结束后必须补一次。
     private var observersDeferredWhilePresenting = false
+    /// 工作台"壁纸底"：铺满目标屏、压在真实主窗口下面，让背景看起来只有这一个窗口。
+    private var workbenchBackdrops: [UInt32: WorkbenchBackdropWindow] = [:]
+    private(set) var backdropIsOrderedBelowMain = false
+
+    /// 测试：当前有几块壁纸底、是否已压到主窗口下一层、它们的窗口编号。
+    var backdropWindowCount: Int { workbenchBackdrops.count }
+    var backdropWindowNumbers: [UInt32] { workbenchBackdrops.values.map { UInt32(max(0, $0.windowNumber)) } }
 
     /// 每条场景在本进程的第一次飞行算冷启动，之后都算热路径（方案 §20.2 分组维度）。
     /// 分组在 `playTransition` 那一刻定下来，帧间隔与首帧延迟两条回调共用同一个键，不各读一次系统状态。
@@ -1054,6 +1061,7 @@ final class AppCoordinator {
             || pendingReveal != nil
         guard engaged, let presentation = workbenchPresentation else {
             for controller in workbenchControllers.values where controller.isVisible { controller.hide() }
+            hideWorkbenchBackdrops()
             return
         }
         ensureWorkbenchControllers()
@@ -1074,9 +1082,61 @@ final class AppCoordinator {
                           showsTitles: settings.showsTitles,
                           searchQuery: state.searchQuery,
                           hint: pendingHint)
+        syncWorkbenchBackdrop(for: presentation, controller: controller)
+    }
+
+    /// 壁纸底跟着工作台投影走：屏、frame、壁纸，以及"压在主窗口下一层"的层级。
+    private func syncWorkbenchBackdrop(for presentation: WorkbenchPresentation,
+                                        controller: WorkbenchWindowController) {
+        guard let display = catalog.mapper.display(id: presentation.displayID) else {
+            hideWorkbenchBackdrops()
+            return
+        }
+        // 没有真实主窗口时不铺底图：宁可露出桌面，也不能盖住可能在前面的窗口。
+        guard let mainRecord = presentation.mainRecord else {
+            hideWorkbenchBackdrops()
+            return
+        }
+        let appKitFrame = catalog.mapper.cgToAppKit(display.frame)
+        let backdrop: WorkbenchBackdropWindow
+        if let existing = workbenchBackdrops[presentation.displayID] {
+            backdrop = existing
+        } else {
+            backdrop = WorkbenchBackdropWindow(screenFrame: appKitFrame)
+            catalog.registerOwnWindow(id: UInt32(max(0, backdrop.windowNumber)))
+            workbenchBackdrops[presentation.displayID] = backdrop
+        }
+        backdrop.apply(screenFrame: appKitFrame,
+                       wallpaper: WorkbenchBackdropWindow.wallpaperImage(for: presentation.displayID))
+        let mainWindowNumber = Int(mainRecord.identity.windowID)
+        guard mainWindowNumber > 0 else {
+            backdrop.orderOut(nil)
+            backdropIsOrderedBelowMain = false
+            return
+        }
+        backdrop.orderFrontRegardless()
+        backdrop.orderBelow(windowNumber: mainWindowNumber)
+        backdropIsOrderedBelowMain = true
+        // 底图为了压住主窗口会被降到主窗口下一层；两栏必须重新提到它上面。
+        controller.raisePanels()
+        for (displayID, other) in workbenchBackdrops where displayID != presentation.displayID {
+            other.orderOut(nil)
+            catalog.forgetOwnWindow(id: UInt32(max(0, other.windowNumber)))
+            workbenchBackdrops.removeValue(forKey: displayID)
+        }
+    }
+
+    private func hideWorkbenchBackdrops() {
+        backdropIsOrderedBelowMain = false
+        for (displayID, backdrop) in workbenchBackdrops {
+            backdrop.orderOut(nil)
+            catalog.forgetOwnWindow(id: UInt32(max(0, backdrop.windowNumber)))
+            workbenchBackdrops.removeValue(forKey: displayID)
+        }
     }
 
     private func hideWorkbenchPanels() {
+        hideWorkbenchBackdrops()
         for controller in workbenchControllers.values {
             controller.hide()
             for id in controller.windowNumbers { catalog.forgetOwnWindow(id: id) }
