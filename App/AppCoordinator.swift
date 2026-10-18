@@ -59,6 +59,14 @@ final class AppCoordinator {
     /// 最近一次真实视图动作的时刻（单调时钟）：过渡首帧延迟以它为锚点（方案 §20.2）。
     /// 锚在 `play()` 自己的进入时刻会把"点击后卡在目录复核里几百毫秒才起动画"这段洗掉。
     private(set) var lastInputStamp: CFTimeInterval = 0
+    /// 过渡动效的画面源预取：hover/点击时提前按主区分辨率抓一帧。
+    /// 飞行期间如果还在放大轨道/总览尺寸的帧，观感就是“糊”；预取把这一帧提前准备好。
+    private var prefetchedFlightFrames: [WindowIdentity: (frame: MetalFrame, at: CFTimeInterval)] = [:]
+    private var prefetchTasks: [WindowIdentity: Task<Void, Never>] = [:]
+    private var lastPrefetchAt: [WindowIdentity: CFTimeInterval] = [:]
+    /// 诊断/测试：预取请求与实际缓存的次数。
+    private(set) var prefetchRequestCount = 0
+    private(set) var prefetchedFrameCount = 0
 
     /// 每条场景在本进程的第一次飞行算冷启动，之后都算热路径（方案 §20.2 分组维度）。
     /// 分组在 `playTransition` 那一刻定下来，帧间隔与首帧延迟两条回调共用同一个键，不各读一次系统状态。
@@ -69,6 +77,8 @@ final class AppCoordinator {
     private var isDraining = false
     private var isSyncing = false
     private var needsSync = false
+    /// 过渡飞行期间推迟的捕获重配：场景结束必须补一次，不能永久跳过。
+    private var deferredCaptureSync = false
     private var reconcileTimer: Timer?
     private var hintTimer: Timer?
     /// 上一次真正下发给面板的层级事实；nil 表示还没排过。
@@ -255,7 +265,7 @@ final class AppCoordinator {
                                                           appKitFrame: self.catalog.mapper.cgToAppKit(display.frame),
                                                           scale: display.backingScale)
         }
-        modes.textureProvider = { [weak self] identity in self?.renderer.texture(for: identity) }
+        modes.textureProvider = { [weak self] identity in self?.flightFrame(for: identity) }
         modes.onSceneReachedEnd = { [weak self] token in self?.handleSceneReachedEnd(token) }
         modes.onSceneFinished = { [weak self] token in self?.handleSceneFinished(token) }
         modes.onSceneStats = { [weak self] kind, stats in self?.handleSceneStats(kind: kind, stats: stats) }
@@ -888,9 +898,16 @@ final class AppCoordinator {
         modes.retireDisplays(keeping: Set(catalog.mapper.displays.map(\.id)))
         guard state.phase.isVisible else { return }
 
-        // 统一的过渡活动（方案 §13.2）：三路事实合并后交给捕获层，
-        // 只有可延后的尺寸重配会被它抑制，启停与释放照旧立即执行。
-        capture.sync(targets: captureTargets(), tier: state.policy.tier, activity: transitionActivity)
+        // 统一的过渡活动（方案 §13.2）：三路事实合并后交给捕获层。
+        // 过渡飞行在屏上时，捕获层的重配会与 displayLink 抢主线程，是帧间隔抖动的来源之一；
+        // 飞行期间只推迟 capture.sync（≤240ms），场景结束时立刻补一次——画面先由已有纹理兜住。
+        let presentingTransition = modes.isPresenting && transitionActivity.modeTransition
+        if presentingTransition {
+            deferredCaptureSync = true
+        } else {
+            deferredCaptureSync = false
+            capture.sync(targets: captureTargets(), tier: state.policy.tier, activity: transitionActivity)
+        }
         syncOverviewPanels()
         syncWorkbenchPanels()
         applyOrdering()
@@ -1189,9 +1206,67 @@ final class AppCoordinator {
         // 就按 play() 进入时刻算，并在 context 里如实标出来（方案 §20.2）。
         let anchor = lastInputStamp
         lastInputStamp = 0
+        if anchor > 0 {
+            // 首帧延迟的拆点：点击→场景起飞（主线程/日志闸门排队时间），和起飞→呈现分开算。
+            VistileLog.session.log(level: .info,
+                                   "[首帧] 场景=\(scene.kind.displayName, privacy: .public) 距输入=\(Int((CACurrentMediaTime() - anchor) * 1000))ms")
+        }
         modes.play(scene, anchorAt: anchor > 0 ? anchor : nil)
         // 场景一上屏，两栏就要按新的隐藏集合重绘一次。
         needsSync = true
+    }
+
+    /// hover 一段时间才预取：快速划过整排卡片不该触发成串的一次性抓帧。
+    private func scheduleHoverPrefetch(_ identity: WindowIdentity?) {
+        guard let identity else { return }
+        prefetchTasks[identity]?.cancel()
+        prefetchTasks[identity] = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 90_000_000)
+            guard !Task.isCancelled, let self else { return }
+            await self.prefetchFlightFrame(identity)
+        }
+    }
+
+    /// 按主区宽度预取一帧：动画起飞时优先用它，避免把轨道尺寸的画面放大到主区（模糊）。
+    func prefetchFlightFrame(_ identity: WindowIdentity) async {
+        prefetchRequestCount += 1
+        if let last = lastPrefetchAt[identity], CACurrentMediaTime() - last < 0.4 { return }
+        lastPrefetchAt[identity] = CACurrentMediaTime()
+        guard let width = flightPrefetchWidth() else { return }
+        let scale = state.displayID(of: identity).flatMap { catalog.mapper.display(id: $0)?.backingScale }
+            ?? catalog.mapper.primaryDisplay?.backingScale
+            ?? 2
+        guard let frame = await capture.refreshSingleFrame(identity,
+                                                           cellWidth: max(160, width),
+                                                           backingScale: scale) else { return }
+        prefetchedFlightFrames[identity] = (frame, CACurrentMediaTime())
+        prefetchedFrameCount += 1
+        if prefetchedFlightFrames.count > 12 {
+            let cutoff = CACurrentMediaTime() - 8
+            prefetchedFlightFrames = prefetchedFlightFrames.filter { $0.value.at > cutoff }
+        }
+    }
+
+    private func flightPrefetchWidth() -> CGFloat? {
+        if let main = state.workbench.snapshot?.layout.mainRect, main.width > 100 { return main.width }
+        if let display = catalog.mapper.primaryDisplay { return max(320, display.visibleFrame.width * 0.8) }
+        return nil
+    }
+
+    /// 过渡画面源：优先用刚落下的预取帧（5s 内），否则退回渲染器保留的尺寸帧。
+    private func flightFrame(for identity: WindowIdentity) -> MetalFrame? {
+        if let cached = prefetchedFlightFrames[identity], CACurrentMediaTime() - cached.at < 5 {
+            return cached.frame
+        }
+        return renderer.texture(for: identity)
+    }
+
+    /// 宿主测试：打开总览后哪些屏已经预建了过渡承载层。
+    var prewarmedCarrierDisplayIDs: Set<UInt32> { modes.carrierDisplayIDs }
+
+    /// 宿主测试：确认预取结果真的成了过渡画面源。
+    func prefetchedFlightFrame(for identity: WindowIdentity) -> MetalFrame? {
+        flightFrame(for: identity)
     }
 
     /// 飞行中刷新一张真实画面：到位后换纹理、不改时间轴；失败保留旧图，不把它当新帧外发（方案 §10.6）。
@@ -1228,6 +1303,9 @@ final class AppCoordinator {
                 showOverview(preferredDisplay: reveal.preferredDisplay)
                 if reveal.keyboard { applyKeyboardFocus(.overview) }
             }
+        }
+        if deferredCaptureSync {
+            deferredCaptureSync = false
         }
         requestSync()
     }
@@ -1304,6 +1382,8 @@ final class AppCoordinator {
             catalog.registerOwnWindow(id: controller.windowNumber)
         }
         // 画面由新帧驱动、装饰层由状态变化驱动：这里不再挂 60Hz 空转定时器（方案 §13.3、§14 空闲 CPU）。
+        // 预建各屏承载层：把窗口/图层/drawable 的首次分配移出点击路径（首帧延迟的冷启动部分）。
+        for display in catalog.mapper.displays { modes.prewarm(displayID: display.id) }
         // 激活本身会把 App 的窗口整体提前；再显式置前一次，避免个别系统版本里
         // "非激活面板 + orderFrontRegardless" 仍压不过前台应用的同级窗口。
         activateApplication()
@@ -1356,6 +1436,7 @@ final class AppCoordinator {
             }
             let controller = OverviewWindowController(display: display, mapper: catalog.mapper, metal: metal)
             controller.onAction = { [weak self] action in self?.handle(action) }
+            controller.contentView.onHoverIdentity = { [weak self] identity in self?.scheduleHoverPrefetch(identity) }
             controller.onFirstClick = { [weak self] in
                 // 只统计"第一下就落在总览上"的事实，不在这里改状态。
                 self?.backgroundClickCount += 1
@@ -1385,6 +1466,8 @@ final class AppCoordinator {
             }
             let controller = WorkbenchWindowController(display: display, mapper: catalog.mapper, metal: metal)
             controller.onAction = { [weak self] action in self?.handle(action) }
+            controller.topRail.onHoverIdentity = { [weak self] identity in self?.scheduleHoverPrefetch(identity) }
+            controller.sideRail.onHoverIdentity = { [weak self] identity in self?.scheduleHoverPrefetch(identity) }
             workbenchControllers[display.id] = controller
             membershipChanged = true
         }
@@ -1489,6 +1572,7 @@ final class AppCoordinator {
         lastInputStamp = CACurrentMediaTime()
         switch action {
         case let .cardClicked(identity):
+            Task { [weak self] in await self?.prefetchFlightFrame(identity) }
             cardClickCount += 1
             let modeLabel = state.mode == .overview ? "总览" : "工作台"
             VistileLog.session.log(level: .debug,
@@ -1541,6 +1625,7 @@ final class AppCoordinator {
         lastInputStamp = CACurrentMediaTime()
         switch action {
         case let .railCardClicked(slot, identity):
+            Task { [weak self] in await self?.prefetchFlightFrame(identity) }
             // 点击进诊断日志：实机验收要能还原"点是否到达宿主、当时状态机什么态度"（方案 §14）。
             let railLabel = slot.rail == .top ? "顶栏" : "侧栏"
             let mainLabel = state.workbench.placement.main?.journalKey ?? "空"

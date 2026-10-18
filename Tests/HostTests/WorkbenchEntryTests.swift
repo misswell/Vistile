@@ -91,7 +91,10 @@ final class WorkbenchEntryTests: XCTestCase {
 
     // MARK: - 组装
 
-    private func makeCoordinator() -> AppCoordinator {
+    /// 预取/抓帧请求只做记录：本类多数用例不需要真实帧。
+    private var singleFrameRequests: [WindowIdentity] = []
+
+    private func makeCoordinator(singleFrame: ((WindowIdentity, StreamConfig) async -> SingleFrameOutcome)? = nil) -> AppCoordinator {
         catalog = WindowCatalog(permissions: permissions,
                                 axSource: catalogSource,
                                 contentSource: catalogSource,
@@ -105,7 +108,7 @@ final class WorkbenchEntryTests: XCTestCase {
                                          self?.runs[request.identity] = run
                                          return run
                                      },
-                                     singleFrame: { _, _ in .failed })
+                                     singleFrame: singleFrame ?? { _, _ in .failed })
         store = WindowJournalStore(fileName: "session-journal.json",
                                    sessionID: UUID(),
                                    baseDirectory: journalDirectory)
@@ -152,6 +155,27 @@ final class WorkbenchEntryTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(activations, 1,
                                     "打开总览必须显式激活 App，否则可能落在前台应用窗口后面")
         XCTAssertTrue(try XCTUnwrap(coordinator.controllers[displayID]).isVisible)
+    }
+
+    /// 动效优化：打开总览即预建过渡承载层；hover 卡片时预取主区分辨率画面（飞行不再放大低清帧）。
+    func testOverviewHoverPrefetchesHighResolutionFrameAndPrewarmsCarrier() throws {
+        let coordinator = makeCoordinator(singleFrame: { [weak self] identity, _ in
+            self?.singleFrameRequests.append(identity)
+            return .failed
+        })
+        coordinator.toggleOverview()
+        try waitForVisibleOverview()
+        XCTAssertEqual(coordinator.prewarmedCarrierDisplayIDs, [displayID],
+                       "打开总览就要预建承载层：首帧延迟里的窗口/图层/drawable 分配不该落在点击路径上")
+        let identity = try XCTUnwrap(coordinator.state.records.keys
+            .sorted { $0.journalKey < $1.journalKey }.first)
+        let controller = try XCTUnwrap(coordinator.controllers[displayID])
+        XCTAssertNotNil(controller.contentView.onHoverIdentity, "总览卡片必须能上报 hover 身份")
+        controller.contentView.onHoverIdentity?(identity)
+        waitUntil(timeout: 3) { self.singleFrameRequests.contains(identity) }
+        XCTAssertTrue(singleFrameRequests.contains(identity),
+                      "hover 后应发起一次主区分辨率抓帧（飞行期间用它替换放大的低清帧）")
+        XCTAssertGreaterThanOrEqual(coordinator.prefetchRequestCount, 1)
     }
 
     // MARK: - H15 全部入口：先显示总览，不写 AX

@@ -460,7 +460,7 @@ done
 | A36 | 工作台过渡中尺寸更新 → 延后重配，取消/停止仍立即有效 | [WorkbenchTests.swift:2595](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2595) `testSizeUpdateDuringTransitionDefersReconfigurationAndCancelIsImmediate` | 通过 |
 | A37 | 旧捕获 run 回调迟到 → 不污染新 mailbox、资源计数不增 | [T08T09CaptureLifecycleTests.swift:175](../Tests/HostTests/T08T09CaptureLifecycleTests.swift#L175) `testLateCallbacksAfterStopAllCannotTouchTheNewRun` | 通过 |
 | A38 | 无响应 AX 到退出期限 → 等待有界、日志保留、无新恢复写入 | [T05T07GeometryTransactionTests.swift:483](../Tests/HostTests/T05T07GeometryTransactionTests.swift#L483) `testDeadlineDuringUnresponsiveRestoreKeepsJournalAndStartsNoFurtherWrite`（fake clock，`HostClock` 推进到期限）＋:523 `testTerminationWaitResolvesOnceWithWhicheverArrivesFirst` | 通过；**应用级 2s 真实上限属实机项（§19 M14），本轮未测** |
-| A39 | 两种退出入口重复触发 → 仅一恢复所有者、一次终止回调 | [WorkbenchEntryTests.swift:281](../Tests/HostTests/WorkbenchEntryTests.swift#L281) `testTwoQuitEntriesLeaveOneRecoveryOwnerAndOneTerminationCallback`（真 `AppCoordinator`：两个链入口＋状态机 `.restoreAll` 抢同一窗口，断言原 frame 只写一次、窗口回原位、日志清空、收尾一次）＋[T05T07GeometryTransactionTests.swift:546](../Tests/HostTests/T05T07GeometryTransactionTests.swift#L546)＋[TransitionSceneTests.swift:692](../Tests/HostTests/TransitionSceneTests.swift#L692)（retreat 走取消那一路，终止回调正好一个） | 通过 |
+| A39 | 两种退出入口重复触发 → 仅一恢复所有者、一次终止回调 | [WorkbenchEntryTests.swift:305](../Tests/HostTests/WorkbenchEntryTests.swift#L305) `testTwoQuitEntriesLeaveOneRecoveryOwnerAndOneTerminationCallback`（真 `AppCoordinator`：两个链入口＋状态机 `.restoreAll` 抢同一窗口，断言原 frame 只写一次、窗口回原位、日志清空、收尾一次）＋[T05T07GeometryTransactionTests.swift:546](../Tests/HostTests/T05T07GeometryTransactionTests.swift#L546)＋[TransitionSceneTests.swift:692](../Tests/HostTests/TransitionSceneTests.swift#L692)（retreat 走取消那一路，终止回调正好一个） | 通过 |
 | A40 | 动画中连点/退出 → 从当前呈现值接续，旧完成不提交 | [TransitionSceneTests.swift:459](../Tests/HostTests/TransitionSceneTests.swift#L459) `testInterruptContinuesFromPresentedRect` | 通过 |
 | A41 | reduceMotion → 同样几何与焦点结果，缩短/减少位移 | [TransitionSceneTests.swift:405](../Tests/HostTests/TransitionSceneTests.swift#L405) `testReduceMotionStaysFadeOnly`＋:1148 `testReduceMotionPresentsTheSameEndpointsWithoutAnyFlight`（承载层实测：中点已完整落位，终点/参与集合/焦点与完整动效逐项相同） | 通过；肉眼降级观感仍需录屏（§19 M13） |
 | A42 | 成功交换与往返组合循环 → placement 唯一、无漏窗、无 busy 悬挂、无未解释恢复义务 | [WorkbenchTests.swift:2643](../Packages/VistileCore/Tests/VistileCoreTests/WorkbenchTests.swift#L2643) `testRandomOperationSequencePreservesInvariants`（固定种子，失败打印种子与动作序列） | 通过；实机长跑由 §19 M03/M12 承担，本轮未测 |
@@ -1057,3 +1057,39 @@ shasum -a 256 "/Volumes/Vistile v0.1.13/Vistile.app/Contents/MacOS/Vistile"   # 
 - **待真机复测**：打开总览是否置前；连续切换窗口时日志里
   `[交换] 步骤=… 耗时=Nms` 是否还有 ~1s 级等待、是否还出现「拿不到 AX 句柄」的 2.14s 停顿。
   动画时长未改，若观感仍"模糊时间长"，下一步应优化过渡代理的画面来源（高分辨率预取），需要真机录屏判断。
+
+### 12.13 性能与动效优化（P02，0.1.17）
+
+**基线（0.1.16，真机 P0 探针 100 轮，2026-10-18 08:41）**
+
+- P0-16 固定交换：100/100 收敛，点击→落定 **p95 623ms**（目标 ≤500）。
+- P0-17 往返：进入 **p95 750ms**（目标 ≤600）、返回 323ms（目标 ≤500），成功率均 100%。
+- P0-18：点击→首帧 p95 进入 **549ms**、交换 **421ms**（n=93，未判）、返回 **110ms**（目标 ≤50）；
+  过渡帧间隔 p95（120Hz 热路径）进入 **47.8ms**、交换 25.8ms、返回 29.2ms（目标 ≤20）；
+  271 段里 163 段超预算；有 1 段 0 present 之前的历史数据不计入本轮。
+- 拆分打点（诊断构建，08:45 一次探针）：`[首帧] 距输入` p50 14ms / p95 260ms，说明“点击→起飞”在尾部就
+  可能吃掉数百毫秒；因此本轮同时优化起飞前与起飞后两段。
+
+**改动**
+
+1. 预建承载层：`ModeTransitionCoordinator.prewarm(displayID:)` + `TransitionCarrierView.prewarm()`；
+   打开总览时对每屏调用，把窗口/CAMetalLayer/first drawable 的分配移出点击路径
+   （[ModeTransitionCoordinator.swift](../Presentation/ModeTransitionCoordinator.swift)）。
+2. hover/点击预取主区画面：`OverviewContentView.onHoverIdentity`、`WorkbenchRailView.onHoverIdentity`
+   接出身份 → `AppCoordinator.scheduleHoverPrefetch`（90ms 去抖）→ `prefetchFlightFrame`（400ms/身份节流，
+   按主区宽度抓帧，5s 过期）；`modes.textureProvider` 优先返回预取帧，飞行不再放大低清帧。
+3. 飞行期间推迟 `capture.sync`：只推迟捕获重配（≤240ms），场景结束 `requestSync()` 立即补；
+   面板布局与其它同步照旧。目标是把帧间隔 p95 从 25.8–47.8ms 压向 20ms。
+4. 诊断：`[首帧] 场景=… 距输入=Nms`、`[首帧] 场景=… 起飞→呈现=Nms`（info 级，每次飞行两行）。
+
+**自动回归**：核心 155 swift-testing + 80 XCTest；宿主 209 项（1 既有环境跳过）0 失败；
+新增 `testOverviewHoverPrefetchesHighResolutionFrameAndPrewarmsCarrier`（总览打开即预建承载层、
+hover 触发一次主区抓帧、阈值/计数不退化）。
+
+**未完成/风险**
+
+1. **优化后的真机数字未取得**：08:51 复跑探针时桌面已锁（`screenLocked=1`、`activeDisplays=0`），
+   按既有判据整轮记未测；解锁后必须用同一探针重跑 P0-16/P0-17/P0-18 才能判定是否达标。
+2. 推迟捕获重配期间，两栏新目标的首帧可能延迟到场景结束后的补同步（≤240ms），需要真机肉眼确认
+   没有“栏里空白一拍”。
+3. 预取只在 hover ≥90ms 或点击时发起；纯键盘/脚本点击没有 hover 预热，观感收益会小一些。

@@ -433,8 +433,23 @@ final class TransitionCarrierView: NSView {
                       scale: max(1, metalLayer.contentsScale))
         // 首帧延迟只在"渲染器真的 present 出去"的那一刻记：draw 调用与 tick 回调都不算反馈（方案 §20.2）。
         if firstPresentDelayMS == nil, renderer.diagnostics().presents > presentsAtSceneStart {
-            firstPresentDelayMS = max(0, (CACurrentMediaTime() - firstPresentAnchor) * 1000)
+            let delay = max(0, (CACurrentMediaTime() - firstPresentAnchor) * 1000)
+            firstPresentDelayMS = delay
+            let kindName = scene.kind.displayName
+            let realInput = anchorIsRealInput
+            VistileLog.session.log(level: .info,
+                                   "[首帧] 场景=\(kindName, privacy: .public) 起飞→呈现=\(Int(delay))ms 锚点真实输入=\(realInput)")
         }
+    }
+
+    /// 预取一块 drawable 并固定 drawableSize：把首次呈现前的分配成本挪到启动/总览阶段。
+    /// 只分配不下屏，窗口由协调器在 play 时才 orderFront。
+    func prewarm() {
+        guard metalLayer.drawableSize.width <= 1 || metalLayer.drawableSize.height <= 1 else { return }
+        let scale = max(1, metalLayer.contentsScale)
+        metalLayer.drawableSize = CGSize(width: max(1, bounds.width * scale),
+                                         height: max(1, bounds.height * scale))
+        _ = metalLayer.nextDrawable()
     }
 
     /// 载具视图没有把 bounds 传给图层就没有任何可见像素。
@@ -556,6 +571,15 @@ final class ModeTransitionCoordinator {
     }
 
     var isPresenting: Bool { activeToken != nil }
+
+    /// 预建承载窗口并把首次 drawable 分配移出点击路径：首帧延迟里原本包含创建窗口、
+    /// 建 CAMetalLayer、取第一块 drawable 的冷启动成本（实测冷启动帧样本更差）。
+    func prewarm(displayID: UInt32) {
+        guard let facts = displayFacts?(displayID) else { return }
+        guard let window = carrier(for: displayID, facts: facts) else { return }
+        window.carrierView.configure(cgOrigin: facts.cgFrame.origin, scale: facts.scale)
+        window.carrierView.prewarm()
+    }
 
     /// 模式过渡这一路的活动事实（方案 §13.2）：合并进捕获层的统一 TransitionActivity。
     /// 取消已请求时 `blocksGeometryReconfiguration` 自然为 false——延后不再拖住释放。

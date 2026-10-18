@@ -43,6 +43,8 @@ final class WorkbenchRailView: NSView {
     /// 最近一次投影里的滚动偏移：scrollWheel 在它基础上提出新值。
     private(set) var scrollOffset: CGFloat = 0
     private var hoveredSlot: RailSlotID?
+    /// hover 到轨道卡片：宿主据此预取主区分辨率画面。
+    var onHoverIdentity: ((WindowIdentity?) -> Void)?
     private var accentColor = NSColor.controlAccentColor
     private var showsTitles = true
     private var chromeStyle = OverviewStyle.standard
@@ -381,13 +383,16 @@ final class WorkbenchRailView: NSView {
         guard hoveredSlot != nil else { return }
         hoveredSlot = nil
         refreshChrome()
+        onHoverIdentity?(nil)
     }
 
     private func updateHover(_ point: CGPoint) {
-        let next = hitTestCard(at: point)?.slot
+        let hit = hitTestCard(at: point)
+        let next = hit?.slot
         guard next != hoveredSlot else { return }
         hoveredSlot = next
         refreshChrome()
+        onHoverIdentity?(hit?.identity)
     }
 
     private var trackingArea: NSTrackingArea?
