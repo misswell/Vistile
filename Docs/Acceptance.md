@@ -1093,3 +1093,20 @@ hover 触发一次主区抓帧、阈值/计数不退化）。
 2. 推迟捕获重配期间，两栏新目标的首帧可能延迟到场景结束后的补同步（≤240ms），需要真机肉眼确认
    没有“栏里空白一拍”。
 3. 预取只在 hover ≥90ms 或点击时发起；纯键盘/脚本点击没有 hover 预热，观感收益会小一些。
+
+### 12.14 0.1.17 发布与安装（2026-10-18 08:57）
+
+- 发布页：<https://github.com/misswell/Vistile/releases/tag/v0.1.17>；标签 `v0.1.17` → `684567d`
+  （代码 `5657365`：P02 性能与动效优化；`684567d`：版本 0.1.17/31）。
+- CI / Release：CI run `39084418587` success、Release run `39084421150` success。
+- 发布资产：`Vistile_v0.1.17_macos_arm64.dmg`，**2,431,274 字节**，
+  `sha256 c4fd923b627fffb29d45deb52667512995bc22ab31a106dd27fa9e37b48ce16d`（与 asset digest 一致）。
+- 包内二进制：`sha256 aac9e4207b8ee64446ea4d8da82c337a7144c673b1fc6340e18e845d00ff149d`，
+  `0.1.17 / 31`，`arm64`；codesign / stapler / spctl 全通过（Notarized Developer ID，Team `U8U443D7ZL`）。
+- 镜像已上传 `releases/v0.1.17/`（dmg + `.sha256`），直连实测 HTTP 200、2,431,274 字节、4.5s、哈希一致。
+- 已安装到 `/Applications` 并启动；本地 P02 诊断构建备份在 `/tmp/Vistile-local-p02-backup.app`。
+
+**本版真机复测状态**：08:51 与 08:57 两次读数均为 `CGSSessionScreenIsLocked=1`、`activeDisplays=0`
+（会话在、屏熄/锁），按既有判据探针整轮记未测。因此 §12.13 的“优化后数字”仍为空，
+解锁后需复跑 P0-16 / P0-17 / P0-18 才能判断是否达标；自动回归（核心 155+80、宿主 209/1 skip/0 fail）
+不能替代性能验收。
