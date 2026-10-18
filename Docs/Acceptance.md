@@ -1573,3 +1573,22 @@ hover 触发一次主区抓帧、阈值/计数不退化）。
 `testSwitchingToExistingAppFromOverviewStillHides`、
 `testUnknownBundleWithoutNewWindowExitsAfterGrace`。
 显式未测：真实 App 启动、真实 Cmd+Tab 与 Dock 点击的物理输入，留给安装后的实机日志验收。
+
+### 12.34 0.1.25 发布、镜像与安装（2026-10-18 20:05）
+
+- 发布页：<https://github.com/misswell/Vistile/releases/tag/v0.1.25>；标签 `v0.1.25` → `8fed87d`
+  （代码 `d1cf1ac`：总览新窗口纳入；`8fed87d`：版本 0.1.25/39）。
+- CI run `39125120497` success；Release run `39125123146` success。
+- 资产：`Vistile_v0.1.25_macos_arm64.dmg`，**2,458,995 字节**，
+  `sha256 2b3194e605a7ba239c65d453c1bac86c6b80110cd5e3c3d0bb62936658943ee7`
+  （与 asset digest 一致；镜像 `.sha256` 同值）。
+- 包内二进制：`sha256 092a1ac61de949713ca0e832ee5ff35d8d9f3a1b7094f7d8dc4e8a2686d1e4f1`，
+  `0.1.25 / 39`，`arm64`；codesign / stapler / spctl（Notarized Developer ID，Team `U8U443D7ZL`）全通过。
+- 镜像已上传 `releases/v0.1.25/`（dmg + `.sha256`），直连（`--noproxy '*'`）实测
+  HTTP 200、2,458,995 字节、4.4s、哈希一致；`.sha256` 文件可直接取。
+- 已安装到 `/Applications` 并启动（pid 21102）；0.1.24 备份在 `/tmp/Vistile-0.1.24-backup.app`。
+- 真机复现路径：打开总览后，从 Dock / Spotlight 启动一个此前不在布局里的 App。
+  期望总览保持在前台，新 App 窗口作为新卡片出现（有空位时直接落位），会话不退出；
+  日志应出现 `总览里出现新窗口 <identity>：纳入布局并保持总览，不退出会话`，
+  且不应再出现由 `focusLost(别的应用(...))` 触发的 `overview→hidden`。
+  反向检查：Cmd+Tab 切到总览里已有的应用，仍应立即退出会话。
