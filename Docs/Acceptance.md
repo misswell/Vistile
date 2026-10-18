@@ -1438,3 +1438,18 @@ hover 触发一次主区抓帧、阈值/计数不退化）。
 
 **尚未验证**：真实使用中"打开新软件→回总览并入布局"的肉眼观感（需要真机手动开一个应用确认），
 以及 6 窗口负载下切换动画的掉帧是否可接受。
+
+### 12.28 0.1.22 发布、镜像与安装（2026-10-18 19:08）
+
+- 发布页：<https://github.com/misswell/Vistile/releases/tag/v0.1.22>；标签 `v0.1.22` → `ec20a1e`
+  （代码 `d318208`：P08 新窗口纳入布局 + 切换动画；`ec20a1e`：版本 0.1.22/36）。
+- CI run `39121661974` success；Release run `39121664841` success。
+- 资产：`Vistile_v0.1.22_macos_arm64.dmg`，**2,450,772 字节**，
+  `sha256 795b8ea0cb342e38ff39e88e4360925bd8fde3626ad26e14de387336a772af2b`
+  （与 asset digest 一致；镜像 `.sha256` 同值）。
+- 包内二进制：`sha256 19363505a47a90ea3a43b7a96c78824c58509b4b6c43c07fab1fef1850e89edb`，
+  `0.1.22 / 36`，`arm64`；codesign / stapler 通过（Notarized Developer ID，Team `U8U443D7ZL`）。
+- 镜像已上传 `releases/v0.1.22/`（dmg + `.sha256`），直连实测 HTTP 200、4.3s、哈希一致。
+- 已安装到 `/Applications` 并启动；0.1.21 备份在 `/tmp/Vistile-0.1.21-backup.app`。
+- 待真机手动确认：① 工作台里打开一个新应用，是否回到总览并把新窗口纳入卡片（不再整场消失）；
+  ② 主窗口切换时"旧主缩回→新主放大"动画是否完整、不再中途跳真实窗口。
