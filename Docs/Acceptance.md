@@ -1399,3 +1399,17 @@ hover 触发一次主区抓帧、阈值/计数不退化）。
 - 壁纸为系统桌面图片；动态壁纸（aerial）加载失败会退回深色底。
 - 若主窗口在别的 Space/全屏，底图可能盖住当前 Space 的其他窗口（与主窗口同 Space 时行为正确）。
 - macOS 的 Mission Control/台前调度会把这个全屏底图视为 Vistile 的一个窗口；是否接受需要真机观感确认。
+
+### 12.26 0.1.21 发布、镜像与安装（2026-10-18 18:38）
+
+- 发布页：<https://github.com/misswell/Vistile/releases/tag/v0.1.21>；标签 `v0.1.21` → `7dd3c99`
+  （代码 `9d2707c`：P07 壁纸底；`7dd3c99`：版本 0.1.21/35）。
+- CI run `39119806319` success；Release run `39119809832` success。
+- 资产：`Vistile_v0.1.21_macos_arm64.dmg`，**2,450,268 字节**，
+  `sha256 6e2989a41e4c901573dedc507442cb4ba9bae8bff9e432c75807d281c0410bb1`（与 asset digest 一致）。
+- 包内二进制：`sha256 1e3e9a7d00b9fbebcd32f30c11e52dabaefb9411183010f658cb18b4a37c999d`，
+  `0.1.21 / 35`，`arm64`；codesign / stapler 通过（Notarized Developer ID，Team `U8U443D7ZL`）。
+- 镜像已上传 `releases/v0.1.21/`（dmg + `.sha256`），直连实测 HTTP 200、2,450,268 字节、4.7s、哈希一致。
+- 已安装到 `/Applications` 并启动；0.1.20 备份在 `/tmp/Vistile-0.1.20-backup.app`。
+- 壁纸底真机层级用 CGWindowList 核对（`screencapture` 无屏幕录制权限，无法截图取证）：
+  layer3 承载层 → 两栏面板 → 真实主窗口 → 壁纸底(layer 0 全屏) → 其他应用窗口。
