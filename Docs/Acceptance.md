@@ -1474,3 +1474,19 @@ hover 触发一次主区抓帧、阈值/计数不退化）。
 该标识由 macOS 隐私机制绘制（持续抓屏即显示），公开 API 无法隐藏或移除；只有私有 WindowServer
 接口才能绕过，不建议用于正式架构。可降低可见时间的方案：工作台/总览不可见时已停止全部采集；
 若改成"按需单帧抓取"（事件驱动刷新，不做实时流），系统标识会变成短暂闪烁，代价是预览不再实时。
+
+### 12.30 0.1.23 发布、镜像与安装（2026-10-18 19:20）
+
+- 发布页：<https://github.com/misswell/Vistile/releases/tag/v0.1.23>；标签 `v0.1.23` → `aa83f01`
+  （代码 `5551415`：P09 recoveryRequired 卡死修复；`aa83f01`：版本 0.1.23/37）。
+- CI run `39122264000` success（上一文档提交 `6d93998` 的 CI 曾因
+  `T14OrderingAndNativeInputTests.testSiblingHoldingFocusStopsTheExpand` 失败一次，重跑通过，
+  判断为并发/前台环境抖动；本轮改动与该用例无关）。
+- Release run `39122268129` success。
+- 资产：`Vistile_v0.1.23_macos_arm64.dmg`，**2,450,773 字节**，
+  `sha256 ca509dc35b21e0b03e49e8f7de6c03a7006cf29c1c779c4731723dec40331d23`
+  （与 asset digest 一致；镜像 `.sha256` 同值）。
+- 包内二进制：`sha256 888d34cced03169771cbb78c5feb7a89c0643f3d238f7ccd0a6c4ea612a638f8`，
+  `0.1.23 / 37`，`arm64`；codesign 通过（Notarized Developer ID，Team `U8U443D7ZL`）。
+- 镜像已上传 `releases/v0.1.23/`，直连实测 HTTP 200、5.7s、哈希一致。
+- 已安装到 `/Applications` 并启动；0.1.22 备份在 `/tmp/Vistile-0.1.22-backup.app`。
