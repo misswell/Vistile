@@ -1,5 +1,22 @@
 # Vistile
 
+## 0.1.29 (43) — 2026-10-23
+
+- 顶栏高度与侧栏宽度可直接拖动边框调整：悬停高亮、拖动显示当前尺寸、双击重置单维、Esc 取消；尺寸按显示器保存，并按屏幕与主窗口可容纳范围取有效值。
+  The top rail height and side rail width are now draggable at their inner borders, with hover highlight, a live size label, double-click reset per dimension, and Esc to cancel. Sizes persist per display and are clamped to what the screen and main window can accommodate.
+- 轨道保留稳定的逻辑卡位：调整栏尺寸只改变可见容量，缩略图仍按源窗口比例绘制；容量不足时滚动，不重排已有卡片。
+  Rails keep stable logical slots: resizing changes visible capacity only, thumbnails retain the source aspect ratio, overflow scrolls, and existing cards are never reshuffled.
+- 新窗口进入、Dock 与其他应用切换统一跟随最终获得焦点的具体窗口；连续切换按最新意图收敛，已过期的目标不再被重新激活。
+  New windows, Dock launches, and app switches follow the concrete window that ultimately receives focus. Rapid switches converge on the latest intent, and superseded targets are not re-activated.
+- 关闭主窗口后按“系统随后聚焦的合法同屏窗口 → 同屏最近使用 → 原卡位”补位；没有候选时保留空主区。后台新增窗口只补卡片，不抢焦点、不自动滚动。
+  After the main window closes, the next focus target is the system's subsequent legal same-display window, then same-display MRU, then the original slot; with no candidate the main area stays empty. Background additions only fill cards and never steal focus or auto-scroll.
+- 外部切换使用更短的原地淡化，开启“减少动态效果”时缩短到 80ms；补偿路径不再把焦点拉回过期的旧主窗口。
+  External switches use a shorter in-place fade (80ms under Reduce Motion), and compensation no longer pulls focus back to a superseded main window.
+
+自动验证：核心 XCTest **124** + Swift Testing **155**，0 失败（删除 `Packages/VistileCore/.build` 后重跑）；宿主全量 **266** 项，265 通过、1 项环境跳过、0 失败，其中工作台相关 **147** 项。跳过项仍是后台账户无法取得真实前台键盘焦点的检查。
+
+显式未测：自动化环境的鼠标拖动未能把事件送达目标进程（AppKit 窗口派发路径改由 `NSWindow.sendEvent` 回归覆盖，含顶栏、左右侧栏、面板移动后的锚点保持与双击重置）；真实 Dock、跨 Space、全屏切换未做端到端验收。无法可靠识别具体窗口时保留原生焦点并提示，不循环抢焦点。
+
 ## 0.1.28 (42) — 2026-10-23
 
 - 辅助功能权限缺失时，引导和设置页提供“清除授权并重新授权”：只重置 Vistile 的辅助功能记录，成功后重新申请并打开系统设置，由用户开启权限；失败时显示错误。
