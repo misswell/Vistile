@@ -107,8 +107,7 @@ final class UpdateInstaller: NSObject {
             throw UpdateInstallError.invalidPackage("当前 Vistile 不是有效的 Developer ID 签名版本，无法安全替换。")
         }
 
-        let tempParent = FileManager.default.temporaryDirectory
-            .resolvingSymlinksInPath().standardizedFileURL
+        let tempParent = try Self.canonicalTemporaryDirectory()
         let root = tempParent.appendingPathComponent("VistileUpdate-\(UUID().uuidString)", isDirectory: true)
         try Self.createPrivateDirectory(root)
         try Self.requireNoSymlinkAncestors(root)
@@ -208,8 +207,9 @@ final class UpdateInstaller: NSObject {
     /// 清理异常退出留下的私有暂存目录；只清理本应用命名空间内超过一天的目录。
     static func cleanupStaleTemporaryDirectories() {
         let cutoff = Date().addingTimeInterval(-24 * 60 * 60)
-        let tempParent = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().standardizedFileURL
-        removeStaleDirectories(in: tempParent, prefix: "VistileUpdate-", olderThan: cutoff)
+        if let tempParent = try? Self.canonicalTemporaryDirectory() {
+            removeStaleDirectories(in: tempParent, prefix: "VistileUpdate-", olderThan: cutoff)
+        }
         for parent in supportedInstallParents() {
             removeStaleDirectories(in: parent, prefix: ".Vistile-Update-", olderThan: cutoff)
         }
@@ -263,7 +263,8 @@ final class UpdateInstaller: NSObject {
     private func validateUpdatedApp(_ app: URL, version: AppVersion, teamIdentifier: String) async throws -> String {
         try Self.requireNoSymlinkAncestors(app)
         try Self.requireRealDirectory(app, ownedByCurrentUser: false)
-        guard Self.isDescendant(app, of: FileManager.default.temporaryDirectory.resolvingSymlinksInPath()) ||
+        let temporaryRoot = try Self.canonicalTemporaryDirectory()
+        guard Self.isDescendant(app, of: temporaryRoot) ||
                 Self.isDescendant(app, of: URL(fileURLWithPath: "/Applications", isDirectory: true)) ||
                 Self.isDescendant(app, of: URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Applications", isDirectory: true)) else {
             throw UpdateInstallError.invalidPackage("更新 App 位于预期暂存目录之外。")
@@ -350,7 +351,7 @@ final class UpdateInstaller: NSObject {
         var matches: [URL] = []
         while let item = enumerator.nextObject() as? URL {
             if item.lastPathComponent == "Vistile.app" {
-                matches.append(item.standardizedFileURL)
+                matches.append(item)
                 enumerator.skipDescendants()
             } else if item.pathExtension.lowercased() == "app" {
                 enumerator.skipDescendants()
@@ -382,16 +383,40 @@ final class UpdateInstaller: NSObject {
         }
     }
 
-    private static func requireNoSymlinkAncestors(_ url: URL) throws {
-        let canonical = url.resolvingSymlinksInPath().standardizedFileURL
-        guard canonical.path == url.standardizedFileURL.path else {
-            throw UpdateInstallError.invalidPackage("安装路径包含符号链接。")
+    nonisolated static func canonicalTemporaryDirectory() throws -> URL {
+        let temporaryDirectory = FileManager.default.temporaryDirectory.standardizedFileURL
+        let resolvedPath = temporaryDirectory.path.withCString { Darwin.realpath($0, nil) }
+        guard let resolvedPath else {
+            throw UpdateInstallError.invalidPackage("无法解析系统临时目录。")
         }
-        var current = URL(fileURLWithPath: "/", isDirectory: true)
-        for component in canonical.pathComponents.dropFirst() {
-            current.appendPathComponent(component)
+        defer { Darwin.free(resolvedPath) }
+        let canonical = URL(fileURLWithPath: String(cString: resolvedPath), isDirectory: true)
+        try requireRealDirectory(canonical, ownedByCurrentUser: false)
+        try requireNoSymlinkAncestors(canonical)
+        return canonical
+    }
+
+    nonisolated static func requireNoSymlinkAncestors(_ url: URL) throws {
+        let standardizedPath = lexicallyStandardizedPath(url.path)
+        var currentPath = ""
+        for component in standardizedPath.split(separator: "/") {
+            currentPath += "/\(component)"
+            let current = URL(fileURLWithPath: currentPath, isDirectory: true)
             guard !isSymbolicLink(current) else { throw UpdateInstallError.invalidPackage("安装路径包含符号链接。") }
         }
+    }
+
+    private nonisolated static func lexicallyStandardizedPath(_ path: String) -> String {
+        var components: [Substring] = []
+        for component in path.split(separator: "/") {
+            if component == "." { continue }
+            if component == ".." {
+                if !components.isEmpty { components.removeLast() }
+                continue
+            }
+            components.append(component)
+        }
+        return "/" + components.joined(separator: "/")
     }
 
     nonisolated fileprivate static func isSymbolicLink(_ url: URL) -> Bool {
@@ -406,8 +431,8 @@ final class UpdateInstaller: NSObject {
     }
 
     private static func isDescendant(_ candidate: URL, of root: URL) -> Bool {
-        let rootPath = root.standardizedFileURL.resolvingSymlinksInPath().path
-        let candidatePath = candidate.standardizedFileURL.path
+        let rootPath = lexicallyStandardizedPath(root.path)
+        let candidatePath = lexicallyStandardizedPath(candidate.path)
         return candidatePath.hasPrefix(rootPath.hasSuffix("/") ? rootPath : rootPath + "/")
     }
 

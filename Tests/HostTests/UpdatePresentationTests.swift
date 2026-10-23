@@ -1,5 +1,6 @@
 import XCTest
 import VistileCore
+import Darwin
 @testable import Vistile
 
 @MainActor
@@ -21,6 +22,37 @@ final class UpdatePresentationTests: XCTestCase {
 }
 
 final class UpdateInstallerValidationTests: XCTestCase {
+    func testCanonicalTemporaryDirectoryUsesPOSIXResolvedPathWithoutSymlinks() throws {
+        let temporaryDirectory = FileManager.default.temporaryDirectory.standardizedFileURL
+        let resolvedPath = temporaryDirectory.path.withCString { Darwin.realpath($0, nil) }
+        guard let resolvedPath else {
+            XCTFail("The system temporary directory must resolve to an existing path")
+            return
+        }
+        defer { Darwin.free(resolvedPath) }
+
+        let canonical = try UpdateInstaller.canonicalTemporaryDirectory()
+        XCTAssertEqual(canonical.path, String(cString: resolvedPath))
+        XCTAssertNoThrow(try UpdateInstaller.requireNoSymlinkAncestors(canonical))
+    }
+
+    func testSymlinkedAncestorIsStillRejectedAfterPathNormalization() throws {
+        let root = try UpdateInstaller.canonicalTemporaryDirectory()
+            .appendingPathComponent("Vistile-UpdatePathValidation-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false,
+                                                attributes: [.posixPermissions: NSNumber(value: 0o700)])
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let real = root.appendingPathComponent("real", isDirectory: true)
+        let realChild = real.appendingPathComponent("child", isDirectory: true)
+        let alias = root.appendingPathComponent("alias", isDirectory: true)
+        try FileManager.default.createDirectory(at: realChild, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: real)
+
+        XCTAssertNoThrow(try UpdateInstaller.requireNoSymlinkAncestors(realChild))
+        XCTAssertThrowsError(try UpdateInstaller.requireNoSymlinkAncestors(alias.appendingPathComponent("child", isDirectory: true)))
+    }
+
     func testSHA256NormalizationAndComparison() {
         let digest = String(repeating: "ab", count: 32)
         XCTAssertEqual(UpdateInstallerValidation.normalizedSHA256("sha256:\(digest.uppercased())"), digest)
