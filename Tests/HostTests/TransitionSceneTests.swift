@@ -367,15 +367,17 @@ final class TransitionSceneTests: XCTestCase {
                        "画面容器从被点选格子的内容区起飞")
         XCTAssertEqual(promoted.end, mainTarget)
         XCTAssertEqual(promoted.panelFrom, fixture.snapshot.rect(for: slot), "面板代表那张卡片：从整格（含标题条）起飞")
-        XCTAssertEqual(promoted.panelTo, fixture.layout.mainRect)
+        XCTAssertEqual(promoted.panelTo, mainTarget,
+                       "面板终点是实际停靠目标：小窗口不再飞向整个主区")
         XCTAssertEqual(promoted.startAlpha, 1)
         XCTAssertEqual(promoted.endAlpha, 1)
         XCTAssertEqual(promoted.aspect, 1.8, accuracy: 0.0001)
         XCTAssertTrue(promoted.hidesRailCard, "飞行面板是替身：轨道副本必须藏起来避免叠影")
 
         let demoted = try XCTUnwrap(scene.cards.first { $0.identity == from })
-        XCTAssertEqual(demoted.start, mainTarget, "旧主从主区起飞")
-        XCTAssertEqual(demoted.panelFrom, fixture.layout.mainRect)
+        // 尊重原尺寸：旧主从它此刻的真实矩形起飞（recordFrame 供的帧），不是主区矩形。
+        XCTAssertEqual(demoted.start, recordFrames[from] ?? mainTarget, "旧主从真实停靠矩形起飞")
+        XCTAssertEqual(demoted.panelFrom, recordFrames[from] ?? fixture.layout.mainRect)
         XCTAssertEqual(demoted.panelTo, fixture.snapshot.rect(for: slot), "旧主退回自己的格子")
         XCTAssertEqual(demoted.endAlpha, 1)
         XCTAssertTrue(demoted.hidesRailCard)

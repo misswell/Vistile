@@ -71,6 +71,8 @@ public enum WorkbenchReducer {
             return handleRailSizePreview(&state, topHeight: topHeight, sideWidth: sideWidth)
         case let .workbenchRailSizeChanged(topHeight, sideWidth):
             return handleRailSizeChanged(&state, topHeight: topHeight, sideWidth: sideWidth)
+        case .mainWindowDisplaced:
+            return handleMainDisplaced(&state)
         case let .workbenchSearchFocusChanged(focused):
             return handleSearchFocus(&state, focused: focused)
         case let .geometryWriteFinished(result):
@@ -559,9 +561,12 @@ public enum WorkbenchReducer {
             targetFrame = planned
             placement = decision
         } else if canDeferPlacement(record: record, mainRect: mainRect) {
-            // 临时计划目标取主区：宿主会拿写前实读重新算，真实放不下仍由它按失败/补偿收口。
-            targetFrame = mainRect
-            placement = .resizeAndMove(target: mainRect)
+            // 临时计划目标按"尊重原尺寸"语义从缓存尺寸预估；宿主会拿写前实读重新算，
+            // 真实放不下仍由它按失败/补偿收口（方案 §6.2、§9.1 修订）。
+            let estimated = FocusGeometry.scaledDownRect(
+                in: mainRect, currentSize: (actualFrame(state, identity) ?? record.frame).size)
+            targetFrame = estimated
+            placement = .resizeAndMove(target: estimated)
         } else {
             return [.presentHint(.restrictedWindow(unavailableReason(decision)))]
         }
@@ -830,9 +835,12 @@ public enum WorkbenchReducer {
             mainTarget = planned
             placementDecision = decision
         } else if canDeferPlacement(record: record, mainRect: mainRect) {
-            // 临时计划目标取主区：宿主会拿写前实读重新算，真实放不下仍由它按失败/补偿收口。
-            mainTarget = mainRect
-            placementDecision = .resizeAndMove(target: mainRect)
+            // 临时计划目标按"尊重原尺寸"语义从缓存尺寸预估；宿主会拿写前实读重新算，
+            // 真实放不下仍由它按失败/补偿收口（方案 §6.2、§9.1 修订）。
+            let estimated = FocusGeometry.scaledDownRect(
+                in: mainRect, currentSize: (actualFrame(state, identity) ?? record.frame).size)
+            mainTarget = estimated
+            placementDecision = .resizeAndMove(target: estimated)
         } else {
             return [.presentHint(.workbenchMainFrameFailed(unavailableReason(decision)))]
         }
@@ -1292,6 +1300,19 @@ public enum WorkbenchReducer {
         guard state.workbench.modeTransition == .idle, !state.workbench.mainSwitch.isBusy,
               state.workbench.recoveryRequired == nil else { return [] }
         guard applyRailSize(&state, topHeight: nil, sideWidth: nil) != nil,
+              let snapshot = state.workbench.snapshot else { return [] }
+        return settleMainFrame(&state, snapshot: snapshot, layoutAlreadyApplied: true)
+    }
+
+    /// 用户把主窗口拖出主区（或盖住栏）：按"尊重原尺寸"语义带回主区——
+    /// 尺寸不动、位置归位（放得下居中，超屏等比收缩）。越界判定与拖动静默去抖在宿主，
+    /// 这里只做收口，并复用与分隔线松手同一条 settle 流（journal 闸门、armed 冲突、可恢复）。
+    /// 拖动中的每条 moved 通知不会触发本事件，用户不会感到拉锯。
+    private static func handleMainDisplaced(_ state: inout SessionState) -> [SessionEffect] {
+        guard state.mode == .workbench, state.workbench.modeTransition == .idle,
+              !state.workbench.mainSwitch.isBusy else { return [] }
+        if let blocked = recoveryBlock(&state) { return blocked }
+        guard state.workbench.armed == nil, state.workbench.mainFrameWrite == nil,
               let snapshot = state.workbench.snapshot else { return [] }
         return settleMainFrame(&state, snapshot: snapshot, layoutAlreadyApplied: true)
     }

@@ -957,6 +957,7 @@ final class AppCoordinator {
         case .cardDragged: return "cardDragged"
         case .organizeRequested: return "organizeRequested"
         case .searchChanged: return "searchChanged"
+        case .mainWindowDisplaced: return "mainWindowDisplaced"
         case .catalogUpdated: return "catalogUpdated"
         case .catalogDiscoveryFailed: return "catalogDiscoveryFailed"
         case .openConditionsChanged: return "openConditionsChanged"
@@ -2303,6 +2304,14 @@ final class AppCoordinator {
             return
         }
         switch event.name {
+        case kAXWindowMiniaturizedNotification:
+            // 最小化要立即让状态机知道：主窗口让位与替补不等 2s 目录刷新。
+            dispatch(.windowMinimized(record.identity, true))
+            scheduleStructuralRefresh()
+        case kAXWindowDeminiaturizedNotification:
+            // 恢复同样即时上报（捕获解除暂停）；焦点语义仍交给目录刷新与焦点跟随。
+            dispatch(.windowMinimized(record.identity, false))
+            scheduleStructuralRefresh()
         case kAXWindowMovedNotification, kAXWindowResizedNotification:
             let element = event.element
             Task { [weak self] in
@@ -2310,10 +2319,34 @@ final class AppCoordinator {
                 // 归因由过渡执行器按"写入中/写后读回"判定，不能用一个瞬时布尔猜测（方案 §6.5）。
                 let source = self.focus.changeSource(for: record.identity, observed: frame)
                 self.dispatch(.windowGeometryChangedExternally(record.identity, frame, source: source))
+                // 用户把主窗口拖出主区（或盖住栏）：拖动静默后带回，拖动中不拉锯。
+                if source == .user, self.state.mode == .workbench,
+                   self.state.workbench.placement.main == record.identity,
+                   !self.state.workbench.mainSwitch.isBusy,
+                   let snapshot = self.state.workbench.snapshot,
+                   MainPlacementPolicy.needsRedock(readBack: frame,
+                                                   mainRect: snapshot.layout.mainRect,
+                                                   topRailRect: snapshot.layout.topRailRect,
+                                                   sideRailRect: snapshot.layout.sideRailRect) {
+                    self.scheduleMainRedock()
+                }
             }
         default:
             scheduleStructuralRefresh()
         }
+    }
+
+    private var mainRedockWork: DispatchWorkItem?
+
+    /// 主窗口被拖出主区后的静默去抖：连续拖动会不断重排这个任务，
+    /// 只有拖动停止一小段时间后才真正发起一次带回（尊重原尺寸的归位）。
+    private func scheduleMainRedock() {
+        mainRedockWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.dispatch(.mainWindowDisplaced)
+        }
+        mainRedockWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work)
     }
 
     /// 结构性变化合并成一次目录刷新，并且必须经过状态机：直接调目录会让 in-flight 记账出现两份（方案 §6.7）。
@@ -2442,6 +2475,11 @@ final class AppCoordinator {
             self?.dispatch(.spaceChanged)
         }
         observe(workspace, NSWorkspace.screensDidSleepNotification) { [weak self] _ in
+            self?.dispatch(.screenLocked)
+        }
+        // 快速用户切换：会话不再活跃时屏幕对我们不可见，与锁屏同语义安全收口
+        //（未锁屏的切换没有 screenIsLocked 兜底，此前完全无对策）。
+        observe(workspace, NSWorkspace.sessionDidResignActiveNotification) { [weak self] _ in
             self?.dispatch(.screenLocked)
         }
         observe(workspace, NSWorkspace.didWakeNotification) { [weak self] _ in

@@ -238,7 +238,11 @@ final class WorkbenchSwitchTests: XCTestCase {
                                            beforeOperation: HostPlanFacts.operationSnapshot(context: context,
                                                                                            preOperation),
                                            followsExternalFocus: followsExternalFocus)
-        let mainTarget = dockedRect(for: b)
+        // 目标与执行层写前实读同源：b 的真实尺寸可能被用例覆盖成超屏值，目录缓存不代表它。
+        let bLiveFrame = await writer.currentFrame(of: try XCTUnwrap(catalogSource.element(for: b)))
+        let mainTarget = FocusGeometry.dockedRect(in: fixture.layout.mainRect,
+                                                  currentSize: bLiveFrame?.size,
+                                                  isResizable: catalog.record(for: b)?.allowsGeometryControl ?? true)
         let plan = WorkbenchSwitchPlan(intent: intent,
                                         displayID: displayID,
                                         mainTargetFrame: mainTarget,
@@ -916,7 +920,8 @@ final class WorkbenchSwitchTests: XCTestCase {
     // MARK: - H07 最小化：先解除、再写几何
 
     func testMinimizedRailTargetIsUnminimizedBeforeGeometryWrite() async throws {
-        let plan = try await beginHappyPath(minimized: [1])
+        // 尊重原尺寸后默认尺寸的 B 只写位置；本用例验证的是写尺寸路径，给 B 超屏真实尺寸。
+        let plan = try await beginHappyPath(minimized: [1], bFrame: CGRect(x: 60, y: 60, width: 2_400, height: 1_600))
         XCTAssertEqual(catalog.record(for: b)?.isMinimized, true, "前置事实：B 此刻在 Dock 里")
         XCTAssertEqual(catalog.record(for: b)?.capture, .pausedMinimized)
 
@@ -926,7 +931,9 @@ final class WorkbenchSwitchTests: XCTestCase {
         XCTAssertEqual(writer.recordedActions.first, "解除最小化",
                        "顺序必须是先解除最小化再写几何：\(writer.recordedActions)")
         XCTAssertEqual(writer.unminimizeAttempts, 1)
-        XCTAssertEqual(writer.recordedActions.filter { $0 == "写" }.count, 2)
+        // 尊重原尺寸：B 超屏收缩写一次尺寸；A 回到自己原尺寸的原位只写位置。
+        XCTAssertEqual(writer.recordedActions.filter { $0 == "写" }.count, 1)
+        XCTAssertEqual(writer.recordedActions.filter { $0 == "移" }.count, 1)
         XCTAssertEqual(catalog.record(for: b)?.isMinimized, false, "解除后目录里的最小化事实必须换代")
         XCTAssertFalse(events.contains { if case .transitionTimedOut = $0 { return true }; return false },
                        "解除成功却报超时，等于把一次正常交换说成失败")
@@ -1040,7 +1047,8 @@ final class WorkbenchSwitchTests: XCTestCase {
     // MARK: - H07b 句柄缺失只持续几轮：预算内复核要桥过去，不能当窗口事实
 
     func testHandleMissingForAFewGenerationsIsBridged() async throws {
-        let plan = try await beginHappyPath()
+        // 尊重原尺寸后默认尺寸的 B 只写位置；本用例验证的是写尺寸路径，给 B 超屏真实尺寸。
+        let plan = try await beginHappyPath(bFrame: CGRect(x: 60, y: 60, width: 2_400, height: 1_600))
         // 制造"目录已换代但整轮句柄读不到"的坏采样（复现实机捕捉权限成串短暂被拒）。
         catalogSource.publishesAX = false
         await catalog.refreshAndWait(reason: .windowEvent)
@@ -1056,7 +1064,9 @@ final class WorkbenchSwitchTests: XCTestCase {
 
         XCTAssertTrue(failureReasons().isEmpty,
                       "坏采样只持续几轮，交换不该被拒绝：\(failureReasons())")
-        XCTAssertEqual(writer.recordedActions.filter { $0 == "写" }.count, 2)
+        // 尊重原尺寸：B 超屏收缩写一次尺寸；A 回原位只写位置。
+        XCTAssertEqual(writer.recordedActions.filter { $0 == "写" }.count, 1)
+        XCTAssertEqual(writer.recordedActions.filter { $0 == "移" }.count, 1)
         XCTAssertEqual(catalog.record(for: b)?.confidence.allowsAXWrite, true,
                        "桥过去之后目录必须已经回到唯一身份")
     }
@@ -1075,7 +1085,9 @@ final class WorkbenchSwitchTests: XCTestCase {
     // MARK: - A22 受限但仍在主区：记事实、提交、不覆盖预览栏（方案 §9.2、§9.3）
 
     func testConstrainedReadBackInsideMainIsRecordedAndSubmitted() async throws {
-        let plan = try await beginHappyPath()
+        // 尊重原尺寸后，放得下的窗口只写位置、从不写尺寸，"应用约束尺寸"无从发生；
+        // 用超出主区的真实尺寸让放置走等比收缩（写尺寸）路径，约束读回才有意义。
+        let plan = try await beginHappyPath(bFrame: CGRect(x: 60, y: 60, width: 2_400, height: 1_600))
         writer.setScript(.constrainsInside, for: try element(of: b))
         // 应用自己收小的尺寸：目标位置不动、宽高各少 60pt，仍完全落在主区内（由替身如实读回）。
         let constrained = CGRect(x: plan.mainTargetFrame.minX, y: plan.mainTargetFrame.minY,
@@ -1107,7 +1119,8 @@ final class WorkbenchSwitchTests: XCTestCase {
     // MARK: - A23 受限且越界：一次有界修正后仍越界就补偿、不提交（方案 §9.2、§9.3）
 
     func testConstrainedReadBackOutsideMainIsCorrectedOnceAndThenCompensated() async throws {
-        let plan = try await beginHappyPath()
+        // 同上：超屏真实尺寸让放置走"写尺寸"路径，越界读回与有界修正链才可复现。
+        let plan = try await beginHappyPath(bFrame: CGRect(x: 60, y: 60, width: 2_400, height: 1_600))
         writer.setScript(.constrains, for: try element(of: b))
 
         coordinator.perform(plan)
@@ -1122,12 +1135,12 @@ final class WorkbenchSwitchTests: XCTestCase {
         // 序列：B 进主区（越界读回）→ 一次有界位置修正（仍越界）→ 补偿把 B 送回原几何。
         XCTAssertEqual(writer.writtenFrames.first, plan.mainTargetFrame)
         XCTAssertEqual(writer.writtenFrames.count, 3, "有界修正只许一次：\(writer.writtenFrames)")
-        XCTAssertEqual(writer.writtenFrames.last, FakeCatalogSource.frame(for: 1),
+        XCTAssertEqual(writer.writtenFrames.last, CGRect(x: 60, y: 60, width: 2_400, height: 1_600),
                        "补偿必须把 B 送回它本操作前的几何")
         let bFrame = await writer.currentFrame(of: try element(of: b))
         // 替身声明的是"这个应用每次都自己偏移 30pt"：补偿按目标发出，真实几何只能停在它允许的偏移上。
         // 这条读回与目标不一致就是 §6.4 说的补偿失败：不许当成已恢复。
-        XCTAssertEqual(bFrame, FakeCatalogSource.frame(for: 1).offsetBy(dx: 30, dy: 30),
+        XCTAssertEqual(bFrame, CGRect(x: 90, y: 90, width: 2_400, height: 1_600),
                        "补偿写入后的设备事实要按替身自己的约束如实核对：\(String(describing: bFrame))")
         let aFrame = await writer.currentFrame(of: try element(of: a))
         XCTAssertEqual(aFrame, dockedRect(for: a), "A 从没被这次交换动过，必须仍在主窗口位")
@@ -1485,7 +1498,8 @@ final class WorkbenchSwitchTests: XCTestCase {
     /// A10（方案 §18 A10）：门卡在"尺寸已写、位置还没写"制造真实的部分写入，
     /// 到点后只补这一笔真正动过的窗口，且只补一次——补偿对象取自设备事实，不取自计划。
     func testStalledWriteTimesOutAndRollsBackExactlyOnce() async throws {
-        let plan = try await beginHappyPath()
+        // 尊重原尺寸后默认尺寸的 B 只写位置；本用例验证的是写尺寸路径，给 B 超屏真实尺寸。
+        let plan = try await beginHappyPath(bFrame: CGRect(x: 60, y: 60, width: 2_400, height: 1_600))
         // 门在"尺寸已写、位置还没写"这一刻（方案 §5.5 第 3 条：AX 已开始时到点，
         // 恢复必须排在它之后并按部分事实回位）。用入口门就永远造不出部分写入。
         writer.gatesPositionWrite = true
@@ -1505,7 +1519,7 @@ final class WorkbenchSwitchTests: XCTestCase {
         await pendingUntil(timeout: 4) { !self.coordinator.isBusy }
 
         XCTAssertEqual(writer.writtenFrames,
-                       [plan.mainTargetFrame, FakeCatalogSource.frame(for: 1)],
+                       [plan.mainTargetFrame, CGRect(x: 60, y: 60, width: 2_400, height: 1_600)],
                        "超时只补这一次真正动过的 B，且只补一次；A 没被动过就不许写")
         XCTAssertTrue(failureReasons().contains { $0.contains("未收敛") },
                       "失败原因必须写明是超时收敛问题：\(failureReasons())")
@@ -1513,7 +1527,7 @@ final class WorkbenchSwitchTests: XCTestCase {
         let aFrame = await writer.currentFrame(of: try element(of: a))
         let bFrame = await writer.currentFrame(of: try element(of: b))
         XCTAssertEqual(aFrame, dockedRect(for: a), "超时回滚后 A 保持主窗口（方案 §8.3）")
-        XCTAssertEqual(bFrame, FakeCatalogSource.frame(for: 1))
+        XCTAssertEqual(bFrame, CGRect(x: 60, y: 60, width: 2_400, height: 1_600))
     }
 
     // MARK: - H20 连点：只有最新意图提交，队列有界

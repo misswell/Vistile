@@ -82,6 +82,10 @@ public enum SessionEvent: Hashable, Sendable {
     /// English: Host-observed focus after closure; closed must match the pending replacement.
     case workbenchReplacementResolved(closed: WindowIdentity, candidate: WindowIdentity?)
     case windowGeometryChangedExternally(WindowIdentity, CGRect, source: GeometryChangeSource)
+    /// 中文：用户把主窗口拖出主区（或盖住栏）且拖动已静默；宿主判定越界并去抖后发出。
+    /// English: The user dragged the main window out of the main area (or over a rail)
+    /// and the drag has gone quiet; the host checks containment and debounces first.
+    case mainWindowDisplaced
     /// AX 写入与读回结果必须回报给状态机，函数返回成功不等于到位（方案 §6 末）。
     case geometryWriteFinished(GeometryWriteResult)
     // MARK: 操作级日志（方案 §7.1）

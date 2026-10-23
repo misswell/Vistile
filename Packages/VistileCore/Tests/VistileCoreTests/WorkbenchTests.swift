@@ -430,7 +430,12 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertEqual(plan.intent.from, a)
         XCTAssertEqual(plan.intent.to, b)
         XCTAssertEqual(plan.restingSlot, aSlot, "旧主窗口回到自己的稳定 slot")
-        XCTAssertEqual(plan.mainTargetFrame, state.workbench.snapshot?.mainRect, "B 的目标就是主区矩形")
+        // 尊重原尺寸：B 的目标是它自身尺寸在主区内的停靠矩形，不再强制铺满主区。
+        let expectedTarget = FocusGeometry.dockedRect(
+            in: state.workbench.snapshot?.mainRect ?? .zero,
+            currentSize: state.records[b]?.frame.size,
+            isResizable: state.records[b]?.allowsGeometryControl ?? true)
+        XCTAssertEqual(plan.mainTargetFrame, expectedTarget, "B 的目标就是其原尺寸在主区的停靠矩形")
         XCTAssertEqual(plan.intent.beforeOperation.writtenOrder, request.affectedIdentities,
                        "批次顺序就是补偿顺序的依据")
 
@@ -1188,9 +1193,11 @@ final class WorkbenchTests: XCTestCase {
         let main = FocusGeometry.dockedRect(in: layout.mainRect,
                                             currentSize: CGSize(width: 1_280, height: 800),
                                             isResizable: true)
-        XCTAssertEqual(main.width, layout.mainRect.width, accuracy: 0.5,
-                       "主区尺寸来自布局本身，旧比例不得再叠一次")
-        XCTAssertEqual(main.height, layout.mainRect.height, accuracy: 0.5)
+        // 尊重原尺寸：1_280×800 超出主区高度时等比收缩贴边，宽高比不得被旧比例改写。
+        XCTAssertEqual(main, FocusGeometry.scaledDownRect(in: layout.mainRect,
+                                                          currentSize: CGSize(width: 1_280, height: 800)))
+        XCTAssertEqual(main.width / main.height, 1_280.0 / 800.0, accuracy: 0.01,
+                       "主区目标保持窗口原宽高比，旧比例不得再叠一次")
     }
 
     func testW12SanitizeDropsDegenerateRailPreferences() {
@@ -1504,7 +1511,11 @@ final class WorkbenchTests: XCTestCase {
         let layoutAfter = try XCTUnwrap(state.workbench.snapshot?.layout)
         XCTAssertEqual(identity, main)
         XCTAssertEqual(context, settleRequest.context, "放行的写入带的就是刚落盘的那个操作上下文")
-        XCTAssertEqual(target.width, layoutAfter.mainRect.width, accuracy: 0.5, "主窗口目标跟随新主区")
+        // 尊重原尺寸：主窗口目标按自身尺寸在新主区内停靠，不再强制铺满。
+        let expectedTarget = FocusGeometry.dockedRect(in: layoutAfter.mainRect,
+                                                      currentSize: state.records[main]?.frame.size,
+                                                      isResizable: state.records[main]?.allowsGeometryControl ?? true)
+        XCTAssertEqual(target, expectedTarget, "主窗口目标跟随新主区、按原尺寸停靠")
         XCTAssertEqual(state.workbench.mainFrameWrite?.token, context.transitionToken, "在途写入记下当前令牌")
         XCTAssertEqual(state.workbench.mainFrameWrite?.identity, main)
         XCTAssertEqual(state.transactions[main]?.plannedFrame, target, "事务计划同步到最终目标")
@@ -2164,7 +2175,11 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertTrue(plan.intent.isPromotion)
         XCTAssertNil(plan.intent.from, "旧主已经关闭：替补没有 from")
         XCTAssertEqual(plan.intent.to, b)
-        XCTAssertEqual(plan.mainTargetFrame, state.workbench.snapshot?.mainRect)
+        // 尊重原尺寸：替补目标按 b 的真实尺寸在主区停靠。
+        XCTAssertEqual(plan.mainTargetFrame,
+                       FocusGeometry.dockedRect(in: state.workbench.snapshot?.mainRect ?? .zero,
+                                                currentSize: state.records[b]?.frame.size,
+                                                isResizable: state.records[b]?.allowsGeometryControl ?? true))
 
         completeSwitch(&state, token: plan.intent.token)
         XCTAssertEqual(state.workbench.placement.main, b, "替补提交后成为主窗口")
@@ -2473,8 +2488,11 @@ final class WorkbenchTests: XCTestCase {
         let enterEffects = select(&entering, fromOverview: oversized.identity)
         let enter = try XCTUnwrap(enterPlan(enterEffects), "可移动窗口不该被缓存尺寸提前拒绝")
         let enterMainRect = enter.snapshot.layout.mainRect
-        XCTAssertEqual(enter.targetFrame, enterMainRect, "临时计划目标取主区矩形")
-        XCTAssertEqual(enter.placement, .resizeAndMove(target: enterMainRect),
+        // 临时计划目标按"尊重原尺寸"语义从缓存尺寸预估：超屏窗口等比收缩贴边（方案 §9.1 修订）。
+        let enterEstimated = FocusGeometry.scaledDownRect(in: enterMainRect,
+                                                          currentSize: CGSize(width: 2_400, height: 1_600))
+        XCTAssertEqual(enter.targetFrame, enterEstimated, "临时计划目标按缓存尺寸等比收缩预估")
+        XCTAssertEqual(enter.placement, .resizeAndMove(target: enterEstimated),
                        "计划里的放置方式不能撒谎成 unavailable")
         XCTAssertFalse(hints(enterEffects).contains { if case .restrictedWindow = $0 { return true } else { return false } },
                        "不该出现提前拒绝的受限提示：\(hints(enterEffects))")
@@ -2495,8 +2513,10 @@ final class WorkbenchTests: XCTestCase {
         let switchEffects = selectRail(&swapping, identity: b.identity)
         let swap = try XCTUnwrap(switchPlan(switchEffects), "可移动窗口不该被缓存尺寸提前拒绝交换")
         let swapMainRect = swap.snapshot.layout.mainRect
-        XCTAssertEqual(swap.mainTargetFrame, swapMainRect, "交换的临时计划目标取主区矩形")
-        XCTAssertEqual(swap.placement, .resizeAndMove(target: swapMainRect))
+        let swapEstimated = FocusGeometry.scaledDownRect(in: swapMainRect,
+                                                         currentSize: CGSize(width: 2_400, height: 1_600))
+        XCTAssertEqual(swap.mainTargetFrame, swapEstimated, "交换的临时计划目标按缓存尺寸等比收缩预估")
+        XCTAssertEqual(swap.placement, .resizeAndMove(target: swapEstimated))
         XCTAssertFalse(hints(switchEffects).contains {
             if case .workbenchMainFrameFailed = $0 { return true } else { return false }
         }, "不该出现提前拒绝的主区提示：\(hints(switchEffects))")
@@ -2736,7 +2756,12 @@ final class WorkbenchTests: XCTestCase {
                        "延后的尺寸在收敛这一刻落地，不是丢掉")
         let settle = try XCTUnwrap(settlePackets(converged).first,
                                    "新 mainRect 要按日志闸门先落盘再写：\(converged)")
-        XCTAssertEqual(settle.target, afterConverge.mainRect, "落地写的就是收敛后的新主区矩形")
+        // 尊重原尺寸：收敛后的写入目标是主窗口按自身尺寸在新主区的停靠矩形。
+        XCTAssertEqual(settle.target,
+                       FocusGeometry.dockedRect(in: afterConverge.mainRect,
+                                                currentSize: state.records[settle.identity]?.frame.size,
+                                                isResizable: state.records[settle.identity]?.allowsGeometryControl ?? true),
+                       "落地写的就是收敛后的按原尺寸停靠目标")
         XCTAssertEqual(settle.identity, a)
 
         // 取消/停止不等过渡收敛：立即排空在途操作并前进代次。
@@ -3095,6 +3120,102 @@ final class WorkbenchTests: XCTestCase {
         all += enterWorkbench(&state, target: target)
         XCTAssertEqual(state.mode, .workbench)
         return RandomAction(label: "往返 w\(target.windowID)", effects: all)
+    }
+
+    // MARK: - 尊重原尺寸的主区停靠（方案 §9.1 修订）
+
+    /// 可调窗口原尺寸放得下主区：只写位置、不动尺寸——不再强制放大铺满。
+    func testResizableWindowKeepsOriginalSizeWhenItFitsMainArea() {
+        let mainRect = CGRect(x: 0, y: 0, width: 1_200, height: 800)
+        let frame = CGRect(x: 40, y: 20, width: 900, height: 600)
+        let decision = MainPlacementPolicy.decide(mainRect: mainRect, currentFrame: frame,
+                                                  isMovable: true, isResizable: true)
+        guard case let .moveOnly(origin, size) = decision else {
+            return XCTFail("放得下就该只动位置：\(decision)")
+        }
+        XCTAssertEqual(size, CGSize(width: 900, height: 600), "尺寸必须原样保留")
+        XCTAssertEqual(origin, CGPoint(x: 150, y: 100), "在主区内居中")
+        XCTAssertFalse(decision.writesSize, "只移动路径不得写 size")
+    }
+
+    /// 超出主区的可调窗口：按原宽高比等比收缩贴边居中，不拉伸变形。
+    func testOversizedResizableWindowScalesDownProportionally() {
+        let mainRect = CGRect(x: 0, y: 0, width: 1_200, height: 800)
+        let frame = CGRect(x: -400, y: 0, width: 2_400, height: 1_000)
+        let decision = MainPlacementPolicy.decide(mainRect: mainRect, currentFrame: frame,
+                                                  isMovable: true, isResizable: true)
+        guard case let .resizeAndMove(target) = decision else {
+            return XCTFail("超屏该走收缩写入：\(decision)")
+        }
+        XCTAssertEqual(target.width, 1_200, accuracy: 1.0, "受限边（宽度比例更极端）贴住主区")
+        XCTAssertEqual(target.width / target.height, 2.4, accuracy: 0.01, "宽高比保持原样")
+        XCTAssertEqual(target.midX, mainRect.midX, accuracy: 1.0)
+        XCTAssertEqual(target.midY, mainRect.midY, accuracy: 1.0)
+    }
+
+    /// dockedRect 与 scaledDownRect 是动画端点与验收期望的唯一计算点：
+    /// 放得下原样、超屏等比、尺寸缺失退主区。
+    func testDockedRectMatchesRespectfulSemantics() {
+        let mainRect = CGRect(x: 0, y: 0, width: 1_200, height: 800)
+        XCTAssertEqual(FocusGeometry.dockedRect(in: mainRect,
+                                                currentSize: CGSize(width: 900, height: 600),
+                                                isResizable: true),
+                       CGRect(x: 150, y: 100, width: 900, height: 600))
+        let scaled = FocusGeometry.scaledDownRect(in: mainRect, currentSize: CGSize(width: 2_400, height: 1_000))
+        XCTAssertEqual(scaled.width, 1_200, accuracy: 1.0)
+        XCTAssertEqual(scaled.width / scaled.height, 2.4, accuracy: 0.01)
+        XCTAssertEqual(FocusGeometry.scaledDownRect(in: mainRect, currentSize: nil), mainRect,
+                       "尺寸未知时退主区，不猜一个数")
+    }
+
+    /// 越界判定：读回在主区内且不盖栏 → 不需要带回；越界或盖栏 → 需要。
+    func testNeedsRedockMatchesContainmentAndRailOverlap() {
+        let mainRect = CGRect(x: 0, y: 100, width: 1_200, height: 700)
+        let top = CGRect(x: 0, y: 800, width: 1_200, height: 100)
+        let side = CGRect(x: 1_200, y: 100, width: 200, height: 700)
+        XCTAssertFalse(MainPlacementPolicy.needsRedock(readBack: CGRect(x: 10, y: 110, width: 1_180, height: 680),
+                                                       mainRect: mainRect, topRailRect: top, sideRailRect: side))
+        XCTAssertTrue(MainPlacementPolicy.needsRedock(readBack: CGRect(x: -80, y: 110, width: 1_180, height: 680),
+                                                      mainRect: mainRect, topRailRect: top, sideRailRect: side),
+                      "拖出主区要带回")
+        XCTAssertTrue(MainPlacementPolicy.needsRedock(readBack: CGRect(x: 10, y: 790, width: 1_180, height: 680),
+                                                      mainRect: mainRect, topRailRect: top, sideRailRect: side),
+                      "盖住顶栏要带回")
+    }
+
+    /// 用户拖出主区后的带回：走与分隔线松手同一条 settle 流（先落盘再写、一次结算）。
+    func testDisplacedMainRedocksThroughSettlePath() throws {
+        var (state, list) = openState(count: 4)
+        enterWorkbench(&state, target: list[0].identity)
+        let main = try XCTUnwrap(state.workbench.placement.main)
+
+        let displaced = Fixtures.dispatch(&state, .mainWindowDisplaced)
+        XCTAssertTrue(displaced.contains { if case .prepareJournal = $0 { return true }; return false },
+                      "带回必须先过日志闸门")
+        let commit = confirmJournal(&state, displaced)
+        let settles = settlePackets(commit)
+        XCTAssertEqual(settles.count, 1, "松手等价的带回只结算一次")
+        XCTAssertEqual(settles.first?.identity, main)
+        // 目标按"尊重原尺寸"语义：主窗口自身尺寸在主区内的停靠矩形。
+        XCTAssertEqual(settles.first?.target,
+                       FocusGeometry.dockedRect(in: state.workbench.snapshot?.layout.mainRect ?? .zero,
+                                                currentSize: state.records[main]?.frame.size,
+                                                isResizable: state.records[main]?.allowsGeometryControl ?? true))
+    }
+
+    /// 切换在途时带回请求被忽略：几何写入只有执行器一条通道，不得并发第二条。
+    func testDisplacedMainIsIgnoredWhileSwitchIsBusy() throws {
+        var (state, list) = openState(count: 4)
+        enterWorkbench(&state, target: list[0].identity)
+        // 制造"切换在途"：选中另一张轨道卡，走完日志闸门后 mainSwitch 即为忙。
+        let slot = try XCTUnwrap(state.workbench.slot(of: list[1].identity))
+        let selected = Fixtures.dispatch(&state, .railCardSelected(slot: slot, identity: list[1].identity))
+        let released = confirmJournal(&state, selected)
+        let switching = released.contains { if case .beginMainSwitch = $0 { return true }; return false }
+        XCTAssertTrue(switching, "前提：切换已发起（否则用例无效）")
+
+        let displaced = Fixtures.dispatch(&state, .mainWindowDisplaced)
+        XCTAssertTrue(settlePackets(displaced).isEmpty, "切换在途不得叠一条主窗口写入")
     }
 }
 

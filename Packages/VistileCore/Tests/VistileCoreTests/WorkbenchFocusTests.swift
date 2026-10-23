@@ -582,7 +582,12 @@ final class WorkbenchFocusTests: XCTestCase {
             if case let .settleMainFrame(identity, frame, context, _) = effect { return (identity, frame, context) }
             return nil
         }.first)
-        XCTAssertEqual(last.1, state.workbench.snapshot?.mainRect)
+        // 尊重原尺寸：窗口放得下新主区就原尺寸居中，只有超出才等比收缩（方案 §9.1 修订）。
+        // 尺寸取第一次写回的真实值（actualFrame），不是目录缓存里的旧尺寸。
+        let expectedFinal = FocusGeometry.dockedRect(in: try XCTUnwrap(state.workbench.snapshot?.mainRect),
+                                                     currentSize: initial.1.size,
+                                                     isResizable: state.records[last.0]?.allowsGeometryControl ?? true)
+        XCTAssertEqual(last.1, expectedFinal)
         XCTAssertEqual(state.workbench.snapshot?.layout.topRailRect.height, 220)
         XCTAssertEqual(state.workbench.snapshot?.layout.sideRailRect.width, 300)
         _ = Fixtures.dispatch(&state, .geometryWriteFinished(.init(identity: last.0,

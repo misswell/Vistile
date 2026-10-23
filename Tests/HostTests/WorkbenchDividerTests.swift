@@ -644,9 +644,12 @@ final class WorkbenchDividerTests: XCTestCase {
         rig.writer.openGate()
 
         await pendingUntil { self.geometryResults(rig.events).count == 2 }
-        XCTAssertEqual(rig.writer.writtenFrames, [first, second], "两次写入按发起顺序串行执行")
+        // 写入目标按"尊重原尺寸"语义算：窗口原尺寸放不下时等比收缩进当次结算的主区。
+        let write1 = FocusGeometry.scaledDownRect(in: first, currentSize: layout.mainRect.size)
+        let write2 = FocusGeometry.scaledDownRect(in: second, currentSize: write1.size)
+        XCTAssertEqual(rig.writer.writtenFrames, [write1, write2], "两次写入按发起顺序串行执行")
         let settled = await rig.writer.currentFrame(of: element)
-        XCTAssertEqual(settled, second, "设备上的最终几何 = 最后一次结算的目标：旧写入不覆盖它")
+        XCTAssertEqual(settled, write2, "设备上的最终几何 = 最后一次结算的尊重原尺寸目标：旧写入不覆盖它")
         XCTAssertEqual(geometryResults(rig.events).map(\.token), [token1, token2], "每次结算各有自己的令牌回报")
         XCTAssertEqual(geometryResults(rig.events).map(\.targetFrame), [first, second])
 
@@ -688,11 +691,15 @@ final class WorkbenchDividerTests: XCTestCase {
 
         rig.writer.openGate()
         await pendingUntil { self.geometryResults(rig.events).count == 2 }
-        XCTAssertEqual(rig.writer.writtenFrames, [inFlight, newest],
+        // 写入按"尊重原尺寸"语义：初始是主区尺寸的窗口，先等比收缩进首个目标，
+        // 最新一次结算再按收缩后的尺寸继续停靠。
+        let firstWrite = FocusGeometry.scaledDownRect(in: inFlight, currentSize: layout.mainRect.size)
+        let newestWrite = FocusGeometry.scaledDownRect(in: newest, currentSize: firstWrite.size)
+        XCTAssertEqual(rig.writer.writtenFrames, [firstWrite, newestWrite],
                        "四次拖动只有最新那一项落地：中间的必须被合并掉，不是被依次执行")
         let afterCoalescing = rig.writer.totalWrites
         let frameAfterCoalescing = await rig.writer.currentFrame(of: element)
-        XCTAssertEqual(frameAfterCoalescing, newest, "设备上的尺寸 = 最新意图")
+        XCTAssertEqual(frameAfterCoalescing, newestWrite, "设备上的尺寸 = 最新意图的停靠矩形")
 
         // 隐藏（取消屏障）落在"下一次结算刚排上队、还没开始"这一刻。
         let hiddenTarget = newest.insetBy(dx: -10, dy: -5)
@@ -756,7 +763,10 @@ final class WorkbenchDividerTests: XCTestCase {
                                token: TransitionToken(generation: 3),
                                mainRect: fresh, topRailRect: layout.topRailRect, sideRailRect: layout.sideRailRect)
         await pendingUntil(timeout: 4) { rig.writer.totalWrites > 0 }
-        XCTAssertEqual(rig.writer.writtenFrames, [fresh], "新会话的第一笔照常执行")
+        // 尊重原尺寸：初始主区尺寸的窗口在更大的结算目标里原样居中。
+        XCTAssertEqual(rig.writer.writtenFrames,
+                       [FocusGeometry.scaledDownRect(in: fresh, currentSize: layout.mainRect.size)],
+                       "新会话的第一笔照常执行")
     }
 
     // MARK: - #3/#5/#6 调度器契约回归

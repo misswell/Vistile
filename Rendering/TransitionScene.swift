@@ -432,27 +432,31 @@ struct TransitionSceneFactory {
                                               hidesRailCard: true,
                                               isFocus: true,
                                               panelFrom: cell,
-                                              panelTo: mainPanelRect))
+                                              // 面板终点是实际停靠矩形（原尺寸居中或等比收缩），
+                                              // 不是整个主区：否则小窗口落定时面板与真身会跳一下。
+                                              panelTo: plan.mainTargetFrame))
             // A：旧主退回自己的格子；没有可信落点（首次选择）时原地淡出，不伪造位置（方案 §4.2.5）。
+            // 起点取它此刻的真实矩形：尊重原尺寸后旧主的停靠矩形未必是整个主区。
             if let previous = intent.from {
+                let previousFrame = recordFrame(previous) ?? plan.mainTargetFrame
                 let restingCell = plan.restingSlot.flatMap { snapshot.rect(for: $0) }
                 let restingContent = plan.restingSlot.flatMap { snapshot.contentRect(for: $0) } ?? restingCell
                 cards.append(TransitionScene.Card(identity: previous,
-                                                  start: plan.mainTargetFrame,
+                                                  start: previousFrame,
                                                   end: restingContent,
                                                   cellStart: nil,
                                                   cellEnd: restingCell,
                                                   startAlpha: 1,
                                                   endAlpha: restingContent == nil ? 0 : 1,
-                                                  aspect: aspect(previous, plan.mainTargetFrame),
+                                                  aspect: aspect(previous, previousFrame),
                                                   hidesRailCard: restingCell != nil,
                                                   isFocus: false,
-                                                  panelFrom: mainPanelRect,
+                                                  panelFrom: previousFrame,
                                                   panelTo: restingCell))
             }
             var flow = FlowSpec.standard
-            flow.axis = SIMD2<Float>(Float(mainPanelRect.midX - cell.midX),
-                                     Float(mainPanelRect.midY - cell.midY))
+            flow.axis = SIMD2<Float>(Float(plan.mainTargetFrame.midX - cell.midX),
+                                     Float(plan.mainTargetFrame.midY - cell.midY))
             return TransitionScene(kind: .swapping,
                                    token: intent.token,
                                    displayID: plan.displayID,

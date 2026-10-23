@@ -1,5 +1,12 @@
 # Vistile
 
+## 0.1.41 (55) — 2026-10-24
+
+- 主区停靠尊重真实尺寸：放得下原样居中只写位置，超屏按原宽高比等比收缩；主窗口被拖出主区静默后带回；最小化即时进状态机；快速用户切换安全收口。
+  Docking respects the real window size: original size centered when it fits (position-only writes), proportional scale-down only when oversized; a dragged-out main window is brought back after the drag goes quiet; minimize notifications reach the state machine immediately; fast user switching now exits safely like lock.
+
+自动验证 / Automated validation: 核心 141 + 159，0 失败；宿主全量 332 项，331 通过、1 跳过 / 332 host tests, 331 passed, 1 skipped, 0 failed.
+
 ## 0.1.40 (54) — 2026-10-24
 
 - CI 宿主测试失败时把日志文件里的断言明细带进 console，间歇失败可定位。

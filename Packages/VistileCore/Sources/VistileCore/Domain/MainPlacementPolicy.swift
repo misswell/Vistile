@@ -59,11 +59,16 @@ public enum MainPlacementPolicy {
         guard let frame = currentFrame, frame.width > 0, frame.height > 0 else {
             return .unavailable(reason: "读不到窗口当前位置，暂不调整尺寸")
         }
-        if isResizable {
-            return .resizeAndMove(target: mainRect)
-        }
         guard isMovable else {
             return .unavailable(reason: "这个窗口不允许移动，无法放进主区")
+        }
+        if isResizable {
+            // 尊重真实尺寸（方案 §9.1 修订）：原尺寸放得下主区就只写位置、不动尺寸；
+            // 只有超出主区的窗口才按原宽高比等比收缩贴边。不再强制放大铺满主区。
+            if let centered = FocusGeometry.centeredOriginalRect(in: mainRect, size: frame.size) {
+                return .moveOnly(origin: centered.origin, originalSize: centered.size)
+            }
+            return .resizeAndMove(target: FocusGeometry.scaledDownRect(in: mainRect, currentSize: frame.size))
         }
         // 固定尺寸：只有真实尺寸本身能放进主区才进；裁小尺寸再宣称"保留原尺寸"是假的（方案 §9.1）。
         guard frame.width <= mainRect.width + containmentTolerance,
@@ -97,6 +102,17 @@ public enum MainPlacementPolicy {
             return .rejected(reason: "修正到 \(RecoveryText.frame(corrected)) 后仍越界或覆盖预览栏")
         }
         return .correctPosition(to: corrected)
+    }
+
+    /// 主窗口读回是否已脱离主区（越界或盖住栏）：用户拖动后需要带回。
+    /// 与 `verify` 的接受判据互补：verify 判"写入是否合格"，这里判"要不要发起一次带回"。
+    public static func needsRedock(readBack: CGRect,
+                                   mainRect: CGRect,
+                                   topRailRect: CGRect,
+                                   sideRailRect: CGRect) -> Bool {
+        guard readBack.width > 0, readBack.height > 0 else { return false }
+        return !isContained(readBack, in: mainRect)
+            || overlapsRails(readBack, top: topRailRect, side: sideRailRect)
     }
 
     // MARK: - 判定细节
