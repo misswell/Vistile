@@ -82,3 +82,9 @@ jobs:
           grep -cE "^Test Case .* skipped" /tmp/host-tests.log \
             | sed 's/^/显式跳过用例：/' >>"$GITHUB_STEP_SUMMARY" || true
           exit $status
+
+      - name: 失败断言诊断
+        # 断言明细只写在日志文件里，console 汇总只有用例名；红的时候把证据带出来，不靠盲猜。
+        if: failure()
+        run: |
+          grep -nE "error: -\[|Test Case .* failed \(" /tmp/host-tests.log | head -60 || true
