@@ -1,5 +1,14 @@
 # Vistile
 
+## 0.1.36 (50) — 2026-10-24
+
+- AX 观察者差分注册、轮询例行帧停止触发全量同步、搜索键击合并到显示周期：总览打开期间的全量同步从"每事件一次"收敛到结构性变化才发生，重复的 43–101ms 观察者重注册停顿随差分消失。
+  AX observer registration now diffs on both sides, routine poll frames stop triggering full synchronization, and search keystrokes coalesce per display cycle: full syncs during an open overview drop from once-per-event to structural changes only, removing repeated 43–101ms observer re-registration stalls.
+- Esc/背景收起当帧视觉消失，实测 460–496ms 的 orderOut 延后执行，重开自动取消；工作台主区真实窗口停止捕获流，避免系统"共享窗口"标识，轨道副本保留最后一帧。
+  Esc and background dismissal hide visually within the frame, deferring the measured 460–496ms orderOut and cancelling it on reopen; the workbench main window stops its capture stream to avoid the system sharing badge, with the rail copy keeping its last frame.
+
+自动验证 / Automated validation: 核心 XCTest 135 + Swift Testing 159，0 失败 / 0 failures；AgentUse 宿主全量 330 项，329 通过、1 项真实前台键盘焦点限制跳过 / 330 host tests, 329 passed, 1 skipped for real foreground keyboard focus, 0 failed。P0 实机验收（授权正式包、真实刷新率、30 分钟资源曲线）仍按 [Acceptance.md](Acceptance.md) 单独记录。
+
 ## 0.1.35 (49) — 2026-10-23
 
 - 滚动与栏尺寸预览按显示周期合并视觉同步；壁纸后台解码、有界缓存，窗口层级按签名变化调整。状态、安全事件与几何事务继续即时处理。

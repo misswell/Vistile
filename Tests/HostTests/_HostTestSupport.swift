@@ -328,6 +328,15 @@ extension XCTestCase {
         }
     }
 
+    /// 低频帧要回到主 actor 才能落进信箱：测试同步堵住主 actor 时，回调永远无法恢复。
+    @MainActor
+    func waitUntilAsync(timeout: TimeInterval = 2, _ condition: @escaping () -> Bool) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !condition() && Date() < deadline {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+    }
+
     /// 面板能否成为 key 取决于应用是否激活：生产路径由菜单栏按钮调用 NSApp.activate，
     /// 测试必须先建立同一前提，否则断到的是"本机此刻谁在前台"而不是键盘归属。
     /// 新版系统里 NSApp.activate(ignoringOtherApps:) 已不再强制抢到前台，必须走运行中的应用句柄。

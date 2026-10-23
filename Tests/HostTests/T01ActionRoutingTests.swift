@@ -160,6 +160,27 @@ final class T01ActionRoutingTests: XCTestCase {
         XCTAssertFalse(controller.isOrderedButHidden)
     }
 
+    /// Esc/背景点击的用户收起路径：面板当帧视觉消失（alpha=0 且不再接鼠标），
+    /// 真正的 orderOut 延后执行且必须兑现；延迟窗口内重开则下屏自动取消。
+    func testUserDismissalHidesVisuallyFirstAndDefersOrderOut() {
+        controller.show()
+        XCTAssertTrue(controller.isVisible)
+        controller.hideForUserDismissal()
+        XCTAssertFalse(controller.isVisible, "对状态机而言已收起")
+        XCTAssertEqual(controller.panelAlpha, 0, "用户视角当帧就该看不到总览")
+        XCTAssertTrue(controller.ignoresMouseEvents, "收起后面板不能截走点击")
+        XCTAssertTrue(controller.isOrderedButHidden, "orderOut 尚未发生（延后到空闲处）")
+        waitUntil(timeout: 2) { !self.controller.isOrderedButHidden }
+        XCTAssertFalse(controller.isOrderedButHidden, "延迟下屏没有兑现：窗口会一直留在窗口列表里")
+
+        // 延迟窗口内重开的竞争：show 恢复 alpha 后，旧的下屏任务必须放弃执行。
+        controller.show()
+        controller.hideForUserDismissal()
+        controller.show()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+        XCTAssertTrue(controller.isVisible, "重开后的面板不能被旧的下屏任务摘掉")
+    }
+
     // MARK: - 键盘
 
     /// 方向键按冻结网格的实际邻接走：右到头保持选择，不循环跳到下一行开头。

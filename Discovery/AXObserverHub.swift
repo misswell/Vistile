@@ -89,7 +89,10 @@ final class AXObserverHub {
                     AXObserverRemoveNotification(observer, stale, name as CFString)
                 }
             }
-            for element in next {
+            // 添加侧与移除侧对称差分：AXObserverAddNotification 是跨进程调用，
+            // 对已注册窗口重复注册会在每次目录刷新时白付整轮 IPC（实测拖慢主线程）。
+            let previousIDs = Set(previous.map { ObjectIdentifier($0 as Any as AnyObject) })
+            for element in next where !previousIDs.contains(ObjectIdentifier(element as Any as AnyObject)) {
                 for name in Self.windowNotifications {
                     AXObserverAddNotification(observer, element, name as CFString, context)
                 }

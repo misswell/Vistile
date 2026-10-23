@@ -851,6 +851,14 @@ final class AppCoordinator {
             if case .updateWorkbenchLayout = effect { return true }
             return false
         }
+        if case .searchChanged = event,
+           state.phase.isVisible, state.phase == beforePhase,
+           state.workbench.modeTransition == beforeTransition {
+            // 搜索词参与格子过滤（布局输入），完整同步仍要做；但连续键击合并到
+            // 显示周期，每周期至多一次布局重建，而不是每键一次全量 performSync。
+            scheduleVisualSync(full: true)
+            return
+        }
         if state.mode == .workbench, state.phase == beforePhase,
            state.mode == beforeMode, state.workbench.modeTransition == beforeTransition,
            previousDisplays == Set(state.displays.map(\.id)), onlyProjectionChanged {
@@ -1619,7 +1627,7 @@ final class AppCoordinator {
     // MARK: - 捕获需求分级（方案 §13.1）
 
     /// 可见性分档的中间结果：每档一个身份集合，顺序即优先级（方案 §13.1）。
-    private struct CaptureVisibilityPlan {
+    struct CaptureVisibilityPlan {
         var transition: Set<WindowIdentity> = []
         var visible: Set<WindowIdentity> = []
         var prefetch: Set<WindowIdentity> = []
@@ -1632,7 +1640,7 @@ final class AppCoordinator {
     ///
     /// 为什么不能只看"有没有格子"：滚动即将进入视口的卡片要提前有缓存帧，
     /// 而远离视口的卡片还在抢直播名额，可见卡片就永远回不到实时（方案 §13.1 末段）。
-    private func captureVisibilityPlan() -> CaptureVisibilityPlan {
+    func captureVisibilityPlan() -> CaptureVisibilityPlan {
         var plan = CaptureVisibilityPlan()
         // 1. 过渡参与者：状态机正在操作的身份 + 执行器在途身份 + 承载层正在飞的身份。
         for identity in transitionParticipants { plan.transition.insert(identity) }
@@ -1653,8 +1661,12 @@ final class AppCoordinator {
                     plan.prefetch.insert(card.identity)
                 }
             }
-            // The selected window keeps its live rail thumbnail and uses the same capture budget.
-            plan.excluded = []
+            // 主区是真实窗口，屏幕上已经有一份：继续为它的轨道副本开流会让 macOS
+            // 在这个窗口上叠加“共享窗口”系统标识（本机实测）。主窗口不再捕获，
+            // 轨道副本保留最后一帧；过渡画面用的是面板，不依赖主窗口的捕获帧。
+            if let main = presentation.mainIdentity, presentation.mainRecord != nil {
+                plan.excluded.insert(main)
+            }
         } else {
             // 总览：有格子的算可见；没有格子的（overflow/被过滤）算离屏，只保最后一帧。
             for (displayID, layout) in layouts {
@@ -1936,7 +1948,8 @@ final class AppCoordinator {
         modes.cancelAll()
         for controller in controllers.values {
             controller.setKeyboardFocus(false)
-            controller.hide()
+            // 用户收起：总览当帧从视野消失，orderOut 的 460–496ms 下屏成本延后消化。
+            controller.hideForUserDismissal()
         }
         // 会话隐藏时工作台同样不存在：两栏面板不留透明命中层（方案 §9.1）。
         hideWorkbenchPanels()

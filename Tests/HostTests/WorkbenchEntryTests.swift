@@ -333,6 +333,26 @@ final class WorkbenchEntryTests: XCTestCase {
         XCTAssertEqual(samples.count, 6)
     }
 
+    /// 主区是真实窗口：继续给它开捕获流会让 macOS 在窗口左上角叠加“共享窗口”系统标识。
+    /// 落定后主窗口必须退出捕获，轨道副本保留最后一帧；卡片本身不能消失。
+    func testWorkbenchMainWindowStopsCapturingToAvoidSystemSharingBadge() throws {
+        let coordinator = makeCoordinator()
+        coordinator.activateApplication = {}
+        coordinator.frontmostProcessID = { nil }
+        coordinator.toggleOverview()
+        try waitForVisibleOverview()
+        try overviewView().onAction?(.cardClicked(HostFixtures.identity(0)))
+        waitUntil(timeout: 5) { coordinator.state.mode == .workbench && !coordinator.transitionActivity.isActive }
+
+        let main = try XCTUnwrap(coordinator.state.workbench.placement.main)
+        let plan = coordinator.captureVisibilityPlan()
+        XCTAssertTrue(plan.excluded.contains(main),
+                      "主区窗口必须停止捕获，否则系统会在真实窗口上叠加共享标识")
+        let presentation = try XCTUnwrap(coordinator.workbenchPresentation)
+        XCTAssertEqual(presentation.cards.count, 4, "主窗口的轨道副本仍要保留")
+        XCTAssertTrue(presentation.card(for: main)?.isCurrent ?? false)
+    }
+
     func testRailSizePreferencesAreIndependentPerDisplayAndResetToDefault() {
         settings.workbenchTopHeight = 125
         settings.workbenchSideWidth = 210

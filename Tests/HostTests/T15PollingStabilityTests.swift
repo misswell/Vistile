@@ -404,7 +404,8 @@ final class T15PollingStabilityTests: XCTestCase {
         coordinator.sync(targets: targets(2), tier: .balanced, activity: TransitionActivity())
         await pump(12)
         let polled = HostFixtures.identity(1)
-        waitUntil(timeout: 3) { self.frameReports.contains(polled) }
+        // 低频帧要回主 actor 才能发布，必须异步等待，不能同步堵住主 actor。
+        await waitUntilAsync(timeout: 10) { self.frameReports.contains(polled) }
         XCTAssertEqual(capturer.calls(for: polled), 1, "降级后根本没发起单窗口截图")
         XCTAssertTrue(facts.contains { isDowngraded($0, identity: polled, interval: 1_000) },
                       "降级事实没带上真实间隔：UI 会把轮询标成实时")

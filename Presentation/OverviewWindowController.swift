@@ -125,6 +125,17 @@ final class OverviewWindowController {
         panel.ignoresMouseEvents = true
     }
 
+    /// Esc/背景点击的用户收起路径：总览必须在这一帧内从视野消失，
+    /// 真正的 orderOut（单次实测 460–496ms，多屏还串行）延后到主队列空闲处执行；
+    /// 这期间重开（show 恢复 alpha）则下屏自动取消，面板原地复用。
+    func hideForUserDismissal() {
+        hideCheaply()
+        let panel = self.panel
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            if panel.alphaValue == 0 { panel.orderOut(nil) }
+        }
+    }
+
     func applyOrdering(strategy: OrderingStrategy, relativeToWindowID: CGWindowID?) {
         switch strategy {
         case .normalLevelActivateAndRaise:

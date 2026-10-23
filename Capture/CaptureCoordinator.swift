@@ -820,10 +820,11 @@ final class CaptureCoordinator {
             case .failed:
                 onFact?(.failed(request.identity, "低频更新捕获失败"))
             case .image:
+                // 降级事实只在 startPolling 改变轮询状态时宣布一次；例行轮询帧只驱动重绘。
+                // 若每帧都发事实，reducer 侧会把同一个低频间隔反复写回并触发全量同步
+                // （布局重建 + 观察者重注册），N 张轮询卡就是 N 次/秒的整轮白做。
                 if let payload,
                    mailbox.publish(payload, generation: mailboxGeneration, at: payload.publishedAt) {
-                    onFact?(.downgraded(request.identity,
-                                        intervalMilliseconds: request.intervalMilliseconds))
                     onFrame?(request.identity)
                 }
             }
