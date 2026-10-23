@@ -1,5 +1,26 @@
 # Vistile
 
+## 0.1.31 (45) — 2026-10-23
+
+- 重新设计菜单栏图标：以简洁的主窗口与上方预览栏表达工作台，单色图标自动适配系统明暗外观。
+  The menu bar icon now depicts the Workbench as a main window beneath a preview rail, and its monochrome artwork adapts to the system appearance.
+- 检查更新新增“下载并安装”：显示下载进度，支持取消；安装包校验与应用签名验证通过后，恢复窗口并自动替换、重新启动。
+  Check for Updates now offers Download and Install with progress and cancellation. After the package and app signature verify, windows are restored and the app replaces itself and relaunches.
+- 更新准备失败保留当前版本，替换失败自动回滚；只读安装位置会提示先将应用移入可写目录。
+  A failed update preparation keeps the current version, a failed replacement rolls back, and read-only install locations tell the user to move the app to a writable folder.
+- 更新说明改为固定高度的可滚动区域，去掉 Markdown 标记和重复的手动安装说明。
+  Release notes render in a fixed-height scroll area without Markdown markers or duplicated manual installation instructions.
+- 手动切换主窗口不再固定等待 180ms：主区先盖上原地遮罩，真实窗口交换随即执行；宿主链路从点击到首笔几何写入的中位数由 267.55ms 降到约 79–95ms。
+  Manual main-window swaps no longer wait a fixed 180ms: an in-place mask covers the main area first and the real AX exchange follows immediately. On the host harness chain, the median time from click to first geometry write fell from 267.55ms to roughly 79–95ms.
+- 顶栏与左右侧栏改为 18pt 连续外壳、12pt 卡片圆角、细描边与透明圆角，并修正圆角层未真正裁剪越界内容的缺陷。
+  The top and side rails use an 18pt continuous shell, 12pt card radius, hairline stroke and transparent rounded corners; the defect where the rounded layer did not actually clip overflowing content is fixed.
+- 切换等待期间显示新版 Siri 风格彩边流光（细锐边 + 外侧柔光）；等待本身不额外触发重绘，低电量、热压力或“减少动态效果”时只保留静态彩边，完成或取消立即收起。
+  A Siri-style edge glow (sharp rim plus a soft outer halo) plays during switch waits. Waiting adds no redraws; low power, thermal pressure or Reduce Motion keep only the static rim, and completion or cancellation dismisses it immediately.
+
+自动验证：干净构建目录下核心 XCTest **126** + Swift Testing **155**，0 失败；宿主全量 **296** 项，295 通过、1 项因后台账户无法取得真实前台键盘焦点跳过、0 失败；Release（arm64、未签名）构建通过。GitHub Actions 在 tag 上完成签名、公证、装订与发布。下载产物复核：`Vistile_v0.1.31_macos_arm64.dmg`，SHA-256 `4d8f65129d5f7e1199fbe700c6c84cfc01c9c06f7c17f6be96d3d65d03d65f8f`，版本 0.1.31 (45)，TeamIdentifier `U8U443D7ZL`，Gatekeeper 判为 Notarized Developer ID，`stapler validate` 通过，`lipo` 仅含 arm64。
+
+显式未测：真实鼠标拖拽分隔线、真实跨应用 AX 交换，以及真实 Dock、多 Space、全屏场景的端到端验收仍未完成；79–95ms 来自宿主替身链路，不代表真实跨应用端到端延迟。
+
 ## 0.1.29 (43) — 2026-10-23
 
 - 顶栏高度与侧栏宽度可直接拖动边框调整：悬停高亮、拖动显示当前尺寸、双击重置单维、Esc 取消；尺寸按显示器保存，并按屏幕与主窗口可容纳范围取有效值。
