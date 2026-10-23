@@ -11,6 +11,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     private(set) var statusItem: NSStatusItem?
     private var settingsWindow: SettingsWindowController?
+    private var updateInstallation: UpdateInstallationWindowController?
+    private var isPresentingUpdateOffer = false
     private var onboarding: OnboardingWindowController?
     /// GitHub Releases 更新通道（方案 §21）：菜单"检查更新…"与启动后的一次静默检查共用。
     private(set) var updateChecker: UpdateChecker
@@ -40,6 +42,17 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         super.init()
         let item = installsStatusItem ? NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength) : nil
         build(into: item)
+        if installsStatusItem, let failure = UpdateInstaller.consumePendingFailure() {
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                guard self != nil else { return }
+                let alert = NSAlert()
+                alert.messageText = "上次更新未完成"
+                alert.informativeText = failure
+                alert.addButton(withTitle: "好")
+                alert.runModal()
+            }
+        }
         // 只装在真实菜单栏时才自动检查：测试宿主/无图标模式不碰网络、也不弹窗。
         if performsAutomaticUpdateCheck && installsStatusItem {
             scheduleAutomaticUpdateCheck(delayed: true)
@@ -157,6 +170,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func checkForUpdates() {
+        if let updateInstallation, updateInstallation.isRunning {
+            updateInstallation.showWindow(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.checkUpdatesItem.isEnabled = false
@@ -188,16 +206,46 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     private func offerUpdate(_ package: UpdatePackage) {
+        guard updateInstallation?.isRunning != true, !isPresentingUpdateOffer else { return }
+        isPresentingUpdateOffer = true
+        defer { isPresentingUpdateOffer = false }
         let alert = NSAlert()
         alert.messageText = "发现新版本 \(package.version)"
-        alert.informativeText = Self.updateNotes(for: package)
-        alert.addButton(withTitle: package.asset == nil ? "打开 GitHub 发布页" : "从 GitHub 下载")
+        alert.informativeText = package.asset == nil
+            ? "可前往 GitHub 查看此版本。"
+            : "下载完成后会自动安装并重新启动，工作台中的窗口会先恢复原位。"
+        let notes = Self.updateNotes(for: package)
+        if !notes.isEmpty {
+            let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 420, height: 210))
+            scroll.hasVerticalScroller = true
+            scroll.drawsBackground = false
+            let text = NSTextView(frame: scroll.bounds)
+            text.isEditable = false
+            text.isSelectable = true
+            text.drawsBackground = false
+            text.font = .systemFont(ofSize: 13)
+            text.textColor = .labelColor
+            text.textContainerInset = NSSize(width: 0, height: 6)
+            text.isVerticallyResizable = true
+            text.isHorizontallyResizable = false
+            text.autoresizingMask = .width
+            text.textContainer?.widthTracksTextView = true
+            text.string = notes
+            scroll.documentView = text
+            alert.accessoryView = scroll
+        }
+        alert.addButton(withTitle: package.asset == nil ? "打开发布页" : "下载并安装")
         alert.addButton(withTitle: "稍后")
         alert.addButton(withTitle: "跳过此版本")
         let index = alert.runModal().rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
         switch index {
         case 0:
-            NSWorkspace.shared.open(package.downloadURL)
+            if package.asset != nil {
+                if updateInstallation == nil { updateInstallation = UpdateInstallationWindowController() }
+                updateInstallation?.install(package)
+            } else {
+                NSWorkspace.shared.open(package.downloadURL)
+            }
         case alert.buttons.count - 1:
             updateChecker.skip(package)
         default:
@@ -205,21 +253,32 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         }
     }
 
-    private static func updateNotes(for package: UpdatePackage) -> String {
+    static func updateNotes(for package: UpdatePackage) -> String {
         var lines: [String] = []
         if let asset = package.asset {
-            lines.append("安装包：\(asset.name)（\(ByteCountFormatter.string(fromByteCount: Int64(asset.size), countStyle: .file))）")
-        } else {
-            lines.append("发布页：\(package.release.htmlURL.absoluteString)")
+            lines.append("安装包：\(ByteCountFormatter.string(fromByteCount: Int64(asset.size), countStyle: .file))")
         }
-        if let body = package.release.body, !body.isEmpty {
-            let trimmed = body.count > 700 ? String(body.prefix(700)) + "…" : body
-            lines.append("")
-            lines.append(trimmed)
+        if let body = package.release.body {
+            var sawVersionHeading = false
+            for rawLine in body.components(separatedBy: .newlines) {
+                let line = rawLine.trimmingCharacters(in: .whitespaces)
+                // Release assets and manual installation instructions belong on the release page.
+                if line.hasPrefix("## 下载") || line.lowercased().hasPrefix("## download") { break }
+                if line == "# Vistile" { continue }
+                if line.hasPrefix("## v") {
+                    if sawVersionHeading { break }
+                    sawVersionHeading = true
+                    continue
+                }
+                var plain = line.replacingOccurrences(of: "`", with: "")
+                    .replacingOccurrences(of: "**", with: "")
+                while plain.hasPrefix("#") { plain.removeFirst() }
+                plain = plain.trimmingCharacters(in: .whitespaces)
+                if plain.hasPrefix("- ") { plain = "• " + String(plain.dropFirst(2)) }
+                lines.append(plain)
+            }
         }
-        lines.append("")
-        lines.append("下载后把 Vistile.app 拖进「应用程序」覆盖旧版本；可用 `shasum -a 256 <文件>` 对照 .sha256 校验。")
-        return lines.joined(separator: "\n")
+        return lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// 只在隐藏态可用：每次打开都先落在全屏总览，工作台只能由点击卡片进入（方案 §4.1、§16）。
@@ -251,40 +310,34 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc private func quit() { NSApp.terminate(nil) }
 
-    /// 图标方向：2×2 格子，其中一格向外扩成窗口轮廓；单色描边，无 3D 与厚渐变（方案 §13）。
-    /// 视觉大小必须与相邻系统图标一致：18pt 画布里只占 15pt 墨迹（14pt 字形 + 1pt 描边）并居中。
-    /// 边线全部落在 0.5pt 网格上，2x 屏下描边边界正好是整像素，避免发虚。
+    /// 图标以窗口外框、顶栏和左侧栏表达工作台，保持单色 template 造型。
     static func menuBarIcon(canvas: CGFloat = 18) -> NSImage {
-        let box: CGFloat = 14
-        let cell: CGFloat = 5
-        let expanded: CGFloat = 7
-        let inset = (canvas - box) / 2
         let image = NSImage(size: NSSize(width: canvas, height: canvas))
         image.lockFocus()
         NSColor.black.setStroke()
 
-        func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
-            CGPoint(x: inset + x, y: inset + y)
-        }
-
-        // 三个小格：左上、右上、左下。
-        for origin in [point(0, box - cell), point(box - cell, box - cell), point(0, 0)] {
-            let path = NSBezierPath(roundedRect: CGRect(origin: origin, size: CGSize(width: cell, height: cell)),
-                                    xRadius: 1.2, yRadius: 1.2)
-            path.lineWidth = 1
-            path.stroke()
-        }
-
-        // 右下：向外扩成的窗口轮廓，比小格高出一档，顶部一条细线表示标题栏。
-        let window = CGRect(x: inset + box - expanded, y: inset, width: expanded, height: expanded)
-        let outline = NSBezierPath(roundedRect: window, xRadius: 1.5, yRadius: 1.5)
-        outline.lineWidth = 1
+        let window = CGRect(x: (canvas - 14.5) / 2,
+                            y: (canvas - 12.5) / 2,
+                            width: 14.5,
+                            height: 12.5)
+        let outline = NSBezierPath(roundedRect: window, xRadius: 2.5, yRadius: 2.5)
+        outline.lineWidth = 1.5
         outline.stroke()
-        let titleBar = NSBezierPath()
-        titleBar.lineWidth = 1
-        titleBar.move(to: CGPoint(x: window.minX + 1.5, y: window.maxY - 2))
-        titleBar.line(to: CGPoint(x: window.maxX - 1.5, y: window.maxY - 2))
-        titleBar.stroke()
+
+        // 顶栏一条分隔线，下面只保留短左侧栏线，让右下主窗口保持完整留白。
+        let headerY = window.maxY - 3
+        let header = NSBezierPath()
+        header.lineWidth = 1.5
+        header.move(to: CGPoint(x: window.minX + 1.25, y: headerY))
+        header.line(to: CGPoint(x: window.maxX - 1.25, y: headerY))
+        header.stroke()
+
+        let sidebar = NSBezierPath()
+        sidebar.lineWidth = 1.5
+        sidebar.move(to: CGPoint(x: window.minX + 4, y: window.minY + 1.5))
+        sidebar.line(to: CGPoint(x: window.minX + 4, y: headerY))
+        sidebar.stroke()
+
         image.unlockFocus()
         image.isTemplate = true
         return image

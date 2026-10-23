@@ -18,6 +18,14 @@ final class UpdateChannelTests: XCTestCase {
         XCTAssertNil(AppVersion("v1.x.0"))
     }
 
+    func testAssetDecodesDigestAndAcceptsOlderReleasesWithoutIt() throws {
+        let json = #"{"name":"Vistile.dmg","browser_download_url":"https://github.com/misswell/Vistile/releases/download/v1/Vistile.dmg","size":12,"digest":"sha256:abcd"}"#
+        let asset = try JSONDecoder().decode(GitHubReleaseAsset.self, from: Data(json.utf8))
+        XCTAssertEqual(asset.digest, "sha256:abcd")
+        let legacy = json.replacingOccurrences(of: #","digest":"sha256:abcd""#, with: "")
+        XCTAssertNil(try JSONDecoder().decode(GitHubReleaseAsset.self, from: Data(legacy.utf8)).digest)
+    }
+
     // MARK: - release 选择
 
     private func release(_ tag: String,

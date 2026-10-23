@@ -42,17 +42,21 @@ public struct GitHubReleaseAsset: Hashable, Sendable, Codable {
     public let name: String
     public let browserDownloadURL: URL
     public let size: Int
+    /// GitHub-provided SHA-256 digest, used to verify an in-app update before extraction.
+    public let digest: String?
 
-    public init(name: String, browserDownloadURL: URL, size: Int) {
+    public init(name: String, browserDownloadURL: URL, size: Int, digest: String? = nil) {
         self.name = name
         self.browserDownloadURL = browserDownloadURL
         self.size = size
+        self.digest = digest
     }
 
     enum CodingKeys: String, CodingKey {
         case name
         case browserDownloadURL = "browser_download_url"
         case size
+        case digest
     }
 }
 

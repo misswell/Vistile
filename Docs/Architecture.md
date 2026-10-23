@@ -178,8 +178,10 @@ or the release page when no package exists. Do not upload releases to a personal
   并为选中版本产出 GitHub 资产直链或 GitHub 发布页地址。
 - 宿主 `UpdateChecker` 负责节流（24h，未认证 API 限额 60 次/小时）、跳过版本、把失败翻成可读原因；
   网络取数、当前版本与时钟都是注入接缝，宿主测试不碰真实 GitHub。
-- UI 只有菜单项与一个弹窗：从 GitHub 下载（无资产时打开 GitHub 发布页）/ 稍后 / 跳过此版本；**不做静默自动安装**。
-  安装仍是用户动作（覆盖 `/Applications/Vistile.app`），发布包继续走 Developer ID 签名 + 公证。
+- UI 提供“下载并安装”（无资产时打开发布页）/ 稍后 / 跳过此版本。用户点击安装后显示下载进度并允许取消；更新说明在固定高度区域滚动，不显示发布页的重复安装指南。
+  The update prompt offers Download and Install, Later, and Skip. Installation is user initiated, displays progress, and remains cancellable during preparation; release notes use a bounded scrolling region.
+- `UpdateInstaller` 负责安装包 SHA-256、Bundle ID/版本及 Developer ID 签名验证，使用只读 DMG 和同卷暂存。验证通过后由固定本地 helper 等待正常退出，再替换并重启；退出沿用既有窗口恢复路径。失败保留或回滚旧应用，并记录诊断结果。
+  `UpdateInstaller` verifies the archive SHA-256, bundle identity/version, and Developer ID signature, using read-only DMG mounting and same-volume staging. A fixed local helper waits for normal shutdown (including window restoration), replaces the application, and relaunches it. Failures preserve or restore the old application and record a diagnostic result.
 
 ### Current-window Workbench entry / 当前窗口工作台入口
 
