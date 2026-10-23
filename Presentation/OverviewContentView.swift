@@ -43,8 +43,6 @@ final class OverviewContentView: NSView {
     private(set) var lastRecords: [WindowIdentity: WindowRecord] = [:]
     private var selectedSlot: SlotID?
     private var hoveredSlot: SlotID?
-    /// hover 到某张卡片：宿主据此预取主区分辨率画面（动效期间不再放大低清帧）。
-    var onHoverIdentity: ((WindowIdentity?) -> Void)?
     private var accentColor = NSColor.controlAccentColor
     private var showsTitles = true
     private var style: OverviewStyle = .standard
@@ -110,6 +108,7 @@ final class OverviewContentView: NSView {
     }
 
     private func commonInit() {
+        ImmediateLayerUpdates.configure(metalLayer)
         wantsLayer = true
         layerContentsRedrawPolicy = .duringViewResize
         layer = CALayer()
@@ -416,7 +415,6 @@ final class OverviewContentView: NSView {
         guard hoveredSlot != nil else { return }
         hoveredSlot = nil
         refreshChrome()
-        onHoverIdentity?(nil)
     }
 
     private func updateHover(_ point: CGPoint) {
@@ -426,7 +424,6 @@ final class OverviewContentView: NSView {
         hoveredSlot = next
         // 装饰层外观要当场跟上，不能等下一次目录 reconcile（方案 §13.3）。
         refreshChrome()
-        onHoverIdentity?(hit?.identity)
     }
 
     private var trackingArea: NSTrackingArea?

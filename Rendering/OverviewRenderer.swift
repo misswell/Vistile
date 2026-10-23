@@ -18,6 +18,19 @@ struct CardDraw {
     static let proxyIdentity = WindowIdentity(processID: -1, processStartIdentity: 0, windowID: 0)
 }
 
+/// 一块圆角面板：飞行期间代替"被放大的捕获图"。
+/// 全部数值都是视图本地坐标/点，与 CardDraw 同一套坐标系。
+struct PanelDraw {
+    let rect: CGRect
+    /// 填充色（直色，非预乘）。
+    var fill: SIMD4<Float>
+    /// 描边色（直色，含 alpha）。
+    var stroke: SIMD4<Float>
+    var strokeWidth: CGFloat
+    var cornerRadius: CGFloat
+    var opacity: Float = 1
+}
+
 /// 渲染侧事实快照。只用于诊断与验收记录，不构成"画面已正确显示"的结论。
 struct RendererDiagnostics: Hashable {
     let device: String
@@ -133,6 +146,7 @@ final class OverviewRenderer {
     func draw(layer: CAMetalLayer,
               cards: [CardDraw],
               placeholders: [(rect: CGRect, tint: SIMD4<Float>)],
+              panels: [PanelDraw] = [],
               viewBounds: CGRect,
               scale: CGFloat) {
         bump { $0.draws += 1 }
@@ -140,7 +154,7 @@ final class OverviewRenderer {
                             height: (viewBounds.height * scale).rounded())
         guard pixels.width > 1, pixels.height > 1 else { return }
         bind(layer)
-        layer.drawableSize = pixels
+        if layer.drawableSize != pixels { layer.drawableSize = pixels }
 
         // 取不到 drawable 时直接等下一次帧变化/动画 tick，绝不在此处忙循环。
         guard let drawable = layer.nextDrawable() else {
@@ -170,9 +184,37 @@ final class OverviewRenderer {
         // 卡片底与留边用纯色覆盖，保证等比例画面不被拉伸或裁切。
         encoder.setRenderPipelineState(pipelines.solid)
         for placeholder in placeholders {
-            var uniforms = ShaderSource.DrawUniforms(tint: placeholder.tint, uvRect: SIMD4<Float>(0, 0, 1, 1))
+            var uniforms = ShaderSource.DrawUniforms.solid(tint: placeholder.tint,
+                                                           rectSize: pixelSize(of: placeholder.rect, scale: scale),
+                                                           cornerRadius: 0)
             encoder.setViewport(viewport(placeholder.rect, viewBounds: viewBounds, scale: scale))
             encoder.setFragmentBytes(&uniforms, length: MemoryLayout<ShaderSource.DrawUniforms>.stride, index: 0)
+            encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+        }
+        // 飞行面板：描边（外圈）与填充（内圈）各画一次，圆角由着色器的矩形距离场负责。
+        // 不画任何位图，所以不存在"放大捕获图"这件事。
+        for panel in panels {
+            let size = pixelSize(of: panel.rect, scale: scale)
+            let radius = Float(max(0, panel.cornerRadius * scale))
+            let strokeWidth = max(0, panel.strokeWidth * scale)
+            if strokeWidth > 0, panel.stroke.w > 0.001 {
+                var strokeUniforms = ShaderSource.DrawUniforms.solid(
+                    tint: SIMD4<Float>(panel.stroke.x, panel.stroke.y, panel.stroke.z,
+                                       panel.stroke.w * panel.opacity),
+                    rectSize: size,
+                    cornerRadius: radius)
+                encoder.setViewport(viewport(panel.rect, viewBounds: viewBounds, scale: scale))
+                encoder.setFragmentBytes(&strokeUniforms, length: MemoryLayout<ShaderSource.DrawUniforms>.stride, index: 0)
+                encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+            }
+            let inset = panel.rect.insetBy(dx: panel.strokeWidth, dy: panel.strokeWidth)
+            guard inset.width > 1, inset.height > 1 else { continue }
+            var fillUniforms = ShaderSource.DrawUniforms.solid(
+                tint: SIMD4<Float>(panel.fill.x, panel.fill.y, panel.fill.z, panel.fill.w * panel.opacity),
+                rectSize: pixelSize(of: inset, scale: scale),
+                cornerRadius: max(0, radius - Float(panel.strokeWidth * scale)))
+            encoder.setViewport(viewport(inset, viewBounds: viewBounds, scale: scale))
+            encoder.setFragmentBytes(&fillUniforms, length: MemoryLayout<ShaderSource.DrawUniforms>.stride, index: 0)
             encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
         }
 
@@ -181,7 +223,7 @@ final class OverviewRenderer {
         for card in cards {
             guard let frame = card.frame ?? retained[card.identity] else { continue }
             let uv = contentUV(of: frame)
-            var uniforms = ShaderSource.DrawUniforms(tint: SIMD4<Float>(1, 1, 1, card.opacity), uvRect: uv)
+            var uniforms = ShaderSource.DrawUniforms.textured(tint: SIMD4<Float>(1, 1, 1, card.opacity), uvRect: uv)
             encoder.setViewport(viewport(card.imageRect, viewBounds: viewBounds, scale: scale))
             encoder.setFragmentTexture(frame.texture, index: 0)
             encoder.setFragmentBytes(&uniforms, length: MemoryLayout<ShaderSource.DrawUniforms>.stride, index: 0)
@@ -223,6 +265,12 @@ final class OverviewRenderer {
         if shouldLog {
             VistileLog.ui.log("[renderer] 绘制失败：\(text, privacy: .public)")
         }
+    }
+
+    /// 视口像素尺寸：圆角距离场要在像素空间里算，点空间会让半径随倍率变形。
+    private func pixelSize(of rect: CGRect, scale: CGFloat) -> SIMD2<Float> {
+        SIMD2<Float>(Float(max(1, (rect.width * scale).rounded())),
+                     Float(max(1, (rect.height * scale).rounded())))
     }
 
     private func viewport(_ rect: CGRect, viewBounds: CGRect, scale: CGFloat) -> MTLViewport {

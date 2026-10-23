@@ -70,14 +70,23 @@ final class WorkbenchRailViewTests: XCTestCase {
         }
     }
 
-    private func wheel(deltaY: Int32) throws -> NSEvent {
+    private func wheel(deltaY: Int32, deltaX: Int32 = 0,
+                       units: CGScrollEventUnit = .pixel,
+                       phase: NSEvent.Phase = [], momentum: NSEvent.Phase = []) throws -> NSEvent {
         let source = CGEventSource(stateID: .combinedSessionState)
         let cg = CGEvent(scrollWheelEvent2Source: source,
-                         units: .pixel,
-                         wheelCount: 1,
+                         units: units,
+                         wheelCount: 2,
                          wheel1: deltaY,
-                         wheel2: 0,
+                         wheel2: deltaX,
                          wheel3: 0)
+        // CoreGraphics phase constants differ from NSEvent.Phase raw values.
+        let scrollPhase: Int64 = phase.contains(.began) ? 1 : phase.contains(.changed) ? 2
+            : phase.contains(.ended) ? 4 : phase.contains(.cancelled) ? 8 : phase.contains(.mayBegin) ? 128 : 0
+        let momentumPhase: Int64 = momentum.contains(.began) ? 1 : momentum.contains(.changed) ? 2
+            : momentum.contains(.ended) ? 3 : 0
+        cg?.setIntegerValueField(.scrollWheelEventScrollPhase, value: scrollPhase)
+        cg?.setIntegerValueField(.scrollWheelEventMomentumPhase, value: momentumPhase)
         return try XCTUnwrap(cg.flatMap { NSEvent(cgEvent: $0) }, "无法合成滚轮事件")
     }
 
@@ -523,4 +532,34 @@ final class WorkbenchRailViewTests: XCTestCase {
             return true
         }, "松手后还在自动滚 = 定时器泄漏：\(actions.dropFirst(countAtRelease))")
     }
+    func testTopTrackpadKeepsDominantAxisThroughMomentum() throws {
+        let top = controller.topRail
+        let first = try wheel(deltaY: -24, deltaX: -1, phase: .began)
+        XCTAssertTrue(first.hasPreciseScrollingDeltas)
+        top.scrollWheel(with: first)
+        let changed = try wheel(deltaY: -5, deltaX: -30, phase: .changed)
+        top.scrollWheel(with: changed)
+        top.scrollWheel(with: try wheel(deltaY: 0, phase: .ended))
+        let momentum = try wheel(deltaY: -3, deltaX: -20, momentum: .began)
+        top.scrollWheel(with: momentum)
+        let offsets = actions.compactMap { action -> CGFloat? in
+            if case let .railScrolled(.top, offset) = action { return offset }
+            return nil
+        }
+        XCTAssertEqual(offsets, [-first.scrollingDeltaY, -changed.scrollingDeltaY, -momentum.scrollingDeltaY])
+        actions.removeAll()
+        let next = try wheel(deltaY: -2, deltaX: -18, phase: .began)
+        top.scrollWheel(with: next)
+        guard case let .railScrolled(.top, offset) = actions.first else { return XCTFail("Missing scroll") }
+        XCTAssertEqual(offset, -next.scrollingDeltaX, "A new gesture must choose its own axis")
+    }
+
+    func testDiscreteWheelConvertsLinesToPoints() throws {
+        let event = try wheel(deltaY: -3, units: .line)
+        XCTAssertFalse(event.hasPreciseScrollingDeltas)
+        controller.sideRail.scrollWheel(with: event)
+        guard case let .railScrolled(.side, offset) = actions.last else { return XCTFail("Missing scroll") }
+        XCTAssertEqual(offset, -event.scrollingDeltaY * 10)
+    }
+
 }

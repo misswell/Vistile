@@ -10,6 +10,73 @@
 2. **兼容矩阵只有「关联」与「层级」两列有了部分数据。** [Docs/Compatibility.md](Docs/Compatibility.md) 里 12 个真实应用的关联=通过；层级由 P0-3 写的格子现在有了 Code（0.1.4/0.1.5/0.1.6 连续三轮通过）与访达（0.1.6 用共同参照系判通过）；Chrome 在 0.1.4/0.1.5 各有一条红、0.1.6 那轮它没有 ≥2 个窗口所以没复测，仍未定性。此外 0.1.5 报告里 ChatGPT 那格「通过」是前台读回代填的、0.1.3 报告里 UGit 那格是 P0-9 代填的，两处都已收回（0.1.6 起这一列只由 P0-3 写）。**这两格的口径要看清：它们是把报告正文里 P0-3 那一行的判据抄进文档的，报告自己那份机器生成的矩阵里，0.1.7 及以前「层级」列在 P0-3 通过时是空的——通过分支根本不调 `updateRow`，这一列只能出「失败」，直到 0.1.8 才补上。**其余列（捕获、移动、resize、Sheet）一格结论都没有，「恢复」只有 Code 在 0.1.1 那轮真实写过几何、读回偏差 0.0pt，算过一次通过——包括 Safari、Finder、Office 与全屏应用在内仍然全是「未测」。未测不等于可用。0.1.11 按修复方案 §19 又补了「激活」「输入」两列，**这两列整列为未测**——能填它们的是真机矩阵 M07（逐应用设为主并核对前台）与 M11（肉眼输入体验），都还没在发布字节上跑过。
 3. **性能数字只有本机几条样本，且其中 CPU 那一条明显不可信。** [Docs/Performance.md](Docs/Performance.md) 里的预算是设计值；授权态可用五轮记录 CPU 0.2 / 0.3 / 0.3 / 0.3 / 0.3（十几路流），这个数当不了结论，必须用 Activity Monitor / Instruments 对照。帧数那条也要看口径：报告里的"帧 184 张/3.0s"是所有流合计，不是屏幕帧率（0.1.6 那轮的"总览帧率 61.0"就是它除以墙钟时间）。作废那轮读到的是 0 帧 / 0.1 CPU——0 帧不是"很快"，是没有画面可捕。几何写入五轮只有两个样本（17.9ms 与 117.9ms，后者 n=1），慢了一个量级却说不出原因——0.1.6 起「过渡超时」会带上预算与实际等待毫秒，这项才有可分辨的数据。**0.1.12 起每条 P95 都按「档位·reduceMotion·冷启动/热路径」分组**，此前的读数全是合池的：两套数字口径不同，不能互相代替，也不能拿旧的合池数字给分组后的判据交差。
 
+## 本版（0.1.26）相对 0.1.25 的变化
+
+修**进入工作台那段飞行一直是糊的**，并把点击路径上的跨进程抓帧整条删掉。
+
+### 根因：一张 640px 的纹理被放大 4.7 倍
+
+`CaptureCoordinator.refreshSingleFrame` 建 `StreamConfig` 时用的是 `tier: .powerSaving`，
+而 `CaptureTier.powerSaving.maxPixelWidth == 640`。`AppCoordinator.flightPrefetchWidth()`（本版已删除）
+想要的是主区宽度（约 1500pt，2x 下约 3000px），请求在捕获层就被这条 640px 上限截断；
+承载层（`Presentation/ModeTransitionCoordinator.swift`）再把这张 640px 纹理画进约 3000px 宽的主区矩形，
+放大倍数约 **4.7×**。所以整段飞行（进入 240ms / 返回 200ms / 交换 180ms）必然是糊的——**预取再多次也没用，问题不在预取时机，在输出尺寸**。
+
+同时，每次点击/hover 都会在点击路径上发起一次 `SCScreenshotManager` 全窗口抓帧（`prefetchFlightFrame`），
+每段过渡还会再发起 1–2 次（`refreshFlightTexture`）。这些抓帧与 AX 写入、displayLink 抢主线程。
+
+### 改法：飞行只画圆角面板，不缩放任何位图
+
+- 飞行期间不再绘制任何截图，改画一块圆角面板：填充 RGB(0.145, 0.153, 0.173)、1pt 白 10% 描边、8pt 圆角，
+  从卡片格子矩形飞到落点。**全程没有任何位图缩放**，所以"模糊的过程"根本不存在。
+  圆角取 `WorkbenchStyle.cornerRadius` 这一套 token，面板看起来才是"那张卡片"。
+- 落定后承载层 **110ms 淡出**，把画面交给真实窗口（`TransitionCarrierView.handoffFadeMS`）；
+  交接期既看不到糊图，也没有硬切。
+- 面板端点用**卡片外框（含标题条）**，不是内容区：端点由场景显式给出（`Card.panelFrom` / `Card.panelTo`），
+  没给才按 `cellStart ?? start` → `cellEnd ?? end` 推导。用内容区会比外框矮一个标题条，
+  既看出"从卡片中间长出来"，交接时还会再跳一下。
+
+### 删除：点击路径上不再有跨进程抓帧
+
+`prefetchFlightFrame`、`refreshFlightTexture`、`prefetchedFlightFrames`、`lastPrefetchAt`、`prefetchTasks`、
+`prefetchRequestCount`、`prefetchedFrameCount`、`prefetchedFlightFrame(for:)`、
+`CaptureCoordinator.refreshSingleFrame`、`refreshInFlight`，以及两个视图的 `onHoverIdentity` 回调全部移除。
+点击路径上不再有任何 `SCScreenshotManager` 调用（降级到轮询的卡片仍按原预算单帧取图，那条路径不属于点击）。
+
+### 结构
+
+- `Rendering/TransitionScene.swift` 新增 `TransitionScene.Content`（`.panel(PanelStyle)` / `.captured`）与 `PanelStyle`；
+  工厂默认 `.panel`（`TransitionScene.content` 的默认值），`TransitionSceneFactory.drawsCapturedContent = true`
+  可回退到放大捕获图的旧行为——**仅供诊断**，任何用户可见路径都不该打开它。
+- `Rendering/ShaderSource.swift` 的纯色管线支持圆角（矩形距离场 + 1px 抗锯齿）；
+  `cornerRadius = 0` 时直接返回，老调用点零额外成本。
+
+### 顺带修掉：⌃⌥空格 全局快捷键必崩
+
+实机验收时发现的既有缺陷（0.1.25 及以前都有，与本次动效改动无关）：
+
+`GlobalHotKey.installHandlerIfNeeded` 把 `&context` 传给了 `InstallEventHandler` 的 `inUserData`。
+那个参数是**按值保存的 `void *`**，传局部变量地址等于把一块马上失效的栈内存交出去；
+方法返回后，每次按下快捷键 `fromOpaque(userData)` 读到的都是垃圾指针，进程直接 SIGSEGV
+（`EXC_BAD_ACCESS`，崩溃栈落在 `GlobalHotKey.swift` 的回调里）。改成直接传 `toOpaque()` 的结果。
+
+**对照证据**：把本次全部改动 stash 掉、用 HEAD（0.1.25）构建同一份调试产物，在同一个会话里按同一个组合键，
+同样崩溃（崩溃点一致）。修复后连按 3 次均存活，无新崩溃报告。
+
+### 操作跟手与过渡连续性
+
+- 卡片标题、边框、空位和 Metal 承载层关闭隐式属性动画：滚动位置、hover 与 display-link 淡出直接采用本轮值，避免图层再叠一段默认动画而落后于画面。
+- 顶栏触控板滚动按一次手势的初始主方向锁轴，系统惯性阶段沿用同一轴；新手势重新判断。精确滚动保留系统点数与惯性，普通滚轮按每行 10pt 换算。
+- 过渡按 `CADisplayLink.targetTimestamp` 计算即将呈现的位置；面板被打断时从当前可见矩形续接，不跳回新计划的起点。
+- drawable 尺寸仅在实际变化时更新。静止界面仍按需重绘，不添加空转刷新循环。
+- 新增滚动锁轴/惯性、普通滚轮、装饰层与淡出无隐式动画回归；补强面板打断续接断言。以上是实现与自动检查范围，尚未据此宣称真机帧率或延迟提升。
+
+### 实测与回归
+
+- 本版**没有新的真机性能读数**：飞行不再放大位图，但"点击→首帧 p95""点击→落定 p95"要在授权正式版上复测；
+  旧读数（进入 549ms / 交换 421ms）含这些抓帧成本，不能直接与新版对比（见 [Docs/Performance.md](Docs/Performance.md) §4 第 6 项）。
+- 自动回归：核心 XCTest **81** + Swift Testing **155**，0 失败；AgentSpace 后台桌面宿主 **227 项（1 项既有环境跳过），0 失败**。宿主使用已核对一致的临时源码副本，避免改动用户目录权限。
+
 ## 本版（0.1.25）相对 0.1.24 的变化
 
 修复**总览里打开新 App 会把整个总览关掉**。0.1.22 只处理了工作台里的失焦；总览仍然走旧逻辑：

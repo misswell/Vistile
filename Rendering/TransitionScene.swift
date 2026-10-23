@@ -20,6 +20,18 @@ struct TransitionScene {
         }
     }
 
+    /// 飞行期间往卡片矩形里画什么。
+    ///
+    /// 捕获输出有硬上限（`CaptureTier.maxPixelWidth`：powerSaving 640 / balanced 960 / refreshPriority 1280），
+    /// 而主区在 2x 下约 3000px 宽：把捕获图放大到主区必然是模糊的，而且抓得越勤越占用点击路径。
+    /// 所以飞行期间不画任何位图，只画一块与卡片同形（圆角、底色、描边）的面板；
+    /// 落定后由承载层短淡化交接给真实窗口。这样"模糊的放大过程"根本不存在。
+    enum Content: Hashable {
+        case panel(PanelStyle)
+        /// 旧行为：放大捕获画面（仅供诊断回退，生产路径不再使用）。
+        case captured
+    }
+
     struct Card {
         let identity: WindowIdentity
         /// 画面容器起点：内容按 aspect 等比适配进这个矩形。
@@ -40,6 +52,21 @@ struct TransitionScene {
         /// 透明度在这个进度的分数处就走到终点（1 = 与整段动画同长）。
         /// 轻量等级用它把"其余卡片"的淡化压进 100–160ms（方案 §20.4）。
         var fadeFraction: CGFloat = 1
+
+        /// 面板（卡片外框）的显式端点。nil 表示按底板/画面矩形推导。
+        ///
+        /// 面板代表"那张卡片"本身，必须用外框（含标题条），不能用内容区：
+        /// 内容区比外框矮一个标题条，拿它当端点会看出面板从卡片中间"长出来"，
+        /// 交接时还会再跳一下（面板比真实卡片小一截）。
+        /// 进入工作台时轨道卡片的落点是栏里那一格，而画面容器落点是内容区，
+        /// 两者不同，所以这里必须能显式给出，不能只靠推导。
+        var panelFrom: CGRect? = nil
+        var panelTo: CGRect? = nil
+
+        /// 面板起点：显式端点 → 底板 → 画面矩形。
+        var panelStart: CGRect { panelFrom ?? cellStart ?? start }
+        /// 面板终点：显式端点 → 底板终点 → 画面终点 → 原地不动（不伪造落点）。
+        var panelEnd: CGRect { panelTo ?? cellEnd ?? end ?? panelFrom ?? cellStart ?? start }
     }
 
     enum Backdrop {
@@ -61,6 +88,8 @@ struct TransitionScene {
     let fadeOnly: Bool
     /// 播放这段场景时生效的动效等级（方案 §20.4），供诊断与测试对账。
     let level: MotionLevel
+    /// 飞行期间画什么。生产恒为 `.panel`：不放大任何捕获位图，从根上不存在"模糊的过程"。
+    var content: Content = .panel(.standard)
 
     var hiddenRailIdentities: Set<WindowIdentity> {
         Set(cards.filter(\.hidesRailCard).map(\.identity))
@@ -76,6 +105,27 @@ struct TransitionScene {
         case .transparent: return nil
         }
     }
+}
+
+/// 飞行面板的外观：颜色与圆角都跟栏内卡片保持一致，看起来就是"那张卡片在飞"。
+/// 全部数值集中在这里，视图层与测试共用同一份，不各写一套。
+struct PanelStyle: Hashable {
+    /// 填充色（预乘前的直色）。与总览/两栏卡片底板同一族的稍亮版本：
+    /// 飞行时它是屏幕上唯一在动的东西，比静止底板亮一点才看得出来。
+    var fill: SIMD4<Float>
+    /// 描边色，与卡片边框同一条白 10%。
+    var stroke: SIMD4<Float>
+    /// 描边宽度（点）。
+    var strokeWidth: CGFloat
+    /// 圆角半径（点），取 `WorkbenchStyle.cornerRadius`。
+    var cornerRadius: CGFloat
+
+    /// 与总览/两栏卡片同一套 token：底板 RGB(0.09,0.09,0.10)、白 7% 边框、8pt 圆角。
+    /// 面板取比底板略亮的填充，否则在深色桌面上"飞"起来几乎看不见。
+    static let standard = PanelStyle(fill: SIMD4<Float>(0.145, 0.153, 0.173, 1),
+                                     stroke: SIMD4<Float>(1, 1, 1, 0.10),
+                                     strokeWidth: 1,
+                                     cornerRadius: 8)
 }
 
 /// 时间轴上的纯函数：缓动、矩形插值、等比适配、底色透明度。
@@ -148,6 +198,9 @@ struct TransitionSceneFactory {
     var aspect: (WindowIdentity, CGRect) -> CGFloat = { _, rect in
         max(0.2, rect.width / max(1, rect.height))
     }
+    /// 飞行期间画面板还是放大捕获图。生产恒为 false（面板）；
+    /// 置 true 只在诊断里复现旧行为，任何用户可见路径都不该打开它。
+    var drawsCapturedContent: Bool = false
 
     private var level: MotionLevel { motionLevel() }
 
@@ -189,15 +242,19 @@ struct TransitionSceneFactory {
                                               endAlpha: 1,
                                               aspect: aspect(plan.identity, mainStart),
                                               hidesRailCard: false,
-                                              isFocus: true))
+                                              isFocus: true,
+                                              panelFrom: mainCell,
+                                              panelTo: plan.animationTo ?? plan.targetFrame))
         }
         for handoff in plan.railHandoffs where handoff.from.intersects(screen) {
-            guard let card = makeCard(identity: handoff.identity,
+            guard var card = makeCard(identity: handoff.identity,
                                       contentStart: overviewImageRect(handoff.identity) ?? handoff.from,
                                       contentEnd: handoff.to == nil ? nil : railContent(handoff, in: snapshot),
                                       cellStart: handoff.from,
                                       cellEnd: nil,
                                       hidesRail: false) else { continue }
+            // 面板落点是栏里那一格（含标题条），不是内容区：否则面板比真实卡片矮一截，交接时会跳。
+            card.panelTo = snapshot.isVisible(handoff.slot) ? snapshot.rect(for: handoff.slot) : nil
             cards.append(card)
         }
         // 淡化等级即使系统没有开"减少动态效果"，也改用 80–120ms 的短淡化时长（方案 §20.4）。
@@ -211,7 +268,8 @@ struct TransitionSceneFactory {
                                cards: degradeToLight(cards, durationMS: durationMS),
                                durationMS: durationMS,
                                fadeOnly: level == .fade || reduceMotion(),
-                               level: level)
+                               level: level,
+                               content: content(for: snapshot))
     }
 
     /// L 型 → 总览：主窗口缩回自己的总览位置，其余卡片回各自位置（方案 §10.2）。
@@ -232,15 +290,20 @@ struct TransitionSceneFactory {
                                               endAlpha: mainEnd == nil ? 0 : 1,
                                               aspect: aspect(plan.identity, mainStart),
                                               hidesRailCard: true,
-                                              isFocus: true))
+                                              isFocus: true,
+                                              panelFrom: mainStart,
+                                              panelTo: plan.animationTo))
         }
         for handoff in plan.railHandoffs where handoff.from.intersects(screen) || handoff.to?.intersects(screen) == true {
-            guard let card = makeCard(identity: handoff.identity,
+            guard var card = makeCard(identity: handoff.identity,
                                       contentStart: snapshot.contentRect(for: handoff.slot) ?? handoff.from,
                                       contentEnd: overviewImageRect(handoff.identity) ?? handoff.to,
                                       cellStart: snapshot.rect(for: handoff.slot),
                                       cellEnd: handoff.to,
                                       hidesRail: true) else { continue }
+            // 起点是栏里那一格（含标题条）；终点是总览那一格，与真实卡片外框完全重合。
+            card.panelFrom = snapshot.rect(for: handoff.slot)
+            card.panelTo = handoff.to
             cards.append(card)
         }
         let durationMS = level == .fade
@@ -253,7 +316,8 @@ struct TransitionSceneFactory {
                                cards: degradeToLight(cards, durationMS: durationMS),
                                durationMS: durationMS,
                                fadeOnly: level == .fade || reduceMotion(),
-                               level: level)
+                               level: level,
+                               content: content(for: snapshot))
     }
 
     /// L 型内交换：B 向主区展开，A 向 B 原 slot 收回，其它一律不动（方案 §10.3）。
@@ -276,7 +340,9 @@ struct TransitionSceneFactory {
                                                   endAlpha: 1,
                                                   aspect: aspect(intent.to, start),
                                                   hidesRailCard: true,
-                                                  isFocus: true))
+                                                  isFocus: true,
+                                                  panelFrom: cell,
+                                                  panelTo: plan.mainTargetFrame))
             }
         }
         if let from = intent.from {
@@ -293,7 +359,9 @@ struct TransitionSceneFactory {
                                               endAlpha: 1,
                                               aspect: aspect(from, start),
                                               hidesRailCard: true,
-                                              isFocus: false))
+                                              isFocus: false,
+                                              panelFrom: start,
+                                              panelTo: plan.restingSlot.flatMap { snapshot.rect(for: $0) } ?? end))
         }
         let fadeOnly = level == .fade || reduceMotion()
         let durationMS = snapshot.layout.style.switchAnimationMS(reduceMotion: fadeOnly)
@@ -304,10 +372,20 @@ struct TransitionSceneFactory {
                                cards: degradeToLight(cards, durationMS: durationMS),
                                durationMS: durationMS,
                                fadeOnly: fadeOnly,
-                               level: level)
+                               level: level,
+                               content: content(for: snapshot))
     }
 
     // MARK: - 组装
+
+    /// 飞行画面：生产恒为圆角面板；`drawsCapturedContent` 只在诊断里回退到旧行为。
+    private func content(for snapshot: WorkbenchLayoutSnapshot) -> TransitionScene.Content {
+        guard !drawsCapturedContent else { return .captured }
+        var style = PanelStyle.standard
+        // 圆角跟栏内卡片同一套 token：面板看起来才是"那张卡片"，而不是一个别的方块。
+        style.cornerRadius = snapshot.layout.style.cornerRadius
+        return .panel(style)
+    }
 
     /// 轻量等级（方案 §20.4）：只让选中卡片做几何缩放，其余卡片不做任何位移，
     /// 直接落在终点并用 100–160ms 完成淡化——每帧要插值的运动卡片数减到一张。
@@ -322,6 +400,11 @@ struct TransitionSceneFactory {
                 light.startAlpha = 0
             }
             light.cellStart = nil
+            // 面板端点也是"位移"，同样必须就地收掉：只清 start/cellStart 的话，
+            // 显式给出的 panelFrom/panelTo 会让面板照样飞出去，轻量等级就不成立了。
+            let resting = light.panelTo ?? light.start
+            light.panelFrom = resting
+            light.panelTo = resting
             light.fadeFraction = fadeFraction
             return light
         }

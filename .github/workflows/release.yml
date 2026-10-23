@@ -276,6 +276,7 @@ jobs:
           files: release/*.dmg
           fail_on_unmatched_files: true
           draft: false
-          # P0 未验收之前，这条不该自己冒充正式版。
-          prerelease: true
-          make_latest: false
+          # 按仓库所有者的发布约定创建正式补丁包；验收范围仍在发布说明中逐项披露。
+          # Publish stable patch packages as requested by the repository owner; disclose validation limits in the notes.
+          prerelease: false
+          make_latest: true

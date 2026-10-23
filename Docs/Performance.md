@@ -32,6 +32,7 @@
 | 重绘触发 | 由新帧与状态变化调用 `scheduleRedraw`，同一轮次只排一次队；**没有 60Hz 空转定时器** | `OverviewRenderer.scheduleRedraw`、`AppCoordinator.redraw` |
 | 层级改写 | 只在策略或目标窗口编号变化时执行一次，签名相同直接返回；`orderingApplyCount` 供 P0-10 取证 | `AppCoordinator.applyOrdering` |
 | 纹理生命周期 | 纹理与 `CVMetalTexture` 同存活，command buffer 完成前不释放 | `MetalFrame` / `TexturePool` |
+| 飞行画面 | 不缩放任何捕获位图，只画圆角面板 | `TransitionScene.Content.panel` |
 
 长期并发流上限与降级阈值**必须由实测校准**：`streamSoftLimit = 12` 与上面三档 fps 都是保守起点，实测后要按真实数据替换。
 
@@ -219,6 +220,9 @@ P0-4 因此从"未测"转为拿到读数。
 5. **热状态路径**：`serious`/`critical` 下降级是否按阶梯发生、优先窗口是否最后被牺牲。
 6. **过渡动画**：24 帧内是否稳定、代理层与真实窗口衔接有无闪白。0.1.10 工作台的过渡帧间隔采样已经在跑（§3.7：两轮 n=13/18/12 与 36/61/53，p95 在 32.6–50.7ms），但样本没到 §20.2 的 ≥100、结果也超其 P95≤20ms 预算——这一项从"全未测"变成"有初步样本、离判据还差"。
    **§3.7 那批样本没有分组维度**（当时指标名里没有刷新率/reduceMotion/冷热），按 §20.2 只能作趋势，不能和新分的组并成同一个 P95，也不能拿来判"60Hz 组"或"120Hz 组"。
+   本版（0.1.26）删除了点击路径上的 `SCScreenshotManager` 抓帧（每次点击 1 次、每段过渡 1–2 次），
+   "点击→首帧 p95"与"点击→落定 p95"需要在授权正式版上复测；**旧读数（进入 549ms / 交换 421ms）含这些抓帧成本，
+   不能直接与新版对比**。飞行画面同时改成不缩放任何捕获位图（§2 末行），所以"帧间隔是否变好"也要按新口径重采。
 7. **跨缩放屏**：Retina 与外屏混合时纹理尺寸选择是否仍按格子宽度。
 8. **长时间停留**：30 分钟内是否有纹理/事务/观察器泄漏（`inFlightTextureCount`、`retained.count`、`journal.unfinished`）。
 9. **呈现健康度**：`RendererDiagnostics` 的 `missingDrawables`、`submissionFailures`、`gpuErrors` 在长时间运行与显示器变更后是否保持为 0（P0-9 每轮记增量）。
@@ -227,3 +231,10 @@ P0-4 因此从"未测"转为拿到读数。
 12. **几何写入耗时**：四轮只有两个样本（§3.1 的 17.9ms/偏差 0.0pt 与 §3.4 的 117.9ms/p95 117.9、n=1），相差一个量级却说不出原因。要同一台机器、同一批窗口连跑 ≥20 次写入取分布，并把 0.1.6 起「过渡超时」新增的"预算 / 实际等待 / 最后一次几何写入"字段一起看——否则超时到底是预算问题还是写入问题，永远分不开。**0.1.10 工作台轮次已经给出大样本分布**（§3.7：n=209–307，median 21.6–49.9ms、p95 95–145ms），但那是主区交换的混合路径（含目录复核、写后读回与重试），与这里的"单次写入"不是同一口径；两套要分开校准。
 
 复现与记录方式：用 `UITestHarness` 造窗口，跑 `open -n -g -W --env VISTILE_P0_MODE=1 /Applications/Vistile.app`（探针必须跑在已授权的正式版包上），把 `~/Desktop/Vistile Diagnostics/capability-report.md` 的计时表与 `P0-acceptance-checklist.md` 一起存档；Instruments 用 `com.misswell.Vistile` 子系统的 signpost 区间对齐时间轴。
+
+## 5. 0.1.26 interaction timing follow-up / 操作时序补充
+
+- 中文：卡片装饰与 Metal 层禁用隐式动画；display link 以目标呈现时间推进，面板打断按当前可见矩形续接。顶栏触控板手势与惯性保持同一滚动轴，精确点数直接传递，普通滚轮每行换算 10pt。尺寸不变时不重复设置 drawableSize。
+- English: Card chrome and Metal layers disable implicit animations. The display link advances to the target presentation time, and interrupted panels resume from their displayed rectangles. Top-rail trackpad gestures retain their axis through momentum; precise deltas pass through, while discrete wheels use 10 points per line. An unchanged drawable size is not reassigned.
+- 中文：宿主回归覆盖滚动事件和图层行为；不把自动测试通过等同于授权正式包的真机帧率、首帧或落定延迟结论。
+- English: Host regressions cover scroll events and layer behavior. Passing tests do not establish frame-rate, first-frame, or settle-latency results for the authorized release binary.

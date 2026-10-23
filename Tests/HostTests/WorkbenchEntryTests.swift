@@ -157,8 +157,12 @@ final class WorkbenchEntryTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(coordinator.controllers[displayID]).isVisible)
     }
 
-    /// 动效优化：打开总览即预建过渡承载层；hover 卡片时预取主区分辨率画面（飞行不再放大低清帧）。
-    func testOverviewHoverPrefetchesHighResolutionFrameAndPrewarmsCarrier() throws {
+    /// 动效优化：打开总览即预建过渡承载层；点击路径上**一次抓帧都不发**。
+    ///
+    /// 这条用例替换掉旧的"hover 预取主区分辨率画面"：飞行改画圆角面板之后，
+    /// 点击路径上不需要任何跨进程抓帧。捕获输出有硬上限（powerSaving 640px），
+    /// 放大到主区必然模糊，所以"多抓几帧"这条路走不通，只能不画放大图。
+    func testOverviewPrewarmsCarrierAndNeverCapturesOnClickPath() throws {
         let coordinator = makeCoordinator(singleFrame: { [weak self] identity, _ in
             self?.singleFrameRequests.append(identity)
             return .failed
@@ -167,15 +171,17 @@ final class WorkbenchEntryTests: XCTestCase {
         try waitForVisibleOverview()
         XCTAssertEqual(coordinator.prewarmedCarrierDisplayIDs, [displayID],
                        "打开总览就要预建承载层：首帧延迟里的窗口/图层/drawable 分配不该落在点击路径上")
+        // 打开总览本身也不许抓帧：抓帧只由捕获调度按可见性决定。
+        XCTAssertTrue(singleFrameRequests.isEmpty,
+                      "打开总览不应发起一次性抓帧，实际发了 \(singleFrameRequests.count) 次")
         let identity = try XCTUnwrap(coordinator.state.records.keys
             .sorted { $0.journalKey < $1.journalKey }.first)
         let controller = try XCTUnwrap(coordinator.controllers[displayID])
-        XCTAssertNotNil(controller.contentView.onHoverIdentity, "总览卡片必须能上报 hover 身份")
-        controller.contentView.onHoverIdentity?(identity)
-        waitUntil(timeout: 3) { self.singleFrameRequests.contains(identity) }
-        XCTAssertTrue(singleFrameRequests.contains(identity),
-                      "hover 后应发起一次主区分辨率抓帧（飞行期间用它替换放大的低清帧）")
-        XCTAssertGreaterThanOrEqual(coordinator.prefetchRequestCount, 1)
+        controller.contentView.onAction?(.cardClicked(identity))
+        // 给点击路径上可能存在的异步抓帧留出窗口：真的有就会在这段时间里发出来。
+        waitUntil(timeout: 1) { false }
+        XCTAssertFalse(singleFrameRequests.contains(identity),
+                       "点击卡片不应触发跨进程抓帧：飞行画的是圆角面板，不需要主区尺寸的截图")
     }
 
     // MARK: - H15 全部入口：先显示总览，不写 AX

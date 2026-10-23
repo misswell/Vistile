@@ -165,7 +165,6 @@ final class CaptureCoordinator {
     private var pollTasks: [WindowIdentity: Task<Void, Never>] = [:]
     private var pollInFlight: Set<WindowIdentity> = []
     /// 过渡交接前的一次性刷新：同一身份最多一个请求在途（方案 §10.6）。
-    private var refreshInFlight: Set<WindowIdentity> = []
     private var appliedAction: [WindowIdentity: BudgetAction] = [:]
     private var lastConfigurationChange: [WindowIdentity: TimeInterval] = [:]
     private var desiredTargets: [WindowIdentity: CaptureTarget] = [:]
@@ -687,36 +686,6 @@ final class CaptureCoordinator {
                           publishedAt: Date())
     }
 
-    /// 交接前刷新一次真实窗口的画面（方案 §10.6：动画不逐帧 AX resize，但交出去的必须是此刻真图）。
-    /// 同一身份最多一个请求在途；目标消失或报错返回 nil，调用方保留旧纹理，不把它当事实外发。
-    func refreshSingleFrame(_ identity: WindowIdentity,
-                            cellWidth: CGFloat,
-                            backingScale: CGFloat) async -> MetalFrame? {
-        guard refreshInFlight.insert(identity).inserted else { return nil }
-        defer { refreshInFlight.remove(identity) }
-        guard let record = catalog.record(for: identity) else { return nil }
-        let target = CaptureTarget(record: record,
-                                   cellWidth: cellWidth,
-                                   backingScale: backingScale,
-                                   isPriority: true,
-                                   // 交接前刷新的就是"飞行参与者"：按最高档取图（方案 §13.1）。
-                                   visibility: .transition)
-        let base = StreamConfig.build(cellWidth: cellWidth,
-                                      backingScale: backingScale,
-                                      sourceSize: target.sourceSize,
-                                      tier: .powerSaving)
-        // 与轮询同一条时序纪律：代次与轮次都在 await 前取，晚到的图不许越过 stopAll。
-        let mailbox = self.mailbox(for: identity)
-        let generation = mailbox.currentGeneration
-        let roundToken = round
-        let outcome = await singleFrame(identity, base)
-        guard round == roundToken,
-              case .image(let captured) = outcome,
-              let payload = mappedFrame(captured, base: base, target: target) else { return nil }
-        guard mailbox.publish(payload, generation: generation, at: payload.publishedAt) else { return nil }
-        onFrame?(identity)
-        return payload
-    }
 }
 
 /// 单窗口一次捕获的结果。区分"目标已经不在了"与"捕获报错"，否则关窗口会被误报成流失败。

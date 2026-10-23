@@ -38,6 +38,18 @@ final class OverviewPanel: NSPanel {
     }
 }
 
+/// These layers follow input or the display-link timeline directly. An implicit
+/// animation would add a second clock and make chrome lag behind Metal content.
+enum ImmediateLayerUpdates {
+    static func configure(_ layers: CALayer...) {
+        let keys = ["bounds", "position", "opacity", "transform", "sublayerTransform",
+                    "backgroundColor", "borderColor", "borderWidth", "cornerRadius",
+                    "contents", "contentsScale", "hidden", "sublayers"]
+        let actions = Dictionary(uniqueKeysWithValues: keys.map { ($0, NSNull() as CAAction) })
+        for layer in layers { layer.actions = actions }
+    }
+}
+
 /// 卡片外观层：标题条、边框、状态标记。GPU 只合成画面，装饰用 CALayer，
 /// 避免每帧栅格化文字（方案 §9.4）。
 final class CardChrome {
@@ -51,6 +63,7 @@ final class CardChrome {
     let pinBadge = CATextLayer()
 
     init() {
+        ImmediateLayerUpdates.configure(container, border, titleBar, titleText, statusText, iconSlot, pinBadge)
         container.masksToBounds = true
         container.contentsScale = 2
         border.borderWidth = 1

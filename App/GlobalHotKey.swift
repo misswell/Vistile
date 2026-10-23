@@ -62,7 +62,12 @@ final class GlobalHotKey {
     private func installHandlerIfNeeded() {
         guard handler == nil else { return }
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        var context = Unmanaged.passUnretained(self).toOpaque()
+        // `inUserData` 是按值保存的指针，Carbon 只记住这个值本身。
+        // 传 `&context` 等于把**局部变量的地址**交给它：本方法一返回，那块栈内存就失效，
+        // 之后每次按下快捷键，`fromOpaque(userData)` 读到的都是垃圾指针——
+        // 实机表现就是按 ⌃⌥Space 必崩（EXC_BAD_ACCESS，栈落在 GlobalHotKey 的回调里）。
+        // 因此必须直接传 `toOpaque()` 的结果，不能取它的地址。
+        let context = Unmanaged.passUnretained(self).toOpaque()
         let installed = InstallEventHandler(GetEventDispatcherTarget(), { _, event, userData -> OSStatus in
             guard let userData, let event else { return noErr }
             var hotKeyID = EventHotKeyID()
@@ -75,7 +80,7 @@ final class GlobalHotKey {
             let hub = Unmanaged<GlobalHotKey>.fromOpaque(userData).takeUnretainedValue()
             DispatchQueue.main.async { MainActor.assumeIsolated { hub.onFire?() } }
             return noErr
-        }, 1, &spec, &context, &handler)
+        }, 1, &spec, context, &handler)
         if installed != noErr { handler = nil }
     }
 }

@@ -493,6 +493,7 @@ final class TransitionSceneTests: XCTestCase {
         XCTAssertTrue(view.isPlaying)
         let interrupted = try XCTUnwrap(view.presentedRect(for: main), "飞行中每一帧都要留下此刻的呈现矩形")
         XCTAssertNotEqual(interrupted, mainCell)
+        let interruptedPanel = try XCTUnwrap(view.presentedPanelRect(for: main))
 
         // 新计划把同一张卡片声明成另一个起点（屏外）：接续必须用"此刻位置"，而不是新场景的 start。
         let laterStart = mainCell.offsetBy(dx: screen.width * 4, dy: screen.height * 2)
@@ -511,6 +512,8 @@ final class TransitionSceneTests: XCTestCase {
                                     presentation: fixture.presentation,
                                     placement: HostPlanFacts.placement(target: target))))
         view.play(sceneB, sources: [:])
+        let continuedPanel = try XCTUnwrap(view.presentedPanelRect(for: main))
+        XCTAssertEqual(continuedPanel, interruptedPanel, "The visible panel must resume from its displayed position")
         let continued = try XCTUnwrap(view.presentedRect(for: main))
         XCTAssertEqual(continued.minX, interrupted.minX, accuracy: 0.001, "打断续接：不许跳回新计划的起点")
         XCTAssertEqual(continued.minY, interrupted.minY, accuracy: 0.001)
@@ -756,6 +759,41 @@ final class TransitionSceneTests: XCTestCase {
                        accuracy: 0.0001)
         XCTAssertLessThan(TransitionSceneFactory.lightCrossfadeMS, CGFloat(scene.durationMS),
                           "前提：140ms 比整段更短，压缩淡化窗口才有意义")
+    }
+
+    /// 轻量等级：面板端点也必须收掉。只清 cellStart 而留着显式 panelFrom/panelTo，
+    /// 面板照样会飞出去——那样"只让选中卡片动"的降级就名不副实了。
+    func testLightLevelSnapsPanelEndpointsToo() throws {
+        let fixture = HostWorkbench.fixture(count: 3)
+        let from = HostFixtures.identity(0)
+        let to = HostFixtures.identity(1)
+        let slot = try XCTUnwrap(fixture.placement.slot(of: to))
+        let intent = HostPlanFacts.switchIntent(token: TransitionToken(generation: 108),
+                                                from: from,
+                                                to: to,
+                                                source: .rail(slot: slot),
+                                                placementRevision: 1,
+                                                targetDisplayID: displayID)
+        let plan = WorkbenchSwitchPlan(intent: intent,
+                                       displayID: displayID,
+                                       mainTargetFrame: fixture.layout.mainRect,
+                                       restingTargetFrame: nil,
+                                       restingSlot: slot,
+                                       snapshot: fixture.snapshot,
+                                       presentation: fixture.presentation,
+                                       placement: HostPlanFacts.placement(target: fixture.layout.mainRect))
+        var factory = baseFactory(imageRects: [:])
+        factory.motionLevel = { .light }
+        let scene = try XCTUnwrap(factory.swapping(plan))
+
+        let promoted = try XCTUnwrap(scene.focusCard)
+        XCTAssertNotEqual(promoted.panelStart, promoted.panelEnd, "选中的那张照常飞")
+
+        let demoted = try XCTUnwrap(scene.cards.first { $0.identity == from })
+        XCTAssertEqual(demoted.panelFrom, demoted.panelTo,
+                       "轻量等级的面板端点必须就地收掉，不许还在飞")
+        XCTAssertEqual(demoted.panelTo, demoted.panelEnd, "收掉之后的落点仍是计划落点")
+        XCTAssertEqual(demoted.startAlpha, 0, "仍然是原地淡入")
     }
 
     /// 轻量等级进入：轨道卡片不飞、直接落在栏里并短淡化；主卡片照常从总览那一格展开。
@@ -1389,6 +1427,285 @@ final class TransitionSceneTests: XCTestCase {
 
     private func distance(_ rect: CGRect, to other: CGRect) -> CGFloat {
         hypot(rect.midX - other.midX, rect.midY - other.midY)
+    }
+
+    // MARK: - 飞行画面：圆角面板（0.1.26 起不再放大捕获图）
+
+    /// 三种过渡的场景都必须声明"画面板"，而不是放大捕获图。
+    /// 这是"没有模糊过程"的结构保证：只要场景是 `.panel`，承载层就不会画任何位图。
+    func testAllScenesDefaultToPanelContentNotCapturedPixels() throws {
+        let grid = HostFixtures.layout(count: 3)
+        let fixture = HostWorkbench.fixture(count: 3)
+        let main = HostFixtures.identity(0)
+        let mainCell = try XCTUnwrap(grid.layout.card(at: SlotID(index: 0))?.cellRect)
+        let imageRects = Dictionary(uniqueKeysWithValues: grid.layout.cards.map {
+            (HostFixtures.identity($0.slot.index), $0.imageRect)
+        })
+        let handoffs = try (1...2).map { index -> RailHandoff in
+            let identity = HostFixtures.identity(index)
+            let slot = try XCTUnwrap(fixture.placement.slot(of: identity))
+            return RailHandoff(identity: identity,
+                               slot: slot,
+                               from: try XCTUnwrap(grid.layout.card(at: SlotID(index: index))?.cellRect),
+                               to: fixture.snapshot.rect(for: slot))
+        }
+        let enterToken = TransitionToken(generation: 101)
+        let enterPlan = WorkbenchTransitionPlan(kind: .enteringWorkbench,
+                                                token: enterToken,
+                                                operationContext: HostPlanFacts.context(token: enterToken, kind: .enterWorkbench),
+                                                identity: main,
+                                                displayID: displayID,
+                                                snapshot: fixture.snapshot,
+                                                targetFrame: fixture.layout.mainRect,
+                                                animationFrom: mainCell,
+                                                animationTo: fixture.layout.mainRect,
+                                                railHandoffs: handoffs,
+                                                animationMS: 240,
+                                                presentation: fixture.presentation,
+                                                placement: HostPlanFacts.placement(target: fixture.layout.mainRect))
+        let factory = baseFactory(imageRects: imageRects)
+        for (name, scene) in [("进入", try XCTUnwrap(factory.entering(enterPlan))),
+                              ("返回", try XCTUnwrap(factory.returning(enterPlan)))] {
+            guard case .panel = scene.content else {
+                return XCTFail("\(name)过渡必须画面板，不能放大捕获图：content=\(scene.content)")
+            }
+        }
+        let slot = try XCTUnwrap(fixture.placement.slot(of: HostFixtures.identity(1)))
+        let intent = HostPlanFacts.switchIntent(token: TransitionToken(generation: 102),
+                                                from: main,
+                                                to: HostFixtures.identity(1),
+                                                source: .rail(slot: slot),
+                                                placementRevision: 1,
+                                                targetDisplayID: displayID)
+        let swapPlan = WorkbenchSwitchPlan(intent: intent,
+                                           displayID: displayID,
+                                           mainTargetFrame: fixture.layout.mainRect,
+                                           restingTargetFrame: nil,
+                                           restingSlot: slot,
+                                           snapshot: fixture.snapshot,
+                                           presentation: fixture.presentation,
+                                           placement: HostPlanFacts.placement(target: fixture.layout.mainRect))
+        let swapScene = try XCTUnwrap(factory.swapping(swapPlan))
+        guard case .panel = swapScene.content else {
+            return XCTFail("交换过渡必须画面板，不能放大捕获图：content=\(swapScene.content)")
+        }
+    }
+
+    /// 面板圆角必须跟着布局 token 走：栏内卡片是 8pt，面板也必须是 8pt，否则飞行中会看出形状变化。
+    func testPanelStyleFollowsLayoutCornerRadius() throws {
+        let fixture = HostWorkbench.fixture(count: 2)
+        let main = HostFixtures.identity(0)
+        let cell = CGRect(x: 100, y: 100, width: 300, height: 200)
+        let token = TransitionToken(generation: 103)
+        let plan = WorkbenchTransitionPlan(kind: .enteringWorkbench,
+                                           token: token,
+                                           operationContext: HostPlanFacts.context(token: token, kind: .enterWorkbench),
+                                           identity: main,
+                                           displayID: displayID,
+                                           snapshot: fixture.snapshot,
+                                           targetFrame: fixture.layout.mainRect,
+                                           animationFrom: cell,
+                                           animationTo: fixture.layout.mainRect,
+                                           railHandoffs: [],
+                                           animationMS: 240,
+                                           presentation: fixture.presentation,
+                                           placement: HostPlanFacts.placement(target: fixture.layout.mainRect))
+        let scene = try XCTUnwrap(baseFactory(imageRects: [main: cell]).entering(plan))
+        guard case let .panel(style) = scene.content else {
+            return XCTFail("进入过渡必须画面板")
+        }
+        XCTAssertEqual(style.cornerRadius, fixture.layout.style.cornerRadius,
+                       "面板圆角必须取布局 token，不能自己写死一个数")
+        XCTAssertEqual(style.cornerRadius, PanelStyle.standard.cornerRadius, accuracy: 0.0001)
+        XCTAssertEqual(style.strokeWidth, PanelStyle.standard.strokeWidth, accuracy: 0.0001)
+        XCTAssertGreaterThan(style.fill.w, 0.99, "填充必须不透明：面板要挡住底下的真实窗口")
+        XCTAssertGreaterThan(style.stroke.w, 0, "描边要有可辨识的 alpha")
+    }
+
+    /// 面板端点用卡片外框（含标题条），而不是内容区：
+    /// 内容区比外框矮一截，拿它当端点会看出面板从卡片中间"长出来"。
+    func testPanelEndpointsUseCardCellNotContentRect() throws {
+        let grid = HostFixtures.layout(count: 2)
+        let fixture = HostWorkbench.fixture(count: 2)
+        let main = HostFixtures.identity(0)
+        let mainCell = try XCTUnwrap(grid.layout.card(at: SlotID(index: 0))?.cellRect)
+        let mainImage = try XCTUnwrap(grid.layout.card(at: SlotID(index: 0))?.imageRect)
+        XCTAssertNotEqual(mainCell, mainImage, "前提：外框与内容区不同，端点选择才可观察")
+        let token = TransitionToken(generation: 104)
+        let plan = WorkbenchTransitionPlan(kind: .enteringWorkbench,
+                                           token: token,
+                                           operationContext: HostPlanFacts.context(token: token, kind: .enterWorkbench),
+                                           identity: main,
+                                           displayID: displayID,
+                                           snapshot: fixture.snapshot,
+                                           targetFrame: fixture.layout.mainRect,
+                                           animationFrom: mainCell,
+                                           animationTo: fixture.layout.mainRect,
+                                           railHandoffs: [],
+                                           animationMS: 240,
+                                           presentation: fixture.presentation,
+                                           placement: HostPlanFacts.placement(target: fixture.layout.mainRect))
+        let scene = try XCTUnwrap(baseFactory(imageRects: [main: mainImage]).entering(plan))
+        let card = try XCTUnwrap(scene.focusCard)
+        XCTAssertEqual(card.panelStart, mainCell, "面板起点是卡片外框，不是内容区")
+        XCTAssertEqual(card.start, mainImage, "画面容器起点照旧是内容区（.captured 回退仍然用它）")
+        XCTAssertEqual(card.panelEnd, card.cellEnd ?? card.end ?? card.start)
+    }
+
+    /// 面板端点必须落在"卡片外框"上，不能落在内容区：
+    /// 内容区比外框矮一个标题条，用它当端点会让面板比真实卡片小一截，交接时再跳一下。
+    /// 这条钉住进入工作台时轨道卡片的面板落点 = 栏里那一格。
+    func testRailPanelEndpointsUseRailCellNotContentRect() throws {
+        let grid = HostFixtures.layout(count: 3)
+        let fixture = HostWorkbench.fixture(count: 3)
+        let main = HostFixtures.identity(0)
+        let mainCell = try XCTUnwrap(grid.layout.card(at: SlotID(index: 0))?.cellRect)
+        let imageRects = Dictionary(uniqueKeysWithValues: grid.layout.cards.map {
+            (HostFixtures.identity($0.slot.index), $0.imageRect)
+        })
+        let handoffs = try (1...2).map { index -> RailHandoff in
+            let identity = HostFixtures.identity(index)
+            let slot = try XCTUnwrap(fixture.placement.slot(of: identity))
+            return RailHandoff(identity: identity,
+                               slot: slot,
+                               from: try XCTUnwrap(grid.layout.card(at: SlotID(index: index))?.cellRect),
+                               to: fixture.snapshot.rect(for: slot))
+        }
+        let token = TransitionToken(generation: 107)
+        let plan = WorkbenchTransitionPlan(kind: .enteringWorkbench,
+                                           token: token,
+                                           operationContext: HostPlanFacts.context(token: token, kind: .enterWorkbench),
+                                           identity: main,
+                                           displayID: displayID,
+                                           snapshot: fixture.snapshot,
+                                           targetFrame: fixture.layout.mainRect,
+                                           animationFrom: mainCell,
+                                           animationTo: fixture.layout.mainRect,
+                                           railHandoffs: handoffs,
+                                           animationMS: 240,
+                                           presentation: fixture.presentation,
+                                           placement: HostPlanFacts.placement(target: fixture.layout.mainRect))
+        let scene = try XCTUnwrap(baseFactory(imageRects: imageRects).entering(plan))
+
+        for handoff in handoffs {
+            let card = try XCTUnwrap(scene.cards.first { $0.identity == handoff.identity })
+            let slot = handoff.slot
+            let cell = try XCTUnwrap(fixture.snapshot.rect(for: slot))
+            let content = try XCTUnwrap(fixture.snapshot.contentRect(for: slot))
+            XCTAssertNotEqual(cell, content, "前提：栏里外框与内容区不同，端点选择才可观察")
+            XCTAssertEqual(card.panelTo, cell, "面板必须落在栏里那一格（含标题条），不是内容区")
+            XCTAssertEqual(card.end, content, "画面容器终点照旧是内容区（.captured 回退仍然用它）")
+            XCTAssertNotEqual(card.panelTo, content, "面板落点不许退回内容区")
+        }
+
+        // 主卡片：面板起点是总览那一格，落点是主区目标帧。
+        let focus = try XCTUnwrap(scene.focusCard)
+        XCTAssertEqual(focus.panelFrom, mainCell)
+        XCTAssertEqual(focus.panelTo, fixture.layout.mainRect)
+    }
+
+    /// 承载层在 `.panel` 下确实把面板画到屏幕上，并且面板矩形单调逼近落点。
+    /// 这条同时钉住"presentedRect 仍然按画面容器记账"——打断续接与轻量对账都读它。
+    @MainActor
+    func testCarrierDrawsPanelsThatTravelToTheTarget() throws {
+        let metal = try HostFixtures.metalContext()
+        let view = TransitionCarrierView(frame: CGRect(origin: .zero, size: HostFixtures.offscreenSize),
+                                         metal: metal)
+        view.configure(cgOrigin: HostFixtures.offscreenOrigin, scale: 2)
+        view.layout()
+
+        let grid = HostFixtures.layout(count: 2)
+        let fixture = HostWorkbench.fixture(count: 2)
+        let main = HostFixtures.identity(0)
+        let mainCell = try XCTUnwrap(grid.layout.card(at: SlotID(index: 0))?.cellRect)
+        let mainImage = try XCTUnwrap(grid.layout.card(at: SlotID(index: 0))?.imageRect)
+        let target = fixture.layout.mainRect
+        let token = TransitionToken(generation: 105)
+        let scene = try XCTUnwrap(baseFactory(imageRects: [main: mainImage]).entering(
+            WorkbenchTransitionPlan(kind: .enteringWorkbench,
+                                    token: token,
+                                    operationContext: HostPlanFacts.context(token: token, kind: .enterWorkbench),
+                                    identity: main,
+                                    displayID: displayID,
+                                    snapshot: fixture.snapshot,
+                                    targetFrame: target,
+                                    animationFrom: mainCell,
+                                    animationTo: target,
+                                    railHandoffs: [],
+                                    animationMS: 240,
+                                    presentation: fixture.presentation,
+                                    placement: HostPlanFacts.placement(target: target))))
+        // 面板必须真的被 present 出去：着色器编译失败或编码器建不起来时，
+        // 观察点照样有值，但屏幕上一个像素都没有——那是"看起来没糊其实什么都没画"。
+        var facts: [TransitionFlightFacts] = []
+        view.onFlightFacts = { _, reported in facts.append(reported) }
+        let base = CACurrentMediaTime()
+        view.play(scene, sources: [:])
+        let startPanel = try XCTUnwrap(view.presentedPanelRect(for: main))
+        XCTAssertEqual(startPanel, mainCell, "第一帧的面板就在卡片外框上")
+        var previousDistance = distance(startPanel, to: target)
+        for step in 1...10 {
+            view.advance(to: base + Double(step) * 0.0167)
+            let panel = try XCTUnwrap(view.presentedPanelRect(for: main))
+            let currentDistance = distance(panel, to: target)
+            XCTAssertLessThan(currentDistance, previousDistance, "第 \(step) 拍面板没有更接近落点")
+            previousDistance = currentDistance
+        }
+        // 到位后面板与真实窗口的落点重合：交接时用户看不到位置跳变。
+        view.advance(to: base + 0.30)
+        let landed = try XCTUnwrap(view.presentedPanelRect(for: main))
+        XCTAssertEqual(landed.midX, target.midX, accuracy: 0.01)
+        XCTAssertEqual(landed.midY, target.midY, accuracy: 0.01)
+        XCTAssertEqual(landed.width, target.width, accuracy: 0.01)
+        XCTAssertEqual(landed.height, target.height, accuracy: 0.01)
+        let reported = try XCTUnwrap(facts.first, "到位后必须报告一次飞行事实")
+        XCTAssertGreaterThan(reported.presentedFrames, 0,
+                             "圆角面板必须真的 present 上屏，不能只是记账：present=\(reported.presentedFrames)")
+        XCTAssertTrue(reported.hasPresentedPixels)
+        view.stopNow()
+        XCTAssertNil(view.presentedPanelRect(for: main), "收场后面板观察点必须清空，不留幽灵")
+    }
+
+    /// `.captured` 诊断回退仍然画底板与放大画面：回退开关不能变成"什么都不画"。
+    @MainActor
+    func testCapturedFallbackStillDrawsPlateAndTexture() throws {
+        let metal = try HostFixtures.metalContext()
+        let view = TransitionCarrierView(frame: CGRect(origin: .zero, size: HostFixtures.offscreenSize),
+                                         metal: metal)
+        view.configure(cgOrigin: HostFixtures.offscreenOrigin, scale: 2)
+        view.layout()
+        let grid = HostFixtures.layout(count: 2)
+        let fixture = HostWorkbench.fixture(count: 2)
+        let main = HostFixtures.identity(0)
+        let mainCell = try XCTUnwrap(grid.layout.card(at: SlotID(index: 0))?.cellRect)
+        let target = fixture.layout.mainRect
+        let token = TransitionToken(generation: 106)
+        var factory = baseFactory(imageRects: [main: mainCell])
+        factory.drawsCapturedContent = true
+        let scene = try XCTUnwrap(factory.entering(
+            WorkbenchTransitionPlan(kind: .enteringWorkbench,
+                                    token: token,
+                                    operationContext: HostPlanFacts.context(token: token, kind: .enterWorkbench),
+                                    identity: main,
+                                    displayID: displayID,
+                                    snapshot: fixture.snapshot,
+                                    targetFrame: target,
+                                    animationFrom: mainCell,
+                                    animationTo: target,
+                                    railHandoffs: [],
+                                    animationMS: 240,
+                                    presentation: fixture.presentation,
+                                    placement: HostPlanFacts.placement(target: target))))
+        guard case .captured = scene.content else {
+            return XCTFail("drawsCapturedContent = true 时必须回到 .captured")
+        }
+        let frame = try HostFixtures.metalFrame(metal: metal, width: 640, height: 400)
+        let base = CACurrentMediaTime()
+        view.play(scene, sources: [main: frame])
+        view.advance(to: base + 0.10)
+        XCTAssertNil(view.presentedPanelRect(for: main), "回退模式下不画面板")
+        XCTAssertNotNil(view.presentedRect(for: main), "回退模式照旧按画面容器记账")
+        view.stopNow()
     }
 
     private func baseFactory(imageRects: [WindowIdentity: CGRect]) -> TransitionSceneFactory {

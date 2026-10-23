@@ -43,8 +43,6 @@ final class WorkbenchRailView: NSView {
     /// 最近一次投影里的滚动偏移：scrollWheel 在它基础上提出新值。
     private(set) var scrollOffset: CGFloat = 0
     private var hoveredSlot: RailSlotID?
-    /// hover 到轨道卡片：宿主据此预取主区分辨率画面。
-    var onHoverIdentity: ((WindowIdentity?) -> Void)?
     private var accentColor = NSColor.controlAccentColor
     private var showsTitles = true
     private var chromeStyle = OverviewStyle.standard
@@ -65,6 +63,7 @@ final class WorkbenchRailView: NSView {
     }
 
     private func commonInit(device: MTLDevice?) {
+        ImmediateLayerUpdates.configure(metalLayer)
         wantsLayer = true
         layerContentsRedrawPolicy = .duringViewResize
         layer = CALayer()
@@ -383,7 +382,6 @@ final class WorkbenchRailView: NSView {
         guard hoveredSlot != nil else { return }
         hoveredSlot = nil
         refreshChrome()
-        onHoverIdentity?(nil)
     }
 
     private func updateHover(_ point: CGPoint) {
@@ -392,7 +390,6 @@ final class WorkbenchRailView: NSView {
         guard next != hoveredSlot else { return }
         hoveredSlot = next
         refreshChrome()
-        onHoverIdentity?(hit?.identity)
     }
 
     private var trackingArea: NSTrackingArea?
@@ -407,18 +404,40 @@ final class WorkbenchRailView: NSView {
         super.updateTrackingAreas()
     }
 
-    /// 滚动只提出新偏移；夹取与快照提交都在 reducer 里做（方案 §6、§11.2）。
+    /// Keep a trackpad gesture on its initial dominant axis, including momentum.
+    /// A new gesture chooses again; ordinary wheel events remain independent.
+    private enum ScrollAxis { case horizontal, vertical }
+    private var scrollAxis: ScrollAxis?
+
     override func scrollWheel(with event: NSEvent) {
+        let x = event.scrollingDeltaX
+        let y = event.scrollingDeltaY
+        if event.phase.contains(.began) || event.phase.contains(.mayBegin) {
+            scrollAxis = nil
+        }
+        let hasGesturePhase = !event.phase.isEmpty || !event.momentumPhase.isEmpty
+        defer {
+            if !hasGesturePhase || event.phase.contains(.cancelled)
+                || event.momentumPhase.contains(.ended) || event.momentumPhase.contains(.cancelled) {
+                scrollAxis = nil
+            }
+        }
+        guard x != 0 || y != 0 else { return }
         let delta: CGFloat
         switch rail {
         case .top:
-            delta = event.scrollingDeltaX != 0 ? event.scrollingDeltaX : event.scrollingDeltaY
+            if scrollAxis == nil {
+                scrollAxis = abs(x) > abs(y) ? .horizontal : .vertical
+            }
+            delta = scrollAxis == .horizontal ? x : y
         case .side:
-            delta = event.scrollingDeltaY
+            delta = y
         }
         guard delta != 0 else { return }
-        // 非翻转视图里 offset 增大 = 内容上移；AppKit 的 deltaY 为正表示"向上滚"。
-        onAction?(.scrolled(rail: rail, to: scrollOffset - delta))
+        // Precise trackpad deltas already use points and include system momentum.
+        // Discrete wheels report lines; give each line a useful point distance.
+        let points = delta * (event.hasPreciseScrollingDeltas ? 1 : 10)
+        onAction?(.scrolled(rail: rail, to: scrollOffset - points))
     }
 
     // MARK: - 拖到边缘的有界自动滚动（方案 §6.2）
@@ -524,6 +543,7 @@ final class EmptySlotChrome {
     private let label = CATextLayer()
 
     init() {
+        ImmediateLayerUpdates.configure(container, border, label)
         container.masksToBounds = true
         container.contentsScale = 2
         border.borderWidth = 1

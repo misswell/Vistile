@@ -48,6 +48,9 @@ final class TransitionCarrierView: NSView {
         var end: CGRect
         var cellStart: CGRect?
         var cellEnd: CGRect?
+        /// 面板（卡片外框）的显式端点：场景给出就优先用它，否则按底板/画面矩形推导。
+        var panelFrom: CGRect?
+        var panelTo: CGRect?
         var startAlpha: CGFloat
         var endAlpha: CGFloat
         var aspect: CGFloat
@@ -72,6 +75,9 @@ final class TransitionCarrierView: NSView {
     /// 打断续接：上一次 tick 落在屏幕上的画面矩形与透明度（CG 全局）。
     private var presentedRects: [WindowIdentity: CGRect] = [:]
     private var presentedAlphas: [WindowIdentity: CGFloat] = [:]
+    /// 上一次 tick 真正画出去的面板矩形（CG 全局）。只读观察点：
+    /// 宿主测试据此证明"飞行画的是面板、不是被放大的捕获图"。
+    private(set) var presentedPanelRects: [WindowIdentity: CGRect] = [:]
 
     private var displayLink: CADisplayLink?
     private let tickBridge = TickBridge()
@@ -116,6 +122,7 @@ final class TransitionCarrierView: NSView {
         wantsLayer = true
         layer = CALayer()
         layer?.masksToBounds = true
+        ImmediateLayerUpdates.configure(metalLayer, holdBadge, holdLabel)
         metalLayer.device = metal.device
         metalLayer.pixelFormat = .bgra8Unorm
         metalLayer.framebufferOnly = true
@@ -162,6 +169,8 @@ final class TransitionCarrierView: NSView {
                                               end: viewRect(card.end ?? startRect),
                                               cellStart: card.cellStart.map { viewRect($0) },
                                               cellEnd: card.cellEnd.map { viewRect($0) },
+                                              panelFrom: (presentedPanelRects[card.identity] ?? card.panelFrom).map { viewRect($0) },
+                                              panelTo: card.panelTo.map { viewRect($0) },
                                               startAlpha: startAlpha,
                                               endAlpha: card.endAlpha,
                                               aspect: card.aspect,
@@ -196,7 +205,7 @@ final class TransitionCarrierView: NSView {
         VistileLog.ui.log("[过渡] 播放 \(scene.kind.displayName, privacy: .public)：\(scene.cards.count) 张卡片，\(scene.durationMS)ms")
     }
 
-    /// 画面源在飞行中更新（例如刚拍到的主窗口新帧）：只换纹理与比例，不改时间轴。
+    /// 画面源在飞行中更新：只换纹理与比例，不改时间轴。仅 `.captured` 诊断回退用得到。
     func updateSource(_ identity: WindowIdentity, frame: MetalFrame, aspect: CGFloat) {
         guard var state = states[identity] else { return }
         state.frame = frame
@@ -230,6 +239,7 @@ final class TransitionCarrierView: NSView {
         metalLayer.opacity = 1
         presentedRects.removeAll()
         presentedAlphas.removeAll()
+        presentedPanelRects.removeAll()
         states.removeAll()
         scene = nil
         focusIdentity = nil
@@ -251,7 +261,8 @@ final class TransitionCarrierView: NSView {
     // MARK: - 时钟
 
     fileprivate func handleTick(_ link: CADisplayLink) {
-        advance(to: link.timestamp)
+        // Draw the position for the upcoming presentation, rather than the previous refresh.
+        advance(to: link.targetTimestamp)
     }
 
     /// 时间轴推进：真实播放由 CADisplayLink 调，测试用给定时间戳驱动同一段代码。
@@ -390,6 +401,7 @@ final class TransitionCarrierView: NSView {
 
         var cards: [CardDraw] = []
         var placeholders: [(rect: CGRect, tint: SIMD4<Float>)] = []
+        var panels: [PanelDraw] = []
 
         var backdropAlpha: CGFloat = 0
         if let color = TransitionScene.backdropColor(scene.backdrop) {
@@ -402,25 +414,9 @@ final class TransitionCarrierView: NSView {
         currentBackdropAlpha = backdropAlpha
 
         var presented: [WindowIdentity: CGRect] = [:]
+        var panelRects: [WindowIdentity: CGRect] = [:]
         for identity in drawOrder {
             guard let state = states[identity] else { continue }
-            let cellRect: CGRect?
-            let cellAlpha: CGFloat
-            if let from = state.cellStart {
-                let to = state.cellEnd ?? from
-                cellRect = TransitionTimeline.interpolate(from, to, progress: eased)
-                cellAlpha = state.cellEnd == nil ? 1 - eased : 1
-            } else if let to = state.cellEnd {
-                cellRect = to
-                cellAlpha = eased
-            } else {
-                cellRect = nil
-                cellAlpha = 0
-            }
-            if let cellRect, cellAlpha > 0.01 {
-                placeholders.append((cellRect, SIMD4<Float>(0.09, 0.09, 0.10, Float(cellAlpha))))
-            }
-
             let container: CGRect
             let alpha: CGFloat
             if scene.fadeOnly {
@@ -432,21 +428,50 @@ final class TransitionCarrierView: NSView {
                 let alphaT = TransitionTimeline.alphaProgress(eased, fadeFraction: state.fadeFraction)
                 alpha = state.startAlpha + (state.endAlpha - state.startAlpha) * alphaT
             }
+            // 呈现矩形与透明度照旧按"画面容器"记账：打断续接、轻量对账、宿主自检都读这一对值。
             presented[identity] = cgRect(fromView: container)
             presentedAlphas[identity] = alpha
             guard alpha > 0.01, container.width > 1, container.height > 1 else { continue }
-            let content = TransitionTimeline.aspectFit(aspect: state.aspect, in: container)
-            if let frame = state.frame {
-                cards.append(CardDraw(identity: identity, imageRect: content, opacity: Float(alpha), frame: frame))
-            } else {
-                // 还没有纹理：画底板色块，运动本身仍然看得见，不假装有画面。
-                placeholders.append((content, SIMD4<Float>(0.09, 0.09, 0.10, Float(alpha))))
+            switch scene.content {
+            case let .panel(style):
+                // 面板画在卡片外框（含标题条）上，而不是内容区：它代表"那张卡片"本身。
+                // 淡化模式下不飞行：面板直接固定在终点，只有透明度在变（方案 §10.5）。
+                let panelRect = scene.fadeOnly
+                    ? panelEndRect(state)
+                    : TransitionTimeline.interpolate(panelStartRect(state),
+                                                     panelEndRect(state),
+                                                     progress: eased)
+                guard panelRect.width > 1, panelRect.height > 1 else { continue }
+                panelRects[identity] = cgRect(fromView: panelRect)
+                panels.append(PanelDraw(rect: panelRect,
+                                        fill: style.fill,
+                                        stroke: style.stroke,
+                                        strokeWidth: style.strokeWidth,
+                                        cornerRadius: style.cornerRadius,
+                                        opacity: Float(alpha)))
+            case .captured:
+                // 诊断回退：底板与放大画面照旧各画一份，与 0.1.25 的观感一致。
+                if let cellRect = cellRect(state, progress: eased) {
+                    let cellAlpha = cellAlpha(state, progress: eased)
+                    if cellAlpha > 0.01 {
+                        placeholders.append((cellRect, SIMD4<Float>(0.09, 0.09, 0.10, Float(cellAlpha))))
+                    }
+                }
+                let content = TransitionTimeline.aspectFit(aspect: state.aspect, in: container)
+                if let frame = state.frame {
+                    cards.append(CardDraw(identity: identity, imageRect: content, opacity: Float(alpha), frame: frame))
+                } else {
+                    // 还没有纹理：画底板色块，运动本身仍然看得见，不假装有画面。
+                    placeholders.append((content, SIMD4<Float>(0.09, 0.09, 0.10, Float(alpha))))
+                }
             }
         }
         presentedRects = presented
+        presentedPanelRects = panelRects
         renderer.draw(layer: metalLayer,
                       cards: cards,
                       placeholders: placeholders,
+                      panels: panels,
                       viewBounds: bounds,
                       scale: max(1, metalLayer.contentsScale))
         // 首帧延迟只在"渲染器真的 present 出去"的那一刻记：draw 调用与 tick 回调都不算反馈（方案 §20.2）。
@@ -476,6 +501,33 @@ final class TransitionCarrierView: NSView {
         metalLayer.frame = CGRect(origin: .zero, size: bounds.size)
     }
 
+    /// 卡片底板（格子底色）在飞行中的矩形：只有 `.captured` 诊断回退还会画它。
+    private func cellRect(_ state: CardState, progress: CGFloat) -> CGRect? {
+        if let from = state.cellStart {
+            let to = state.cellEnd ?? from
+            return TransitionTimeline.interpolate(from, to, progress: progress)
+        }
+        return state.cellEnd
+    }
+
+    private func cellAlpha(_ state: CardState, progress: CGFloat) -> CGFloat {
+        if state.cellStart != nil {
+            return state.cellEnd == nil ? 1 - progress : 1
+        }
+        return state.cellEnd != nil ? progress : 0
+    }
+
+    /// 面板起点：显式端点 → 底板（格子外框）→ 画面矩形。
+    private func panelStartRect(_ state: CardState) -> CGRect {
+        state.panelFrom ?? state.cellStart ?? state.start
+    }
+
+    /// 面板终点：显式端点 → 底板终点 → 画面终点 → 原地不动（不伪造落点）。
+    private func panelEndRect(_ state: CardState) -> CGRect {
+        // end 是必填的（`Card.end` 为 nil 时已经在 play 时退化成起点），所以这里是收尾项，不是备选链的一环。
+        state.panelTo ?? state.cellEnd ?? state.end
+    }
+
     private func viewRect(_ cgRect: CGRect) -> CGRect {
         CGRect(x: cgRect.minX - originInCG.x,
                y: (bounds.height + originInCG.y) - cgRect.maxY,
@@ -493,6 +545,11 @@ final class TransitionCarrierView: NSView {
     /// 此刻这一身份在屏幕上的画面矩形（CG 全局）。播放层只读观察点：宿主自检与测试用。
     func presentedRect(for identity: WindowIdentity) -> CGRect? {
         presentedRects[identity]
+    }
+
+    /// 此刻这一身份的面板矩形（CG 全局）。只读观察点：`.panel` 模式下屏幕上真正画出来的就是它。
+    func presentedPanelRect(for identity: WindowIdentity) -> CGRect? {
+        presentedPanelRects[identity]
     }
 
     /// 此刻这一身份在屏幕上的透明度。只读观察点：轻量等级的短交叉淡化据此对账（方案 §20.4）。
@@ -607,6 +664,7 @@ final class ModeTransitionCoordinator {
 
     /// 当前实际呈现的矩形/透明度（CG 全局，方案 §16.2）：新场景与代理收尾都必须从它接续。
     func presentedRect(for identity: WindowIdentity) -> CGRect? { activeCarrierView?.presentedRect(for: identity) }
+    func presentedPanelRect(for identity: WindowIdentity) -> CGRect? { activeCarrierView?.presentedPanelRect(for: identity) }
     func presentedAlpha(for identity: WindowIdentity) -> CGFloat? { activeCarrierView?.presentedAlpha(for: identity) }
 
     /// 承载层是否已经彻底不在屏幕上：隐藏/退出的收敛判据之一。
@@ -649,7 +707,8 @@ final class ModeTransitionCoordinator {
         window.carrierView.play(scene, sources: sources, anchorAt: anchorAt)
     }
 
-    /// 飞行中到位的画面源（例如主窗口的一次性新帧）。
+    /// 飞行中到位的画面源。生产路径画面板，不再有"飞行中补一帧"的调用方；
+    /// 保留这条通道只为 `.captured` 诊断回退与宿主测试。
     func updateSource(_ identity: WindowIdentity, frame: MetalFrame, aspect: CGFloat) {
         guard let view = activeCarrierView else { return }
         view.updateSource(identity, frame: frame, aspect: aspect)

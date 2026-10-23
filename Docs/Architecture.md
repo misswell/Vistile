@@ -97,6 +97,8 @@ Effect：`discover`、`startCapture`、`stopCapture`、`stopAllCapture`、`showO
 
 **返回（`returningOverview`）**：主窗口写回进入前的 frame（从哪来回哪去），状态机清 `activeMain`，总览面板按保存的快照重现（格子、搜索词、滚动位置不变）。
 
+**飞行期间画什么（0.1.26 起）**：过渡场景不再放大捕获画面，只画一块与卡片同形的圆角面板（`TransitionScene.Content.panel`，默认值），落定后承载层 110ms 淡出交接给真实窗口。理由在数字上：捕获输出有硬上限（`CaptureTier.maxPixelWidth`：powerSaving 640 / balanced 960 / refreshPriority 1280 px），而主区在 2x 下约 3000px 宽，**把捕获图放大到主区必然是模糊的**——0.1.25 及以前用 `refreshSingleFrame`（本版已移除）以 `.powerSaving` 建配置、拿到 640px 纹理再画进约 3000px 的矩形，等于恒定 4.7× 放大，抓帧抓得再勤也改不了这一点；而这些抓帧本身又要与 AX 写入、displayLink 抢主线程。既然放大必然糊，就不放大：面板的端点用**卡片外框（含标题条）**，由场景显式给出（`Card.panelFrom` / `Card.panelTo`），没给才按 `cellStart ?? start` → `cellEnd ?? end` 推导。这一条不是风格问题：栏里那张卡的外框与内容区差一个标题条，用内容区当端点会让面板比真实卡片小一截，既看出"从卡片中间长出来"，交接时还会再跳一下。`.captured` 保留为诊断回退，生产路径不再使用。
+
 **窗口被手动改过尺寸**：`WindowTransaction` 记 (identity, originalFrame, provisionalFrame, displayID, sessionID, 时间)。用户在主区自己 resize 过的窗口按"保留本次尺寸"处理，恢复时按其意愿跳过。`RecoveryCoordinator.restoreOnQuit()` 在正常退出时逐条恢复并读回校验；未确认恢复的事务保留到下次启动，由 `restoreOnLaunch(recorder:)` 先于新会话处理，两条路径不同时写几何。
 
 ### 7.1 一条调度通道：所有权、取消与补偿时序、状态与日志边界

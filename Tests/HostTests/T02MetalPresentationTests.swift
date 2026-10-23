@@ -175,4 +175,34 @@ final class T02MetalPresentationTests: XCTestCase {
         waitUntil(timeout: 4) { self.renderer.inFlightTextureCount == 0 }
         XCTAssertNoThrow(try HostFixtures.metalFrame(metal: metal))
     }
+    func testInputDrivenChromeDoesNotAcquireImplicitAnimations() {
+        let chrome = CardChrome()
+        view.layer?.addSublayer(chrome.container)
+        chrome.layout(in: CGRect(x: 10, y: 10, width: 220, height: 140),
+                      style: .standard, showsTitle: true, showsStatus: false)
+        CATransaction.flush()
+        chrome.layout(in: CGRect(x: 35, y: 25, width: 220, height: 140),
+                      style: .standard, showsTitle: true, showsStatus: false)
+        chrome.apply(title: "Window", status: nil, isSelected: true, isHovered: true,
+                     accent: .controlAccentColor, style: .standard, showsTitle: true, scale: 2)
+        CATransaction.flush()
+        for layer in [chrome.container, chrome.border, chrome.titleBar, chrome.titleText] {
+            XCTAssertTrue(layer.animationKeys()?.isEmpty ?? true,
+                          "Chrome must move with Metal content without an extra animation")
+        }
+        chrome.container.removeFromSuperlayer()
+    }
+
+    func testCarrierFadeDoesNotAcquireAnImplicitOpacityAnimation() throws {
+        let carrier = TransitionCarrierView(frame: NSRect(origin: .zero, size: HostFixtures.offscreenSize), metal: metal)
+        view.layer?.addSublayer(carrier.metalLayer)
+        CATransaction.flush()
+        carrier.metalLayer.opacity = 0.4
+        CATransaction.flush()
+        XCTAssertNil(carrier.metalLayer.animation(forKey: "opacity"),
+                     "The display-link fade must not acquire a second animation clock")
+        carrier.metalLayer.removeFromSuperlayer()
+        carrier.stopNow()
+    }
+
 }

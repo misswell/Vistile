@@ -51,6 +51,7 @@ final class TransitionProxyView: NSView {
         wantsLayer = true
         layer = CALayer()
         // 与总览、捕获纹理同一台设备：自建 device 会让 drawable 与纹理不兼容，代理一帧都画不出来。
+        ImmediateLayerUpdates.configure(metalLayer)
         metalLayer.device = metal.device
         metalLayer.pixelFormat = .bgra8Unorm
         metalLayer.framebufferOnly = true
