@@ -680,6 +680,7 @@ final class TransitionCarrierView: NSView {
         var cards: [CardDraw] = []
         var placeholders: [(rect: CGRect, tint: SIMD4<Float>)] = []
         var panels: [PanelDraw] = []
+        var flows: [FlowDraw] = []
 
         var backdropAlpha: CGFloat = 0
         if let color = TransitionScene.backdropColor(scene.backdrop) {
@@ -731,6 +732,21 @@ final class TransitionCarrierView: NSView {
                     glowRect = panelRect
                     glowRadius = style.cornerRadius
                     glowAlpha = alpha
+                    // 飞行段 Metal 流光是主角：边缘光晕退半场，落定（progress ≥ 1 的 hold）再全亮。
+                    if scene.flow != nil, progress < 1 { glowAlpha *= 0.5 }
+                    if let spec = scene.flow {
+                        // 场景方向是 CG 全局坐标（y 向下）；着色器在视图本地坐标（y 向上）里取轴。
+                        flows.append(FlowDraw(rect: panelRect,
+                                              axis: SIMD2<Float>(spec.axis.x, -spec.axis.y),
+                                              phase: Float(eased),
+                                              bandWidth: Float(TransitionTimeline.flowBandWidth(eased)),
+                                              trail: Float(TransitionTimeline.flowTrail(eased)),
+                                              intensity: Float(TransitionTimeline.flowIntensity(eased)),
+                                              settle: Float(TransitionTimeline.flowSettle(eased)),
+                                              colorA: spec.leading,
+                                              colorB: spec.trailing,
+                                              cornerRadius: style.cornerRadius))
+                    }
                 }
                 panels.append(PanelDraw(rect: panelRect,
                                         fill: style.fill,
@@ -764,6 +780,7 @@ final class TransitionCarrierView: NSView {
                       cards: cards,
                       placeholders: placeholders,
                       panels: panels,
+                      flows: flows,
                       viewBounds: bounds,
                       scale: max(1, metalLayer.contentsScale),
                       onPresented: { event in

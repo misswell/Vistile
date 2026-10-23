@@ -1,5 +1,14 @@
 # Vistile
 
+## 0.1.37 (51) — 2026-10-24
+
+- 切换主窗口改为空间流动过渡：新主面板从被点选的轨道格飞进主区、旧主面板同时退回格子，Metal 定向流光由速度包络驱动——起步抽出、减速展开、到达扩散为径向柔光；AX 几何时序不变。
+  Main-window switching becomes a spatial flow: the promoted panel flies from its rail cell into the main area while the previous one retreats, with a Metal directional light band driven by a speed envelope — drawn out at launch, broadening on deceleration, and diffusing into a radial glow on arrival; AX geometry timing is unchanged.
+- 流光三级降级：light 面板原地而光仍扫过（方向感不丢），fade/Reduce Motion 保持单帧遮罩；形态参数全部为纯函数并有宿主测试断言。
+  The flow degrades in three tiers: light keeps panels stationary while light still sweeps; fade and Reduce Motion keep the one-frame mask. All envelope shapes are pure functions asserted by host tests.
+
+自动验证 / Automated validation: 核心 XCTest 135 + Swift Testing 159，0 失败 / 0 failures；AgentUse 宿主全量 332 项，331 通过、1 项真实前台键盘焦点限制跳过 / 332 host tests, 331 passed, 1 skipped, 0 failed。流光像素观感待 P0 实机录屏验收 / Flow pixel quality awaits real-machine P0 acceptance.
+
 ## 0.1.36 (50) — 2026-10-24
 
 - AX 观察者差分注册、轮询例行帧停止触发全量同步、搜索键击合并到显示周期：总览打开期间的全量同步从"每事件一次"收敛到结构性变化才发生，重复的 43–101ms 观察者重注册停顿随差分消失。

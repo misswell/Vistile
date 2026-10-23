@@ -31,6 +31,22 @@ struct PanelDraw {
     var opacity: Float = 1
 }
 
+/// 一道叠加在面板上的切换流光。坐标与面板同一套（视图本地、点），
+/// axis 为飞行方向（y 向上、归一化），形态参数全部由 CPU 侧包络预先算好，
+/// 着色器只做混合，不在 GPU 里再算时间。
+struct FlowDraw {
+    let rect: CGRect
+    var axis: SIMD2<Float>
+    var phase: Float
+    var bandWidth: Float
+    var trail: Float
+    var intensity: Float
+    var settle: Float
+    var colorA: SIMD4<Float>
+    var colorB: SIMD4<Float>
+    var cornerRadius: CGFloat
+}
+
 /// 渲染侧事实快照。只用于诊断与验收记录，不构成"画面已正确显示"的结论。
 struct RendererSubmission: Hashable, Sendable {
     let identifier: UInt64
@@ -168,6 +184,7 @@ final class OverviewRenderer {
               cards: [CardDraw],
               placeholders: [(rect: CGRect, tint: SIMD4<Float>)],
               panels: [PanelDraw] = [],
+              flows: [FlowDraw] = [],
               viewBounds: CGRect,
               scale: CGFloat,
               clearColor: SIMD4<Float>? = nil,
@@ -242,6 +259,28 @@ final class OverviewRenderer {
             encoder.setViewport(viewport(inset, viewBounds: viewBounds, scale: scale))
             encoder.setFragmentBytes(&fillUniforms, length: MemoryLayout<ShaderSource.DrawUniforms>.stride, index: 0)
             encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+        }
+        // 流光叠加在面板之上、位图之下：先加法提亮面板，纹理内容（如有）再压在光上，
+        // 避免"光盖住画面"读成一块实心色斑。
+        if !flows.isEmpty {
+            encoder.setRenderPipelineState(pipelines.flow)
+            for flow in flows {
+                let size = pixelSize(of: flow.rect, scale: scale)
+                var uniforms = ShaderSource.FlowUniforms(
+                    axis: normalizedAxis(flow.axis),
+                    phase: flow.phase,
+                    bandWidth: flow.bandWidth,
+                    trail: flow.trail,
+                    intensity: flow.intensity,
+                    settle: flow.settle,
+                    colorA: flow.colorA,
+                    colorB: flow.colorB,
+                    rectSize: size,
+                    cornerRadius: Float(max(0, flow.cornerRadius * scale)))
+                encoder.setViewport(viewport(flow.rect, viewBounds: viewBounds, scale: scale))
+                encoder.setFragmentBytes(&uniforms, length: MemoryLayout<ShaderSource.FlowUniforms>.stride, index: 0)
+                encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+            }
         }
 
         encoder.setRenderPipelineState(pipelines.textured)
@@ -329,6 +368,13 @@ final class OverviewRenderer {
     private func pixelSize(of rect: CGRect, scale: CGFloat) -> SIMD2<Float> {
         SIMD2<Float>(Float(max(1, (rect.width * scale).rounded())),
                      Float(max(1, (rect.height * scale).rounded())))
+    }
+
+    /// 流光方向必须在着色器里保持单位长度：CPU 传来的向量可能因端点重合退化为零。
+    private func normalizedAxis(_ axis: SIMD2<Float>) -> SIMD2<Float> {
+        let length = simd_length(axis)
+        guard length > 0.0001 else { return SIMD2<Float>(1, 0) }
+        return axis / length
     }
 
     private func viewport(_ rect: CGRect, viewBounds: CGRect, scale: CGFloat) -> MTLViewport {

@@ -90,6 +90,8 @@ struct TransitionScene {
     let level: MotionLevel
     /// 飞行期间画什么。生产恒为 `.panel`：不放大任何捕获位图，从根上不存在"模糊的过程"。
     var content: Content = .panel(.standard)
+    /// 焦点卡上的切换流光；nil 表示这段场景没有流光（淡化等级、无轨道起点的交换）。
+    var flow: FlowSpec? = nil
 
     var hiddenRailIdentities: Set<WindowIdentity> {
         Set(cards.filter(\.hidesRailCard).map(\.identity))
@@ -114,10 +116,23 @@ struct TransitionScene {
     }
 }
 
+/// 切换流光的纯描述：只带方向与光色，亮度/宽度/推进全部由 `TransitionTimeline`
+/// 的包络随进度求值——端点算完就固定，播放层不改这里的值（与卡片端点同一约束）。
+struct FlowSpec: Hashable {
+    /// 飞行方向（CG 全局坐标、起点中心指向终点中心、未归一化也允许）。
+    /// 渲染层负责归一化与 y 轴翻转，这里保持"计划事实"的原始形态。
+    var axis: SIMD2<Float>
+    /// 前缘色（运动方向一头）：调色板里的青。
+    var leading: SIMD4<Float> = SIMD4<Float>(0.33, 0.86, 0.96, 1)
+    /// 尾端色（能量拖尾）：调色板里的蓝。
+    var trailing: SIMD4<Float> = SIMD4<Float>(0.40, 0.54, 1.0, 1)
+
+    static let standard = FlowSpec(axis: SIMD2<Float>(1, 0))
+}
+
 /// 飞行面板的外观：颜色与圆角都跟栏内卡片保持一致，看起来就是"那张卡片在飞"。
 /// 全部数值集中在这里，视图层与测试共用同一份，不各写一套。
-struct PanelStyle: Hashable {
-    /// 填充色（预乘前的直色）。与总览/两栏卡片底板同一族的稍亮版本：
+struct PanelStyle: Hashable {    /// 填充色（预乘前的直色）。与总览/两栏卡片底板同一族的稍亮版本：
     /// 飞行时它是屏幕上唯一在动的东西，比静止底板亮一点才看得出来。
     var fill: SIMD4<Float>
     /// 描边色，与卡片边框同一条白 10%。
@@ -168,6 +183,43 @@ enum TransitionTimeline {
     static func alphaProgress(_ progress: CGFloat, fadeFraction: CGFloat) -> CGFloat {
         guard fadeFraction > 0 else { return 1 }
         return min(1, max(0, progress) / fadeFraction)
+    }
+
+    // MARK: - 切换流光的包络（纯函数：测试断言的就是屏幕上跑的那一条）
+
+    /// 飞行的瞬时速度（相对值 0…1）：easeOutCubic 的导数。起步最快、接近终点归于零。
+    /// 光带的宽度与拖尾长度随它调制——快时窄而亮、拖得长，减速后展开变柔。
+    static func flightSpeed(_ progress: CGFloat) -> CGFloat {
+        let t = min(1, max(0, progress))
+        return (1 - t) * (1 - t)
+    }
+
+    /// 流光总强度的首尾呼吸：起步从 0 二次缓入（光从格子里"抽出"而不是突然点亮），
+    /// 0.78 之后向 0.35 收拢——落定后的持续呼吸交给边缘光晕，Metal 流光只负责飞行段。
+    static func flowIntensity(_ progress: CGFloat) -> CGFloat {
+        let t = min(1, max(0, progress))
+        let head = min(1, t / 0.14)
+        let headEased = head * head
+        let tail = 1 - 0.65 * min(1, max(0, (t - 0.78) / 0.22))
+        return headEased * tail
+    }
+
+    /// 到达段的展开混合：0.72 之前是纯扫掠光带，之后 smoothstep 升到 1，
+    /// 光带展开成以面板中心为核的径向柔光——"水滴落进水面"的收尾。
+    static func flowSettle(_ progress: CGFloat) -> CGFloat {
+        let t = min(1, max(0, progress))
+        let s = min(1, max(0, (t - 0.72) / 0.28))
+        return s * s * (3 - 2 * s)
+    }
+
+    /// 光带垂直半宽（归一化 0.10…0.32）：随速度反比展开。
+    static func flowBandWidth(_ progress: CGFloat) -> CGFloat {
+        0.10 + 0.22 * (1 - flightSpeed(progress))
+    }
+
+    /// 沿轴拖尾长度（归一化 0.32…0.52）：速度越快拖得越长，减速时收拢。
+    static func flowTrail(_ progress: CGFloat) -> CGFloat {
+        0.32 + 0.20 * flightSpeed(progress)
     }
 
     /// 底色在整段飞行里的透明度。opaque 从头就不透明；rising 在前 62% 升满，遮住真实窗口的落定过程。
@@ -327,7 +379,12 @@ struct TransitionSceneFactory {
                                content: content(for: snapshot))
     }
 
-    /// 主区原地遮挡真实窗口调整，栏位保持静止，流光不延后几何执行。
+    /// 栏内交换（方案 §10.3）。full 级别：B（新主）从被点选的格子飞进主区、
+    /// A（旧主）同时退回自己的格子，两块面板对飞完成空间衔接，并叠加一道
+    /// 由速度包络驱动的定向流光；真实窗口交换仍由承载层盖住后照常执行，
+    /// 动画时长不影响几何时序（"流光不延后几何执行"）。
+    /// light 级别：面板原地不动，流光仍从格子方向扫过主区再扩散（方向感不丢）。
+    /// fade/减少动态效果：保持单帧遮罩与短淡化，无流光。
     func swapping(_ plan: WorkbenchSwitchPlan) -> TransitionScene? {
         guard usableDisplayFrame(plan.displayID) != nil else { return nil }
         let snapshot = plan.snapshot
@@ -351,6 +408,64 @@ struct TransitionSceneFactory {
                                    durationMS: reduceMotion() ? 80 : 120, fadeOnly: true,
                                    level: level, content: content(for: snapshot))
         }
+
+        let mainPanelRect = snapshot.layout.mainRect
+        // B 被点选的格子就是飞行的起点；滚出视口的格子没有可信起点，退回原地遮盖。
+        let sourceSlot = intent.railSlot.flatMap { slot -> CGRect? in
+            guard snapshot.isVisible(slot), let rect = snapshot.rect(for: slot) else { return nil }
+            return rect
+        }
+        let reduced = reduceMotion()
+
+        if level == .full, !reduced, let cell = sourceSlot {
+            var cards: [TransitionScene.Card] = []
+            // B：面板代表"那张卡片"，起点是整格（含标题条），画面容器从内容区起飞。
+            let contentStart = intent.railSlot.flatMap { snapshot.contentRect(for: $0) } ?? cell
+            cards.append(TransitionScene.Card(identity: intent.to,
+                                              start: contentStart,
+                                              end: plan.mainTargetFrame,
+                                              cellStart: nil,
+                                              cellEnd: nil,
+                                              startAlpha: 1,
+                                              endAlpha: 1,
+                                              aspect: aspect(intent.to, contentStart),
+                                              hidesRailCard: true,
+                                              isFocus: true,
+                                              panelFrom: cell,
+                                              panelTo: mainPanelRect))
+            // A：旧主退回自己的格子；没有可信落点（首次选择）时原地淡出，不伪造位置（方案 §4.2.5）。
+            if let previous = intent.from {
+                let restingCell = plan.restingSlot.flatMap { snapshot.rect(for: $0) }
+                let restingContent = plan.restingSlot.flatMap { snapshot.contentRect(for: $0) } ?? restingCell
+                cards.append(TransitionScene.Card(identity: previous,
+                                                  start: plan.mainTargetFrame,
+                                                  end: restingContent,
+                                                  cellStart: nil,
+                                                  cellEnd: restingCell,
+                                                  startAlpha: 1,
+                                                  endAlpha: restingContent == nil ? 0 : 1,
+                                                  aspect: aspect(previous, plan.mainTargetFrame),
+                                                  hidesRailCard: restingCell != nil,
+                                                  isFocus: false,
+                                                  panelFrom: mainPanelRect,
+                                                  panelTo: restingCell))
+            }
+            var flow = FlowSpec.standard
+            flow.axis = SIMD2<Float>(Float(mainPanelRect.midX - cell.midX),
+                                     Float(mainPanelRect.midY - cell.midY))
+            return TransitionScene(kind: .swapping,
+                                   token: intent.token,
+                                   displayID: plan.displayID,
+                                   backdrop: .transparent,
+                                   cards: cards,
+                                   durationMS: 240,
+                                   fadeOnly: false,
+                                   level: level,
+                                   content: content(for: snapshot),
+                                   flow: flow)
+        }
+
+        // 原地遮盖：A/B 的真实交换仍被主区面板盖住；light 级别让流光独自扫过再扩散。
         let card = TransitionScene.Card(identity: intent.to,
                                         start: plan.mainTargetFrame,
                                         end: plan.mainTargetFrame,
@@ -363,15 +478,23 @@ struct TransitionSceneFactory {
                                         isFocus: true,
                                         panelFrom: snapshot.layout.mainRect,
                                         panelTo: snapshot.layout.mainRect)
+        var flow: FlowSpec? = nil
+        if level == .light, !reduced, let cell = sourceSlot {
+            var spec = FlowSpec.standard
+            spec.axis = SIMD2<Float>(Float(mainPanelRect.midX - cell.midX),
+                                     Float(mainPanelRect.midY - cell.midY))
+            flow = spec
+        }
         return TransitionScene(kind: .swapping,
                                token: intent.token,
                                displayID: plan.displayID,
                                backdrop: .transparent,
                                cards: [card],
-                               durationMS: 16,
-                               fadeOnly: level == .fade || reduceMotion(),
+                               durationMS: flow != nil ? 180 : 16,
+                               fadeOnly: level == .fade || reduced,
                                level: level,
-                               content: content(for: snapshot))
+                               content: content(for: snapshot),
+                               flow: flow)
     }
 
     // MARK: - 组装

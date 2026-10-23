@@ -322,7 +322,7 @@ final class TransitionSceneTests: XCTestCase {
 
     // MARK: - L 型内交换
 
-    func testSwappingSceneKeepsOneOpaqueTargetPanelOverTheWholeMainRect() throws {
+    func testSwappingSceneFliesBothPanelsWithDirectionalFlow() throws {
         let fixture = HostWorkbench.fixture(count: 4)
         let from = HostFixtures.identity(0)
         let to = HostFixtures.identity(1)
@@ -355,30 +355,117 @@ final class TransitionSceneTests: XCTestCase {
         XCTAssertEqual(scene.token, intent.token)
         XCTAssertEqual(scene.displayID, displayID)
         XCTAssertNil(TransitionScene.backdropColor(scene.backdrop), "栏内交换不画底色，两栏与分隔线纹丝不动")
-        XCTAssertEqual(scene.durationMS, 16, "Manual swapping reserves only the first frame, not a flight")
+        XCTAssertEqual(scene.durationMS, 240, "full 级别给足对飞与流光的时间，不再是一帧遮罩")
         XCTAssertEqual(scene.level, .full)
         XCTAssertFalse(scene.fadeOnly)
-        XCTAssertEqual(scene.cards.map(\.identity), [to], "Only the target owns the main-area mask")
+        XCTAssertEqual(scene.cards.map(\.identity), [to, from], "新主飞进、旧主退回：两张面板对飞完成空间衔接")
 
         let promoted = try XCTUnwrap(scene.focusCard)
         XCTAssertEqual(promoted.identity, to)
         XCTAssertTrue(promoted.isFocus)
-        XCTAssertEqual(promoted.start, mainTarget)
+        XCTAssertEqual(promoted.start, fixture.snapshot.contentRect(for: slot) ?? fixture.snapshot.rect(for: slot),
+                       "画面容器从被点选格子的内容区起飞")
         XCTAssertEqual(promoted.end, mainTarget)
-        XCTAssertEqual(promoted.panelFrom, fixture.layout.mainRect)
+        XCTAssertEqual(promoted.panelFrom, fixture.snapshot.rect(for: slot), "面板代表那张卡片：从整格（含标题条）起飞")
         XCTAssertEqual(promoted.panelTo, fixture.layout.mainRect)
-        XCTAssertNotEqual(mainTarget, fixture.layout.mainRect, "The mask must cover more than the inset target")
         XCTAssertEqual(promoted.startAlpha, 1)
         XCTAssertEqual(promoted.endAlpha, 1)
-        XCTAssertNil(promoted.cellStart)
-        XCTAssertNil(promoted.cellEnd)
         XCTAssertEqual(promoted.aspect, 1.8, accuracy: 0.0001)
-        XCTAssertFalse(promoted.hidesRailCard, "The selected thumbnail remains visible during switching")
-        XCTAssertNil(scene.cards.first { $0.identity == from }, "The previous main window no longer flies to a rail")
-        XCTAssertTrue(scene.hiddenRailIdentities.isEmpty)
+        XCTAssertTrue(promoted.hidesRailCard, "飞行面板是替身：轨道副本必须藏起来避免叠影")
+
+        let demoted = try XCTUnwrap(scene.cards.first { $0.identity == from })
+        XCTAssertEqual(demoted.start, mainTarget, "旧主从主区起飞")
+        XCTAssertEqual(demoted.panelFrom, fixture.layout.mainRect)
+        XCTAssertEqual(demoted.panelTo, fixture.snapshot.rect(for: slot), "旧主退回自己的格子")
+        XCTAssertEqual(demoted.endAlpha, 1)
+        XCTAssertTrue(demoted.hidesRailCard)
+        XCTAssertFalse(demoted.isFocus)
+
+        XCTAssertEqual(scene.hiddenRailIdentities, [to, from])
+        let flow = try XCTUnwrap(scene.flow, "full 级别必须携带流光：切换要有能量流动的衔接")
+        let cell = try XCTUnwrap(fixture.snapshot.rect(for: slot))
+        let expected = SIMD2<Float>(Float(fixture.layout.mainRect.midX - cell.midX),
+                                    Float(fixture.layout.mainRect.midY - cell.midY))
+        XCTAssertEqual(flow.axis.x, expected.x, accuracy: 0.001)
+        XCTAssertEqual(flow.axis.y, expected.y, accuracy: 0.001, "流光方向从被点选格子指向主区")
     }
 
-    func testSwappingWithoutPreviousMainStillCoversTheMainRect() throws {
+    /// 流光的时间包络：起步抽出、减速展开、到达扩散——形态全部单调、有界、端点确定。
+    func testFlowEnvelopesAreMonotonicAndBounded() {
+        XCTAssertEqual(TransitionTimeline.flightSpeed(0), 1, accuracy: 0.0001)
+        XCTAssertEqual(TransitionTimeline.flightSpeed(1), 0, accuracy: 0.0001)
+        for index in 0..<20 where index > 0 {
+            let t = CGFloat(index) / 20
+            XCTAssertLessThanOrEqual(TransitionTimeline.flightSpeed(t), TransitionTimeline.flightSpeed(t - 0.05),
+                                     "速度必须单调下降：easeOut 的减速感是流光形态的输入")
+        }
+        XCTAssertEqual(TransitionTimeline.flowIntensity(0), 0, accuracy: 0.0001, "光不能突然点亮：起步从零抽出")
+        XCTAssertGreaterThan(TransitionTimeline.flowIntensity(0.14), 0.9, "起步段结束时接近全亮")
+        XCTAssertEqual(TransitionTimeline.flowIntensity(1), 0.35, accuracy: 0.0001,
+                       "落定后收到 0.35：持续呼吸交给边缘光晕，Metal 流光只负责飞行段")
+        for index in 0...20 {
+            let t = CGFloat(index) / 20
+            XCTAssertGreaterThanOrEqual(TransitionTimeline.flowIntensity(t), 0)
+            XCTAssertLessThanOrEqual(TransitionTimeline.flowIntensity(t), 1)
+            XCTAssertGreaterThanOrEqual(TransitionTimeline.flowSettle(t), 0)
+            XCTAssertLessThanOrEqual(TransitionTimeline.flowSettle(t), 1)
+            XCTAssertGreaterThanOrEqual(TransitionTimeline.flowBandWidth(t), 0.10)
+            XCTAssertLessThanOrEqual(TransitionTimeline.flowBandWidth(t), 0.32)
+            XCTAssertGreaterThanOrEqual(TransitionTimeline.flowTrail(t), 0.32)
+            XCTAssertLessThanOrEqual(TransitionTimeline.flowTrail(t), 0.52)
+        }
+        XCTAssertEqual(TransitionTimeline.flowSettle(0.72), 0, accuracy: 0.0001, "0.72 前是纯扫掠")
+        XCTAssertEqual(TransitionTimeline.flowSettle(1), 1, accuracy: 0.0001, "到达段完全展开为径向柔光")
+        XCTAssertGreaterThan(TransitionTimeline.flowBandWidth(1), TransitionTimeline.flowBandWidth(0),
+                             "减速后光带必须展开：宽而柔，不是等宽扫过")
+        XCTAssertGreaterThan(TransitionTimeline.flowTrail(0), TransitionTimeline.flowTrail(1),
+                             "速度最快时拖尾最长")
+    }
+
+    /// light 级别不飞面板，但流光仍从格子方向扫过主区再扩散：方向感不丢。
+    /// fade/Reduce Motion 保持单帧遮罩与短淡化，无流光。
+    func testSwappingFlowDegradesByMotionLevel() throws {
+        let fixture = HostWorkbench.fixture(count: 3)
+        let to = HostFixtures.identity(1)
+        let slot = try XCTUnwrap(fixture.placement.slot(of: to))
+        let intent = HostPlanFacts.switchIntent(token: TransitionToken(generation: 26),
+                                           from: HostFixtures.identity(0), to: to,
+                                           source: .rail(slot: slot), placementRevision: 1,
+                                           targetDisplayID: displayID)
+        let plan = WorkbenchSwitchPlan(intent: intent,
+                                       displayID: displayID,
+                                       mainTargetFrame: fixture.layout.mainRect,
+                                       restingTargetFrame: fixture.layout.mainRect,
+                                       restingSlot: slot,
+                                       snapshot: fixture.snapshot,
+                                       presentation: fixture.presentation,
+                                       placement: HostPlanFacts.placement(target: fixture.layout.mainRect))
+
+        var lightFactory = baseFactory(imageRects: [:])
+        lightFactory.motionLevel = { .light }
+        let light = try XCTUnwrap(lightFactory.swapping(plan))
+        XCTAssertEqual(light.durationMS, 180, "light 级别让流光独自扫完再扩散")
+        XCTAssertNotNil(light.flow, "light 级别仍要有方向感")
+        XCTAssertEqual(light.cards.map(\.identity), [to])
+        XCTAssertTrue(light.isStationarySwap, "light 面板原地不动，只有光在动")
+        XCTAssertTrue(light.hiddenRailIdentities.isEmpty)
+
+        var fadeFactory = baseFactory(imageRects: [:])
+        fadeFactory.motionLevel = { .fade }
+        let fade = try XCTUnwrap(fadeFactory.swapping(plan))
+        XCTAssertNil(fade.flow, "淡化等级无流光")
+        XCTAssertEqual(fade.durationMS, 16)
+        XCTAssertTrue(fade.fadeOnly)
+
+        var reducedFactory = baseFactory(imageRects: [:])
+        reducedFactory.reduceMotion = { true }
+        let reduced = try XCTUnwrap(reducedFactory.swapping(plan))
+        XCTAssertNil(reduced.flow, "Reduce Motion 下无流光")
+        XCTAssertEqual(reduced.durationMS, 16)
+        XCTAssertTrue(reduced.fadeOnly)
+    }
+
+    func testSwappingWithoutPreviousMainStillFliesFromTheRail() throws {
         let fixture = HostWorkbench.fixture(count: 3)
         let to = HostFixtures.identity(1)
         let slot = try XCTUnwrap(fixture.placement.slot(of: to))
@@ -398,16 +485,17 @@ final class TransitionSceneTests: XCTestCase {
                                        placement: HostPlanFacts.placement(target: fixture.layout.mainRect))
 
         let scene = try XCTUnwrap(baseFactory(imageRects: [:]).swapping(plan))
-        XCTAssertEqual(scene.cards.map(\.identity), [to])
+        XCTAssertEqual(scene.cards.map(\.identity), [to], "没有旧主时只有新主一张在飞")
         let card = try XCTUnwrap(scene.focusCard)
-        XCTAssertEqual(card.start, plan.mainTargetFrame)
+        XCTAssertEqual(card.start, fixture.snapshot.contentRect(for: slot) ?? fixture.snapshot.rect(for: slot))
         XCTAssertEqual(card.end, plan.mainTargetFrame)
-        XCTAssertEqual(card.panelFrom, fixture.layout.mainRect)
+        XCTAssertEqual(card.panelFrom, fixture.snapshot.rect(for: slot))
         XCTAssertEqual(card.panelTo, fixture.layout.mainRect)
         XCTAssertEqual(card.startAlpha, 1)
         XCTAssertEqual(card.endAlpha, 1)
-        XCTAssertEqual(scene.durationMS, 16)
-        XCTAssertTrue(scene.hiddenRailIdentities.isEmpty, "Switching keeps the selected thumbnail visible")
+        XCTAssertEqual(scene.durationMS, 240)
+        XCTAssertNotNil(scene.flow)
+        XCTAssertEqual(scene.hiddenRailIdentities, [to])
     }
 
     func testExternalFocusUsesShortStationaryFadeWithoutMovingRailCards() throws {
@@ -614,7 +702,8 @@ final class TransitionSceneTests: XCTestCase {
         coordinator.play(scene)
         XCTAssertTrue(coordinator.isPresenting)
         XCTAssertEqual(coordinator.activeKind, .swapping)
-        XCTAssertTrue(coordinator.hiddenRailIdentities.isEmpty, "Both windows retain visible rail thumbnails")
+        XCTAssertEqual(coordinator.hiddenRailIdentities, Set([to, HostFixtures.identity(0)]),
+                       "飞行面板是替身：两张窗口的轨道副本在过渡期间都藏起来")
         XCTAssertFalse(coordinator.isReturnPresenting)
 
         coordinator.cancelAll()
@@ -792,7 +881,8 @@ final class TransitionSceneTests: XCTestCase {
 
         XCTAssertEqual(scene.level, .light)
         XCTAssertFalse(scene.fadeOnly, "Stationary geometry does not change the requested motion level")
-        XCTAssertEqual(scene.durationMS, 16)
+        XCTAssertEqual(scene.durationMS, 180, "面板原地不动，但流光仍要扫过再扩散：光走完这段的时间")
+        XCTAssertNotNil(scene.flow)
         XCTAssertEqual(scene.cards.map(\.identity), [to])
 
         let promoted = try XCTUnwrap(scene.focusCard)
