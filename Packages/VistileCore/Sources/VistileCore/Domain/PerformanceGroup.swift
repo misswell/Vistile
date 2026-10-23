@@ -36,8 +36,8 @@ public struct PerformanceGroup: Hashable, Sendable {
     /// 不带冷热的环境标签：报告头与跨轮对照用（同一台机器、同一开关下的两轮才可比）。
     public var environmentLabel: String { "\(refreshLabel)·\(reduceMotionLabel)" }
 
-    /// 本机一个帧周期的长度。方案 §20.2 允许 120Hz 用更严格的本机预算，
-    /// 但 §20.1 的判据仍是 20ms 这一条线，所以这个数只作为事实随样本一起写出来。
+    /// 本机一个帧周期的长度；用于实际呈现预算，未知刷新率不得冒充 60Hz。
+    /// The native period is the presentation budget; unknown refresh rates remain unjudged.
     public var nativeFrameIntervalMS: Double { refreshHz > 0 ? 1000.0 / refreshHz : 0 }
 }
 
@@ -70,7 +70,9 @@ public struct PerformanceVerdict: Hashable, Sendable {
     public var factText: String {
         guard count > 0 else { return "\(groupKey) 无样本（未判）" }
         let p95Text = p95MS.isFinite ? String(format: "%.0fms", p95MS) : "无有效值"
-        return "\(groupKey) p95=\(p95Text)（目标 ≤\(Int(targetMS))ms，n=\(count)，\(status.label)）"
+        let targetText = targetMS.isFinite && targetMS.rounded() == targetMS
+            ? String(format: "%.0f", targetMS) : String(format: "%.2f", targetMS)
+        return "\(groupKey) p95=\(p95Text)（目标 ≤\(targetText)ms，n=\(count)，\(status.label)）"
     }
 }
 

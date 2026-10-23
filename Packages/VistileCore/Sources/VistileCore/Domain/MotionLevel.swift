@@ -33,37 +33,51 @@ public enum MotionLevel: String, Hashable, Sendable, CaseIterable, Codable {
     }
 }
 
-/// 一段飞行的帧间隔统计（方案 §20.3）：以 16.67ms 为基准的 P95、超过 33.3ms 的占比与最长连续掉帧。
+/// Refresh-rate-aware interval statistics. A 0.05ms tolerance only covers timestamp rounding.
 public struct FrameIntervalStats: Hashable, Sendable {
-    /// 33.33ms：两倍基准帧间隔，超过就算一次明显掉帧。
-    public static let longFrameMS = 2000.0 / 60.0
-    public static let maxP95MS = 20.0
+    public static let defaultFrameBudgetMS = 1000.0 / 60.0
+    public static let timestampToleranceMS = 0.05
+    public static let longFrameMS = defaultFrameBudgetMS * 2
+    public static let maxP95MS = defaultFrameBudgetMS + timestampToleranceMS
     public static let maxLongFrameRatio = 0.01
-    /// 连续 3 帧明显卡顿就不合格：「无连续 3 帧明显卡顿」是 §20.3 的原文。
     public static let maxStutterRun = 3
 
     public let count: Int
     public let p95MS: Double
+    public let p99MS: Double
+    public let maximumMS: Double
+    public let frameBudgetMS: Double
     public let longFrameRatio: Double
     public let longestStutterRun: Int
 
     public var meetsTarget: Bool {
-        p95MS <= Self.maxP95MS
+        p95MS <= frameBudgetMS + Self.timestampToleranceMS
             && longFrameRatio <= Self.maxLongFrameRatio
             && longestStutterRun < Self.maxStutterRun
     }
 
-    /// 少于 3 个间隔不足以判断：刚起步就结束的过渡不该被拿来下结论。
-    public static func measure(_ intervalsMS: [Double]) -> FrameIntervalStats? {
+    public static func slowFrameThreshold(frameBudgetMS: Double) -> Double {
+        max(12, normalizedBudget(frameBudgetMS) * 1.5)
+    }
+
+    public static func normalizedBudget(_ value: Double) -> Double {
+        value.isFinite && value > 0 ? value : defaultFrameBudgetMS
+    }
+
+    public static func measure(_ intervalsMS: [Double], frameBudgetMS: Double = defaultFrameBudgetMS) -> FrameIntervalStats? {
         let ordered = intervalsMS.filter { $0.isFinite && $0 > 0 }
         guard ordered.count >= 3 else { return nil }
         let sorted = ordered.sorted()
-        let p95 = sorted[min(sorted.count - 1, Int(Double(sorted.count - 1) * 0.95))]
-        let long = sorted.filter { $0 > Self.longFrameMS }.count
+        func percentile(_ fraction: Double) -> Double {
+            sorted[min(sorted.count - 1, Int(Double(sorted.count - 1) * fraction))]
+        }
+        let budget = normalizedBudget(frameBudgetMS)
+        let longThreshold = budget * 2
+        let long = sorted.filter { $0 > longThreshold }.count
         var run = 0
         var longest = 0
         for value in ordered {
-            if value > Self.longFrameMS {
+            if value > longThreshold {
                 run += 1
                 longest = max(longest, run)
             } else {
@@ -71,7 +85,10 @@ public struct FrameIntervalStats: Hashable, Sendable {
             }
         }
         return FrameIntervalStats(count: ordered.count,
-                                  p95MS: p95,
+                                  p95MS: percentile(0.95),
+                                  p99MS: percentile(0.99),
+                                  maximumMS: sorted[sorted.count - 1],
+                                  frameBudgetMS: budget,
                                   longFrameRatio: Double(long) / Double(ordered.count),
                                   longestStutterRun: longest)
     }
@@ -84,6 +101,11 @@ public struct FrameIntervalStats: Hashable, Sendable {
 public struct TransitionFlightFacts: Hashable, Sendable {
     /// 真实输入 → 第一段画面 present 出去的毫秒数；整段一次都没 present 成功时为 nil。
     public let firstPresentDelayMS: Double?
+    public let firstSubmissionDelayMS: Double?
+    public let submittedFrames: Int
+    public let gpuExecutionP95MS: Double?
+    public let presentationComplete: Bool
+    public let frameBudgetMS: Double
     /// 飞行期间收到的 tick 次数。
     public let ticks: Int
     /// 飞行期间渲染器实际 present 出去的帧数（含 play() 同步画的第一帧）。
@@ -92,8 +114,16 @@ public struct TransitionFlightFacts: Hashable, Sendable {
     /// 按动画进入时刻算——这种样本不能混进"点击反馈"的 P95。
     public let anchoredAtRealInput: Bool
 
-    public init(firstPresentDelayMS: Double?, ticks: Int, presentedFrames: Int, anchoredAtRealInput: Bool) {
+    public init(firstPresentDelayMS: Double?, ticks: Int, presentedFrames: Int, anchoredAtRealInput: Bool,
+                firstSubmissionDelayMS: Double? = nil, submittedFrames: Int? = nil,
+                gpuExecutionP95MS: Double? = nil, presentationComplete: Bool = true,
+                frameBudgetMS: Double = FrameIntervalStats.defaultFrameBudgetMS) {
         self.firstPresentDelayMS = firstPresentDelayMS
+        self.firstSubmissionDelayMS = firstSubmissionDelayMS
+        self.submittedFrames = submittedFrames ?? presentedFrames
+        self.gpuExecutionP95MS = gpuExecutionP95MS
+        self.presentationComplete = presentationComplete
+        self.frameBudgetMS = FrameIntervalStats.normalizedBudget(frameBudgetMS)
         self.ticks = ticks
         self.presentedFrames = presentedFrames
         self.anchoredAtRealInput = anchoredAtRealInput

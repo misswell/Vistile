@@ -35,12 +35,34 @@ enum PerformanceEnvironment {
 /// os_signpost 区间与轻量计数。正常用户界面不显示这些技术参数（方案 §13）。
 final class Metrics {
     static let shared = Metrics()
+    static let maximumSamplesPerMetric = 1024
 
     private let log = OSLog(subsystem: "com.misswell.Vistile", category: "session")
     private let lock = NSLock()
     private var counters: [String: Int] = [:]
-    private var timings: [String: [Double]] = [:]
+    private struct TimingHistory {
+        var samples: [Double] = []
+        var nextIndex = 0
+        var totalCount = 0
+
+        mutating func append(_ value: Double) {
+            totalCount &+= 1
+            if samples.count < Metrics.maximumSamplesPerMetric {
+                samples.append(value)
+            } else {
+                samples[nextIndex] = value
+                nextIndex = (nextIndex + 1) % Metrics.maximumSamplesPerMetric
+            }
+        }
+    }
+    private var timings: [String: TimingHistory] = [:]
     private var signpostIDs: [String: OSSignpostID] = [:]
+
+    var retainedSampleCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return timings.values.reduce(0) { $0 + $1.samples.count }
+    }
 
     var onSample: ((PerformanceSample) -> Void)?
 
@@ -81,7 +103,7 @@ final class Metrics {
     /// 记录一次耗时；同时写 signpost 与内存中的样本，供报告导出。
     func measure(_ name: String, milliseconds: Double, context: String = "") {
         lock.lock()
-        timings[name, default: []].append(milliseconds)
+        timings[name, default: TimingHistory()].append(milliseconds)
         lock.unlock()
         os_signpost(.event, log: log, name: Self.eventName, signpostID: OSSignpostID(log: log),
                     "measure %{public}@ %.1fms %{public}@",
@@ -92,12 +114,13 @@ final class Metrics {
     func summary() -> [PerformanceSample] {
         lock.lock()
         defer { lock.unlock() }
-        return timings.map { name, values in
+        return timings.map { name, history in
+            let values = history.samples
             let sorted = values.sorted()
             let p95 = sorted[min(sorted.count - 1, Int(Double(sorted.count - 1) * 0.95))]
             return PerformanceSample(name: "\(name) p95",
                                      valueMS: p95,
-                                     context: "n=\(values.count), median=\(String(format: "%.1f", sorted[sorted.count / 2]))")
+                                     context: "n=\(values.count), total=\(history.totalCount), median=\(String(format: "%.1f", sorted[sorted.count / 2]))")
         }.sorted { $0.name < $1.name }
     }
 

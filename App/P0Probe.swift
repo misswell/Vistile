@@ -1548,7 +1548,7 @@ final class P0Probe {
         let env = PerformanceEnvironment.current(coldStart: false)
         facts.append("分组环境：\(env.environmentLabel)，本机帧间隔 \(String(format: "%.2f", env.nativeFrameIntervalMS))ms"
             + "（§20.2 要求 60Hz/120Hz、reduceMotion、冷启动/热路径分别分组，下面的判定逐组给）")
-        // ① 帧间隔：每个 (场景, 分组) 一行。判据 §20.1 P95≤20ms；闸门 §20.2 每路径 ≥100 次操作、累计 ≥1,000 个有效间隔。
+        // Actual presented intervals use the group's native frame budget; unknown refresh rates stay unjudged.
         for kind in ["总览→L 型", "L 型内交换", "L 型→总览"] {
             let rows = groupedRows(in: summary, base: "过渡帧间隔p95·\(kind)")
             guard !rows.isEmpty else {
@@ -1562,8 +1562,15 @@ final class P0Probe {
             }
             for row in rows {
                 let segments = Self.sampleCount(from: row.sample.context)
+                let refreshLabel = row.groupKey.components(separatedBy: "·").first ?? ""
+                guard refreshLabel.hasSuffix("Hz"), let refreshHz = Double(refreshLabel.dropLast(2)),
+                      refreshHz.isFinite, refreshHz > 0 else {
+                    shortfalls.append("\(kind)「\(row.groupKey)」缺少真实刷新率，帧预算未判")
+                    continue
+                }
+                let frameTargetMS = 1000 / refreshHz + FrameIntervalStats.timestampToleranceMS
                 let verdict = PerformanceGate.judge(groupKey: row.groupKey, count: segments,
-                                                   p95MS: row.sample.valueMS, targetMS: 20)
+                                                   p95MS: row.sample.valueMS, targetMS: frameTargetMS)
                 let iv = intervals[row.groupKey] ?? 0
                 facts.append("\(kind)「\(row.groupKey)」\(verdict.factText)，有效间隔 \(iv)")
                 if segments < PerformanceGate.minSamples {
@@ -1571,7 +1578,7 @@ final class P0Probe {
                 } else if iv < Self.minIntervalsPerPath {
                     shortfalls.append("\(kind)「\(row.groupKey)」有效间隔 \(iv) < \(Self.minIntervalsPerPath)（§20.2 记未判）")
                 } else if verdict.status == .miss {
-                    misses.append("\(kind)「\(row.groupKey)」帧间隔 p95 超 20ms 目标")
+                    misses.append("\(kind)「\(row.groupKey)」实际呈现间隔 p95 超本机帧预算 \(String(format: "%.2f", frameTargetMS))ms")
                 }
             }
         }

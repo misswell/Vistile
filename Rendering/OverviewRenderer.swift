@@ -32,10 +32,23 @@ struct PanelDraw {
 }
 
 /// 渲染侧事实快照。只用于诊断与验收记录，不构成"画面已正确显示"的结论。
+struct RendererSubmission: Hashable, Sendable {
+    let identifier: UInt64
+    let submittedAt: CFTimeInterval
+}
+
+struct RendererPresentation: Hashable, Sendable {
+    let submission: RendererSubmission
+    let presentedAt: CFTimeInterval
+}
+
 struct RendererDiagnostics: Hashable {
     let device: String
     let draws: Int
     let presents: Int
+    let submissions: Int
+    let gpuCompletions: Int
+    let lastGPUExecutionMS: Double?
     let missingDrawables: Int
     let submissionFailures: Int
     let gpuErrors: Int
@@ -60,6 +73,10 @@ final class OverviewRenderer {
     private struct Counters {
         var draws = 0
         var presents = 0
+        var submissions = 0
+        var nextSubmissionID: UInt64 = 0
+        var gpuCompletions = 0
+        var lastGPUExecutionMS: Double?
         var missingDrawables = 0
         var submissionFailures = 0
         var gpuErrors = 0
@@ -87,6 +104,9 @@ final class OverviewRenderer {
         return RendererDiagnostics(device: metal.device.name,
                                    draws: counters.draws,
                                    presents: counters.presents,
+                                   submissions: counters.submissions,
+                                   gpuCompletions: counters.gpuCompletions,
+                                   lastGPUExecutionMS: counters.lastGPUExecutionMS,
                                    missingDrawables: counters.missingDrawables,
                                    submissionFailures: counters.submissionFailures,
                                    gpuErrors: counters.gpuErrors,
@@ -143,29 +163,32 @@ final class OverviewRenderer {
         if layer.pixelFormat != .bgra8Unorm { layer.pixelFormat = .bgra8Unorm }
     }
 
+    @discardableResult
     func draw(layer: CAMetalLayer,
               cards: [CardDraw],
               placeholders: [(rect: CGRect, tint: SIMD4<Float>)],
               panels: [PanelDraw] = [],
               viewBounds: CGRect,
               scale: CGFloat,
-              clearColor: SIMD4<Float>? = nil) {
+              clearColor: SIMD4<Float>? = nil,
+              onPresented: (@Sendable (RendererPresentation) -> Void)? = nil,
+              onGPUCompleted: (@Sendable (Double) -> Void)? = nil) -> RendererSubmission? {
         bump { $0.draws += 1 }
         let pixels = CGSize(width: (viewBounds.width * scale).rounded(),
                             height: (viewBounds.height * scale).rounded())
-        guard pixels.width > 1, pixels.height > 1 else { return }
+        guard pixels.width > 1, pixels.height > 1 else { return nil }
         bind(layer)
         if layer.drawableSize != pixels { layer.drawableSize = pixels }
 
         // 取不到 drawable 时直接等下一次帧变化/动画 tick，绝不在此处忙循环。
         guard let drawable = layer.nextDrawable() else {
             bump { $0.missingDrawables += 1 }
-            return
+            return nil
         }
         guard let commandBuffer = metal.commandQueue.makeCommandBuffer() else {
             bump { $0.submissionFailures += 1 }
             noteFailure("command queue 无法建立 buffer")
-            return
+            return nil
         }
         let descriptor = MTLRenderPassDescriptor()
         descriptor.colorAttachments[0].texture = drawable.texture
@@ -181,7 +204,7 @@ final class OverviewRenderer {
             // 失败分支不 present，drawable 随作用域结束释放，不能留半张画面在屏上。
             bump { $0.submissionFailures += 1 }
             noteFailure("render encoder 创建失败")
-            return
+            return nil
         }
 
         // 卡片底与留边用纯色覆盖，保证等比例画面不被拉伸或裁切。
@@ -241,15 +264,47 @@ final class OverviewRenderer {
             guard let self else { return }
             self.pool.release(bufferID: bufferID)
             // 完成回调在系统线程：只更新计数与首错文本，不每帧写日志。
+            if finished.status == .completed {
+                let durationMS = (finished.gpuEndTime - finished.gpuStartTime) * 1000
+                self.bump {
+                    $0.gpuCompletions += 1
+                    if durationMS.isFinite && durationMS > 0 { $0.lastGPUExecutionMS = durationMS }
+                }
+                if durationMS.isFinite && durationMS > 0 { onGPUCompleted?(durationMS) }
+            }
             if let error = finished.error {
                 self.bump { $0.gpuErrors += 1 }
                 self.noteFailure(error.localizedDescription)
             }
         }
         // 一个 drawable 至多 present 一次；未 present 的 drawable 不会上屏（R02 的原始缺陷）。
+        diagnosticsLock.lock()
+        counters.nextSubmissionID &+= 1
+        let identifier = counters.nextSubmissionID
+        diagnosticsLock.unlock()
+        let submission = RendererSubmission(identifier: identifier, submittedAt: CACurrentMediaTime())
+        observePresentation(of: drawable, submission: submission, onPresented: onPresented)
         commandBuffer.present(drawable)
-        bump { $0.presents += 1 }
         commandBuffer.commit()
+        noteSubmission()
+        return submission
+    }
+
+    /// Central submission seam; presentation facts must be produced by the drawable callback.
+    func noteSubmission() {
+        bump { $0.submissions += 1 }
+    }
+
+    func observePresentation(of drawable: MTLDrawable,
+                             submission: RendererSubmission,
+                             onPresented: (@Sendable (RendererPresentation) -> Void)? = nil) {
+        drawable.addPresentedHandler { [weak self] presented in
+            let timestamp = presented.presentedTime
+            // Metal reports zero for an unpresented or dropped drawable.
+            guard timestamp.isFinite, timestamp > 0 else { return }
+            self?.bump { $0.presents += 1 }
+            onPresented?(RendererPresentation(submission: submission, presentedAt: timestamp))
+        }
     }
 
     private func bump(_ mutate: (inout Counters) -> Void) {

@@ -278,8 +278,9 @@ final class TransitionCarrierView: NSView {
     /// 锚点是否来自真实输入（false = 没有前置点击，按 play() 进入时刻算）。
     private var anchorIsRealInput = false
     /// 本段开始时渲染器的 present 计数，用于算出这一段真正呈现了多少帧。
-    private var presentsAtSceneStart = 0
-    private var firstPresentDelayMS: Double?
+    private var presentationTracker: TransitionPresentationTracker?
+    private var frameBudgetMS = FrameIntervalStats.defaultFrameBudgetMS
+    private var didLogSevereFrame = false
     private var tickCount = 0
     private var rearmTimer: Timer?
     // Read-only timer handles let host tests fire real deadline paths without sleeping.
@@ -291,6 +292,7 @@ final class TransitionCarrierView: NSView {
     private let holdLabel = CATextLayer()
     private(set) var renderCount = 0
     var metalPresentCount: Int { renderer?.diagnostics().presents ?? 0 }
+    var metalSubmissionCount: Int { renderer?.diagnostics().submissions ?? 0 }
     var hasDisplayLink: Bool { displayLink != nil }
     var isHoldIndicatorVisible: Bool { !holdBadge.isHidden || !holdLabel.isHidden }
 
@@ -298,6 +300,8 @@ final class TransitionCarrierView: NSView {
     var onFinished: ((TransitionToken) -> Void)?
     /// 一段飞行的帧间隔统计（方案 §20.3）：每次过渡结束后给一次，供诊断与降级决策。
     var onFlightStats: ((TransitionScene.Kind, FrameIntervalStats) -> Void)?
+    /// Display-link timing is useful for diagnosis, but is not presentation evidence.
+    var onTickStats: ((TransitionScene.Kind, FrameIntervalStats) -> Void)?
     /// 一段飞行的呈现事实（方案 §20.2）：首帧延迟与实际 present 次数，每次飞行到位给一次。
     var onFlightFacts: ((TransitionScene.Kind, TransitionFlightFacts) -> Void)?
 
@@ -387,9 +391,20 @@ final class TransitionCarrierView: NSView {
         renderTimesMS.removeAll()
         firstPresentAnchor = anchorAt ?? CACurrentMediaTime()
         anchorIsRealInput = anchorAt != nil
-        firstPresentDelayMS = nil
+        presentationTracker?.close(ticks: tickCount)
         tickCount = 0
-        presentsAtSceneStart = renderer?.diagnostics().presents ?? 0
+        didLogSevereFrame = false
+        // Until the display link provides a real callback interval, use the
+        // conservative 60 Hz default. maximumFramesPerSecond is only a display
+        // capability and does not describe the cadence this scene receives.
+        frameBudgetMS = FrameIntervalStats.defaultFrameBudgetMS
+        let kind = scene.kind
+        presentationTracker = TransitionPresentationTracker(
+            anchor: firstPresentAnchor, anchoredAtRealInput: anchorIsRealInput,
+            frameBudgetMS: frameBudgetMS) { [weak self] facts, stats in
+                self?.onFlightFacts?(kind, facts)
+                if let stats { self?.onFlightStats?(kind, stats) }
+            }
         metalLayer.opacity = 1
         phase = .playing
         // 起点可注入：宿主测试要拿"进度恰好 0.5"这种确切刻度断言，不能拿 play() 内部的
@@ -436,7 +451,13 @@ final class TransitionCarrierView: NSView {
     }
 
     /// 立即结束：不交接也没有过渡（隐藏、屏移除）。屏幕上的事实不再存在。
+    func finalizePresentationFacts() {
+        presentationTracker?.close(ticks: tickCount)
+    }
+
     func stopNow() {
+        presentationTracker?.close(ticks: tickCount)
+        presentationTracker = nil
         stopClock()
         stopTimers()
         hideHoldIndicator()
@@ -468,7 +489,12 @@ final class TransitionCarrierView: NSView {
     // MARK: - 时钟
 
     fileprivate func handleTick(_ link: CADisplayLink) {
-        // Draw the position for the upcoming presentation, rather than the previous refresh.
+        // Use the actual callback budget; ProMotion may run below the display's maximum rate.
+        let actualBudget = (link.targetTimestamp - link.timestamp) * 1000
+        if actualBudget.isFinite, actualBudget > 0 {
+            frameBudgetMS = actualBudget
+            presentationTracker?.updateFrameBudget(milliseconds: actualBudget)
+        }
         advance(to: link.targetTimestamp)
     }
 
@@ -484,7 +510,8 @@ final class TransitionCarrierView: NSView {
             if previousTick > 0 {
                 let gapMS = (timestamp - previousTick) * 1000
                 frameIntervalsMS.append(gapMS)
-                if gapMS > 12, let scene {
+                if gapMS > max(100, frameBudgetMS * 6), !didLogSevereFrame, let scene {
+                    didLogSevereFrame = true
                     let progressPercent = Int(min(100, max(0, (now - startTimestamp) / max(0.001, duration) * 100)))
                     VistileLog.session.log(level: .info,
                                            "[帧] 慢帧 场景=\(scene.kind.displayName, privacy: .public) 间隔=\(String(format: "%.2f", gapMS), privacy: .public)ms 进度=\(progressPercent)%")
@@ -503,20 +530,22 @@ final class TransitionCarrierView: NSView {
                 focusGlow.hold(environment: glowEnvironment())
                 // 呈现事实只算这一段：tick 次数与 present 增量并列报告，谁也不替谁（方案 §20.2）。
                 if let scene {
-                    let presented = (renderer?.diagnostics().presents ?? 0) - presentsAtSceneStart
-                    onFlightFacts?(scene.kind, TransitionFlightFacts(firstPresentDelayMS: firstPresentDelayMS,
-                                                                     ticks: tickCount,
-                                                                     presentedFrames: presented,
-                                                                     anchoredAtRealInput: anchorIsRealInput))
-                    if let stats = FrameIntervalStats.measure(frameIntervalsMS) {
-                        onFlightStats?(scene.kind, stats)
+                    presentationTracker?.finish(ticks: tickCount)
+                    if let stats = FrameIntervalStats.measure(frameIntervalsMS, frameBudgetMS: frameBudgetMS) {
+                        onTickStats?(scene.kind, stats)
                     }
                     if let renderStats = FrameIntervalStats.measure(renderTimesMS) {
                         let renderP95 = String(format: "%.2f", renderStats.p95MS)
-                        let intervalP95 = String(format: "%.2f", FrameIntervalStats.measure(frameIntervalsMS)?.p95MS ?? 0)
+                        let intervalP95 = String(format: "%.2f", FrameIntervalStats.measure(frameIntervalsMS, frameBudgetMS: frameBudgetMS)?.p95MS ?? 0)
                         let sampleCount = renderStats.count
+                        let gaps = FrameIntervalStats.measure(frameIntervalsMS, frameBudgetMS: frameBudgetMS)
+                        let slowCount = frameIntervalsMS.filter {
+                            $0 > FrameIntervalStats.slowFrameThreshold(frameBudgetMS: frameBudgetMS)
+                        }.count
+                        let gapP99 = String(format: "%.2f", gaps?.p99MS ?? 0)
+                        let maximum = String(format: "%.2f", gaps?.maximumMS ?? 0)
                         VistileLog.session.log(level: .info,
-                                               "[帧] 场景=\(scene.kind.displayName, privacy: .public) 绘制p95=\(renderP95, privacy: .public)ms 间隔p95=\(intervalP95, privacy: .public)ms n=\(sampleCount, privacy: .public)")
+                                               "[帧] 场景=\(scene.kind.displayName, privacy: .public) 绘制p95=\(renderP95, privacy: .public)ms 回调p95=\(intervalP95, privacy: .public)ms p99=\(gapP99, privacy: .public)ms max=\(maximum, privacy: .public)ms slow=\(slowCount) n=\(sampleCount, privacy: .public)")
                     }
                 }
                 // 到位事件也只属于本段场景：协调器据此判断它是否仍然是当前令牌（方案 §16.2）。
@@ -730,21 +759,20 @@ final class TransitionCarrierView: NSView {
         presentedPanelRects = panelRects
         focusGlow.update(rect: glowRect, cornerRadius: glowRadius, opacity: glowAlpha,
                          scale: max(1, metalLayer.contentsScale))
-        renderer.draw(layer: metalLayer,
+        let tracker = phase == .playing ? presentationTracker : nil
+        let submission = renderer.draw(layer: metalLayer,
                       cards: cards,
                       placeholders: placeholders,
                       panels: panels,
                       viewBounds: bounds,
-                      scale: max(1, metalLayer.contentsScale))
-        // 首帧延迟只在"渲染器真的 present 出去"的那一刻记：draw 调用与 tick 回调都不算反馈（方案 §20.2）。
-        if firstPresentDelayMS == nil, renderer.diagnostics().presents > presentsAtSceneStart {
-            let delay = max(0, (CACurrentMediaTime() - firstPresentAnchor) * 1000)
-            firstPresentDelayMS = delay
-            let kindName = scene.kind.displayName
-            let realInput = anchorIsRealInput
-            VistileLog.session.log(level: .info,
-                                   "[首帧] 场景=\(kindName, privacy: .public) 起飞→呈现=\(Int(delay))ms 锚点真实输入=\(realInput)")
-        }
+                      scale: max(1, metalLayer.contentsScale),
+                      onPresented: { event in
+                          Task { @MainActor in tracker?.presented(event) }
+                      },
+                      onGPUCompleted: { milliseconds in
+                          Task { @MainActor in tracker?.completedGPU(milliseconds: milliseconds) }
+                      })
+        if let submission { tracker?.submitted(submission) }
     }
 
     /// 预取一块 drawable 并固定 drawableSize：把首次呈现前的分配成本挪到启动/总览阶段。
@@ -891,8 +919,13 @@ final class ModeTransitionCoordinator {
     var onSceneCancellationFinished: ((TransitionToken) -> Void)?
     /// 飞行帧事实（方案 §20.3）：P95 帧间隔与掉帧，每次过渡结束报告一次。
     var onSceneStats: ((TransitionScene.Kind, FrameIntervalStats) -> Void)?
+    var onSceneTickStats: ((TransitionScene.Kind, FrameIntervalStats) -> Void)?
     /// 呈现事实（方案 §20.2）：首帧延迟 + tick/present 对照，每次飞行到位报告一次。
     var onSceneFacts: ((TransitionScene.Kind, TransitionFlightFacts) -> Void)?
+
+    func finalizePresentationFacts() {
+        for carrier in carriers.values { carrier.carrierView.finalizePresentationFacts() }
+    }
 
     private let metal: MetalContext
     private var carriers: [UInt32: TransitionCarrierWindow] = [:]
@@ -1074,6 +1107,9 @@ final class ModeTransitionCoordinator {
             let wasCancelling = self.cancellationRequested
             self.cancellationRequested = false
             if wasCancelling { self.onSceneCancellationFinished?(token) } else { self.onSceneFinished?(token) }
+        }
+        created.carrierView.onTickStats = { [weak self] kind, stats in
+            self?.onSceneTickStats?(kind, stats)
         }
         created.carrierView.onFlightStats = { [weak self] kind, stats in
             self?.onSceneStats?(kind, stats)

@@ -1126,3 +1126,32 @@ private final class ScriptedJournalDiskWriter: JournalDiskWriting {
         return body()
     }
 }
+
+
+extension WorkbenchEntryTests {
+    func testRailScrollBurstDoesNotRunFullSynchronizationPerInput() throws {
+        let coordinator = makeCoordinator()
+        coordinator.toggleOverview()
+        try waitForVisibleOverview()
+        try overviewView().onAction?(.cardClicked(HostFixtures.identity(0)))
+        waitUntil(timeout: 5) { self.coordinator.state.mode == .workbench }
+        XCTAssertEqual(coordinator.state.mode, .workbench)
+        let syncs = coordinator.fullSyncCount
+        let orders = coordinator.orderingApplyCount
+        for offset in 1...20 {
+            coordinator.dispatch(.railScrolled(rail: .top, offset: CGFloat(offset * 8)))
+        }
+        XCTAssertEqual(coordinator.fullSyncCount, syncs,
+                       "Scroll must update state immediately and coalesce only its visual work")
+        XCTAssertEqual(coordinator.orderingApplyCount, orders,
+                       "Scroll must not reorder the window stack")
+        XCTAssertTrue(coordinator.hasPendingVisualSync)
+        let visuals = coordinator.railVisualSyncCount
+        coordinator.synchronizePendingVisuals()
+        XCTAssertEqual(coordinator.railVisualSyncCount, visuals + 1)
+        XCTAssertEqual(coordinator.fullSyncCount, syncs)
+        XCTAssertFalse(coordinator.hasPendingVisualSync)
+        coordinator.synchronizePendingVisuals()
+        XCTAssertEqual(coordinator.railVisualSyncCount, visuals + 1, "One burst has one visual flush")
+    }
+}

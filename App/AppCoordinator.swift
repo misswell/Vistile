@@ -82,6 +82,21 @@ final class AppCoordinator {
 
     /// 工作台"壁纸底"：铺满目标屏、压在真实主窗口下面，让背景看起来只有这一个窗口。
     private var workbenchBackdrops: [UInt32: WorkbenchBackdropWindow] = [:]
+    private let wallpaperCache = WorkbenchWallpaperImageCache()
+    private struct BackdropPresentationSignature: Equatable {
+        let frame: CGRect
+        let context: WorkbenchBackdropRequestContext
+    }
+    private struct BackdropOrderingSignature: Equatable {
+        let displayID: UInt32
+        let mainWindowNumber: Int
+        let sessionEpoch: UInt64
+        let strategy: OrderingStrategy
+    }
+    private var backdropSignatures: [UInt32: BackdropPresentationSignature] = [:]
+    private var backdropTasks: [UInt32: Task<Void, Never>] = [:]
+    private var backdropOrderingSignature: BackdropOrderingSignature?
+    private(set) var backdropOrderingApplyCount = 0
     private(set) var backdropIsOrderedBelowMain = false
 
     /// 测试：当前有几块壁纸底、是否已压到主窗口下一层、它们的窗口编号。
@@ -97,6 +112,12 @@ final class AppCoordinator {
     private var isDraining = false
     private var isSyncing = false
     private var needsSync = false
+    private let visualSyncScheduler = VisualSyncScheduler()
+    private var pendingVisualNeedsFullSync = false
+    private var pendingVisualSync = false
+    private(set) var railVisualSyncCount = 0
+    var hasPendingVisualSync: Bool { visualSyncScheduler.isScheduled }
+    private var lastLoggedInputStamp: CFTimeInterval = 0
     /// 过渡飞行期间推迟的捕获重配：场景结束必须补一次，不能永久跳过。
     private var deferredCaptureSync = false
     private var reconcileTimer: Timer?
@@ -105,6 +126,7 @@ final class AppCoordinator {
     private var appliedOrdering: (strategy: OrderingStrategy, relativeToWindowID: UInt32?)?
     /// P0 探针用它证明"层级不随捕获回调反复改写"（方案 §12.2）。
     private(set) var orderingApplyCount = 0
+    private(set) var fullSyncCount = 0
     private var pendingHint: String?
     private var structuralRefreshWork: DispatchWorkItem?
     private var hasWarnedTinyThumbnails = false
@@ -297,6 +319,14 @@ final class AppCoordinator {
         modes.onSceneReachedEnd = { [weak self] token in self?.handleSceneReachedEnd(token) }
         modes.onSceneFinished = { [weak self] token in self?.handleSceneFinished(token) }
         modes.onSceneStats = { [weak self] kind, stats in self?.handleSceneStats(kind: kind, stats: stats) }
+        modes.onSceneTickStats = { [weak self] kind, stats in
+            guard let self else { return }
+            let base = self.flightGroupByKind[kind] ?? PerformanceEnvironment.current(coldStart: false)
+            let group = PerformanceGroup(refreshHz: 1000 / stats.frameBudgetMS,
+                                         reduceMotion: base.reduceMotion, coldStart: base.coldStart)
+            self.metrics.measure(PerformanceMetricName.qualified("过渡回调间隔p95·\(kind.displayName)", group: group),
+                                 milliseconds: stats.p95MS, context: "source=displayLink n=\(stats.count)")
+        }
         modes.onSceneFacts = { [weak self] kind, facts in self?.handleSceneFacts(kind: kind, facts: facts) }
         // 交换执行器不自己判断状态：每一步都回来问唯一状态机这次交换还算不算数（方案 §8.2）。
         switchCoordinator.shouldPreserveExternalFocus = { [weak self] token in
@@ -576,9 +606,10 @@ final class AppCoordinator {
             VistileLog.session.log(level: .info,
                                    "[主线程] dispatch 耗时=\(Int(dispatchCostMS))ms 事件=\(processed) 飞行=\(presenting) 末事件=\(label, privacy: .public)")
         }
-        if lastInputStamp > 0 {
+        if lastInputStamp > 0, lastInputStamp != lastLoggedInputStamp {
+            lastLoggedInputStamp = lastInputStamp
             let delta = Int((CACurrentMediaTime() - lastInputStamp) * 1000)
-            VistileLog.session.log(level: .info, "[首帧] dispatch 结束 距输入=\(delta)ms 队列事件=\(processed)")
+            VistileLog.session.log(level: .debug, "[首帧] dispatch 结束 距输入=\(delta)ms 队列事件=\(processed)")
         }
         syncIfRequired()
     }
@@ -720,6 +751,9 @@ final class AppCoordinator {
     private func syncIfRequired() {
         guard needsSync else { return }
         needsSync = false
+        visualSyncScheduler.cancel()
+        pendingVisualNeedsFullSync = false
+        pendingVisualSync = false
         performSync()
         // performSync 内部可能再触发事件（例如缩略图过小提示），再收敛一次就停，避免成环。
         if needsSync {
@@ -813,7 +847,62 @@ final class AppCoordinator {
             // 事务落盘失败时必须停止后续效果：先写 AX 会让窗口变成不可恢复的改动（方案 §6.2）。
             guard run(effect) else { break }
         }
+        let onlyProjectionChanged = effects.allSatisfy { effect in
+            if case .updateWorkbenchLayout = effect { return true }
+            return false
+        }
+        if state.mode == .workbench, state.phase == beforePhase,
+           state.mode == beforeMode, state.workbench.modeTransition == beforeTransition,
+           previousDisplays == Set(state.displays.map(\.id)), onlyProjectionChanged {
+            switch event {
+            case .railScrolled:
+                scheduleVisualSync(full: false)
+                return
+            case .workbenchRailSizePreview:
+                scheduleVisualSync(full: true)
+                return
+            default: break
+            }
+        }
         needsSync = true
+    }
+
+    private func scheduleVisualSync(full: Bool) {
+        pendingVisualSync = true
+        pendingVisualNeedsFullSync = pendingVisualNeedsFullSync || full
+        let screen = NSScreen.screens.first {
+            ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
+                == workbenchPresentation?.displayID
+        }
+        visualSyncScheduler.schedule(on: screen) { [weak self] in self?.synchronizePendingVisuals() }
+    }
+
+    /// The display-link callback and deterministic host tests share this exact flush path.
+    func synchronizePendingVisuals() {
+        guard pendingVisualSync || needsSync else { return }
+        pendingVisualSync = false
+        visualSyncScheduler.cancel()
+        let full = pendingVisualNeedsFullSync
+        pendingVisualNeedsFullSync = false
+        guard state.phase.isVisible, !isTerminationBegun else { return }
+        if full || needsSync {
+            needsSync = true
+            syncIfRequired()
+            return
+        }
+        guard state.mode == .workbench, let presentation = workbenchPresentation,
+              let controller = workbenchControllers[presentation.displayID] else { return }
+        railVisualSyncCount += 1
+        // Scroll changes the rail projection and visible capture targets; it does not change
+        // overview grids, observers, wallpaper, or WindowServer ordering.
+        controller.update(presentation: presentation, renderer: renderer,
+                          mailboxProvider: { [weak self] in self?.capture.mailbox(for: $0) },
+                          showsTitles: settings.showsTitles, searchQuery: state.searchQuery, hint: pendingHint)
+        if modes.isPresenting || railSizeBeforeDrag != nil {
+            deferredCaptureSync = true
+        } else {
+            capture.sync(targets: captureTargets(), tier: state.policy.tier, activity: transitionActivity)
+        }
     }
 
     private static func phaseLabel(_ phase: SessionPhase) -> String {
@@ -1251,6 +1340,7 @@ final class AppCoordinator {
 
     private func performSync() {
         guard !isSyncing else { return }
+        fullSyncCount += 1
         let syncStarted = CACurrentMediaTime()
         isSyncing = true
         var marks: [(String, Double)] = []
@@ -1378,6 +1468,7 @@ final class AppCoordinator {
             controller.show()
             for id in controller.windowNumbers { catalog.registerOwnWindow(id: id) }
             appliedOrdering = nil
+            backdropOrderingSignature = nil
         }
         // 承载层正在画的卡片先从栏里藏起来，再推投影：藏在重绘前生效，不会出现两份（方案 §10.6）。
         controller.setHiddenRailIdentities(modes.hiddenRailIdentities)
@@ -1411,20 +1502,53 @@ final class AppCoordinator {
             catalog.registerOwnWindow(id: UInt32(max(0, backdrop.windowNumber)))
             workbenchBackdrops[presentation.displayID] = backdrop
         }
-        backdrop.apply(screenFrame: appKitFrame,
-                       wallpaper: WorkbenchBackdropWindow.wallpaperImage(for: presentation.displayID))
+        let context = WorkbenchBackdropRequestContext(
+            displayID: presentation.displayID, sessionEpoch: state.sessionEpoch,
+            wallpaperKey: WorkbenchBackdropWindow.wallpaperCacheKey(for: presentation.displayID))
+        let signature = BackdropPresentationSignature(frame: appKitFrame, context: context)
+        if backdropSignatures[presentation.displayID] != signature {
+            backdropSignatures[presentation.displayID] = signature
+            backdropTasks[presentation.displayID]?.cancel()
+            let token = backdrop.beginWallpaperRequest(for: context)
+            // Keep the prior decoded image while a replacement is loading; initial display uses fallback.
+            if context.wallpaperKey == nil {
+                backdrop.apply(screenFrame: appKitFrame, wallpaperCGImage: nil, requestToken: token)
+            }
+            let displayID = presentation.displayID
+            backdropTasks[displayID] = Task { @MainActor [weak self, weak backdrop] in
+                guard let self, let backdrop else { return }
+                let image: CGImage?
+                if let key = context.wallpaperKey { image = await self.wallpaperCache.image(for: key) }
+                else { image = nil }
+                guard !Task.isCancelled, self.backdropSignatures[displayID] == signature,
+                      self.state.sessionEpoch == context.sessionEpoch,
+                      self.workbenchBackdrops[displayID] === backdrop else { return }
+                backdrop.apply(screenFrame: appKitFrame, wallpaperCGImage: image, requestToken: token)
+                self.backdropTasks[displayID] = nil
+            }
+        }
         let mainWindowNumber = Int(mainRecord.identity.windowID)
         guard mainWindowNumber > 0 else {
             backdrop.orderOut(nil)
             backdropIsOrderedBelowMain = false
+            backdropOrderingSignature = nil
             return
         }
-        backdrop.orderFrontRegardless()
-        backdrop.orderBelow(windowNumber: mainWindowNumber)
+        let ordering = BackdropOrderingSignature(displayID: presentation.displayID,
+                                                mainWindowNumber: mainWindowNumber,
+                                                sessionEpoch: state.sessionEpoch,
+                                                strategy: settings.orderingStrategy)
+        if backdropOrderingSignature != ordering || !backdrop.isVisible {
+            backdrop.orderFrontRegardless()
+            backdrop.orderBelow(windowNumber: mainWindowNumber)
+            controller.raisePanels()
+            backdropOrderingSignature = ordering
+            backdropOrderingApplyCount += 1
+        }
         backdropIsOrderedBelowMain = true
-        // 底图为了压住主窗口会被降到主窗口下一层；两栏必须重新提到它上面。
-        controller.raisePanels()
         for (displayID, other) in workbenchBackdrops where displayID != presentation.displayID {
+            backdropTasks.removeValue(forKey: displayID)?.cancel()
+            backdropSignatures.removeValue(forKey: displayID)
             other.orderOut(nil)
             catalog.forgetOwnWindow(id: UInt32(max(0, other.windowNumber)))
             workbenchBackdrops.removeValue(forKey: displayID)
@@ -1433,6 +1557,10 @@ final class AppCoordinator {
 
     private func hideWorkbenchBackdrops() {
         backdropIsOrderedBelowMain = false
+        backdropOrderingSignature = nil
+        for task in backdropTasks.values { task.cancel() }
+        backdropTasks.removeAll()
+        backdropSignatures.removeAll()
         for (displayID, backdrop) in workbenchBackdrops {
             backdrop.orderOut(nil)
             catalog.forgetOwnWindow(id: UInt32(max(0, backdrop.windowNumber)))
@@ -1656,6 +1784,8 @@ final class AppCoordinator {
 
     private func playTransition(_ scene: TransitionScene?) {
         guard let scene else { return }
+        // Flush the previous scene before replacing its cold/hot group metadata.
+        modes.finalizePresentationFacts()
         // 冷/热在这一次飞行起飞的这一刻定（方案 §20.2）。中途重定向会让同场景再起飞一次，
         // 分组键以最后一段为准——它只是样本标签，不改变任何判据。
         let flights = (flightCountByKind[scene.kind] ?? 0) + 1
@@ -1705,10 +1835,12 @@ final class AppCoordinator {
     /// 过渡飞行的帧事实（方案 §20.3/§20.4）：逐场景记 P95 与掉帧，连续超预算的观测驱动降级（带滞后）。
     /// 指标名带 §20.2 的分组键，`Metrics` 按名字分桶 → 不同刷新率/reduceMotion/冷热的样本不混进同一个 P95。
     private func handleSceneStats(kind: TransitionScene.Kind, stats: FrameIntervalStats) {
-        let group = flightGroupByKind[kind] ?? PerformanceEnvironment.current(coldStart: false)
+        let base = flightGroupByKind[kind] ?? PerformanceEnvironment.current(coldStart: false)
+        let group = PerformanceGroup(refreshHz: 1000 / stats.frameBudgetMS,
+                                     reduceMotion: base.reduceMotion, coldStart: base.coldStart)
         metrics.measure(PerformanceMetricName.qualified("过渡帧间隔p95·\(kind.displayName)", group: group),
                         milliseconds: stats.p95MS,
-                        context: "n=\(stats.count)"
+                        context: "source=drawable.presentedTime n=\(stats.count) p99=\(stats.p99MS) max=\(stats.maximumMS)"
                             + " 掉帧占比\(String(format: "%.1f%%", stats.longFrameRatio * 100))"
                             + " 最长连续=\(stats.longestStutterRun)"
                             + " 分组=\(group.key)"
@@ -1728,7 +1860,18 @@ final class AppCoordinator {
     /// 呈现事实（方案 §20.2）：首帧延迟单独一条；动画 present 与 displayLink 回调分开核对。
     /// 只记帧间隔会把"点了之后很久没出第一帧"和"整段一个像素都没呈现"都藏起来。
     private func handleSceneFacts(kind: TransitionScene.Kind, facts: TransitionFlightFacts) {
-        let group = flightGroupByKind[kind] ?? PerformanceEnvironment.current(coldStart: false)
+        let base = flightGroupByKind[kind] ?? PerformanceEnvironment.current(coldStart: false)
+        let group = PerformanceGroup(refreshHz: 1000 / facts.frameBudgetMS,
+                                     reduceMotion: base.reduceMotion, coldStart: base.coldStart)
+        if let delay = facts.firstSubmissionDelayMS {
+            metrics.measure(PerformanceMetricName.qualified("过渡输入到提交·\(kind.displayName)", group: group),
+                            milliseconds: delay, context: "submitted=\(facts.submittedFrames)")
+        }
+        if let gpu = facts.gpuExecutionP95MS {
+            metrics.measure(PerformanceMetricName.qualified("过渡GPU执行p95·\(kind.displayName)", group: group),
+                            milliseconds: gpu, context: "source=commandBuffer.gpuStartTime/gpuEndTime")
+        }
+        if !facts.presentationComplete { metrics.increment("过渡呈现观测未完整") }
         if let delay = facts.firstPresentDelayMS {
             // 没有点击锚点的段（自动替补、探针直接 dispatch）单列，不混进"点击反馈"的 P95。
             metrics.measure(PerformanceMetricName.qualified(
@@ -1737,7 +1880,8 @@ final class AppCoordinator {
                                 group: group),
                             milliseconds: delay,
                             context: "锚点=\(facts.anchoredAtRealInput ? "真实点击" : "动画进入")"
-                                + " ticks=\(facts.ticks) present=\(facts.presentedFrames)"
+                                + " ticks=\(facts.ticks) submitted=\(facts.submittedFrames) presented=\(facts.presentedFrames)"
+                                + " complete=\(facts.presentationComplete)"
                                 + " 分组=\(group.key)")
         } else {
             metrics.increment("过渡零呈现段")
@@ -1961,7 +2105,7 @@ final class AppCoordinator {
 
     private func handle(_ action: OverviewContentView.Action) {
         lastInputStamp = CACurrentMediaTime()
-        VistileLog.session.log(level: .info, "[首帧] 输入到达 视图=总览")
+        VistileLog.session.log(level: .debug, "[首帧] 输入到达 视图=总览")
         switch action {
         case let .cardClicked(identity):
             cardClickCount += 1
@@ -2013,8 +2157,13 @@ final class AppCoordinator {
 
     /// 工作台视图动作同样只转成事件：命中、滚动、搜索都不在视图里改状态（方案 §7.1）。
     private func handle(_ action: WorkbenchWindowController.Action) {
-        lastInputStamp = CACurrentMediaTime()
-        VistileLog.session.log(level: .info, "[首帧] 输入到达 视图=工作台")
+        switch action {
+        case .railScrolled, .railDividerDragged, .railDividerDragBegan, .search:
+            break
+        default:
+            lastInputStamp = CACurrentMediaTime()
+            VistileLog.session.log(level: .debug, "[首帧] 输入到达 视图=工作台")
+        }
         switch action {
         case let .railCardClicked(slot, identity):
             // 点击进诊断日志：实机验收要能还原"点是否到达宿主、当时状态机什么态度"（方案 §14）。
@@ -2402,6 +2551,9 @@ final class AppCoordinator {
         cancelDirectEntry()
         guard !isTerminationBegun else { return }
         isTerminationBegun = true
+        visualSyncScheduler.cancel()
+        pendingVisualNeedsFullSync = false
+        pendingVisualSync = false
         // 1. 先停掉一切会产生新写入的来源：热键、AX 观察、目录定时任务、结构刷新。
         hotKey.unregister()
         observerHub.stopAll()

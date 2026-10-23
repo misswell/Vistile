@@ -1026,7 +1026,7 @@ final class TransitionSceneTests: XCTestCase {
                                     placement: HostPlanFacts.placement(target: fixture.layout.mainRect))))
 
         var reported: [(TransitionScene.Kind, FrameIntervalStats)] = []
-        view.onFlightStats = { reported.append(($0, $1)) }
+        view.onTickStats = { reported.append(($0, $1)) }
 
         let base = CACurrentMediaTime()
         view.play(scene, sources: [:])
@@ -1077,7 +1077,7 @@ final class TransitionSceneTests: XCTestCase {
                                     placement: HostPlanFacts.placement(target: fixture.layout.mainRect))))
 
         var reported: [FrameIntervalStats] = []
-        view.onFlightStats = { _, stats in reported.append(stats) }
+        view.onTickStats = { _, stats in reported.append(stats) }
 
         let base = CACurrentMediaTime()
         view.play(scene, sources: [:])
@@ -1139,14 +1139,17 @@ final class TransitionSceneTests: XCTestCase {
             view.advance(to: now)
         }
         XCTAssertTrue(view.isHolding)
+        view.stopNow() // Finalize only observed facts; offscreen submission is not presentation.
         let flight = try XCTUnwrap(facts.first)
         XCTAssertEqual(facts.count, 1, "一段飞行只报一次呈现事实")
         XCTAssertTrue(flight.anchoredAtRealInput, "给了输入锚点就必须标成真实输入锚定")
         XCTAssertEqual(flight.ticks, 16, "tick 次数按真正驱动到飞行的次数记：首个 tick + 15 个 16.7ms")
         XCTAssertLessThanOrEqual(flight.presentedFrames, flight.ticks + 1,
                                  "present 不可能多于渲染次数（play 的同步第一帧 + 每个 tick 一次）")
+        XCTAssertGreaterThan(flight.submittedFrames, 0)
         guard flight.hasPresentedPixels else {
-            return XCTFail("承载层一次都没 present：这一段没有画面证据，先查 drawable 是否拿得到")
+            XCTAssertNil(flight.firstPresentDelayMS, "Offscreen draws cannot fabricate screen presentation")
+            return
         }
         let delay = try XCTUnwrap(flight.firstPresentDelayMS)
         XCTAssertGreaterThanOrEqual(delay, 195, "首帧延迟必须包含点击之后那 200ms")
@@ -1192,6 +1195,7 @@ final class TransitionSceneTests: XCTestCase {
             view.advance(to: now)
         }
         XCTAssertTrue(view.isHolding, "前提：这段必须跑到飞行结束才会计一次呈现事实")
+        view.stopNow() // Finalize only observed facts; offscreen submission is not presentation.
         let flight = try XCTUnwrap(facts.first)
         XCTAssertFalse(flight.anchoredAtRealInput, "没给锚点就不能标成真实输入")
         if flight.hasPresentedPixels {
@@ -1228,7 +1232,7 @@ final class TransitionSceneTests: XCTestCase {
                                     placement: HostPlanFacts.placement(target: fixture.layout.mainRect))))
 
         var reported = 0
-        view.onFlightStats = { _, _ in reported += 1 }
+        view.onTickStats = { _, _ in reported += 1 }
 
         let base = CACurrentMediaTime()
         view.play(scene, sources: [:])
@@ -1716,8 +1720,8 @@ final class TransitionSceneTests: XCTestCase {
         XCTAssertEqual(focus.panelTo, fixture.layout.mainRect)
     }
 
-    /// 承载层在 `.panel` 下确实把面板画到屏幕上，并且面板矩形单调逼近落点。
-    /// 这条同时钉住"presentedRect 仍然按画面容器记账"——打断续接与轻量对账都读它。
+    /// 承载层在 `.panel` 下提交真实 Metal work，并且面板矩形单调逼近落点。
+    /// 该 carrier 在离屏测试中运行，因此这里只验证提交与几何；屏幕呈现由 drawable callback 单独验证。
     @MainActor
     func testCarrierDrawsPanelsThatTravelToTheTarget() throws {
         let metal = try HostFixtures.metalContext()
@@ -1747,8 +1751,7 @@ final class TransitionSceneTests: XCTestCase {
                                     animationMS: 240,
                                     presentation: fixture.presentation,
                                     placement: HostPlanFacts.placement(target: target))))
-        // 面板必须真的被 present 出去：着色器编译失败或编码器建不起来时，
-        // 观察点照样有值，但屏幕上一个像素都没有——那是"看起来没糊其实什么都没画"。
+        // 面板必须生成真实 Metal submission；离屏层不能作为屏幕像素已呈现的证据。
         var facts: [TransitionFlightFacts] = []
         view.onFlightFacts = { _, reported in facts.append(reported) }
         let base = CACurrentMediaTime()
@@ -1770,10 +1773,12 @@ final class TransitionSceneTests: XCTestCase {
         XCTAssertEqual(landed.midY, target.midY, accuracy: 0.01)
         XCTAssertEqual(landed.width, target.width, accuracy: 0.01)
         XCTAssertEqual(landed.height, target.height, accuracy: 0.01)
+        view.stopNow()
         let reported = try XCTUnwrap(facts.first, "到位后必须报告一次飞行事实")
-        XCTAssertGreaterThan(reported.presentedFrames, 0,
-                             "圆角面板必须真的 present 上屏，不能只是记账：present=\(reported.presentedFrames)")
-        XCTAssertTrue(reported.hasPresentedPixels)
+        XCTAssertGreaterThan(reported.submittedFrames, 0, "The panel must submit real Metal work")
+        if reported.presentedFrames == 0 {
+            XCTAssertNil(reported.firstPresentDelayMS, "Offscreen submissions cannot count as displayed frames")
+        }
         view.stopNow()
         XCTAssertNil(view.presentedPanelRect(for: main), "收场后面板观察点必须清空，不留幽灵")
     }
@@ -1894,7 +1899,7 @@ final class TransitionSceneTests: XCTestCase {
         let glow = view.focusGlow
         let bounds = glow.bounds
         let draws = view.renderCount
-        let presents = view.metalPresentCount
+        let presents = view.metalSubmissionCount
         XCTAssertTrue(view.isHolding)
         XCTAssertFalse(view.hasDisplayLink)
         XCTAssertTrue(glow.isAnimating)
@@ -1907,7 +1912,7 @@ final class TransitionSceneTests: XCTestCase {
         XCTAssertEqual(glow.phase, .holding)
         XCTAssertTrue(glow.isAnimating)
         XCTAssertEqual(view.renderCount, draws, "Waiting color flow must not call render")
-        XCTAssertEqual(view.metalPresentCount, presents)
+        XCTAssertEqual(view.metalSubmissionCount, presents)
         XCTAssertFalse(view.hasDisplayLink)
     }
 

@@ -11,6 +11,116 @@ import Foundation
 enum Harness {
     static let windowCount = max(1, Int(ProcessInfo.processInfo.environment["HARNESS_WINDOWS"] ?? "") ?? 6)
     static let spreadToOtherDisplay = ProcessInfo.processInfo.environment["HARNESS_SECOND_ON_OTHER"] == "1"
+
+    private static let cascadeWindowLimit = 12
+    private static let cascadeMinimumSize = CGSize(width: 220, height: 160)
+    private static let gridGap: CGFloat = 12
+
+    /// Keep the familiar cascade for the small fixture and use a visible-screen grid for larger runs.
+    static func windowFrames(count: Int, visibleFrame: CGRect) -> [CGRect] {
+        guard count > 0, visibleFrame.width > 0, visibleFrame.height > 0 else { return [] }
+        if count <= cascadeWindowLimit {
+            return cascadeFrames(count: count, visibleFrame: visibleFrame)
+        }
+        return gridFrames(count: count, visibleFrame: visibleFrame)
+    }
+
+    private static func cascadeFrames(count: Int, visibleFrame: CGRect) -> [CGRect] {
+        let widthLimit = visibleFrame.width
+        let heightLimit = visibleFrame.height
+        let minimumWidth = min(cascadeMinimumSize.width, widthLimit)
+        let minimumHeight = min(cascadeMinimumSize.height, heightLimit)
+        let widths = (0..<count).map { index in
+            min(widthLimit, max(minimumWidth, CGFloat(620 - index * 24)))
+        }
+        let heights = (0..<count).map { index in
+            min(heightLimit, max(minimumHeight, CGFloat(420 - index * 18)))
+        }
+        let maximumWidth = widths.max() ?? widthLimit
+        let maximumHeight = heights.max() ?? heightLimit
+        let leftInset = min(120, max(0, widthLimit - maximumWidth))
+        let topInset = min(100, max(0, heightLimit - maximumHeight))
+        let stepX = count > 1
+            ? min(46, max(0, (widthLimit - leftInset - maximumWidth) / CGFloat(count - 1)))
+            : 0
+        let stepY = count > 1
+            ? min(34, max(0, (heightLimit - topInset - maximumHeight) / CGFloat(count - 1)))
+            : 0
+
+        return (0..<count).map { index in
+            clampedFrame(
+                CGRect(x: visibleFrame.minX + leftInset + stepX * CGFloat(index),
+                       y: visibleFrame.maxY - topInset - heights[0] - stepY * CGFloat(index),
+                       width: widths[index],
+                       height: heights[index]),
+                to: visibleFrame
+            )
+        }
+    }
+
+    private static func gridFrames(count: Int, visibleFrame: CGRect) -> [CGRect] {
+        let aspectRatio = visibleFrame.width / visibleFrame.height
+        let columns = min(count, max(1, Int(ceil(sqrt(Double(count) * Double(aspectRatio) / 1.5)))))
+        let rows = (count + columns - 1) / columns
+        let gap = min(gridGap,
+                      min(visibleFrame.width / CGFloat(columns + 1),
+                          visibleFrame.height / CGFloat(rows + 1)))
+        let cellWidth = max(1, (visibleFrame.width - gap * CGFloat(columns + 1)) / CGFloat(columns))
+        let cellHeight = max(1, (visibleFrame.height - gap * CGFloat(rows + 1)) / CGFloat(rows))
+
+        return (0..<count).map { index in
+            let column = index % columns
+            let row = index / columns
+            return clampedFrame(
+                CGRect(x: visibleFrame.minX + gap + CGFloat(column) * (cellWidth + gap),
+                       y: visibleFrame.maxY - gap - CGFloat(row + 1) * cellHeight - CGFloat(row) * gap,
+                       width: cellWidth,
+                       height: cellHeight),
+                to: visibleFrame
+            )
+        }
+    }
+
+    private static func clampedFrame(_ frame: CGRect, to bounds: CGRect) -> CGRect {
+        let width = min(frame.width, bounds.width)
+        let height = min(frame.height, bounds.height)
+        let x = width == bounds.width
+            ? bounds.minX
+            : min(max(frame.minX, bounds.minX), bounds.maxX - width)
+        let y = height == bounds.height
+            ? bounds.minY
+            : min(max(frame.minY, bounds.minY), bounds.maxY - height)
+        return CGRect(x: x, y: y, width: width, height: height)
+    }
+
+    #if DEBUG
+    /// Regression guard for the 12-window legacy cascade and the 30-window pressure fixture.
+    static func assertFixtureLayoutRegressionCases() {
+        let screens = [
+            CGRect(x: 0, y: 0, width: 1920, height: 1080),
+            CGRect(x: -1024, y: 20, width: 1024, height: 720),
+        ]
+        for screen in screens {
+            for count in [12, 30] {
+                let frames = windowFrames(count: count, visibleFrame: screen)
+                assert(frames.count == count, "Harness must create one frame for each requested window")
+                assert(frames.allSatisfy { frame in
+                    frame.width.isFinite && frame.height.isFinite
+                        && frame.width > 0 && frame.height > 0 && screen.contains(frame)
+                }, "Harness window frames must be positive and stay inside visibleFrame")
+
+                if count > cascadeWindowLimit {
+                    for first in frames.indices {
+                        for second in frames.indices where second > first {
+                            assert(!frames[first].intersects(frames[second]),
+                                   "Large Harness fixtures must use separate grid cells")
+                        }
+                    }
+                }
+            }
+        }
+    }
+    #endif
 }
 
 final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
@@ -19,20 +129,25 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let screens = NSScreen.screens
         guard let primary = screens.first else { return }
-        let step = CGSize(width: 46, height: 34)
-        var origin = CGPoint(x: primary.frame.minX + 120, y: primary.frame.maxY - 520)
+        #if DEBUG
+        Harness.assertFixtureLayoutRegressionCases()
+        #endif
+        let frames = Harness.windowFrames(count: Harness.windowCount, visibleFrame: primary.visibleFrame)
 
-        for index in 0..<Harness.windowCount {
+        for index in frames.indices {
             // 第 3 与第 4 个窗口故意用同一个标题，验证"标题相同不代表同一个窗口"。
             let duplicateTitle = index == 2 || index == 3
             let title = duplicateTitle ? "无标题副本" : "Harness 窗口 \(index + 1)"
             // 第 2 个窗口每 200ms 变一次内容，验证遮挡下画面仍实时。
             let isCounter = index == 1
-            let size = CGSize(width: 620 - CGFloat(index) * 24, height: 420 - CGFloat(index) * 18)
-            var point = origin
+            let frame = frames[index]
+            var size = frame.size
+            var point = frame.origin
             if Harness.spreadToOtherDisplay, index == Harness.windowCount - 1, screens.count > 1 {
-                let other = screens[1]
-                point = CGPoint(x: other.frame.minX + 40, y: other.frame.maxY - size.height - 40)
+                let other = screens[1].visibleFrame
+                size = CGSize(width: min(size.width, other.width), height: min(size.height, other.height))
+                point = CGPoint(x: other.minX + min(40, max(0, other.width - size.width)),
+                                y: other.maxY - size.height - min(40, max(0, other.height - size.height)))
             }
             let window = makeWindow(title: title,
                                     contentSize: size,
@@ -41,8 +156,13 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
                                     index: index)
             window.makeKeyAndOrderFront(nil)
             windows.append(window)
-            origin = CGPoint(x: origin.x + step.width, y: origin.y - step.height)
         }
+        #if DEBUG
+        let windowNumbers = Set(windows.map(\.windowNumber))
+        assert(windows.count == Harness.windowCount, "Harness must create every requested window")
+        assert(windowNumbers.count == windows.count, "Harness windows must have independent window numbers")
+        assert(windows.allSatisfy(\.isVisible), "Every Harness window must be visible")
+        #endif
         NSApp.activate(ignoringOtherApps: true)
     }
 

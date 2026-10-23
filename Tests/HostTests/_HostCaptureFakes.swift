@@ -185,6 +185,8 @@ final class FakeSingleFrameCapturer: @unchecked Sendable {
     var image: CGImage?
 
     var callCount: Int { lock.withLock { _calls.count } }
+    var activeCount: Int { lock.withLock { _inFlight } }
+    var pendingRequestCount: Int { lock.withLock { pending.count } }
     var peakInFlight: Int { lock.withLock { _peakInFlight } }
     func calls(for identity: WindowIdentity) -> Int { lock.withLock { _calls.filter { $0 == identity }.count } }
 
@@ -201,6 +203,14 @@ final class FakeSingleFrameCapturer: @unchecked Sendable {
         pending = []
         lock.unlock()
         for waiter in waiters { waiter.resume() }
+    }
+
+    /// 只放行最早的底层截图，门保持关闭，便于精确安排旧请求先于新请求完成。
+    func openNextRequestKeepingGate() {
+        lock.lock()
+        let waiter = pending.isEmpty ? nil : pending.removeFirst()
+        lock.unlock()
+        waiter?.resume()
     }
 
     func outcome(for identity: WindowIdentity) async -> SingleFrameOutcome {

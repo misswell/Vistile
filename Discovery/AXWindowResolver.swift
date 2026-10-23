@@ -78,25 +78,191 @@ extension GeometryWriteReport {
     var displayFrame: CGRect { readBackFrame ?? target }
 }
 
+enum AXExecutionPriority: Int, Sendable {
+    case interactive = 0
+    case discovery = 1
+}
+
+struct AXExecutorMetricsSnapshot: Equatable {
+    let queueWaitCount: UInt64
+    let totalQueueWaitMilliseconds: Double
+    let maximumQueueWaitMilliseconds: Double
+    let executionCount: UInt64
+    let totalExecutionMilliseconds: Double
+    let maximumExecutionMilliseconds: Double
+    let timeoutCount: UInt64
+}
+
 /// AX 调用专用串行执行器：所有跨进程属性读写都走这里，主线程不阻塞。
+/// 单个 job 执行时不可抢占；job 结束后先取交互队列，再继续低优先级发现工作。
 final class AXExecutor: @unchecked Sendable {
     static let shared = AXExecutor()
 
+    private struct PendingJob {
+        let priority: AXExecutionPriority
+        let sequence: UInt64
+        let enqueuedAt: UInt64
+        let work: @Sendable () -> Void
+    }
+
     private let queue = DispatchQueue(label: "com.misswell.Vistile.ax", qos: .userInitiated,
                                       autoreleaseFrequency: .workItem)
+    private let stateLock = NSLock()
+    private var pendingJobs: [PendingJob] = []
+    private var nextSequence: UInt64 = 0
+    private var isDraining = false
+
+    private var queueWaitCount: UInt64 = 0
+    private var totalQueueWaitNanoseconds: UInt64 = 0
+    private var maximumQueueWaitNanoseconds: UInt64 = 0
+    private var executionCount: UInt64 = 0
+    private var totalExecutionNanoseconds: UInt64 = 0
+    private var maximumExecutionNanoseconds: UInt64 = 0
+    private var timeoutCount: UInt64 = 0
+
     /// 有限消息超时：目标应用无响应时快速失败，不无限等待。
     var messagingTimeout: TimeInterval = 0.35
 
-    func submit<T>(_ work: @escaping @Sendable () -> T) async -> T {
+    var queuedJobCount: Int {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return pendingJobs.count
+    }
+
+    var metricsSnapshot: AXExecutorMetricsSnapshot {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return AXExecutorMetricsSnapshot(
+            queueWaitCount: queueWaitCount,
+            totalQueueWaitMilliseconds: Double(totalQueueWaitNanoseconds) / 1_000_000,
+            maximumQueueWaitMilliseconds: Double(maximumQueueWaitNanoseconds) / 1_000_000,
+            executionCount: executionCount,
+            totalExecutionMilliseconds: Double(totalExecutionNanoseconds) / 1_000_000,
+            maximumExecutionMilliseconds: Double(maximumExecutionNanoseconds) / 1_000_000,
+            timeoutCount: timeoutCount)
+    }
+
+    func submit<T>(priority: AXExecutionPriority = .interactive,
+                   _ work: @escaping @Sendable () -> T) async -> T {
         await withCheckedContinuation { continuation in
-            queue.async {
+            enqueue(priority: priority) {
                 continuation.resume(returning: work())
             }
         }
     }
 
-    func fire(_ work: @escaping @Sendable () -> Void) {
-        queue.async(execute: work)
+    func fire(priority: AXExecutionPriority = .interactive,
+              _ work: @escaping @Sendable () -> Void) {
+        enqueue(priority: priority, work: work)
+    }
+
+    func recordAXResult(_ error: AXError) {
+        guard error == .cannotComplete else { return }
+        stateLock.lock()
+        timeoutCount &+= 1
+        stateLock.unlock()
+    }
+
+    private func enqueue(priority: AXExecutionPriority, work: @escaping @Sendable () -> Void) {
+        stateLock.lock()
+        let job = PendingJob(priority: priority, sequence: nextSequence,
+                             enqueuedAt: DispatchTime.now().uptimeNanoseconds, work: work)
+        nextSequence &+= 1
+        pendingJobs.append(job)
+        let shouldStartDrain = !isDraining
+        if shouldStartDrain { isDraining = true }
+        stateLock.unlock()
+
+        if shouldStartDrain {
+            queue.async { self.drain() }
+        }
+    }
+
+    private func drain() {
+        while let job = takeNextJob() {
+            let startedAt = DispatchTime.now().uptimeNanoseconds
+            recordQueueWait(startedAt >= job.enqueuedAt ? startedAt - job.enqueuedAt : 0)
+            job.work()
+            let finishedAt = DispatchTime.now().uptimeNanoseconds
+            recordExecution(finishedAt >= startedAt ? finishedAt - startedAt : 0)
+        }
+    }
+
+    private func takeNextJob() -> PendingJob? {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        guard let index = pendingJobs.indices.min(by: { lhs, rhs in
+            let left = pendingJobs[lhs]
+            let right = pendingJobs[rhs]
+            if left.priority != right.priority { return left.priority.rawValue < right.priority.rawValue }
+            return left.sequence < right.sequence
+        }) else {
+            isDraining = false
+            return nil
+        }
+        return pendingJobs.remove(at: index)
+    }
+
+    private func recordQueueWait(_ nanoseconds: UInt64) {
+        stateLock.lock()
+        queueWaitCount &+= 1
+        totalQueueWaitNanoseconds &+= nanoseconds
+        maximumQueueWaitNanoseconds = max(maximumQueueWaitNanoseconds, nanoseconds)
+        stateLock.unlock()
+    }
+
+    private func recordExecution(_ nanoseconds: UInt64) {
+        stateLock.lock()
+        executionCount &+= 1
+        totalExecutionNanoseconds &+= nanoseconds
+        maximumExecutionNanoseconds = max(maximumExecutionNanoseconds, nanoseconds)
+        stateLock.unlock()
+    }
+}
+
+/// Validates values returned by AX before decoding them. The accessibility server may return a
+/// different Core Foundation value when a window disappears or its attributes change mid-query.
+enum AXElementValues {
+    static func windowElement(from raw: CFTypeRef?) -> AXUIElement? {
+        guard let raw, CFGetTypeID(raw) == AXUIElementGetTypeID() else { return nil }
+        return unsafeBitCast(raw, to: AXUIElement.self)
+    }
+
+    static func point(from raw: CFTypeRef?) -> CGPoint? {
+        guard let value = axValue(from: raw), AXValueGetType(value) == .cgPoint else { return nil }
+        var point = CGPoint.zero
+        guard AXValueGetValue(value, .cgPoint, &point) else { return nil }
+        return point
+    }
+
+    static func size(from raw: CFTypeRef?) -> CGSize? {
+        guard let value = axValue(from: raw), AXValueGetType(value) == .cgSize else { return nil }
+        var size = CGSize.zero
+        guard AXValueGetValue(value, .cgSize, &size) else { return nil }
+        return size
+    }
+
+    private static func axValue(from raw: CFTypeRef?) -> AXValue? {
+        guard let raw, CFGetTypeID(raw) == AXValueGetTypeID() else { return nil }
+        return unsafeBitCast(raw, to: AXValue.self)
+    }
+}
+
+/// Retries yield between reads. Each read closure can submit one independent AX job so other work
+/// can run while the target application settles after a geometry write.
+enum AXReadBackRetry {
+    static func read<T>(attempts: Int,
+                        gap: TimeInterval,
+                        read: () async -> T?) async -> T? {
+        guard attempts > 0 else { return nil }
+        for attempt in 0..<attempts {
+            if let value = await read() { return value }
+            if attempt < attempts - 1 {
+                let nanoseconds = UInt64(max(0, gap) * 1_000_000_000)
+                try? await Task.sleep(nanoseconds: nanoseconds)
+            }
+        }
+        return nil
     }
 }
 
@@ -108,6 +274,19 @@ struct AXWindowEntry {
 
 /// 公开辅助功能接口封装。不使用任何私有 API，也不假设可以拿到 CGWindowID。
 final class AXWindowResolver: @unchecked Sendable {
+    private enum GeometryWritePreparation {
+        case cancelledBeforeWrite
+        case unreadable
+        case cancelledAfterSize(before: CGRect, sizeError: Int)
+        case written(before: CGRect, sizeError: Int, positionError: Int)
+    }
+
+    private enum PositionWritePreparation {
+        case cancelled
+        case unreadable
+        case written(before: CGRect, error: Int)
+    }
+
     private let executor: AXExecutor
     private let geometryTolerance: CGFloat
 
@@ -126,22 +305,30 @@ final class AXWindowResolver: @unchecked Sendable {
 
     /// 读取某进程的全部窗口。不支持 AX 的应用返回空数组，调用方据此降级为 previewOnly。
     func windows(pid: pid_t) async -> [AXWindowEntry] {
-        await executor.submit {
+        let elements: [AXUIElement] = await executor.submit(priority: .discovery) {
             let app = self.applicationElement(pid: pid)
             guard let raw = self.copy(app, kAXWindowsAttribute),
                   let array = raw as? [AXUIElement] else { return [] }
-            return array.enumerated().map { index, element in
+            return array
+        }
+
+        var entries: [AXWindowEntry] = []
+        entries.reserveCapacity(elements.count)
+        for (index, element) in elements.enumerated() {
+            let entry = await executor.submit(priority: .discovery) {
                 AXUIElementSetMessagingTimeout(element, Float(self.executor.messagingTimeout))
                 return AXWindowEntry(snapshot: self.snapshot(of: element, index: index), element: element)
             }
+            entries.append(entry)
         }
+        return entries
     }
 
     func focusedWindow(pid: pid_t) async -> AXWindowEntry? {
         await executor.submit {
             let app = self.applicationElement(pid: pid)
-            guard let raw = self.copy(app, kAXFocusedWindowAttribute) else { return nil }
-            let element = raw as! AXUIElement
+            guard let raw = self.copy(app, kAXFocusedWindowAttribute),
+                  let element = AXElementValues.windowElement(from: raw) else { return nil }
             AXUIElementSetMessagingTimeout(element, Float(self.executor.messagingTimeout))
             return AXWindowEntry(snapshot: self.snapshot(of: element, index: -1), element: element)
         }
@@ -150,8 +337,8 @@ final class AXWindowResolver: @unchecked Sendable {
     func focusedWindowElement(pid: pid_t) async -> AXUIElement? {
         await executor.submit {
             let app = self.applicationElement(pid: pid)
-            guard let raw = self.copy(app, kAXFocusedWindowAttribute) else { return nil }
-            let element = raw as! AXUIElement
+            guard let raw = self.copy(app, kAXFocusedWindowAttribute),
+                  let element = AXElementValues.windowElement(from: raw) else { return nil }
             AXUIElementSetMessagingTimeout(element, Float(self.executor.messagingTimeout))
             return element
         }
@@ -188,11 +375,9 @@ final class AXWindowResolver: @unchecked Sendable {
     /// 同步版本只允许在 AX 执行队列或启动恢复路径上使用；主线程请用 currentFrame。
     func frame(of element: AXUIElement) -> CGRect? {
         guard let position = copy(element, kAXPositionAttribute),
-              let size = copy(element, kAXSizeAttribute) else { return nil }
-        var point = CGPoint.zero
-        var dimension = CGSize.zero
-        guard AXValueGetValue(position as! AXValue, .cgPoint, &point),
-              AXValueGetValue(size as! AXValue, .cgSize, &dimension) else { return nil }
+              let size = copy(element, kAXSizeAttribute),
+              let point = AXElementValues.point(from: position),
+              let dimension = AXElementValues.size(from: size) else { return nil }
         return CGRect(origin: point, size: dimension)
     }
 
@@ -208,63 +393,67 @@ final class AXWindowResolver: @unchecked Sendable {
     ///
     /// 许可检查全部发生在 AX 队列内部：入队之后被取消的操作不能再靠"入队前查过"来阻止真实写入。
     func apply(frame target: CGRect, element: AXUIElement, permit: GeometryWritePermit) async -> GeometryWriteReport {
-        await executor.submit {
-            let clamped = target.standardized
-            guard permit.isGranted else {
-                return Self.cancelledReport(target: clamped, before: nil, wroteSize: false,
-                                            wrotePosition: false, readBack: nil)
-            }
-            guard let before = self.frame(of: element) else {
-                return GeometryWriteReport(target: clamped, frameBeforeWrite: nil,
-                                           sizeWriteError: Int(AXError.cannotComplete.rawValue),
-                                           positionWriteError: Int(AXError.cannotComplete.rawValue),
-                                           readBack: nil, outcome: .unreadable)
-            }
-            let first = self.writeOnce(clamped, element: element, before: before, permit: permit)
-            if first.isCancelled {
-                return first
-            }
-            guard self.needsCompensation(first, before: before) else { return first }
-            guard permit.isGranted else {
-                // 已经动过窗口才被取消：回报真实部分事实，让补偿按这些事实回位。
-                return Self.cancelledReport(target: clamped, before: before,
-                                            wroteSize: first.didWriteSize,
-                                            wrotePosition: first.didWritePosition,
-                                            readBack: first.readBack)
-            }
-            // 跨不同 scaling 的显示器常见"位置被接受但尺寸被应用重算"：补偿一次，最多一次。
-            var compensated = self.writeOnce(clamped, element: element, before: before, permit: permit)
-            // 两段都真实读过 AX：读回耗时按整次调用累计，只留最后一段会把第一次的重试洗掉（方案 §20.2）。
-            if let first = first.readBackMS {
-                compensated.readBackMS = (compensated.readBackMS ?? 0) + first
-            }
-            return compensated
+        let clamped = target.standardized
+        let first = await writeOnce(clamped, element: element, permit: permit)
+        if first.isCancelled { return first }
+        guard let before = first.frameBeforeWrite,
+              needsCompensation(first, before: before) else { return first }
+        guard permit.isGranted else {
+            // 已经动过窗口才被取消：回报真实部分事实，让补偿按这些事实回位。
+            return Self.cancelledReport(target: clamped, before: before,
+                                        wroteSize: first.didWriteSize,
+                                        wrotePosition: first.didWritePosition,
+                                        readBack: first.readBack,
+                                        readBackMS: first.readBackMS)
         }
+        // 跨不同 scaling 的显示器常见"位置被接受但尺寸被应用重算"：补偿一次，最多一次。
+        var compensated = await writeOnce(clamped, element: element, permit: permit)
+        // 两段都真实读过 AX：读回耗时按整次调用累计，只留最后一段会把第一次的重试洗掉（方案 §20.2）。
+        if let first = first.readBackMS {
+            compensated.readBackMS = (compensated.readBackMS ?? 0) + first
+        }
+        return compensated
     }
 
     /// 仅移动路径：只写 position，尺寸保持实读的当前值（方案 §9.1）。
     func applyPosition(_ origin: CGPoint,
                        element: AXUIElement,
                        permit: GeometryWritePermit) async -> GeometryWriteReport {
-        await executor.submit {
+        let targetOrigin = origin
+        let preparation = await executor.submit {
             guard permit.isGranted else {
-                return Self.cancelledReport(target: CGRect(origin: origin, size: .zero), before: nil,
-                                            wroteSize: false, wrotePosition: false, readBack: nil)
+                return PositionWritePreparation.cancelled
             }
             guard let before = self.frame(of: element) else {
-                return GeometryWriteReport(target: CGRect(origin: origin, size: .zero), frameBeforeWrite: nil,
-                                           sizeWriteError: Int(AXError.cannotComplete.rawValue),
-                                           positionWriteError: Int(AXError.cannotComplete.rawValue),
-                                           readBack: nil, outcome: .unreadable)
+                return PositionWritePreparation.unreadable
             }
             // 目标矩形只是给判定用；真实尺寸来自写前实读，绝不为了"看着像主区"而裁小。
-            let target = CGRect(origin: origin, size: before.size)
-            let positionError = self.writePosition(origin, element: element)
+            return PositionWritePreparation.written(before: before,
+                                                    error: self.writePosition(origin, element: element))
+        }
+
+        let targetSize: CGSize
+        if case let .written(before, _) = preparation {
+            targetSize = before.size
+        } else {
+            targetSize = .zero
+        }
+        let target = CGRect(origin: targetOrigin, size: targetSize)
+        switch preparation {
+        case .cancelled:
+            return Self.cancelledReport(target: target, before: nil, wroteSize: false,
+                                        wrotePosition: false, readBack: nil)
+        case .unreadable:
+            return GeometryWriteReport(target: target, frameBeforeWrite: nil,
+                                       sizeWriteError: Int(AXError.cannotComplete.rawValue),
+                                       positionWriteError: Int(AXError.cannotComplete.rawValue),
+                                       readBack: nil, outcome: .unreadable)
+        case let .written(before, positionError):
             let readBackStarted = CACurrentMediaTime()
-            let readBack = self.readBackFrame(element)
+            let readBack = await readBackFrame(element)
             var report = Self.classify(target: target, before: before, sizeError: 0,
                                        positionError: positionError, readBack: readBack,
-                                       tolerance: self.geometryTolerance)
+                                       tolerance: geometryTolerance)
             report.didWriteSize = false
             report.didWritePosition = true
             report.readBackMS = (CACurrentMediaTime() - readBackStarted) * 1000
@@ -274,26 +463,47 @@ final class AXWindowResolver: @unchecked Sendable {
 
     private func writeOnce(_ target: CGRect,
                            element: AXUIElement,
-                           before: CGRect,
-                           permit: GeometryWritePermit) -> GeometryWriteReport {
-        let sizeError = writeSize(target.size, element: element)
-        guard permit.isGranted else {
-            // 尺寸已经落笔、位置还没写：只改过一半的几何必须按事实回报（方案 §5.2）。
-            let partialReadBack = self.frame(of: element)
-            return Self.cancelledReport(target: target, before: before, wroteSize: true,
-                                        wrotePosition: false, readBack: partialReadBack,
-                                        sizeError: sizeError)
+                           permit: GeometryWritePermit) async -> GeometryWriteReport {
+        let preparation = await executor.submit {
+            guard permit.isGranted else { return GeometryWritePreparation.cancelledBeforeWrite }
+            guard let before = self.frame(of: element) else { return GeometryWritePreparation.unreadable }
+
+            // 尺寸与位置写入在一个不可抢占的job里，避免交互请求插入半组几何操作。
+            let sizeError = self.writeSize(target.size, element: element)
+            guard permit.isGranted else {
+                return GeometryWritePreparation.cancelledAfterSize(before: before, sizeError: sizeError)
+            }
+            let positionError = self.writePosition(target.origin, element: element)
+            return GeometryWritePreparation.written(before: before, sizeError: sizeError,
+                                                    positionError: positionError)
         }
-        let positionError = writePosition(target.origin, element: element)
-        let readBackStarted = CACurrentMediaTime()
-        let readBack = readBackFrame(element)
-        var report = Self.classify(target: target, before: before, sizeError: sizeError,
-                                   positionError: positionError, readBack: readBack,
-                                   tolerance: geometryTolerance)
-        report.didWriteSize = true
-        report.didWritePosition = true
-        report.readBackMS = (CACurrentMediaTime() - readBackStarted) * 1000
-        return report
+
+        switch preparation {
+        case .cancelledBeforeWrite:
+            return Self.cancelledReport(target: target, before: nil, wroteSize: false,
+                                        wrotePosition: false, readBack: nil)
+        case .unreadable:
+            return GeometryWriteReport(target: target, frameBeforeWrite: nil,
+                                       sizeWriteError: Int(AXError.cannotComplete.rawValue),
+                                       positionWriteError: Int(AXError.cannotComplete.rawValue),
+                                       readBack: nil, outcome: .unreadable)
+        case let .cancelledAfterSize(before, sizeError):
+            let readBackStarted = CACurrentMediaTime()
+            let readBack = await readBackFrame(element)
+            return Self.cancelledReport(target: target, before: before, wroteSize: true,
+                                        wrotePosition: false, readBack: readBack, sizeError: sizeError,
+                                        readBackMS: (CACurrentMediaTime() - readBackStarted) * 1000)
+        case let .written(before, sizeError, positionError):
+            let readBackStarted = CACurrentMediaTime()
+            let readBack = await readBackFrame(element)
+            var report = Self.classify(target: target, before: before, sizeError: sizeError,
+                                       positionError: positionError, readBack: readBack,
+                                       tolerance: geometryTolerance)
+            report.didWriteSize = true
+            report.didWritePosition = true
+            report.readBackMS = (CACurrentMediaTime() - readBackStarted) * 1000
+            return report
+        }
     }
 
     /// 取消后的回报：错误码记为"未执行"，但已写入侧与读回事实原样保留。
@@ -302,13 +512,15 @@ final class AXWindowResolver: @unchecked Sendable {
                                         wroteSize: Bool,
                                         wrotePosition: Bool,
                                         readBack: CGRect?,
-                                        sizeError: Int = Int(AXError.success.rawValue)) -> GeometryWriteReport {
+                                        sizeError: Int = Int(AXError.success.rawValue),
+                                        readBackMS: Double? = nil) -> GeometryWriteReport {
         GeometryWriteReport(target: target, frameBeforeWrite: before,
                             sizeWriteError: wroteSize ? sizeError : Int(AXError.cannotComplete.rawValue),
                             positionWriteError: wrotePosition ? Int(AXError.success.rawValue) : Int(AXError.cannotComplete.rawValue),
                             readBack: readBack,
                             outcome: .cancelled(wroteSize: wroteSize, wrotePosition: wrotePosition, readBack: readBack),
-                            didWriteSize: wroteSize, didWritePosition: wrotePosition)
+                            didWriteSize: wroteSize, didWritePosition: wrotePosition,
+                            readBackMS: readBackMS)
     }
 
     /// 写后读回给一个有界重试窗口：写入双侧回报成功（错误码 0）时，单次读失败不能当成终审。
@@ -316,12 +528,10 @@ final class AXWindowResolver: @unchecked Sendable {
     /// 而 32ms 后的恢复路径读到了 66,184——应用刚被改几何时 AX 会短暂忙。
     /// 重试仍读不到才按 .unreadable 拒绝：读到才算数（方案 §6.1）。
     private func readBackFrame(_ element: AXUIElement, attempts: Int = 3,
-                               gap: TimeInterval = 0.07) -> CGRect? {
-        for attempt in 0..<attempts {
-            if let frame = self.frame(of: element) { return frame }
-            if attempt < attempts - 1 { Thread.sleep(forTimeInterval: gap) }
+                               gap: TimeInterval = 0.07) async -> CGRect? {
+        await AXReadBackRetry.read(attempts: attempts, gap: gap) {
+            await self.executor.submit { self.frame(of: element) }
         }
-        return nil
     }
 
     /// 写前事实：分别读 kAXSize / kAXPosition 的可写性。任一读不到就整体按"读不到"回报，
@@ -393,6 +603,7 @@ final class AXWindowResolver: @unchecked Sendable {
             }
             let error = AXUIElementSetAttributeValue(element, kAXMinimizedAttribute as CFString,
                                                      minimized ? kCFBooleanTrue : kCFBooleanFalse)
+            self.executor.recordAXResult(error)
             guard error == .success else {
                 return .notApplied(reason: "写入 kAXMinimized 报错 \(error.rawValue)")
             }
@@ -409,19 +620,25 @@ final class AXWindowResolver: @unchecked Sendable {
     private func writeSize(_ size: CGSize, element: AXUIElement) -> Int {
         var value = size
         guard let axValue = AXValueCreate(.cgSize, &value) else { return Int(AXError.invalidUIElement.rawValue) }
-        return Int(AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, axValue).rawValue)
+        let error = AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, axValue)
+        executor.recordAXResult(error)
+        return Int(error.rawValue)
     }
 
     private func writePosition(_ origin: CGPoint, element: AXUIElement) -> Int {
         var value = origin
         guard let axValue = AXValueCreate(.cgPoint, &value) else { return Int(AXError.invalidUIElement.rawValue) }
-        return Int(AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, axValue).rawValue)
+        let error = AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, axValue)
+        executor.recordAXResult(error)
+        return Int(error.rawValue)
     }
 
     /// 公开 Raise action；是否足以稳定压过其他应用窗口需要 P0 实测。
     func raise(element: AXUIElement) async -> Bool {
         await executor.submit {
-            AXUIElementPerformAction(element, kAXRaiseAction as CFString) == .success
+            let error = AXUIElementPerformAction(element, kAXRaiseAction as CFString)
+            self.executor.recordAXResult(error)
+            return error == .success
         }
     }
 
@@ -429,6 +646,7 @@ final class AXWindowResolver: @unchecked Sendable {
         await executor.submit {
             let app = self.applicationElement(pid: self.pid(of: element))
             let error = AXUIElementSetAttributeValue(app, kAXFocusedWindowAttribute as CFString, element)
+            self.executor.recordAXResult(error)
             guard error == .success else { return false }
             if let focused = self.copy(app, kAXFocusedWindowAttribute) {
                 return CFEqual(focused, element)
@@ -441,7 +659,9 @@ final class AXWindowResolver: @unchecked Sendable {
 
     private func copy(_ element: AXUIElement, _ attribute: String) -> CFTypeRef? {
         var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else { return nil }
+        let error = AXUIElementCopyAttributeValue(element, attribute as CFString, &value)
+        executor.recordAXResult(error)
+        guard error == .success else { return nil }
         return value
     }
 
@@ -457,13 +677,16 @@ final class AXWindowResolver: @unchecked Sendable {
 
     private func settable(_ element: AXUIElement, _ attribute: String) -> Bool? {
         var flag: DarwinBoolean = false
-        guard AXUIElementIsAttributeSettable(element, attribute as CFString, &flag) == .success else { return nil }
+        let error = AXUIElementIsAttributeSettable(element, attribute as CFString, &flag)
+        executor.recordAXResult(error)
+        guard error == .success else { return nil }
         return flag.boolValue
     }
 
     private func pid(of element: AXUIElement) -> pid_t {
         var processID: pid_t = 0
-        AXUIElementGetPid(element, &processID)
+        let error = AXUIElementGetPid(element, &processID)
+        executor.recordAXResult(error)
         return processID
     }
 }

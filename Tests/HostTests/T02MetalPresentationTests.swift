@@ -103,8 +103,8 @@ final class T02MetalPresentationTests: XCTestCase {
         let after = renderer.diagnostics()
 
         XCTAssertGreaterThan(after.draws, before.draws)
-        XCTAssertGreaterThan(after.presents, before.presents, "取了 drawable 却不 present，屏上永远不会变")
-        XCTAssertEqual(after.presents - before.presents, 1, "一次绘制只 present 一个 drawable")
+        XCTAssertGreaterThan(after.submissions, before.submissions, "实际 draw 必须提交 command buffer 和 present 请求")
+        XCTAssertEqual(after.submissions - before.submissions, 1, "一次离屏绘制只提交一个 drawable；实际呈现由 presentedTime 单独确认")
         XCTAssertEqual(after.submissionFailures, before.submissionFailures)
         XCTAssertEqual(after.missingDrawables, before.missingDrawables)
 
@@ -142,7 +142,7 @@ final class T02MetalPresentationTests: XCTestCase {
         sync(mailboxes)
         let afterSecond = renderer.diagnostics()
         XCTAssertEqual(afterSecond.draws - afterFirst.draws, 1)
-        XCTAssertEqual(afterSecond.presents - afterFirst.presents, 1)
+        XCTAssertEqual(afterSecond.submissions - afterFirst.submissions, 1)
     }
 
     /// 视图尺寸为 0（刚创建或被压扁）时不提交，也不因此进入忙循环。
@@ -152,7 +152,7 @@ final class T02MetalPresentationTests: XCTestCase {
         orphan.redraw(using: renderer, mailboxes: { _ in nil }, force: true)
         let after = renderer.diagnostics()
         XCTAssertEqual(after.draws, before.draws + 1)
-        XCTAssertEqual(after.presents, before.presents)
+        XCTAssertEqual(after.submissions, before.submissions)
         XCTAssertEqual(after.submissionFailures, before.submissionFailures)
     }
 

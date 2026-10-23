@@ -163,10 +163,10 @@ P0-4 因此从"未测"转为拿到读数。
 | 端点 | 指标名（`Metrics.measure` 的 name） | 打点位置 | §20.1 判据 |
 | --- | --- | --- | --- |
 | 真实输入 | 不单独成项，是首帧延迟的**锚点**：两处 view-action 入口写 `lastInputStamp` | [App/AppCoordinator.swift:1481](../App/AppCoordinator.swift#L1481)（总览卡片）、[:1533](../App/AppCoordinator.swift#L1533)（工作台轨道） | — |
-| 首帧反馈（present 出去的那一刻） | `过渡首帧延迟·<场景>·<分组键>` / `过渡首帧延迟(无点击锚点)·<场景>·<分组键>` | 锚点消费 [App/AppCoordinator.swift:1186](../App/AppCoordinator.swift#L1186)，判据是渲染器 `diagnostics().presents` 增量 [Presentation/ModeTransitionCoordinator.swift:435](../Presentation/ModeTransitionCoordinator.swift#L435)，入表 [App/AppCoordinator.swift:1260](../App/AppCoordinator.swift#L1260) | 点击反馈 P95 ≤50ms（逐组判） |
+| 首帧反馈（present 出去的那一刻） | `过渡首帧延迟·<场景>·<分组键>` / `过渡首帧延迟(无点击锚点)·<场景>·<分组键>` | 锚点消费 [App/AppCoordinator.swift:1186](../App/AppCoordinator.swift#L1186)，判据是 Metal drawable 的 `presentedTime > 0` 呈现回调，提交与实际呈现分别计数 [Presentation/ModeTransitionCoordinator.swift:435](../Presentation/ModeTransitionCoordinator.swift#L435)，入表 [App/AppCoordinator.swift:1260](../App/AppCoordinator.swift#L1260) | 点击反馈 P95 ≤50ms（逐组判） |
 | 呈现 vs 回调 | 计数 `过渡零呈现段`、`过渡回调多于呈现` | [App/AppCoordinator.swift:1269](../App/AppCoordinator.swift#L1269)、[:1272](../App/AppCoordinator.swift#L1272)，缺口算式 `ticks − presentedFrames`。这两条不按分组拆：它们是"有没有画面证据"的核对，不是 §20.1 带目标值的数字 | 任一非 0 即不能宣布该项达标 |
-| 帧间隔（按场景×分组分段） | `过渡帧间隔p95·<场景>·<分组键>` | [App/AppCoordinator.swift:1235](../App/AppCoordinator.swift#L1235)，段内统计由 `FrameIntervalStats.measure` 做 | P95 ≤20ms（逐组判） |
-| 段级帧预算（掉帧占比与连续卡顿） | 计数 `过渡帧预算内·<分组键>` / `过渡超帧预算·<分组键>` | [App/AppCoordinator.swift:1242](../App/AppCoordinator.swift#L1242)；`meetsTarget` = P95≤20ms 且 >33.3ms 占比 ≤1% 且无连续 3 帧 [Packages/VistileCore/Sources/VistileCore/Domain/MotionLevel.swift:50](../Packages/VistileCore/Sources/VistileCore/Domain/MotionLevel.swift#L50) | 任一组的「超预算」>0 即该组未达标 |
+| 帧间隔（按场景×分组分段） | `过渡帧间隔p95·<场景>·<分组键>` | [App/AppCoordinator.swift:1235](../App/AppCoordinator.swift#L1235)，段内统计由 `FrameIntervalStats.measure` 做 | P95 ≤实际帧预算（60Hz 约16.67ms、120Hz约8.33ms；允许0.05ms时间戳舍入误差） |
+| 段级帧预算（掉帧占比与连续卡顿） | 计数 `过渡帧预算内·<分组键>` / `过渡超帧预算·<分组键>` | [App/AppCoordinator.swift:1242](../App/AppCoordinator.swift#L1242)；`meetsTarget` = P95≤实际帧预算+0.05ms、超过两倍帧预算的占比≤1%、无连续3帧 [Packages/VistileCore/Sources/VistileCore/Domain/MotionLevel.swift:50](../Packages/VistileCore/Sources/VistileCore/Domain/MotionLevel.swift#L50) | 任一组的「超预算」>0 即该组未达标 |
 | 有效间隔总数 | 计数 `过渡有效帧间隔·<场景>·<分组键>` | [App/AppCoordinator.swift:1246](../App/AppCoordinator.swift#L1246)，值取 `FrameIntervalStats.count`（该段里有限且 >0 的间隔条数） | §20.2「累计至少 1,000 个有效间隔」，按组判 |
 | journal prepare | `日志:批量 prepare` | [App/AppCoordinator.swift:632](../App/AppCoordinator.swift#L632) | 无独立阈值，用于分离"落盘慢"与"AX 慢" |
 | journal 事实追加 | `日志:事实追加` | [App/AppCoordinator.swift:657](../App/AppCoordinator.swift#L657) | 同上 |
@@ -204,7 +204,8 @@ P0-4 因此从"未测"转为拿到读数。
   `PerformanceGate.minSamples = 100` 与 `judge(...)`
   （[Packages/VistileCore/Sources/VistileCore/Domain/PerformanceGroup.swift:80](../Packages/VistileCore/Sources/VistileCore/Domain/PerformanceGroup.swift#L80)），
   「≥1,000 个有效间隔」这一维以前没有测量支撑（只有段数），现在由 `过渡有效帧间隔` 计数按组累加，P0-18 双门都过才判。
-  120Hz 组可以按本机帧间隔给更严的预算，但 §20.1 的 20ms 判据对 60Hz/120Hz 一视同仁，保留 60Hz 基准便于与历史比较。
+  当前判据按实际 CADisplayLink 目标周期分组：60Hz约16.67ms、120Hz约8.33ms，仅允许0.05ms时间戳舍入误差。未知刷新率保持未判，历史20ms统一判据仅供历史样本对照。
+  Current budgets follow the observed display-link period: approximately 16.67ms at 60Hz and 8.33ms at 120Hz, with 0.05ms timestamp-rounding tolerance. Unknown refresh rates remain unjudged; the old 20ms limit is historical only.
   **本机的档位已有实测依据**：内置面板 `CGDisplayCopyDisplayMode(1).refreshRate` 报 `120.0`（2026-10-17 16:17，锁屏熄屏态下测得；
   注意 `CGGetActiveDisplayList` 在熄屏时回 0 块，必须走 `CGGetOnlineDisplayList` 才拿得到模式与刷新率，脚本见
   [Evidence/README.md](Evidence/README.md)「run14 起跑前」）。ProMotion 会随内容升降，所以分组标签要在动画进行中重读该值，不能沿用一格的静态读数。
@@ -238,3 +239,17 @@ P0-4 因此从"未测"转为拿到读数。
 - English: Card chrome and Metal layers disable implicit animations. The display link advances to the target presentation time, and interrupted panels resume from their displayed rectangles. Top-rail trackpad gestures retain their axis through momentum; precise deltas pass through, while discrete wheels use 10 points per line. An unchanged drawable size is not reassigned.
 - 中文：宿主回归覆盖滚动事件和图层行为；不把自动测试通过等同于授权正式包的真机帧率、首帧或落定延迟结论。
 - English: Host regressions cover scroll events and layer behavior. Passing tests do not establish frame-rate, first-frame, or settle-latency results for the authorized release binary.
+
+
+## 2026-10-23 performance audit / 性能审查（v0.1.35）
+
+中文：当前源码已修复滚动全量同步、壁纸重复解码/排序、截图预算与旧回调、AX队列睡眠以及呈现指标混淆。CPU/GPU、12/30真实窗口、30分钟稳定性和120Hz物理呈现仍必须由正式包与实际显示环境采样；离屏HostTests只证明状态和提交路径，不证明用户看到了像素。审查与验证清单见 [PerformanceAudit-2026-10-23.md](PerformanceAudit-2026-10-23.md)。
+English: Current source addresses full synchronization on scrolling, repeated wallpaper decode/ordering, screenshot budgets and stale callbacks, sleeping AX jobs, and conflated submission/presentation metrics. CPU/GPU baselines, 12/30 real windows, 30-minute stability, and physical 120Hz presentation still require measurement in the actual display environment. Offscreen HostTests prove state and submission behavior, not visible pixels.
+
+当前指标 / Current signals:
+
+- `过渡输入到提交`: input anchor to command-buffer submission; `过渡GPU执行p95`: GPU start/end timestamps.
+- `过渡首帧延迟`: input anchor to the drawable presentation timestamp; `过渡帧间隔p95`: actual presentation intervals.
+- `过渡回调间隔p95`: display-link callback spacing, kept separate from actual presentation.
+- `过渡呈现观测未完整`: outstanding/dropped presentation callbacks after the bounded telemetry deadline; no geometry/handoff wait is added.
+- Metrics retains the latest 1024 samples per metric; summaries include both retained and total sample counts.

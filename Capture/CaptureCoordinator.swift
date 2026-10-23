@@ -87,6 +87,44 @@ struct CaptureTarget: Hashable {
     }
 }
 
+private struct PendingPoll {
+    let identity: WindowIdentity
+    let intervalMilliseconds: Int
+    let round: CaptureRoundToken
+    let generation: UInt64
+}
+
+private struct ActivePoll {
+    let request: PendingPoll
+}
+
+/// Immutable inputs can cross to the worker task; Metal's shared texture cache is used only
+/// through its thread-safe CoreVideo APIs and the image itself is immutable.
+private struct LowFrequencyImageMapping: @unchecked Sendable {
+    let image: CGImage
+    let base: StreamConfig
+    let target: CaptureTarget
+    let metal: MetalContext
+    let observer: (@Sendable () -> Void)?
+
+    func makeFrame() -> MetalFrame? {
+        observer?()
+        guard let mapped = metal.texture(from: image) else { return nil }
+        return MetalFrame(texture: mapped.texture,
+                          storage: mapped.storage,
+                          meta: CapturedFrameMeta(pixelWidth: base.pixelWidth,
+                                                  pixelHeight: base.pixelHeight,
+                                                  contentRectInPoints: nil,
+                                                  pointPixelScale: target.backingScale,
+                                                  contentScale: target.backingScale,
+                                                  sourceSizeInPoints: target.sourceSize,
+                                                  status: .complete,
+                                                  isValid: true,
+                                                  presentTime: Date().timeIntervalSince1970),
+                          publishedAt: Date())
+    }
+}
+
 /// 一次运行的创建请求（方案 §15.1）。
 /// 生产用真实 ScreenCaptureKit 会话，宿主测试注入假驱动，
 /// 才能确定复现"start 还挂着时 stop 到达""旧回调晚到"这类交错，而不是靠随机 sleep。
@@ -111,6 +149,8 @@ final class CaptureCoordinator {
 
     /// 至多 2 个启动操作同时进行，避免几十个流同一时间申请资源。
     let maxConcurrentStarts = 2
+    /// 至多 2 个低频截图操作在底层等待或转换，跨所有窗口共享。
+    let maxConcurrentPolls = 2
     /// 实测前的保守软上限；Performance 文档会用真实数据替换。
     var streamSoftLimit: Int = 12
 
@@ -162,8 +202,12 @@ final class CaptureCoordinator {
     private var pendingStarts: [PendingStart] = []
     private var polledIntervals: [WindowIdentity: Int] = [:]
     private var pollTimers: [WindowIdentity: Timer] = [:]
-    private var pollTasks: [WindowIdentity: Task<Void, Never>] = [:]
-    private var pollInFlight: Set<WindowIdentity> = []
+    private var pollTasks: [UUID: Task<Void, Never>] = [:]
+    private var activePolls: [UUID: ActivePoll] = [:]
+    private var activePollByIdentity: [WindowIdentity: UUID] = [:]
+    private var pendingPolls: [WindowIdentity: PendingPoll] = [:]
+    private var pollGenerations: [WindowIdentity: UInt64] = [:]
+    private var nextPollGeneration: UInt64 = 0
     /// 过渡交接前的一次性刷新：同一身份最多一个请求在途（方案 §10.6）。
     private var appliedAction: [WindowIdentity: BudgetAction] = [:]
     private var lastConfigurationChange: [WindowIdentity: TimeInterval] = [:]
@@ -173,6 +217,7 @@ final class CaptureCoordinator {
     private var round = CaptureRoundToken(0)
     private let sampleQueue: DispatchQueue
     private let singleFrame: @MainActor (WindowIdentity, StreamConfig) async -> SingleFrameOutcome
+    private let imageMappingObserver: (@Sendable () -> Void)?
 
     /// 合并后的尺寸重配请求：一个显示周期内到达的多次 delta 只兑现最后一次（方案 §13.2）。
     /// 每个 identity 至多一条，天然 latest-wins；过渡期间留在表里，取消或过渡结束立刻兑现。
@@ -227,12 +272,14 @@ final class CaptureCoordinator {
          catalog: WindowCatalog,
          sampleQueue: DispatchQueue,
          runFactory: @escaping (CaptureRunRequest) -> CaptureRunning,
-         singleFrame: @escaping (WindowIdentity, StreamConfig) async -> SingleFrameOutcome) {
+         singleFrame: @escaping (WindowIdentity, StreamConfig) async -> SingleFrameOutcome,
+         imageMappingObserver: (@Sendable () -> Void)? = nil) {
         self.metal = metal
         self.catalog = catalog
         self.sampleQueue = sampleQueue
         self.makeRun = runFactory
         self.singleFrame = singleFrame
+        self.imageMappingObserver = imageMappingObserver
     }
 
     // MARK: - 对外事实
@@ -240,7 +287,10 @@ final class CaptureCoordinator {
     /// "已经有运行/启动中的一轮"：并发上限按它算，不能按已经 running 的算。
     var activeStreamCount: Int { runs.count }
     var queuedStartCount: Int { pendingStarts.count }
+    var activeStartCount: Int { inFlightStarts.count }
     var polledCount: Int { pollTimers.count }
+    var activePollCount: Int { activePolls.count }
+    var queuedPollCount: Int { pendingPolls.count }
     /// 合并中的尺寸重配数量（方案 §13.2）：连续滚动几十个 delta 也只应留下每身份一条。
     var pendingReconfigurationCount: Int { pendingReconfigurations.count }
     /// 逻辑已失效：不再有待启动、没有存活的一轮。
@@ -561,12 +611,14 @@ final class CaptureCoordinator {
         round = round.next()
         desiredTargets.removeAll()
         pendingStarts.removeAll()
-        inFlightStarts.removeAll()
         // 停止/取消从不延后：合并中的重配意图随本轮一起作废（方案 §13.2）。
         pendingReconfigurations.removeAll()
         reconfigurationCycleScheduled = false
         for identity in Array(runs.keys) { terminate(identity: identity) }
-        for identity in Array(pollTimers.keys) { stopPolling(identity) }
+        let pollingIdentities = Set(pollTimers.keys)
+            .union(pendingPolls.keys)
+            .union(activePollByIdentity.keys)
+        for identity in pollingIdentities { stopPolling(identity) }
         if releasingMailboxes {
             for identity in Array(mailboxes.keys) { mailboxes[identity]?.release() }
             mailboxes.removeAll()
@@ -595,19 +647,25 @@ final class CaptureCoordinator {
     /// 计划里要求轮询的目标才有定时器；升降级滞后由 planner 决定，sync 不会把它又变成直播流。
     private func reconcilePolling(plan: CaptureModePlan, round: CaptureRoundToken) {
         for identity in Array(pollTimers.keys) {
-            if case .poll = plan.modes[identity] ?? .paused { continue }
+            let mode = plan.modes[identity] ?? .paused
+            if case let .poll(interval) = mode, polledIntervals[identity] == interval { continue }
             stopPolling(identity)
             if plan.modes[identity] == nil { polledIntervals.removeValue(forKey: identity) }
         }
         for (identity, mode) in plan.modes.sorted(by: { $0.key.journalKey < $1.key.journalKey }) {
             guard case let .poll(interval) = mode, let target = desiredTargets[identity] else { continue }
             if polledIntervals[identity] == interval, pollTimers[identity] != nil { continue }
-            startPolling(target, intervalMilliseconds: interval, round: round)
+            startPolling(target, intervalMilliseconds: interval, round: round, drainImmediately: false)
         }
+        drainPendingPolls()
     }
 
-    private func startPolling(_ target: CaptureTarget, intervalMilliseconds: Int, round: CaptureRoundToken) {
+    private func startPolling(_ target: CaptureTarget,
+                              intervalMilliseconds: Int,
+                              round: CaptureRoundToken,
+                              drainImmediately: Bool = true) {
         let identity = target.identity
+        guard pollTimers[identity] == nil else { return }
         if runs[identity] != nil {
             // 轮询卡片不保留活跃流。
             terminate(identity: identity)
@@ -615,75 +673,172 @@ final class CaptureCoordinator {
         polledIntervals[identity] = intervalMilliseconds
         appliedAction[identity] = .poll(intervalMilliseconds: intervalMilliseconds)
         onFact?(.downgraded(identity, intervalMilliseconds: intervalMilliseconds))
-        captureSingleFrame(target, intervalMilliseconds: intervalMilliseconds, round: round)
-        guard pollTimers[identity] == nil else { return }
+        let generation = advancePollGeneration(for: identity)
         let timer = Timer(timeInterval: max(0.5, Double(intervalMilliseconds) / 1000), repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self, self.round == round else { return }
+                guard let self,
+                      self.round == round,
+                      self.pollGenerations[identity] == generation,
+                      self.pollTimers[identity] != nil else { return }
                 guard let current = self.desiredTargets[identity] else { return }
-                self.captureSingleFrame(current, intervalMilliseconds: intervalMilliseconds, round: round)
+                self.captureSingleFrame(current,
+                                        intervalMilliseconds: intervalMilliseconds,
+                                        round: round,
+                                        generation: generation)
             }
         }
         RunLoop.main.add(timer, forMode: .common)
         pollTimers[identity] = timer
+        captureSingleFrame(target,
+                           intervalMilliseconds: intervalMilliseconds,
+                           round: round,
+                           generation: generation,
+                           drainImmediately: drainImmediately)
     }
 
     private func stopPolling(_ identity: WindowIdentity) {
         pollTimers.removeValue(forKey: identity)?.invalidate()
-        pollTasks.removeValue(forKey: identity)?.cancel()
-        pollInFlight.remove(identity)
+        pendingPolls.removeValue(forKey: identity)
+        _ = advancePollGeneration(for: identity)
+        if let pollID = activePollByIdentity[identity] {
+            // Cancellation invalidates the result. The active slot remains occupied until its
+            // singleFrame await (and any started conversion) actually returns.
+            pollTasks[pollID]?.cancel()
+        } else {
+            pollGenerations.removeValue(forKey: identity)
+        }
     }
 
     /// 一次性单窗口捕获（公开 SCScreenshotManager，由 `singleFrame` 注入）。
-    /// 同一窗口最多一个请求在途：上一次还没回来就跳过本轮，不叠加并发截图（方案 §7.5）。
-    private func captureSingleFrame(_ target: CaptureTarget, intervalMilliseconds: Int, round: CaptureRoundToken) {
+    /// 跨窗口共享两路预算；同一窗口最多一个物理请求，等待中的重复 tick 合并为一条最新意图。
+    private func captureSingleFrame(_ target: CaptureTarget,
+                                    intervalMilliseconds: Int,
+                                    round: CaptureRoundToken,
+                                    generation: UInt64,
+                                    drainImmediately: Bool = true) {
         let identity = target.identity
-        guard pollInFlight.insert(identity).inserted else { return }
+        let request = PendingPoll(identity: identity,
+                                  intervalMilliseconds: intervalMilliseconds,
+                                  round: round,
+                                  generation: generation)
+        guard isCurrentPoll(request) else { return }
+        if let activeID = activePollByIdentity[identity],
+           activePolls[activeID]?.request.generation == generation {
+            return
+        }
+        pendingPolls[identity] = request
+        if drainImmediately { drainPendingPolls() }
+    }
+
+    private func drainPendingPolls() {
+        for (identity, request) in Array(pendingPolls) where !isCurrentPoll(request) {
+            pendingPolls.removeValue(forKey: identity)
+        }
+        while activePolls.count < maxConcurrentPolls {
+            let eligible = pendingPolls.values.filter { activePollByIdentity[$0.identity] == nil }
+            guard let request = eligible.min(by: pollRequestHasPriority) else { return }
+            pendingPolls.removeValue(forKey: request.identity)
+            guard let target = desiredTargets[request.identity], isCurrentPoll(request) else { continue }
+            beginPoll(request, target: target)
+        }
+    }
+
+    private func pollRequestHasPriority(_ lhs: PendingPoll, _ rhs: PendingPoll) -> Bool {
+        let lhsTarget = desiredTargets[lhs.identity]
+        let rhsTarget = desiredTargets[rhs.identity]
+        let lhsRank = lhsTarget?.visibility.rank ?? CaptureTargetVisibility.paused.rank
+        let rhsRank = rhsTarget?.visibility.rank ?? CaptureTargetVisibility.paused.rank
+        if lhsRank != rhsRank { return lhsRank < rhsRank }
+        if lhsTarget?.isPriority != rhsTarget?.isPriority { return lhsTarget?.isPriority == true }
+        return lhs.identity.journalKey < rhs.identity.journalKey
+    }
+
+    private func isCurrentPoll(_ request: PendingPoll) -> Bool {
+        request.round == round
+            && pollGenerations[request.identity] == request.generation
+            && pollTimers[request.identity] != nil
+            && polledIntervals[request.identity] == request.intervalMilliseconds
+            && desiredTargets[request.identity] != nil
+    }
+
+    private func advancePollGeneration(for identity: WindowIdentity) -> UInt64 {
+        nextPollGeneration &+= 1
+        pollGenerations[identity] = nextPollGeneration
+        return nextPollGeneration
+    }
+
+    private func beginPoll(_ request: PendingPoll, target: CaptureTarget) {
         let base = StreamConfig.build(cellWidth: target.cellWidth,
                                       backingScale: target.backingScale,
                                       sourceSize: target.sourceSize,
                                       tier: .powerSaving)
-        let mailbox = self.mailbox(for: identity)
+        let mailbox = self.mailbox(for: request.identity)
         let generation = mailbox.currentGeneration
+        let pollID = UUID()
+        activePolls[pollID] = ActivePoll(request: request)
+        activePollByIdentity[request.identity] = pollID
         let task = Task { [weak self] in
             guard let self else { return }
-            let outcome = await self.singleFrame(identity, base)
-            let payload: MetalFrame?
-            if case .image(let captured) = outcome { payload = self.mappedFrame(captured, base: base, target: target) }
-            else { payload = nil }
-            self.pollInFlight.remove(identity)
-            // 轮询已被停掉或整轮作废：这一张不再对外发事实。
-            guard self.round == round, self.pollTimers[identity] != nil else { return }
-            switch outcome {
-            case .unavailable:
+            guard !Task.isCancelled else {
+                self.finishPoll(pollID, request: request, outcome: nil, payload: nil,
+                                mailbox: mailbox, mailboxGeneration: generation)
                 return
-            case .failed:
-                self.onFact?(.failed(identity, "低频更新捕获失败"))
-            case .image:
-                guard let payload,
-                      mailbox.publish(payload, generation: generation, at: payload.publishedAt) else { return }
-                self.onFact?(.downgraded(identity, intervalMilliseconds: intervalMilliseconds))
-                self.onFrame?(identity)
             }
+            let outcome = await self.singleFrame(request.identity, base)
+            let payload: MetalFrame?
+            if case .image(let captured) = outcome,
+               !Task.isCancelled,
+               self.isCurrentPoll(request) {
+                payload = await self.mappedFrame(captured, base: base, target: target)
+            }
+            else { payload = nil }
+            self.finishPoll(pollID, request: request, outcome: outcome, payload: payload,
+                            mailbox: mailbox, mailboxGeneration: generation)
         }
-        pollTasks[identity] = task
+        pollTasks[pollID] = task
     }
 
-    /// 低频帧与流帧走同一条纹理路径：格式一致，渲染层不必知道它是降级来的。
-    private func mappedFrame(_ captured: CGImage, base: StreamConfig, target: CaptureTarget) -> MetalFrame? {
-        guard let mapped = metal.texture(from: captured) else { return nil }
-        return MetalFrame(texture: mapped.texture,
-                          storage: mapped.storage,
-                          meta: CapturedFrameMeta(pixelWidth: base.pixelWidth,
-                                                  pixelHeight: base.pixelHeight,
-                                                  contentRectInPoints: nil,
-                                                  pointPixelScale: target.backingScale,
-                                                  contentScale: target.backingScale,
-                                                  sourceSizeInPoints: target.sourceSize,
-                                                  status: .complete,
-                                                  isValid: true,
-                                                  presentTime: Date().timeIntervalSince1970),
-                          publishedAt: Date())
+    private func finishPoll(_ pollID: UUID,
+                            request: PendingPoll,
+                            outcome: SingleFrameOutcome?,
+                            payload: MetalFrame?,
+                            mailbox: FrameMailbox<MetalFrame>,
+                            mailboxGeneration: UInt64) {
+        let isCurrent = isCurrentPoll(request)
+        activePolls.removeValue(forKey: pollID)
+        pollTasks.removeValue(forKey: pollID)
+        if activePollByIdentity[request.identity] == pollID {
+            activePollByIdentity.removeValue(forKey: request.identity)
+        }
+        if pollTimers[request.identity] == nil, pendingPolls[request.identity] == nil {
+            pollGenerations.removeValue(forKey: request.identity)
+        }
+        if isCurrent, let outcome {
+            switch outcome {
+            case .unavailable:
+                break
+            case .failed:
+                onFact?(.failed(request.identity, "低频更新捕获失败"))
+            case .image:
+                if let payload,
+                   mailbox.publish(payload, generation: mailboxGeneration, at: payload.publishedAt) {
+                    onFact?(.downgraded(request.identity,
+                                        intervalMilliseconds: request.intervalMilliseconds))
+                    onFrame?(request.identity)
+                }
+            }
+        }
+        drainPendingPolls()
+    }
+
+    /// 低频帧与流帧走同一条纹理路径；昂贵的像素缓冲转换和 CGContext 绘制在后台执行。
+    private func mappedFrame(_ captured: CGImage, base: StreamConfig, target: CaptureTarget) async -> MetalFrame? {
+        let mapping = LowFrequencyImageMapping(image: captured,
+                                               base: base,
+                                               target: target,
+                                               metal: metal,
+                                               observer: imageMappingObserver)
+        return await Task.detached(priority: .userInitiated) { mapping.makeFrame() }.value
     }
 
 }

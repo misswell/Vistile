@@ -6,6 +6,23 @@ import XCTest
 import VistileCore
 @testable import Vistile
 
+private final class T15ImageMappingThreadProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var mainThreadValues: [Bool] = []
+
+    func record() {
+        lock.lock()
+        mainThreadValues.append(Thread.isMainThread)
+        lock.unlock()
+    }
+
+    var lastWasMainThread: Bool? {
+        lock.lock()
+        defer { lock.unlock() }
+        return mainThreadValues.last
+    }
+}
+
 /// T15：降级的稳定性（方案 §7.5、§9）。
 ///
 /// 两件事必须同时成立，缺一个总览就是坏的：
@@ -19,6 +36,9 @@ final class T15PollingStabilityTests: XCTestCase {
     private var catalog: WindowCatalog!
     private var coordinator: CaptureCoordinator!
     private var capturer: FakeSingleFrameCapturer!
+    private var runs: [FakeCaptureRun] = []
+    private var gateStarts = false
+    private var mappingProbe = T15ImageMappingThreadProbe()
     private var facts: [CaptureFact] = []
     private var frameReports: [WindowIdentity] = []
 
@@ -28,15 +48,27 @@ final class T15PollingStabilityTests: XCTestCase {
         let frameCapturer = FakeSingleFrameCapturer()
         frameCapturer.image = try makeImage()
         capturer = frameCapturer
+        runs = []
+        gateStarts = false
+        mappingProbe = T15ImageMappingThreadProbe()
+        let mappingProbe = self.mappingProbe
         facts = []
         frameReports = []
         coordinator = CaptureCoordinator(metal: metal,
                                        catalog: catalog,
                                        sampleQueue: DispatchQueue(label: "com.misswell.Vistile.test.polling.frames"),
-                                       runFactory: { request in FakeCaptureRun(request: request) },
+                                       runFactory: { [weak self] request in
+                                           let run = FakeCaptureRun(request: request)
+                                           if let self {
+                                               run.gatesStart = self.gateStarts
+                                               self.runs.append(run)
+                                           }
+                                           return run
+                                       },
                                        singleFrame: { identity, _ in
                                            await frameCapturer.outcome(for: identity)
-                                       })
+                                       },
+                                       imageMappingObserver: { mappingProbe.record() })
         coordinator.onFact = { [weak self] fact in self?.facts.append(fact) }
         coordinator.onFrame = { [weak self] identity in self?.frameReports.append(identity) }
     }
@@ -44,9 +76,12 @@ final class T15PollingStabilityTests: XCTestCase {
     override func tearDown() {
         coordinator?.stopAll(releasingMailboxes: true)
         capturer?.openGate()
+        for run in runs { run.openStartGate() }
         coordinator = nil
         catalog = nil
         capturer = nil
+        runs = []
+        gateStarts = false
         facts = []
         frameReports = []
         super.tearDown()
@@ -73,6 +108,14 @@ final class T15PollingStabilityTests: XCTestCase {
 
     private func targets(_ count: Int) -> [CaptureTarget] {
         (0..<count).map { HostCapture.target($0) }
+    }
+
+    private func target(_ index: Int, visibility: CaptureTargetVisibility) -> CaptureTarget {
+        CaptureTarget(record: HostFixtures.record(index, slot: index),
+                      cellWidth: 320,
+                      backingScale: 2,
+                      isPriority: false,
+                      visibility: visibility)
     }
 
     private func makeImage() throws -> CGImage {
@@ -107,9 +150,11 @@ final class T15PollingStabilityTests: XCTestCase {
     // MARK: - 不因下一次 sync 重启直播流
 
     func testDowngradedCardsAreNotPromotedByTheNextSync() async {
+        capturer.gatesRequests = true
         coordinator.streamSoftLimit = 1
         coordinator.sync(targets: targets(3), tier: .balanced, activity: TransitionActivity())
         await pump(8)
+        waitUntil(timeout: 2) { self.capturer.pendingRequestCount == 2 }
         let live = HostFixtures.identity(0)
         let polled = HostFixtures.identity(1)
         XCTAssertEqual(coordinator.activeStreamCount, 1, "软上限 1 只该有一条直播流")
@@ -128,6 +173,8 @@ final class T15PollingStabilityTests: XCTestCase {
         XCTAssertEqual(startedFactCount, 0, "重复同步仍在为新流发启动事实")
         XCTAssertTrue(facts.filter { isDowngraded($0, identity: polled, interval: 1_000) }.isEmpty,
                       "重复同步仍在重新降级：轮询间隔被一轮轮刷新")
+        capturer.openGate()
+        waitUntil(timeout: 3) { self.coordinator.activePollCount == 0 }
     }
 
     /// 降到 3fps 的档位底后仍超预算：落到轮询，且再同步不回弹。
@@ -168,6 +215,128 @@ final class T15PollingStabilityTests: XCTestCase {
         waitUntil(timeout: 4) { self.capturer.calls(for: polled) >= 2 }
         XCTAssertGreaterThanOrEqual(capturer.calls(for: polled), 2, "解除在途后轮询应当继续")
         XCTAssertEqual(capturer.peakInFlight, 1, "整个过程中同窗口的峰值并发超过 1")
+    }
+
+    func testGlobalPollBudgetIsTwoAndQueueStartsVisibleTargetsFirst() {
+        capturer.gatesRequests = true
+        coordinator.streamSoftLimit = 1
+        let transition = target(0, visibility: .transition)
+        let offscreen = target(1, visibility: .offscreen)
+        let visible = target(2, visibility: .visible)
+        let prefetch = target(3, visibility: .prefetch)
+
+        coordinator.sync(targets: [transition, offscreen, visible, prefetch],
+                         tier: .balanced,
+                         activity: TransitionActivity())
+        waitUntil(timeout: 2) { self.capturer.pendingRequestCount >= 2 }
+
+        XCTAssertEqual(coordinator.activePollCount, 2,
+                       "两路截图预算应作为全局事实暴露给压力验收")
+        XCTAssertGreaterThanOrEqual(coordinator.queuedPollCount, 1,
+                                    "超过全局截图预算的目标应留在待处理队列")
+        XCTAssertEqual(capturer.calls(for: visible.identity), 1,
+                       "可见目标应先于离屏目标拿到全局截图名额")
+        XCTAssertEqual(capturer.calls(for: offscreen.identity), 0,
+                       "离屏截图不应占用可见卡片等待的名额")
+        XCTAssertLessThanOrEqual(capturer.peakInFlight, 2,
+                                 "跨窗口低频截图必须受全局两路并发上限约束")
+        capturer.openGate()
+    }
+
+    func testChangingPollIntervalInvalidatesOldResultAndKeepsNewRequestTracked() {
+        capturer.gatesRequests = true
+        coordinator.streamSoftLimit = 1
+        let live = target(0, visibility: .visible)
+        let polling = target(1, visibility: .visible)
+        coordinator.sync(targets: [live, polling], tier: .balanced, activity: TransitionActivity())
+        waitUntil(timeout: 2) { self.capturer.pendingRequestCount == 1 }
+
+        let offscreen = target(1, visibility: .offscreen)
+        coordinator.sync(targets: [live, offscreen], tier: .balanced, activity: TransitionActivity())
+        XCTAssertEqual(coordinator.mode(for: polling.identity), .poll(intervalMilliseconds: 2_000))
+        XCTAssertEqual(coordinator.activePollCount, 1,
+                       "间隔更新不能提前释放仍在等待的旧截图操作")
+        XCTAssertEqual(coordinator.queuedPollCount, 1,
+                       "新代次应保留为待执行请求，直到旧截图真实完成")
+
+        // 只完成旧请求，门仍关闭：旧图不应发布；当前代次的新请求应接管同一窗口的占位。
+        capturer.openNextRequestKeepingGate()
+        waitUntil(timeout: 3) {
+            self.capturer.calls(for: polling.identity) == 2 && self.capturer.pendingRequestCount == 1
+        }
+        XCTAssertTrue(frameReports.filter { $0 == polling.identity }.isEmpty,
+                      "切换轮询间隔后，旧代次截图仍然发布了")
+        XCTAssertEqual(coordinator.activePollCount, 1,
+                       "旧请求返回后应由新代次接管唯一窗口的活跃槽位")
+        XCTAssertEqual(coordinator.queuedPollCount, 0,
+                       "旧完成回调不能清空或重复保留新请求")
+        XCTAssertLessThanOrEqual(capturer.peakInFlight, 1,
+                                 "旧请求尚未完成时同一窗口又启动了重叠截图")
+
+        coordinator.sync(targets: [live, offscreen], tier: .balanced, activity: TransitionActivity())
+        XCTAssertEqual(capturer.calls(for: polling.identity), 2,
+                       "旧请求完成不应清除新请求的在途标记，导致重复启动")
+        capturer.openGate()
+        waitUntil(timeout: 3) { self.frameReports.filter { $0 == polling.identity }.count == 1 }
+    }
+
+    func testStopAllAndReopenKeepOldScreenshotOperationsInGlobalBudget() {
+        capturer.gatesRequests = true
+        coordinator.streamSoftLimit = 1
+        let allTargets = targets(5)
+        coordinator.sync(targets: allTargets, tier: .balanced, activity: TransitionActivity())
+        waitUntil(timeout: 2) { self.capturer.pendingRequestCount >= 2 }
+        XCTAssertLessThanOrEqual(capturer.activeCount, 2)
+        XCTAssertEqual(coordinator.activePollCount, 2)
+
+        coordinator.stopAll()
+        coordinator.sync(targets: allTargets, tier: .balanced, activity: TransitionActivity())
+        waitUntil(timeout: 2) { self.capturer.activeCount >= 2 }
+
+        XCTAssertEqual(coordinator.activePollCount, 2,
+                       "stopAll 后旧截图仍应占据全局 active 计数")
+        XCTAssertGreaterThan(coordinator.queuedPollCount, 0,
+                             "重开会话的截图请求应排队等待旧操作收敛")
+        XCTAssertEqual(capturer.activeCount, 2,
+                       "stopAll 清理逻辑标记不能释放尚未完成的底层截图预算")
+        XCTAssertLessThanOrEqual(capturer.peakInFlight, 2,
+                                 "stopAll 后重开使旧、新会话截图超过全局并发上限")
+        capturer.openGate()
+    }
+
+    func testStopAllAndReopenKeepOldStreamStartsInTwoStartBudget() async {
+        gateStarts = true
+        coordinator.streamSoftLimit = 5
+        let allTargets = targets(5)
+        coordinator.sync(targets: allTargets, tier: .balanced, activity: TransitionActivity())
+        await pump(8)
+        XCTAssertEqual(runs.filter(\.isSuspendedInStart).count, 2,
+                       "初始启动应占满两路并发启动预算")
+        XCTAssertEqual(coordinator.activeStartCount, 2)
+
+        coordinator.stopAll()
+        coordinator.sync(targets: allTargets, tier: .balanced, activity: TransitionActivity())
+        await pump(8)
+        XCTAssertEqual(runs.count, 2,
+                       "旧 startCapture 尚未返回时，stopAll 后的新一轮不能另开启动任务")
+        XCTAssertEqual(coordinator.activeStartCount, 2,
+                       "stopAll 不能从活跃计数中抹掉尚未返回的 startCapture")
+        XCTAssertGreaterThan(coordinator.queuedStartCount, 0,
+                             "新一轮启动应排队等待旧 startCapture 返回")
+        XCTAssertLessThanOrEqual(runs.filter(\.isSuspendedInStart).count, 2)
+
+        gateStarts = false
+        for run in runs { run.openStartGate() }
+        await coordinator.waitForQuiet()
+        await pump(8)
+    }
+
+    func testLowFrequencyImageMappingDoesNotRunOnMainThread() {
+        coordinator.streamSoftLimit = 1
+        coordinator.sync(targets: targets(2), tier: .balanced, activity: TransitionActivity())
+        waitUntil(timeout: 3) { self.mappingProbe.lastWasMainThread != nil }
+        XCTAssertEqual(mappingProbe.lastWasMainThread, false,
+                       "CGImage 到 CVPixelBuffer/Metal texture 的同步转换不能占用主线程")
     }
 
     // MARK: - 降级卡片仍然是活的
@@ -235,6 +404,7 @@ final class T15PollingStabilityTests: XCTestCase {
         coordinator.sync(targets: targets(2), tier: .balanced, activity: TransitionActivity())
         await pump(12)
         let polled = HostFixtures.identity(1)
+        waitUntil(timeout: 3) { self.frameReports.contains(polled) }
         XCTAssertEqual(capturer.calls(for: polled), 1, "降级后根本没发起单窗口截图")
         XCTAssertTrue(facts.contains { isDowngraded($0, identity: polled, interval: 1_000) },
                       "降级事实没带上真实间隔：UI 会把轮询标成实时")

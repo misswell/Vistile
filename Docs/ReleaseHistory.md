@@ -1,5 +1,18 @@
 # Vistile
 
+## 0.1.35 (49) — 2026-10-23
+
+- 滚动与栏尺寸预览按显示周期合并视觉同步；壁纸后台解码、有界缓存，窗口层级按签名变化调整。状态、安全事件与几何事务继续即时处理。
+  Scroll and rail-size previews coalesce visual synchronization per display cycle. Wallpaper decoding runs in the background with bounded caching, and window ordering changes only with its signature. State, safety events and geometry transactions remain immediate.
+- 低频截图最多两路物理并发，请求代次阻止过期结果；取消和重开不提前释放真实在途预算，图像映射移出主线程。
+  Poll capture has two physical slots and generation checks. Cancellation and reopening preserve outstanding resource accounting, and image mapping leaves the main thread.
+- AX读回异步重试，窗口发现分块、交互优先；保留串行写入并校验跨进程属性类型。
+  AX readback retries asynchronously, discovery is window-sized and interactive jobs have priority. Writes remain serial and cross-process attribute types are validated.
+- 区分Metal提交、GPU完成和实际呈现；实际呈现时间决定首帧及帧间隔，预算随显示回调周期变化，诊断样本每项限制1024条。
+  Metal submission, GPU completion and presentation are separate. Actual presentation timestamps drive first-frame and interval metrics, display-link periods set budgets, and each metric retains at most1,024 samples.
+
+自动验证 / Automated validation: Core XCTest135 + Swift Testing159，0失败；AgentUse宿主328项，327通过、1项真实前台键盘焦点限制跳过、0失败。P0仍需授权正式包及真实显示环境验收；完整证据与限制见 [PerformanceAudit-2026-10-23.md](PerformanceAudit-2026-10-23.md)。
+
 ## 0.1.34 (48) — 2026-10-23
 
 - 槽位与网格一致性：窗口从待整理队列落入空位时同步移出队列，溢出数量不再重复计数；登记表恢复丢弃负 slot，容量按实际条目计算，不再越界崩溃；极小屏单列兜底的内容区按格高收缩，不再跑出格子。
