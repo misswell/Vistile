@@ -1,5 +1,12 @@
 # Vistile
 
+## 0.1.32 (46) — 2026-10-23
+
+- 修复引导页“完成”按钮只记录完成状态、不关闭窗口的问题：点击“完成”现在会关闭引导窗口，完成回调只触发一次；用窗口关闭按钮结束引导时行为不变。
+  Finishing onboarding now closes its window instead of only recording the completion flag. The completion callback fires exactly once whether 完成 is clicked or the window is closed via its button.
+
+自动验证：干净构建目录下核心 XCTest **126** + Swift Testing **155**，0 失败；宿主全量 **297** 项，296 通过、1 项因后台账户无法取得真实前台键盘焦点跳过、0 失败；新增回归断言关窗通知与单次回调。Release（arm64、未签名）构建通过。GitHub Actions 在 tag 上完成签名、公证、装订与发布。下载产物复核：`Vistile_v0.1.32_macos_arm64.dmg`，SHA-256 `8ffccfee8f81105bc8f0651d7ffe1c0bb28c89dc1a3b904a1e7ad54242e8106f`，版本 0.1.32 (46)，TeamIdentifier `U8U443D7ZL`，Gatekeeper 判为 Notarized Developer ID，`stapler validate` 通过，`lipo` 仅含 arm64。
+
 ## 0.1.31 (45) — 2026-10-23
 
 - 重新设计菜单栏图标：以简洁的主窗口与上方预览栏表达工作台，单色图标自动适配系统明暗外观。
