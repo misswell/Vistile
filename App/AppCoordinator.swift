@@ -579,6 +579,16 @@ final class AppCoordinator {
     func dispatch(_ event: SessionEvent) {
         // 焦点丢失会决定整场会话的去留，先由宿主按"有没有带来新窗口"分流（方案 §6.2、§8.2）。
         if interceptFocusLoss(event) { return }
+        // 用户亲自表达意图的瞬间，在途的自动焦点跟随查询全部作废：
+        // 查询发起于这次选择之前，晚到的结果不得反过来把主窗口再抢走。
+        switch event {
+        case .railCardSelected, .overviewCardSelected, .currentWindowWorkbenchRequested,
+             .returnToOverviewRequested, .escapePressed, .globalShortcut:
+            focusFollowTask?.cancel()
+            focusFollowRevision &+= 1
+        default:
+            break
+        }
         enqueue(event)
     }
 

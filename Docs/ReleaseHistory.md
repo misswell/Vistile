@@ -1,5 +1,12 @@
 # Vistile
 
+## 0.1.38 (52) — 2026-10-24
+
+- 手动选择/返回/收起时作废在途的自动焦点跟随查询：晚到的旧结果不再把用户刚选下的主窗口切走；用例覆盖"选择落定后旧查询晚到"的时序。
+  Manual selections, returns and dismissals now cancel in-flight automatic focus-follow queries, so a late result from an older query can no longer steal the freshly selected main window; the case covers the post-selection late-arrival ordering.
+
+自动验证 / Automated validation: 核心 135 + 159，0 失败；宿主全量 332 项，331 通过、1 跳过 / 332 host tests, 331 passed, 1 skipped, 0 failed.
+
 ## 0.1.37 (51) — 2026-10-24
 
 - 切换主窗口改为空间流动过渡：新主面板从被点选的轨道格飞进主区、旧主面板同时退回格子，Metal 定向流光由速度包络驱动——起步抽出、减速展开、到达扩散为径向柔光；AX 几何时序不变。

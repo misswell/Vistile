@@ -414,7 +414,13 @@ final class WorkbenchEntryTests: XCTestCase {
         coordinator.dispatch(.railCardSelected(slot: slot, identity: selected))
         waitUntil(timeout: 5) { coordinator.state.workbench.placement.main == selected }
         XCTAssertEqual(coordinator.state.workbench.placement.main, selected)
+        // 旧查询此刻仍在途（80ms 采样窗）：给足它返回的时间，作废必须挡住晚到的结果，
+        // 否则自动焦点会把用户刚选下的主窗口再抢走。
+        RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+        XCTAssertEqual(coordinator.state.workbench.placement.main, selected,
+                       "发起于手动选择之前的焦点查询晚到后，不得把主窗口再切走")
         XCTAssertNil(coordinator.state.workbench.pendingExternalFocus)
+        XCTAssertEqual(coordinator.state.workbench.mainSwitch.intent?.to ?? selected, selected)
         XCTAssertEqual(coordinator.state.mode, .workbench)
     }
 
