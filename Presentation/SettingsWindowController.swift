@@ -317,6 +317,11 @@ struct SettingsRootView: View {
             }
             Text("默认跟随点击：点哪块屏上的卡片，工作台就开在哪块屏。指定屏幕后固定在该屏；屏幕被拔掉会自动退回跟随点击。")
                 .font(.callout).foregroundStyle(.secondary)
+            Picker("主区停靠", selection: binding({ $0.mainAreaDocking }, { $0.mainAreaDocking = $1 })) {
+                ForEach(MainAreaDocking.allCases, id: \.self) { Text($0.displayName).tag($0) }
+            }
+            Text("尊重原尺寸：窗口保持自身大小居中在主区，只有超出主区才等比缩小。充满主区：可调窗口精确铺满主区。")
+                .font(.callout).foregroundStyle(.secondary)
             HStack {
                 Text("栏尺寸")
                 Spacer()

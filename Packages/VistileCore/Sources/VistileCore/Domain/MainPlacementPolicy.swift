@@ -1,6 +1,21 @@
 import Foundation
 import CoreGraphics
 
+/// 主区停靠模式（可设置）：
+/// - `respectful` 尊重原尺寸：放得下主区就原样居中、只写位置，超屏按原宽高比等比收缩；
+/// - `fill` 充满主区：可调窗口精确占满主区（v0.1.41 之前的默认语义）。
+public enum MainAreaDocking: String, Hashable, Sendable, CaseIterable {
+    case respectful
+    case fill
+
+    public var displayName: String {
+        switch self {
+        case .respectful: return "尊重原尺寸"
+        case .fill: return "充满主区"
+        }
+    }
+}
+
 /// 主区放置决策（方案 §9.1）。把"能不能进主区、以什么方式进"收敛成一次纯计算，
 /// 宿主只执行算出来的那条路径，不再自行判断尺寸。
 public enum MainPlacementDecision: Hashable, Sendable {
@@ -52,23 +67,32 @@ public enum MainPlacementPolicy {
     public static func decide(mainRect: CGRect,
                               currentFrame: CGRect?,
                               isMovable: Bool,
-                              isResizable: Bool) -> MainPlacementDecision {
+                              isResizable: Bool,
+                              docking: MainAreaDocking = .respectful) -> MainPlacementDecision {
         guard mainRect.width > containmentTolerance, mainRect.height > containmentTolerance else {
             return .unavailable(reason: "主区可用空间不足，无法放下窗口")
         }
         guard let frame = currentFrame, frame.width > 0, frame.height > 0 else {
             return .unavailable(reason: "读不到窗口当前位置，暂不调整尺寸")
         }
+        if isResizable {
+            // 可调窗口不查 isMovable：目录采样会把读取失败折叠成 false，
+            // 据此拒绝一个正常窗口比写入失败后补偿更糟（v0.1.41 曾因此让采样异常的
+            // 窗口全部无法切换/置前，读回兜底才是判据）。
+            switch docking {
+            case .fill:
+                return .resizeAndMove(target: mainRect)
+            case .respectful:
+                // 尊重真实尺寸（方案 §9.1 修订）：原尺寸放得下主区就只写位置、不动尺寸；
+                // 只有超出主区的窗口才按原宽高比等比收缩贴边。不再强制放大铺满主区。
+                if let centered = FocusGeometry.centeredOriginalRect(in: mainRect, size: frame.size) {
+                    return .moveOnly(origin: centered.origin, originalSize: centered.size)
+                }
+                return .resizeAndMove(target: FocusGeometry.scaledDownRect(in: mainRect, currentSize: frame.size))
+            }
+        }
         guard isMovable else {
             return .unavailable(reason: "这个窗口不允许移动，无法放进主区")
-        }
-        if isResizable {
-            // 尊重真实尺寸（方案 §9.1 修订）：原尺寸放得下主区就只写位置、不动尺寸；
-            // 只有超出主区的窗口才按原宽高比等比收缩贴边。不再强制放大铺满主区。
-            if let centered = FocusGeometry.centeredOriginalRect(in: mainRect, size: frame.size) {
-                return .moveOnly(origin: centered.origin, originalSize: centered.size)
-            }
-            return .resizeAndMove(target: FocusGeometry.scaledDownRect(in: mainRect, currentSize: frame.size))
         }
         // 固定尺寸：只有真实尺寸本身能放进主区才进；裁小尺寸再宣称"保留原尺寸"是假的（方案 §9.1）。
         guard frame.width <= mainRect.width + containmentTolerance,

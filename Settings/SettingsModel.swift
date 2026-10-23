@@ -120,7 +120,7 @@ struct HotKeyBinding: Codable, Equatable {
 /// 设置项集中在此，UI 只显示有意义的选项，不暴露 buffer 参数。
 final class SettingsModel: ObservableObject {
     fileprivate enum Key: String {
-        case launchAtLogin, hotKeyCode, hotKeyModifiers, opensCurrentWindowWorkbench, density, showsTitles, sortMode
+        case launchAtLogin, hotKeyCode, hotKeyModifiers, opensCurrentWindowWorkbench, density, showsTitles, sortMode, mainAreaDocking
         case foregroundWidth, foregroundHeight, backgroundClickSwitches, preserveUserGeometry
         case tier, priorityKeys, excludedBundles, orderingStrategy, didCompleteGuidedSetup
         case slotOrder, compactMode, systemLogging
@@ -143,6 +143,8 @@ final class SettingsModel: ObservableObject {
     @Published var density: LayoutDensity { didSet { defaults.set(density.rawValue, for: .density) } }
     @Published var showsTitles: Bool { didSet { defaults.set(showsTitles, for: .showsTitles) } }
     @Published var sortMode: OverviewSortMode { didSet { defaults.set(sortMode.rawValue, for: .sortMode) } }
+    /// 主区停靠模式：尊重原尺寸（默认）或充满主区（v0.1.41 前的旧语义）。
+    @Published var mainAreaDocking: MainAreaDocking { didSet { defaults.set(mainAreaDocking.rawValue, for: .mainAreaDocking) } }
     @Published var foregroundWidthRatio: Double { didSet { defaults.set(foregroundWidthRatio, for: .foregroundWidth) } }
     @Published var foregroundHeightRatio: Double { didSet { defaults.set(foregroundHeightRatio, for: .foregroundHeight) } }
     @Published var backgroundClickSwitches: Bool { didSet { defaults.set(backgroundClickSwitches, for: .backgroundClickSwitches) } }
@@ -208,6 +210,7 @@ final class SettingsModel: ObservableObject {
             Key.density.rawValue: LayoutDensity.standard.rawValue,
             Key.showsTitles.rawValue: true,
             Key.sortMode.rawValue: OverviewSortMode.remembered.rawValue,
+            Key.mainAreaDocking.rawValue: MainAreaDocking.respectful.rawValue,
             Key.foregroundWidth.rawValue: 0.86,
             Key.foregroundHeight.rawValue: 0.88,
             Key.backgroundClickSwitches.rawValue: false,
@@ -233,6 +236,7 @@ final class SettingsModel: ObservableObject {
         density = LayoutDensity(rawValue: defaults.string(for: .density) ?? "") ?? .standard
         showsTitles = defaults.bool(for: .showsTitles)
         sortMode = OverviewSortMode(rawValue: defaults.string(for: .sortMode) ?? "") ?? .remembered
+        mainAreaDocking = MainAreaDocking(rawValue: defaults.string(for: .mainAreaDocking) ?? "") ?? .respectful
         foregroundWidthRatio = defaults.double(for: .foregroundWidth)
         foregroundHeightRatio = defaults.double(for: .foregroundHeight)
         backgroundClickSwitches = defaults.bool(for: .backgroundClickSwitches)
@@ -359,6 +363,7 @@ final class SettingsModel: ObservableObject {
                       preserveUserGeometry: preserveUserGeometry,
                       foregroundWidthRatio: foregroundWidthRatio,
                       foregroundHeightRatio: foregroundHeightRatio,
+                      mainAreaDocking: mainAreaDocking,
                       density: density,
                       tier: tier,
                       reduceMotion: reduceMotion)

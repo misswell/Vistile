@@ -554,7 +554,8 @@ public enum WorkbenchReducer {
         let decision = MainPlacementPolicy.decide(mainRect: mainRect,
                                                   currentFrame: actualFrame(state, identity) ?? record.frame,
                                                   isMovable: record.isMovable,
-                                                  isResizable: record.allowsGeometryControl)
+                                                  isResizable: record.allowsGeometryControl,
+                                                  docking: state.policy.mainAreaDocking)
         let targetFrame: CGRect
         let placement: MainPlacementDecision
         if let planned = decision.targetFrame {
@@ -563,8 +564,10 @@ public enum WorkbenchReducer {
         } else if canDeferPlacement(record: record, mainRect: mainRect) {
             // 临时计划目标按"尊重原尺寸"语义从缓存尺寸预估；宿主会拿写前实读重新算，
             // 真实放不下仍由它按失败/补偿收口（方案 §6.2、§9.1 修订）。
-            let estimated = FocusGeometry.scaledDownRect(
-                in: mainRect, currentSize: (actualFrame(state, identity) ?? record.frame).size)
+            let estimated = state.policy.mainAreaDocking == .fill
+                ? mainRect
+                : FocusGeometry.scaledDownRect(in: mainRect,
+                                                currentSize: (actualFrame(state, identity) ?? record.frame).size)
             targetFrame = estimated
             placement = .resizeAndMove(target: estimated)
         } else {
@@ -828,7 +831,8 @@ public enum WorkbenchReducer {
         let decision = MainPlacementPolicy.decide(mainRect: mainRect,
                                                   currentFrame: actualFrame(state, identity) ?? record.frame,
                                                   isMovable: record.isMovable,
-                                                  isResizable: record.allowsGeometryControl)
+                                                  isResizable: record.allowsGeometryControl,
+                                                  docking: state.policy.mainAreaDocking)
         let mainTarget: CGRect
         let placementDecision: MainPlacementDecision
         if let planned = decision.targetFrame {
@@ -837,8 +841,10 @@ public enum WorkbenchReducer {
         } else if canDeferPlacement(record: record, mainRect: mainRect) {
             // 临时计划目标按"尊重原尺寸"语义从缓存尺寸预估；宿主会拿写前实读重新算，
             // 真实放不下仍由它按失败/补偿收口（方案 §6.2、§9.1 修订）。
-            let estimated = FocusGeometry.scaledDownRect(
-                in: mainRect, currentSize: (actualFrame(state, identity) ?? record.frame).size)
+            let estimated = state.policy.mainAreaDocking == .fill
+                ? mainRect
+                : FocusGeometry.scaledDownRect(in: mainRect,
+                                                currentSize: (actualFrame(state, identity) ?? record.frame).size)
             mainTarget = estimated
             placementDecision = .resizeAndMove(target: estimated)
         } else {
@@ -1345,7 +1351,8 @@ public enum WorkbenchReducer {
         let decision = MainPlacementPolicy.decide(mainRect: snapshot.layout.mainRect,
                                                  currentFrame: actualFrame(state, main) ?? record.frame,
                                                  isMovable: record.isMovable,
-                                                 isResizable: record.allowsGeometryControl)
+                                                 isResizable: record.allowsGeometryControl,
+                                                 docking: state.policy.mainAreaDocking)
         guard let target = decision.targetFrame else {
             // 放不下就只改投影不写窗口，并说清原因（方案 §9.1）。
             if !layoutAlreadyApplied {

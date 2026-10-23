@@ -97,6 +97,8 @@ public struct SessionPolicy: Hashable, Sendable {
     public var foregroundWidthRatio: Double
     public var foregroundHeightRatio: Double
     public var foregroundEdgeInset: CGFloat
+    /// 主区停靠模式：尊重原尺寸（默认）或充满主区；设置里可切换。
+    public var mainAreaDocking: MainAreaDocking
     public var density: LayoutDensity
     public var tier: CaptureTier
     public var reduceMotion: Bool
@@ -107,6 +109,7 @@ public struct SessionPolicy: Hashable, Sendable {
                 foregroundWidthRatio: Double = 0.86,
                 foregroundHeightRatio: Double = 0.88,
                 foregroundEdgeInset: CGFloat = 32,
+                mainAreaDocking: MainAreaDocking = .respectful,
                 density: LayoutDensity = .standard,
                 tier: CaptureTier = .balanced,
                 reduceMotion: Bool = false,
@@ -116,6 +119,7 @@ public struct SessionPolicy: Hashable, Sendable {
         self.foregroundWidthRatio = Self.clamped(foregroundWidthRatio)
         self.foregroundHeightRatio = Self.clamped(foregroundHeightRatio)
         self.foregroundEdgeInset = foregroundEdgeInset
+        self.mainAreaDocking = mainAreaDocking
         self.density = density
         self.tier = tier
         self.reduceMotion = reduceMotion

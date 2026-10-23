@@ -16,6 +16,9 @@ import VistileCore
 @MainActor
 final class WorkbenchSwitchCoordinator {
     var onEvent: ((SessionEvent) -> Void)?
+    /// 主区停靠模式（设置可切换）：写前实读的放置决策必须与 reducer 计划同一份。
+    var mainAreaDocking: MainAreaDocking = .respectful
+
     var onStatus: ((String) -> Void)?
 
     /// reducer 对本次交换当前的态度（由 AppCoordinator 从唯一状态机读出）。
@@ -661,7 +664,8 @@ final class WorkbenchSwitchCoordinator {
         let decision = MainPlacementPolicy.decide(mainRect: mainRect,
                                                   currentFrame: before,
                                                   isMovable: movable,
-                                                  isResizable: resizable)
+                                                  isResizable: resizable,
+                                                  docking: mainAreaDocking)
         guard let planned = decision.targetFrame else {
             // 放不下：不宣布进入主区，A 与两栏保持不动（方案 §9.1）。
             await undoMinimizeRelease(identity: identity, context: context,

@@ -3168,6 +3168,47 @@ final class WorkbenchTests: XCTestCase {
                        "尺寸未知时退主区，不猜一个数")
     }
 
+    /// v0.1.41 回归守卫：可调窗口不看 isMovable——目录采样会把读取失败折叠成 false，
+    /// 据此拒绝会让采样异常的窗口全部无法切换/置前（真实故障：点了轨道卡没反应）。
+    func testResizableWindowIgnoresMovableSamplingFailures() {
+        let mainRect = CGRect(x: 0, y: 0, width: 1_200, height: 800)
+        let frame = CGRect(x: 40, y: 20, width: 900, height: 600)
+        let decision = MainPlacementPolicy.decide(mainRect: mainRect, currentFrame: frame,
+                                                  isMovable: false, isResizable: true)
+        XCTAssertNotNil(decision.targetFrame,
+                        "可调窗口不得因 isMovable 采样为 false 被拒绝：\(decision)")
+        guard case .moveOnly = decision else {
+            return XCTFail("放得下就该只动位置：\(decision)")
+        }
+        // 超屏 + 不可移动采样：同样不得拒绝（写入读回兜底）。
+        let oversized = MainPlacementPolicy.decide(
+            mainRect: mainRect,
+            currentFrame: CGRect(x: -400, y: 0, width: 2_400, height: 1_600),
+            isMovable: false, isResizable: true)
+        guard case .resizeAndMove = oversized else {
+            return XCTFail("超屏可调窗口走收缩写入：\(oversized)")
+        }
+    }
+
+    /// 充满主区模式（v0.1.41 前的旧语义）：可调窗口精确占满；固定尺寸窗口语义不变。
+    func testFillDockingRestoresExactMainAreaSemantics() {
+        let mainRect = CGRect(x: 0, y: 0, width: 1_200, height: 800)
+        let frame = CGRect(x: 40, y: 20, width: 900, height: 600)
+        XCTAssertEqual(MainPlacementPolicy.decide(mainRect: mainRect, currentFrame: frame,
+                                                  isMovable: true, isResizable: true,
+                                                  docking: .fill),
+                       .resizeAndMove(target: mainRect),
+                       "充满模式：可调窗口精确占满主区")
+        XCTAssertEqual(FocusGeometry.dockedRect(in: mainRect, currentSize: frame.size,
+                                                isResizable: true, docking: .fill),
+                       mainRect)
+        // 固定尺寸窗口在两种模式下都原尺寸居中。
+        XCTAssertEqual(FocusGeometry.dockedRect(in: mainRect, currentSize: frame.size,
+                                                isResizable: false, docking: .fill),
+                       FocusGeometry.dockedRect(in: mainRect, currentSize: frame.size,
+                                                isResizable: false, docking: .respectful))
+    }
+
     /// 越界判定：读回在主区内且不盖栏 → 不需要带回；越界或盖栏 → 需要。
     func testNeedsRedockMatchesContainmentAndRailOverlap() {
         let mainRect = CGRect(x: 0, y: 100, width: 1_200, height: 700)

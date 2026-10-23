@@ -51,13 +51,16 @@ public enum FocusGeometry {
                       height: height)
     }
 
-    /// 工作台主区停靠（方案 §11 修订）：尊重窗口真实尺寸——原尺寸放得下主区就原样居中，
-    /// 不强制放大铺满；只有超出主区的窗口才按原宽高比等比收缩到贴边。
-    /// 不可调整尺寸的窗口同样原样居中，放不下时按容器夹取兜底（旧语义）。
-    public static func dockedRect(in mainRect: CGRect, currentSize: CGSize?, isResizable: Bool) -> CGRect {
+    /// 工作台主区停靠：模式决定可调窗口的形态——尊重原尺寸时原样居中/超屏等比收缩
+    /// （方案 §11 修订），充满主区时精确占满（旧语义）；不可调窗口两种模式下都原样居中，
+    /// 放不下按容器夹取兜底。
+    public static func dockedRect(in mainRect: CGRect,
+                                  currentSize: CGSize?,
+                                  isResizable: Bool,
+                                  docking: MainAreaDocking = .respectful) -> CGRect {
         guard mainRect.width > 1, mainRect.height > 1 else { return mainRect }
         if isResizable {
-            return scaledDownRect(in: mainRect, currentSize: currentSize)
+            return docking == .fill ? mainRect : scaledDownRect(in: mainRect, currentSize: currentSize)
         }
         return centeredOriginal(in: mainRect, size: currentSize)
     }

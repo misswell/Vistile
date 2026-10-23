@@ -2522,6 +2522,7 @@ final class AppCoordinator {
     // MARK: - 设置
 
     private func applySettings() {
+        switchCoordinator.mainAreaDocking = settings.mainAreaDocking
         if state.policy != settings.sessionPolicy() { dispatch(.policyChanged(settings.sessionPolicy())) }
         if state.style != settings.style { dispatch(.settingsChanged(density: settings.density)) }
         if state.phase.isVisible { scheduleReconcile(state.policy.reconcileInterval) }
