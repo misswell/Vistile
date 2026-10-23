@@ -9,12 +9,14 @@ public struct WorkbenchCard: Hashable, Sendable {
     public let isVisible: Bool
     /// 该窗口所属应用是否被用户"固定在顶部"（方案 §6.2）：宿主据此画标记，不改位置。
     public let isPinned: Bool
+    public let isCurrent: Bool
 
-    public init(slot: RailSlotID, record: WindowRecord, isVisible: Bool, isPinned: Bool = false) {
+    public init(slot: RailSlotID, record: WindowRecord, isVisible: Bool, isPinned: Bool = false, isCurrent: Bool = false) {
         self.slot = slot
         self.record = record
         self.isVisible = isVisible
         self.isPinned = isPinned
+        self.isCurrent = isCurrent
     }
 
     public var identity: WindowIdentity { record.identity }
@@ -80,7 +82,8 @@ public enum WorkbenchPresenter {
             let card = WorkbenchCard(slot: slot,
                                      record: record,
                                      isVisible: snapshot.isVisible(slot),
-                                     isPinned: placement.pinned.contains(record.preferenceKey))
+                                     isPinned: placement.pinned.contains(record.preferenceKey),
+                                     isCurrent: identity == placement.main)
             switch slot.rail {
             case .top: top.append(card)
             case .side: side.append(card)
@@ -90,7 +93,8 @@ public enum WorkbenchPresenter {
         let empty = snapshot.layout.slotOrder.filter { !occupied.contains($0) }
         let mainIdentity = placement.main
         let mainRecord = mainIdentity.flatMap { state.records[$0] }
-        let visibleRail = top.filter(\.isVisible).count + side.filter(\.isVisible).count
+        var visible = Set((top + side).filter(\.isVisible).map(\.identity))
+        if let mainIdentity, mainRecord != nil { visible.insert(mainIdentity) }
         return WorkbenchPresentation(displayID: snapshot.displayID,
                                      snapshot: snapshot,
                                      side: snapshot.layout.side,
@@ -99,7 +103,7 @@ public enum WorkbenchPresenter {
                                      topCards: top,
                                      sideCards: side,
                                      emptySlots: empty,
-                                     visibleCount: visibleRail + (mainRecord != nil ? 1 : 0),
+                                     visibleCount: visible.count,
                                      totalCount: placement.memberCount,
                                      isMainAreaConstrained: snapshot.layout.isMainAreaConstrained)
     }

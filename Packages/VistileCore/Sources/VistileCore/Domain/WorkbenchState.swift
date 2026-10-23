@@ -47,8 +47,9 @@ public struct RailSlotID: Hashable, Sendable, Codable, Comparable {
 }
 
 /// 固定位置模型（方案 §6）：一个主窗口 + 各轨道 slot 的占用关系。
-/// 硬不变量在这里维持：main 不在 occupants 中；每个身份只出现一次；每个 slot 至多一个窗口。
-/// 交换只改 main 与被点 slot 两处，其他 occupant、rect 与滚动偏移一概不动。
+/// 中文：每个窗口保留固定轨道位置；main 仅标记当前主窗口，选择不交换卡片。
+/// English: Every window retains its rail slot; main marks selection without exchanging cards.
+/// 每个身份在 occupants 中只出现一次；每个 slot 至多一个窗口。
 public struct WorkbenchPlacement: Hashable, Sendable {
     public private(set) var main: WindowIdentity?
     public private(set) var occupants: [RailSlotID: WindowIdentity]
@@ -71,7 +72,7 @@ public struct WorkbenchPlacement: Hashable, Sendable {
         self.pinned = pinned
     }
 
-    public var memberCount: Int { occupants.count + (main == nil ? 0 : 1) }
+    public var memberCount: Int { members.count }
 
     public var members: Set<WindowIdentity> {
         var set = Set(occupants.values)
@@ -96,35 +97,27 @@ public struct WorkbenchPlacement: Hashable, Sendable {
 
     // MARK: - 变更（每一处成功变更推进一次 revision）
 
-    /// 首次选择：把 A 放进主区。A 若已在某个 slot 上，那个 slot 让空。
+    /// 选择主窗口，不修改任何轨道占用。
     @discardableResult
     public mutating func setMain(_ identity: WindowIdentity?) -> Bool {
         guard main != identity else { return false }
         main = identity
-        if let identity, let slot = slot(of: identity) {
-            occupants.removeValue(forKey: slot)
-        }
         revision += 1
         return true
     }
 
-    /// A/B 交换：B 进主区，A 回 B 原来的 slot。只有这两个位置改变（方案 §6.1）。
+    /// Select the window in this slot while every thumbnail keeps its place.
     @discardableResult
     public mutating func swapMain(with slot: RailSlotID) -> Bool {
         guard let incoming = occupants[slot] else { return false }
-        let outgoing = main
-        occupants[slot] = outgoing
-        main = incoming
-        if outgoing == nil { occupants.removeValue(forKey: slot) }
-        revision += 1
-        return true
+        return setMain(incoming)
     }
 
     /// 新窗口填空位或追加逻辑 slot：不抢主、不移动任何已有 occupant（方案 §6.2）。
     /// 落位不写顺序偏好：rank 只在明确的整理里按用户意图重写（方案 §4.4），免得越攒越多的无主键落盘。
     @discardableResult
     public mutating func place(_ identity: WindowIdentity, at slot: RailSlotID) -> Bool {
-        guard !contains(identity), occupants[slot] == nil else { return false }
+        guard self.slot(of: identity) == nil, occupants[slot] == nil else { return false }
         occupants[slot] = identity
         revision += 1
         return true
@@ -133,11 +126,10 @@ public struct WorkbenchPlacement: Hashable, Sendable {
     /// 关闭窗口：它占的 slot 变空，后面的卡片不前移（方案 §6.2）。
     @discardableResult
     public mutating func vacate(_ identity: WindowIdentity) -> Bool {
-        guard let slot = slot(of: identity) else {
-            if main == identity { main = nil; revision += 1; return true }
-            return false
-        }
-        occupants.removeValue(forKey: slot)
+        let home = slot(of: identity)
+        guard home != nil || main == identity else { return false }
+        if let home { occupants.removeValue(forKey: home) }
+        if main == identity { main = nil }
         revision += 1
         return true
     }
@@ -192,7 +184,6 @@ public struct WorkbenchPlacement: Hashable, Sendable {
 
     /// 不变量自检：宿主与测试用它证明"没有窗口丢失或重复"。
     public var maintainsInvariants: Bool {
-        if let main, occupants.values.contains(main) { return false }
         let values = Array(occupants.values)
         return Set(values).count == values.count
     }

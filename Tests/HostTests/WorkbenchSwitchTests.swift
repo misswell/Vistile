@@ -154,7 +154,18 @@ final class WorkbenchSwitchTests: XCTestCase {
             }
         }
         await catalog.refreshAndWait(reason: .reconcile)
-        fixture = HostWorkbench.fixture()
+        let baseFixture = HostWorkbench.fixture()
+        var placement = baseFixture.placement
+        guard let mainHome = baseFixture.layout.slotOrder.first(where: {
+            baseFixture.placement.occupant(at: $0) == nil
+        }) else {
+            XCTFail("宿主切换用 fixture 为当前主窗口保留一个稳定 home slot")
+            return
+        }
+        XCTAssertTrue(placement.place(a, at: mainHome))
+        fixture = HostWorkbenchFixture(state: baseFixture.state,
+                                       placement: placement,
+                                       snapshot: baseFixture.snapshot)
     }
 
     private func makeStore() -> WindowJournalStore {
@@ -199,7 +210,7 @@ final class WorkbenchSwitchTests: XCTestCase {
         coordinator.directive = { _ in .proceed }
     }
 
-    /// reducer 算好的交换计划：B 进主区、A 回原几何（与 `startSwitch` 的输出同构）。
+    /// reducer 算好的切换计划：B 进主区、A 回自己的原几何与 home slot。
     ///
     /// 操作前快照取写入器的实时几何（方案 §6.2）：补偿目标必须是"取消那一刻窗口真的在哪儿"，
     /// 不能是测试另抄一份坐标。
@@ -208,6 +219,7 @@ final class WorkbenchSwitchTests: XCTestCase {
     private func switchPlan(token: TransitionToken = TransitionToken(generation: 1),
                             arm: Bool = true) async throws -> WorkbenchSwitchPlan {
         let slot = try XCTUnwrap(fixture.placement.slot(of: b), "B 必须占着轨道上的一个 slot")
+        let restingSlot = try XCTUnwrap(fixture.placement.slot(of: a), "当前主窗口必须保留自己的 home slot")
         let context = scheduler.makeContext(token: token, kind: .mainSwitch)
         var preOperation: [(identity: WindowIdentity, frame: CGRect)] = []
         for identity in [b, a] {
@@ -229,7 +241,7 @@ final class WorkbenchSwitchTests: XCTestCase {
                                         displayID: displayID,
                                         mainTargetFrame: mainTarget,
                                         restingTargetFrame: FakeCatalogSource.frame(for: 0),
-                                        restingSlot: slot,
+                                        restingSlot: restingSlot,
                                         snapshot: fixture.snapshot,
                                         presentation: fixture.presentation,
                                         placement: HostPlanFacts.placement(target: mainTarget))

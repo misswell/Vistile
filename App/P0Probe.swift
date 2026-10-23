@@ -922,17 +922,18 @@ final class P0Probe {
                    detail: "工作台里没有投影或没有主窗口，无法验证交换", check: "P0-13 主副交换")
             return
         }
-        let railCards = (presentation.topCards + presentation.sideCards).filter(\.isVisible)
+        let railCards = (presentation.topCards + presentation.sideCards).filter { $0.isVisible && $0.identity != main }
         guard let cardB = railCards.first else {
             record("P0-13", "主副交换", passed: nil,
                    detail: "两栏里没有可见卡片（只有主窗口，或该屏布局退化），本项不适用",
                    check: "P0-13 主副交换")
-            manual("P0-13", "交换画面", "两个以上窗口时点顶栏/侧栏的预览：主区换成它，被换下的窗口出现在那张卡片的位置。")
+            manual("P0-13", "交换画面", "两个以上窗口时点顶栏/侧栏的预览：主区换成它，各自的小窗仍在原位，当前窗口显示强调色边框。")
             return
         }
         let beforeTop = state.workbench.scrollOffset(rail: .top)
         let beforeSide = state.workbench.scrollOffset(rail: .side)
-        let beforeOthers = state.workbench.placement.occupants.filter { $0.key != cardB.slot }
+        let beforeSeats = state.workbench.placement.occupants
+        let beforeOthers = beforeSeats.filter { $0.value != main && $0.value != cardB.identity }
         let beforeFrames = beforeOthers.mapValues { state.records[$0]?.frame }
         let bSize = state.records[cardB.identity]?.frame.size
 
@@ -964,12 +965,11 @@ final class P0Probe {
             issues.append("交换没有收敛到目标主区（主区=\(after.workbench.placement.main.map(\.journalKey) ?? "空")"
                         + "，阶段=\(phaseDebug(after.phase))\(reason)）")
         }
-        if after.workbench.placement.occupant(at: cardB.slot) != main {
-            issues.append("被点 slot 上没有回到原主窗口（\(after.workbench.placement.occupant(at: cardB.slot)?.journalKey ?? "空")）")
+        if after.workbench.placement.occupant(at: cardB.slot) != cardB.identity {
+            issues.append("被点窗口没有保留自己的轨道卡片")
         }
-        let afterOthers = after.workbench.placement.occupants.filter { $0.key != cardB.slot }
-        if afterOthers != beforeOthers {
-            issues.append("其他 slot 占用发生变化（\(beforeOthers.count) → \(afterOthers.count)）")
+        if after.workbench.placement.occupants != beforeSeats {
+            issues.append("切换改变了轨道卡片占位")
         }
         if after.workbench.scrollOffset(rail: .top) != beforeTop || after.workbench.scrollOffset(rail: .side) != beforeSide {
             issues.append("滚动偏移被改变（顶 \(beforeTop)→\(after.workbench.scrollOffset(rail: .top))，"
@@ -1012,11 +1012,11 @@ final class P0Probe {
         record("P0-13", "主副交换", passed: issues.isEmpty,
                detail: issues.isEmpty
                     ? "真实点击\(cardB.slot.rail == .top ? "顶栏" : "侧栏")卡片 \(cardB.identity.journalKey)：主区切到它、"
-                      + "原主 \(main.journalKey) 回到该 slot、其余 \(beforeOthers.count) 个占用与滚动偏移未动；"
+                      + "原主 \(main.journalKey) 与被点窗口的小窗各留原位，其余 \(beforeOthers.count) 个占用与滚动偏移未动；"
                       + facts.joined(separator: "；")
                     : "问题：" + issues.joined(separator: "；"),
                check: "P0-13 主副交换")
-        manual("P0-13", "交换画面", "点顶栏/侧栏里的一张预览：主区换成它、被换下的窗口出现在刚才那张卡片的位置，其他卡片不跳位；"
+        manual("P0-13", "交换画面", "点顶栏/侧栏里的一张预览：主区换成它、各自的小窗保留原位、仅当前窗口显示强调色边框；"
                + "先在栏里滚动几格再交换，确认滚动位置不回弹。")
     }
 
@@ -1098,7 +1098,8 @@ final class P0Probe {
     // MARK: - P0-16 固定交换 soak（方案 §19.2、§19.13）
 
     /// 连续真实点击轨道卡片做固定交换，逐轮核对硬不变量（方案 §6.1）：
-    /// 被点卡片进主区、原主回到被点 slot、其余占用与滚动偏移不动；
+    /// 中文：被点卡片进主区，所有轨道卡片保留原 slot，滚动偏移不动。
+    /// English: Select the main window while preserving every rail slot and scroll offset.
     /// 中途刷新一次目录核对非参与窗口的真实 frame 没被写过（§19.2「其他卡片坐标不变」）。
     private func p0_16_swapSoak() async {
         let blocked = permissionNote(.accessibility)
@@ -1146,20 +1147,33 @@ final class P0Probe {
         var consecutiveFailures = 0
         for index in 0..<100 {
             let preferTop = index % 2 == 0
-            guard let slot = preferTop ? (topSlot ?? sideSlot) : (sideSlot ?? topSlot),
+            let preferred = preferTop ? (topSlot ?? sideSlot) : (sideSlot ?? topSlot)
+            let currentMain = coordinator.state.workbench.placement.main
+            let selectedSlot: RailSlotID?
+            if let preferred, coordinator.state.workbench.placement.occupant(at: preferred) != currentMain {
+                selectedSlot = preferred
+            } else if let currentMain, let current = coordinator.workbenchPresentation {
+                // Repeatedly clicking the selected card is a no-op. Choose a different
+                // visible identity so every sample still measures a real switch.
+                selectedSlot = firstClickableRailSlot(in: current.cards, excluding: currentMain)
+            } else {
+                selectedSlot = nil
+            }
+            guard let slot = selectedSlot,
                   let identity = coordinator.state.workbench.placement.occupant(at: slot),
                   let point = workbenchRailPoint(for: slot) else {
-                failures.append("第 \(index + 1) 次：找不到可点的轨道卡片")
+                failures.append("第 \(index + 1) 次：找不到可点的非当前轨道卡片")
                 break
             }
+            participants.insert(identity)
             let before = coordinator.state
             // 座位用身份→slot 的反向表：只比「两次都在场的窗口」的轨道位置，
             // 期间有别的窗口开合是环境噪声，不是产品把卡片挪了。
             let beforeSeat = Dictionary(uniqueKeysWithValues: before.workbench.placement.occupants
-                .filter { $0.key != slot }.map { ($0.value, $0.key) })
+                .map { ($0.value, $0.key) })
             let beforeTopScroll = before.workbench.scrollOffset(rail: .top)
             let beforeSideScroll = before.workbench.scrollOffset(rail: .side)
-            let oldMain = before.workbench.placement.main
+            if let oldMain = before.workbench.placement.main { participants.insert(oldMain) }
             let started = monotonicNow()
             guard sendRealMouseDownUp((point.window, point.point), hitView: point.view) else {
                 failures.append("第 \(index + 1) 次：真实点击无法派发")
@@ -1181,8 +1195,8 @@ final class P0Probe {
             }
             let after = coordinator.state
             var issues: [String] = []
-            if after.workbench.placement.occupant(at: slot) != oldMain {
-                issues.append("被点 slot 上没有回到原主（\(after.workbench.placement.occupant(at: slot)?.journalKey ?? "空")）")
+            if after.workbench.placement.occupant(at: slot) != identity {
+                issues.append("被点窗口没有保留自己的轨道卡片")
             }
             let afterSeat = Dictionary(uniqueKeysWithValues: after.workbench.placement.occupants.map { ($0.value, $0.key) })
             let movedCards = beforeSeat.compactMap { identity, seat -> String? in
@@ -1202,7 +1216,7 @@ final class P0Probe {
                 failures.append("第 \(index + 1) 次：" + issues.joined(separator: "、"))
                 consecutiveFailures += 1
             }
-            if preferTop { topClicks += 1 } else { sideClicks += 1 }
+            if slot.rail == .top { topClicks += 1 } else { sideClicks += 1 }
             // 中途取一次真实 frame 事实：非参与窗口不该被动过。
             if index == 49 {
                 await refreshCatalog()
@@ -1221,7 +1235,7 @@ final class P0Probe {
                passed: failures.isEmpty && swaps == 100,
                detail: failures.isEmpty
                     ? "真实点击交换 \(swaps) 次（顶栏 \(topClicks)、侧栏 \(sideClicks)）全部收敛：每轮被点卡进主区、"
-                      + "原主回该 slot、其余占用与滚动偏移不变；点击→落定 p95=\(String(format: "%.0f", p95))ms（目标 ≤500ms）；"
+                      + "所有小窗保留各自 slot、滚动偏移不变；点击→落定 p95=\(String(format: "%.0f", p95))ms（目标 ≤500ms）；"
                       + clickOutcomeText("swap", "交换") + "；"
                       + "非参与窗口 frame 对照在 P0-17 收尾统查"
                     : "已完成 \(swaps)/100 次；问题：" + failures.prefix(3).joined(separator: "；"),

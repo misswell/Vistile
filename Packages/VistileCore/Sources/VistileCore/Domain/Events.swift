@@ -97,7 +97,8 @@ public enum SessionEvent: Hashable, Sendable {
 
     /// 总览卡片被选中：每次打开都必须从这里进入工作台，不自动选主（方案 §4.1、§4.2）。
     case overviewCardSelected(identity: WindowIdentity, slot: SlotID, revision: Int)
-    /// 轨道卡片被选中：A/B 交换，其他 slot 不动（方案 §4.3）。
+    /// 中文：选择主窗口，所有轨道卡片保留各自 slot。
+    /// English: Select the main window without changing any rail occupant.
     case railCardSelected(slot: RailSlotID, identity: WindowIdentity)
     /// 轨道卡片被"固定在顶部"：只写跨会话 rail 偏好，立即不动任何卡片（方案 §6.2）。
     case railPinToggled(identity: WindowIdentity)

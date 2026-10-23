@@ -95,6 +95,10 @@ Effect：`discover`、`startCapture`、`stopCapture`、`stopAllCapture`、`showO
 
 **L 型内 A/B 交换（`mainSwitch`）**：只有两个窗口的真实几何会动——被点卡片进主区、原主回到自己进入工作台前的 frame；其余窗口与两条栏的滚动偏移、占用都不变（方案 §6.1 硬不变量）。写入同样日志先行、逐窗读回；失败整体回滚。
 
+中文（0.1.27）：轨道卡片包含主窗口，每个身份有自己的固定 slot。`main` 仅表示当前选择；选择提交不改 `occupants`。切换动画不隐藏两张轨道小窗，原主的视觉返回端点取自己的 slot，窗口计数按唯一身份去重。
+English (0.1.27): Rails include the main window and retain one slot per identity. `main` represents selection only; committing a selection does not mutate `occupants`. Switching leaves both rail thumbnails visible, targets the outgoing window's own slot, and counts unique window identities.
+
+
 **返回（`returningOverview`）**：主窗口写回进入前的 frame（从哪来回哪去），状态机清 `activeMain`，总览面板按保存的快照重现（格子、搜索词、滚动位置不变）。
 
 **飞行期间画什么（0.1.26 起）**：过渡场景不再放大捕获画面，只画一块与卡片同形的圆角面板（`TransitionScene.Content.panel`，默认值），落定后承载层 110ms 淡出交接给真实窗口。理由在数字上：捕获输出有硬上限（`CaptureTier.maxPixelWidth`：powerSaving 640 / balanced 960 / refreshPriority 1280 px），而主区在 2x 下约 3000px 宽，**把捕获图放大到主区必然是模糊的**——0.1.25 及以前用 `refreshSingleFrame`（本版已移除）以 `.powerSaving` 建配置、拿到 640px 纹理再画进约 3000px 的矩形，等于恒定 4.7× 放大，抓帧抓得再勤也改不了这一点；而这些抓帧本身又要与 AX 写入、displayLink 抢主线程。既然放大必然糊，就不放大：面板的端点用**卡片外框（含标题条）**，由场景显式给出（`Card.panelFrom` / `Card.panelTo`），没给才按 `cellStart ?? start` → `cellEnd ?? end` 推导。这一条不是风格问题：栏里那张卡的外框与内容区差一个标题条，用内容区当端点会让面板比真实卡片小一截，既看出"从卡片中间长出来"，交接时还会再跳一下。`.captured` 保留为诊断回退，生产路径不再使用。

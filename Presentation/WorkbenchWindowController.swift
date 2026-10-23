@@ -159,11 +159,12 @@ final class WorkbenchWindowController {
 
         // 「可见 n」必须如实反映此刻屏幕上的卡片：筛选掉的整格已经不在栏里（方案 §5.5.5）。
         // 主区是真实窗口，不会因为筛选消失，仍然计入。
-        let railVisible = presentation.cards.filter { card in
+        var visible = Set(presentation.cards.filter { card in
             card.isVisible && card.record.matches(searchQuery: searchQuery)
-        }.count
+        }.map(\.identity))
+        if let main = presentation.mainIdentity, presentation.mainRecord != nil { visible.insert(main) }
         toolbar.update(side: presentation.side,
-                       visibleCount: railVisible + (presentation.mainRecord != nil ? 1 : 0),
+                       visibleCount: visible.count,
                        totalCount: presentation.totalCount,
                        query: searchQuery,
                        hint: hint)

@@ -61,6 +61,8 @@ final class CardChrome {
     let iconSlot = CALayer()
     /// 「已固定」标记：贴在卡片右上角，关掉标题也看得见（方案 §6.2）。
     let pinBadge = CATextLayer()
+    private var availableTitleWidth: CGFloat = 0
+    private var titleHasStatus = false
 
     init() {
         ImmediateLayerUpdates.configure(container, border, titleBar, titleText, statusText, iconSlot, pinBadge)
@@ -103,6 +105,7 @@ final class CardChrome {
     /// 固定标记由展示事实驱动，与位置无关：pin 只在下次整理时改轨道（方案 §6.2）。
     func applyPinned(_ pinned: Bool) {
         pinBadge.isHidden = !pinned
+        titleText.frame.size.width = max(0, availableTitleWidth - (pinned && !titleHasStatus ? 52 : 0))
     }
 
     /// Hover 只提升边框/底色，不移动格子、不放大挤动（方案 §8.1）。
@@ -135,7 +138,13 @@ final class CardChrome {
         let barHeight: CGFloat = (showsTitle || showsStatus) ? style.titleHeight : 0
         // 视图未翻转，标题条要贴在格子上沿。
         titleBar.frame = CGRect(x: 0, y: rect.height - barHeight, width: rect.width, height: barHeight)
-        titleText.frame = CGRect(x: 30, y: titleBar.bounds.midY - 7, width: max(0, rect.width - 34 - 56), height: 14)
+        let padding: CGFloat = 8
+        let reservedStatus: CGFloat = showsStatus ? 90 : 0
+        availableTitleWidth = max(0, rect.width - padding * 2 - reservedStatus)
+        titleHasStatus = showsStatus
+        let reservedPin: CGFloat = !pinBadge.isHidden && !showsStatus ? 52 : 0
+        titleText.frame = CGRect(x: padding, y: titleBar.bounds.midY - 7,
+                                 width: max(0, availableTitleWidth - reservedPin), height: 14)
         statusText.frame = CGRect(x: rect.width - 90, y: titleBar.bounds.midY - 6, width: 86, height: 12)
         // 固定标记贴卡片右上角，不依赖标题条是否存在。
         pinBadge.frame = CGRect(x: max(0, rect.width - 52), y: max(0, rect.height - 15), width: 46, height: 12)

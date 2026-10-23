@@ -284,7 +284,9 @@ final class WorkbenchEntryTests: XCTestCase {
 
         let presentation = try XCTUnwrap(coordinator.workbenchPresentation)
         XCTAssertEqual(presentation.mainIdentity, identity)
-        XCTAssertEqual(presentation.cards.count, 3, "其余三个窗口进两栏")
+        XCTAssertEqual(presentation.cards.count, 4, "四个窗口都保留轨道卡片，包括当前主窗口")
+        XCTAssertTrue(presentation.card(for: identity)?.isCurrent ?? false,
+                      "当前主窗口的轨道副本必须标记为 current")
         let written = try XCTUnwrap(writer.writtenFrames.first)
         XCTAssertTrue(presentation.snapshot.layout.mainRect.contains(written),
                       "写进去的几何必须落在主区内：written=\(written) main=\(presentation.snapshot.layout.mainRect)")

@@ -1351,8 +1351,8 @@ final class AppCoordinator {
                     plan.prefetch.insert(card.identity)
                 }
             }
-            // 主区是真实窗口，不占缩略捕获资源（方案 §13.1：稳定后不保留持续捕获）。
-            plan.excluded = Set([presentation.mainIdentity].compactMap { $0 })
+            // The selected window keeps its live rail thumbnail and uses the same capture budget.
+            plan.excluded = []
         } else {
             // 总览：有格子的算可见；没有格子的（overflow/被过滤）算离屏，只保最后一帧。
             for (displayID, layout) in layouts {

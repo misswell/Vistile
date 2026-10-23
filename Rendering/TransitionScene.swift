@@ -339,7 +339,7 @@ struct TransitionSceneFactory {
                                                   startAlpha: 1,
                                                   endAlpha: 1,
                                                   aspect: aspect(intent.to, start),
-                                                  hidesRailCard: true,
+                                                  hidesRailCard: false,
                                                   isFocus: true,
                                                   panelFrom: cell,
                                                   panelTo: plan.mainTargetFrame))
@@ -358,7 +358,7 @@ struct TransitionSceneFactory {
                                               startAlpha: 1,
                                               endAlpha: 1,
                                               aspect: aspect(from, start),
-                                              hidesRailCard: true,
+                                              hidesRailCard: false,
                                               isFocus: false,
                                               panelFrom: start,
                                               panelTo: plan.restingSlot.flatMap { snapshot.rect(for: $0) } ?? end))

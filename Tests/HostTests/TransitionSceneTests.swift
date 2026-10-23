@@ -364,14 +364,14 @@ final class TransitionSceneTests: XCTestCase {
         XCTAssertEqual(promoted.end, mainTarget)
         XCTAssertNil(promoted.cellEnd)
         XCTAssertEqual(promoted.aspect, 1.8, accuracy: 0.0001)
-        XCTAssertTrue(promoted.hidesRailCard, "栏里那份先藏起来，否则飞行中会出现两个 B")
+        XCTAssertFalse(promoted.hidesRailCard, "The selected thumbnail remains visible during switching")
 
         let demoted = try XCTUnwrap(scene.cards.first { $0.identity == from })
         XCTAssertFalse(demoted.isFocus)
         XCTAssertEqual(demoted.start, recordFrames[from], "起点用真实窗口帧，不用推算")
         XCTAssertEqual(demoted.end, fixture.snapshot.contentRect(for: slot))
-        XCTAssertTrue(demoted.hidesRailCard)
-        XCTAssertEqual(scene.hiddenRailIdentities, [from, to])
+        XCTAssertFalse(demoted.hidesRailCard)
+        XCTAssertTrue(scene.hiddenRailIdentities.isEmpty)
     }
 
     func testSwappingWithoutPreviousMainOnlyPromotes() throws {
@@ -395,7 +395,7 @@ final class TransitionSceneTests: XCTestCase {
 
         let scene = try XCTUnwrap(baseFactory(imageRects: [:]).swapping(plan))
         XCTAssertEqual(scene.cards.map(\.identity), [to])
-        XCTAssertEqual(scene.hiddenRailIdentities, [to])
+        XCTAssertTrue(scene.hiddenRailIdentities.isEmpty, "Switching keeps the selected thumbnail visible")
     }
 
     // MARK: - 降级与限额
@@ -560,7 +560,7 @@ final class TransitionSceneTests: XCTestCase {
         coordinator.play(scene)
         XCTAssertTrue(coordinator.isPresenting)
         XCTAssertEqual(coordinator.activeKind, .swapping)
-        XCTAssertEqual(coordinator.hiddenRailIdentities, [HostFixtures.identity(0), to])
+        XCTAssertTrue(coordinator.hiddenRailIdentities.isEmpty, "Both windows retain visible rail thumbnails")
         XCTAssertFalse(coordinator.isReturnPresenting)
 
         coordinator.cancelAll()

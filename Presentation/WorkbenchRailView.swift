@@ -195,7 +195,7 @@ final class WorkbenchRailView: NSView {
         chrome.layout(in: entry.cellRect, style: chromeStyle, showsTitle: showsTitles, showsStatus: false)
         chrome.apply(title: title,
                      status: nil,
-                     isSelected: false,
+                     isSelected: lastCards[entry.slot]?.isCurrent == true,
                      isHovered: hoveredSlot == entry.slot,
                      accent: accentColor,
                      style: chromeStyle,
@@ -203,6 +203,8 @@ final class WorkbenchRailView: NSView {
                      scale: backingScaleFactor)
         chrome.applyPinned(lastCards[entry.slot]?.isPinned == true)
     }
+
+    func chrome(for slot: RailSlotID) -> CardChrome? { chromeLayers[slot] }
 
     private func refreshChrome() {
         for (slot, chrome) in chromeLayers {
@@ -308,7 +310,8 @@ final class WorkbenchRailView: NSView {
                 screenRect: screenRect,
                 applicationName: record?.applicationName ?? "未知应用",
                 title: record?.title ?? "",
-                statusText: CardAccessibilityBuilder.statusText(record?.capture) + pinnedSuffix,
+                statusText: CardAccessibilityBuilder.statusText(record?.capture) + pinnedSuffix
+                    + (card?.isCurrent == true ? "，当前窗口" : ""),
                 roleDescription: "\(railName)卡片 \(position)",
                 actionName: "切换到主工作区",
                 activate: { [weak self] in self?.onAction?(.cardClicked(slot: slot, identity: identity)) }
@@ -381,6 +384,7 @@ final class WorkbenchRailView: NSView {
     override func mouseExited(with event: NSEvent) {
         guard hoveredSlot != nil else { return }
         hoveredSlot = nil
+        toolTip = nil
         refreshChrome()
     }
 
@@ -389,6 +393,7 @@ final class WorkbenchRailView: NSView {
         let next = hit?.slot
         guard next != hoveredSlot else { return }
         hoveredSlot = next
+        toolTip = next.flatMap { lastCards[$0]?.record }.map { "\($0.applicationName) — \($0.title)" }
         refreshChrome()
     }
 

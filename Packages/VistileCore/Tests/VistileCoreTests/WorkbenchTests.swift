@@ -372,7 +372,7 @@ final class WorkbenchTests: XCTestCase {
 
     // MARK: - W03 / W04 交换
 
-    func testW03SwapOnlyTouchesMainAndSourceSlot() throws {
+    func testW03SelectingMainKeepsEveryRailSlotStable() throws {
         var (state, list) = openState(count: 5)
         let a = list[0].identity
         let b = list[1].identity
@@ -382,6 +382,7 @@ final class WorkbenchTests: XCTestCase {
 
         let before = state.workbench.placement.occupants
         let snapshotBefore = state.workbench.snapshot
+        let aSlot = try XCTUnwrap(state.workbench.placement.slot(of: a))
         let bSlot = try XCTUnwrap(state.workbench.placement.slot(of: b))
 
         // 落盘请求就是这次操作的全部对外动作：确认之前一条 AX 写入都不许发出去。
@@ -397,7 +398,7 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertTrue(settlePackets(pending).isEmpty && switchPlan(pending) == nil,
                       "日志未确认前不得有 AX 写入")
         XCTAssertNil(state.workbench.activeContext, "操作尚未准入")
-        // 已确认后的序列：只剩这一笔交换写入，排在日志之后。
+        // 已确认后的序列：只剩这一笔主窗口切换写入，排在日志之后。
         let effects = confirmJournal(&state, pending)
         let plan = try XCTUnwrap(switchPlan(effects))
         XCTAssertEqual(effects.count, 1, "落盘之后只发一条几何写入")
@@ -406,18 +407,19 @@ final class WorkbenchTests: XCTestCase {
         }
         XCTAssertEqual(plan.intent.from, a)
         XCTAssertEqual(plan.intent.to, b)
-        XCTAssertEqual(plan.restingSlot, bSlot)
+        XCTAssertEqual(plan.restingSlot, aSlot, "旧主窗口回到自己的稳定 slot")
         XCTAssertEqual(plan.mainTargetFrame, state.workbench.snapshot?.mainRect, "B 的目标就是主区矩形")
         XCTAssertEqual(plan.intent.beforeOperation.writtenOrder, request.affectedIdentities,
                        "批次顺序就是补偿顺序的依据")
 
         completeSwitch(&state, token: plan.intent.token)
         XCTAssertEqual(state.workbench.placement.main, b)
-        XCTAssertEqual(state.workbench.placement.occupant(at: bSlot), a, "A 回到 B 原来的 slot")
+        XCTAssertEqual(state.workbench.placement.occupant(at: bSlot), b, "B 切到主区后仍留在原 slot")
         let after = state.workbench.placement.occupants
         XCTAssertEqual(after.count, before.count, "占用总数守恒")
-        for (slot, identity) in before where identity != b {
-            XCTAssertEqual(after[slot], identity, "除 main 与 sourceSlot 外，其他占用一律不动")
+        XCTAssertEqual(after, before, "切换主窗口不交换或搬动任何卡片")
+        for (slot, identity) in before {
+            XCTAssertEqual(after[slot], identity, "每个窗口身份都保留原 slot")
         }
         XCTAssertEqual(state.workbench.placement.members.count, 5)
         XCTAssertEqual(state.workbench.snapshot, snapshotBefore, "交换不改几何投影")
@@ -439,12 +441,15 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertEqual(state.workbench.scrollOffset(rail: .side), 120, "偏移落在投影里，不再有第二份独立数值")
         XCTAssertEqual(state.workbench.snapshot?.sideScrollOffset, 120, "投影与访问器是同一个事实")
         let scrolledSnapshot = try XCTUnwrap(state.workbench.snapshot)
+        let stableOccupants = state.workbench.placement.occupants
 
         for target in [list[1].identity, list[2].identity] {
             let effects = selectRail(&state, identity: target)
             let plan = try XCTUnwrap(switchPlan(effects))
             completeSwitch(&state, token: plan.intent.token)
             XCTAssertEqual(state.workbench.placement.main, target)
+            XCTAssertEqual(state.workbench.placement.occupants, stableOccupants,
+                           "连续切换主窗口不得搬动任何窗口的 home slot")
             XCTAssertTrue(state.workbench.placement.maintainsInvariants)
             XCTAssertEqual(state.workbench.placement.members.count, 24, "每次交换都不得丢失或复制窗口")
             XCTAssertEqual(state.workbench.scrollOffset(rail: .side), 120, "交换不得重置滚动位置")
@@ -497,7 +502,8 @@ final class WorkbenchTests: XCTestCase {
         var (full, fullList) = openState(count: 14)
         enterWorkbench(&full, target: fullList[0].identity)
         let layout = try XCTUnwrap(full.workbench.snapshot?.layout)
-        XCTAssertEqual(layout.sideSlotCount, layout.sideCapacity, "未溢出时内容轨道不延长")
+        XCTAssertEqual(layout.slotOrder.count, full.workbench.placement.occupants.count,
+                       "14 个唯一窗口各自保留一个轨道 slot")
         XCTAssertTrue(layout.slotOrder.allSatisfy { full.workbench.placement.occupant(at: $0) != nil },
                       "14 个窗口应占满全部可见 slot")
         let beforeFull = full.workbench.placement.occupants
@@ -829,12 +835,12 @@ final class WorkbenchTests: XCTestCase {
         let finish = finishEntering(&state)
         XCTAssertEqual(state.mode, .workbench)
         XCTAssertEqual(state.workbench.placement.main, target)
-        XCTAssertEqual(state.workbench.placement.occupants.count, 5)
+        XCTAssertEqual(state.workbench.placement.occupants.count, 6, "主窗口也保留在稳定轨道 slot")
         XCTAssertEqual(state.workbench.placement.members, Set(list.map(\.identity)))
-        XCTAssertEqual(Set(state.workbench.placement.occupants.values).count, 5, "没有重复占用")
+        XCTAssertEqual(Set(state.workbench.placement.occupants.values).count, 6, "每个窗口只占一个 slot")
         let presentation = try XCTUnwrap(presentations(finish).first)
         XCTAssertEqual(presentation.mainIdentity, target)
-        XCTAssertEqual(presentation.cards.count, 5)
+        XCTAssertEqual(presentation.cards.count, 6, "主窗口卡片也留在轨道投影中")
         XCTAssertEqual(presentation.totalCount, 6)
         XCTAssertEqual(presentation.visibleCount, 6)
     }
@@ -986,7 +992,7 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertTrue(hasDropJournal(settled, identity: b))
     }
 
-    func testW18ContextReselectionRestoresOrSwapsCorrectly() throws {
+    func testW18ContextReselectionRestoresStableRailSlots() throws {
         var (state, list) = openState(count: 5)
         let a = list[0].identity
         let b = list[1].identity
@@ -1002,7 +1008,8 @@ final class WorkbenchTests: XCTestCase {
         try returnToOverview(&state)
         enterWorkbench(&state, target: b)
         XCTAssertEqual(state.workbench.placement.main, b)
-        XCTAssertEqual(state.workbench.placement.occupant(at: bSlot), a, "重选轨道上的 B：原主落到 B 的原 slot")
+        XCTAssertEqual(state.workbench.placement.occupant(at: bSlot), b, "重选轨道上的 B：卡片留在 B 的原 slot")
+        XCTAssertEqual(state.workbench.placement.occupants, occupants, "重新选择只改 main，不交换轨道卡片")
         XCTAssertEqual(state.workbench.placement.members, Set(list.map(\.identity)))
     }
 
@@ -1095,8 +1102,11 @@ final class WorkbenchTests: XCTestCase {
         let singleEffects = enterWorkbench(&single, target: singleList[0].identity)
         let singlePresentation = try XCTUnwrap(presentations(singleEffects).first)
         XCTAssertEqual(single.workbench.placement.main, singleList[0].identity)
-        XCTAssertTrue(single.workbench.placement.occupants.isEmpty, "1 个窗口时两条栏都是空的")
-        XCTAssertTrue(singlePresentation.cards.isEmpty)
+        let singleSlot = try XCTUnwrap(single.workbench.placement.slot(of: singleList[0].identity))
+        XCTAssertEqual(single.workbench.placement.occupants.count, 1, "主窗口仍占据稳定轨道 slot")
+        XCTAssertEqual(single.workbench.placement.occupant(at: singleSlot), singleList[0].identity)
+        XCTAssertEqual(singlePresentation.cards.count, 1)
+        XCTAssertTrue(try XCTUnwrap(singlePresentation.card(for: singleList[0].identity)).isCurrent)
         XCTAssertEqual(singlePresentation.totalCount, 1)
         XCTAssertEqual(singlePresentation.visibleCount, 1)
 
@@ -1542,14 +1552,17 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertEqual(topFirst, layout.slotOrder.first, "进入工作台后从头连续占用")
         XCTAssertNotEqual(sideFirst, topFirst, "对调需要两个不同的占用位")
         let pinnedIdentity = try XCTUnwrap(state.workbench.placement.occupant(at: sideFirst))
-        XCTAssertNotEqual(pinnedIdentity, list[0].identity, "主窗口不在轨道上，别拿它当 pin 目标")
+        XCTAssertNotEqual(pinnedIdentity, list[0].identity, "此处选非当前主窗口检查固定偏好")
         let pinnedKey = try XCTUnwrap(state.records[pinnedIdentity]?.preferenceKey)
 
-        // 制造乱序与空位：把第一个与最后一个占用对调，再关掉（对调后）最后一位。
-        let topOccupant = try XCTUnwrap(state.workbench.placement.occupant(at: topFirst))
+        // 制造乱序与空位：把第一个与最后一个占用对调，再关闭一个非主窗口。
         _ = Fixtures.dispatch(&state, .railCardDragged(from: topFirst, to: sideFirst))
         XCTAssertEqual(state.workbench.placement.occupant(at: topFirst), pinnedIdentity, "对调先制造乱序")
-        _ = Fixtures.dispatch(&state, .windowClosed(topOccupant))
+        let currentMain = state.workbench.placement.main
+        let closingIdentity = try XCTUnwrap(state.workbench.placement.occupants.values.first {
+            $0 != pinnedIdentity && $0 != currentMain
+        }, "制造空位时选择非主窗口，避免触发替补过渡")
+        _ = Fixtures.dispatch(&state, .windowClosed(closingIdentity))
         XCTAssertGreaterThan(state.workbench.placement.occupants.count, 0)
 
         // 固定在顶部：只写偏好，卡片此刻不动（方案 §6.2）。
@@ -1565,7 +1578,7 @@ final class WorkbenchTests: XCTestCase {
         let after = try XCTUnwrap(state.workbench.snapshot?.layout)
         let members = state.workbench.placement.occupants.count
         let expectedFollowing = list.map { ($0.identity, state.gridCell(for: $0.identity)?.cell.slot?.index ?? Int.max) }
-            .filter { $0.0 != list[0].identity && $0.0 != pinnedIdentity && state.workbench.placement.contains($0.0) }
+            .filter { $0.0 != pinnedIdentity && state.workbench.placement.contains($0.0) }
             .sorted { $0.1 < $1.1 }
             .map(\.0)
         let expectedOrder = [pinnedIdentity] + expectedFollowing
@@ -1610,11 +1623,13 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertEqual(persistRailMemories(unpin).first?.pinnedKeys, [])
         XCTAssertEqual(state.workbench.placement.pinned, [])
 
-        // 主窗口不在轨道上：pin 只属于轨道卡片，对主窗口不发效果。
+        // 主窗口卡片仍在轨道上，因此也能按其应用偏好固定。
         let main = try XCTUnwrap(state.workbench.placement.main)
-        let ghost = Fixtures.dispatch(&state, .railPinToggled(identity: main))
-        XCTAssertTrue(ghost.isEmpty, "主窗口没有轨道位置，pin 请求不得认领")
-        XCTAssertTrue(state.workbench.placement.pinned.isEmpty)
+        let mainKey = try XCTUnwrap(state.records[main]?.preferenceKey)
+        let mainPin = Fixtures.dispatch(&state, .railPinToggled(identity: main))
+        XCTAssertEqual(persistRailMemories(mainPin).first?.pinnedKeys, [mainKey])
+        XCTAssertEqual(state.workbench.placement.pinned, [mainKey])
+        XCTAssertEqual(presentations(mainPin).last?.card(for: main)?.isPinned, true)
 
         // 拖动换位不写顺序偏好：只有明确的整理才重写 rank（方案 §4.4）。
         let slots = state.workbench.snapshot?.layout.slotOrder ?? []
@@ -1641,7 +1656,7 @@ final class WorkbenchTests: XCTestCase {
 
         // 整理按当时的「总览顺序」重排（方案 §4.4）：过期 rank 不得压过现在的总览顺序。
         let expected = list.map { ($0.identity, state.gridCell(for: $0.identity)?.cell.slot?.index ?? Int.max) }
-            .filter { $0.0 != list[0].identity && state.records[$0.0]?.preferenceKey != "com.test.app4" }
+            .filter { state.records[$0.0]?.preferenceKey != "com.test.app4" }
             .sorted { $0.1 < $1.1 }
             .map(\.0)
         for (index, identity) in expected.enumerated() {
@@ -1661,7 +1676,10 @@ final class WorkbenchTests: XCTestCase {
         let list = m3dRecords()
         var state = openState(with: list)
         enterWorkbench(&state, target: list[0].identity)
-        let slot = try XCTUnwrap(state.workbench.placement.occupants.keys.sorted().first)
+        let main = try XCTUnwrap(state.workbench.placement.main)
+        let slot = try XCTUnwrap(state.workbench.placement.occupants.keys.sorted().first {
+            state.workbench.placement.occupant(at: $0) != main
+        }, "选择非当前主窗口，确保进入真实切换在途")
         let identity = try XCTUnwrap(state.workbench.placement.occupant(at: slot))
 
         // 备料阶段（落盘还没确认）：这次交换的占用还没定，整理必须等待（方案 §7.1、§10.4）。
@@ -1886,7 +1904,9 @@ final class WorkbenchTests: XCTestCase {
         let plan = try XCTUnwrap(switchPlan(retry))
         completeSwitch(&state, token: plan.intent.token)
         XCTAssertEqual(state.workbench.placement.main, b, "整批重落后交换照常走完")
-        XCTAssertEqual(state.workbench.placement.occupant(at: slot), a)
+        XCTAssertEqual(state.workbench.placement.occupant(at: slot), b, "B 成为主窗口后仍留在原 slot")
+        XCTAssertEqual(state.workbench.placement.occupants, placementBefore.occupants,
+                       "重试只更新 main，不交换 A 与 B 的 slot")
     }
 
     /// A15（方案 §7.2）：返回总览的写前事务落不下去时工作台原样保留——既不飞行，也不开始恢复。
@@ -2095,7 +2115,7 @@ final class WorkbenchTests: XCTestCase {
     }
 
     /// A26（方案 §10）：关掉主窗口后的自动替补是一次完整操作——建事务→落盘→写入→激活→提交，
-    /// 替补窗口没有历史事务也要走完整顺序，并从原 slot 移除。
+    /// 替补窗口没有历史事务也要走完整顺序，并保留自己的稳定 slot。
     func testAutoPromotionAfterClosingMainRunsPrepareWriteActivateCommitInOrder() throws {
         var (state, list) = openState(count: 4)
         let a = list[0].identity
@@ -2120,7 +2140,9 @@ final class WorkbenchTests: XCTestCase {
 
         completeSwitch(&state, token: plan.intent.token)
         XCTAssertEqual(state.workbench.placement.main, b, "替补提交后成为主窗口")
-        XCTAssertNil(state.workbench.placement.slot(of: b), "提交必须同时把它从原 slot 移除")
+        XCTAssertEqual(state.workbench.placement.slot(of: b), bSlot, "替补成为主窗口后仍保留原 slot")
+        XCTAssertEqual(state.workbench.placement.occupant(at: bSlot), b)
+        XCTAssertNil(state.workbench.placement.slot(of: a), "关闭的旧主窗口必须从 slot 清除")
         XCTAssertTrue(state.workbench.placement.maintainsInvariants)
         XCTAssertEqual(state.workbench.placement.members.count, 3)
     }
@@ -2606,8 +2628,8 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(clamped, 0)
     }
 
-    /// A32（方案 §8、§12）：返回总览后选轨道里的 B——A/B 正确交换，滚动偏移一位不动。
-    func testRailSelectionAfterReturnSwapsAndKeepsOffsets() throws {
+    /// A32（方案 §8、§12）：返回总览后选轨道里的 B——窗口保留 home slot，滚动偏移一位不动。
+    func testRailSelectionAfterReturnKeepsStableSlotsAndOffsets() throws {
         var (state, list) = openState(count: 20)
         let a = list[0].identity, b = list[1].identity
         enterWorkbench(&state, target: a)
@@ -2618,11 +2640,16 @@ final class WorkbenchTests: XCTestCase {
         let sideOffset = state.workbench.scrollOffset(rail: .side)
         XCTAssertGreaterThan(sideOffset, 0, "重进入后侧栏应带着非零偏移")
 
+        let occupantsBeforeSwitch = state.workbench.placement.occupants
+        let aSlot = try XCTUnwrap(state.workbench.placement.slot(of: a))
         let effects = selectRail(&state, identity: b)
         let plan = try XCTUnwrap(switchPlan(effects))
         completeSwitch(&state, token: plan.intent.token)
         XCTAssertEqual(state.workbench.placement.main, b, "B 进主区")
-        XCTAssertEqual(state.workbench.placement.occupant(at: bSlot), a, "A 回到 B 原来的格")
+        XCTAssertEqual(state.workbench.placement.occupant(at: bSlot), b, "B 的卡片继续留在原格")
+        XCTAssertEqual(state.workbench.placement.occupant(at: aSlot), a, "A 的卡片也留在原格")
+        XCTAssertEqual(state.workbench.placement.occupants, occupantsBeforeSwitch,
+                       "切换主窗口不改两栏的身份与 slot")
         XCTAssertEqual(state.workbench.scrollOffset(rail: .side), sideOffset, "交换不重置侧栏偏移")
     }
 
@@ -2703,6 +2730,15 @@ final class WorkbenchTests: XCTestCase {
     private struct RandomAction {
         let label: String
         let effects: [SessionEffect]
+        let selectionHomesBefore: [RailSlotID: WindowIdentity]?
+
+        init(label: String,
+             effects: [SessionEffect],
+             selectionHomesBefore: [RailSlotID: WindowIdentity]? = nil) {
+            self.label = label
+            self.effects = effects
+            self.selectionHomesBefore = selectionHomesBefore
+        }
     }
 
     /// 成功交换与往返的组合循环必须始终保持：placement 唯一、无漏窗、无 busy 悬挂、
@@ -2720,7 +2756,9 @@ final class WorkbenchTests: XCTestCase {
         foldJournal(&journal, written: &written, from: entering, sessionID: state.sessionID)
 
         var actions: [String] = []
+        var selectionHomesAwaitingCompletion: [RailSlotID: WindowIdentity]?
         for step in 0..<200 {
+            let switchWasBusy = state.workbench.mainSwitch.isBusy
             let action: RandomAction
             switch Int.random(in: 0..<8, using: &rng) {
             case 0: action = selectRandomRailOccupant(&state, rng: &rng)
@@ -2734,13 +2772,33 @@ final class WorkbenchTests: XCTestCase {
             }
             actions.append("  step\(step): \(action.label)")
             foldJournal(&journal, written: &written, from: action.effects, sessionID: state.sessionID)
-            let violations = workbenchInvariantViolations(state, step: step, journal: journal, written: written)
+            var violations = workbenchInvariantViolations(state, step: step, journal: journal, written: written)
+            if let homes = action.selectionHomesBefore {
+                selectionHomesAwaitingCompletion = homes
+                if !preservesLiveHomes(homes, state: state) {
+                    violations.append("第 \(step) 步选择轨道卡片时已改变稳定 home slot")
+                }
+            }
+            if switchWasBusy, !state.workbench.mainSwitch.isBusy,
+               let homes = selectionHomesAwaitingCompletion {
+                if !preservesLiveHomes(homes, state: state) {
+                    violations.append("第 \(step) 步切换完成后改变了存活窗口的稳定 home slot")
+                }
+                selectionHomesAwaitingCompletion = nil
+            }
             if !violations.isEmpty {
                 XCTFail("不变量被破坏，可原样复现：seed=0x5EED_2026，停在第 \(step) 步\n"
                         + violations.joined(separator: "\n") + "\n"
                         + "动作序列：\n" + actions.joined(separator: "\n"))
                 return
             }
+        }
+    }
+
+    private func preservesLiveHomes(_ homes: [RailSlotID: WindowIdentity], state: SessionState) -> Bool {
+        homes.allSatisfy { home in
+            state.records[home.value] == nil
+                || state.workbench.placement.occupant(at: home.key) == home.value
         }
     }
 
@@ -2753,8 +2811,12 @@ final class WorkbenchTests: XCTestCase {
         let values = Array(placement.occupants.values)
         if !placement.maintainsInvariants { violations.append("第 \(step) 步不变量被破坏") }
         if Set(values).count != values.count { violations.append("第 \(step) 步出现重复占用") }
-        if let main = placement.main, values.contains(main) {
-            violations.append("第 \(step) 步主窗口同时出现在轨道上")
+        let expectedMembers = Set(values).union(placement.main.map { [$0] } ?? [])
+        if placement.members != expectedMembers || placement.memberCount != expectedMembers.count {
+            violations.append("第 \(step) 步成员数没有按主窗口与轨道身份去重")
+        }
+        if let main = placement.main, placement.slot(of: main) == nil {
+            violations.append("第 \(step) 步当前主窗口没有保留稳定轨道 slot")
         }
         if !placement.members.isSubset(of: Set(state.records.keys)) {
             violations.append("第 \(step) 步轨道上出现已关闭窗口")
@@ -2762,11 +2824,11 @@ final class WorkbenchTests: XCTestCase {
         if placement.members.count > state.records.count {
             violations.append("第 \(step) 步成员数超出目录")
         }
-        // 冻结格子的容量是硬上限：目录装得下时，主窗口必须有格子（返回总览要有落点）；
-        // 装不下时 Core 允许"排队等待格"的窗口进轨道/主区，此时只要求它仍在目录里。
-        if let main = placement.main, state.records.count <= state.gridCapacity,
-           state.gridCell(for: main) == nil {
-            violations.append("第 \(step) 步主窗口没有冻结格子（目录 \(state.records.count) 格子上限 \(state.gridCapacity)）")
+        // 工作台里的关闭不会重排冻结总览：没有格位的窗口进入主区时必须仍在 pending 队列，
+        // 明确保留它等待返回总览落格的义务，不能只根据当前目录数量推断它有空位。
+        if let main = placement.main, state.gridCell(for: main) == nil,
+           !state.slots.pending.contains(where: { $0.identity == main }) {
+            violations.append("第 \(step) 步主窗口没有冻结格子，也没有待整理队列记录（目录 \(state.records.count) 格子上限 \(state.gridCapacity)）")
         }
         for (slot, identity) in placement.occupants {
             guard let cell = state.gridCell(for: identity) else { continue }
@@ -2881,8 +2943,11 @@ final class WorkbenchTests: XCTestCase {
             .sorted { $0.key < $1.key }
         guard !candidates.isEmpty else { return RandomAction(label: "无轨道候选", effects: []) }
         let pick = candidates[Int.random(in: 0..<candidates.count, using: &rng)]
+        let homesBefore = state.workbench.placement.occupants
+        let effects = selectRail(&state, identity: pick.value)
         return RandomAction(label: "选轨道卡片 w\(pick.value.windowID)",
-                            effects: selectRail(&state, identity: pick.value))
+                            effects: effects,
+                            selectionHomesBefore: homesBefore)
     }
 
     /// 宿主会做的事：把还没收口的写入/交换收口（读回成功），别让它们永远悬着。

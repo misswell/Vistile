@@ -767,7 +767,7 @@ public enum WorkbenchReducer {
                                        displayID: snapshot.displayID,
                                        mainTargetFrame: mainTarget,
                                        restingTargetFrame: restingTarget,
-                                       restingSlot: slot,
+                                       restingSlot: placement.main.flatMap { placement.slot(of: $0) },
                                        snapshot: snapshot,
                                        presentation: WorkbenchPresenter.make(state: state,
                                                                               snapshot: snapshot,
@@ -883,11 +883,11 @@ public enum WorkbenchReducer {
         var effects: [SessionEffect] = []
         if let from = intent.from, state.records[from] != nil, placement.main == from,
            let slot = intent.railSlot, placement.occupant(at: slot) == target {
-            // 正常提交：只有 main 与 sourceSlot 两处改变（方案 §6.1）。
+            // Commit selection only; rail occupants retain their original slots.
             placement.swapMain(with: slot)
         } else if intent.from == nil || state.records[intent.from!] == nil {
             // 没有旧主（首次选择、自动替补），或旧主已在途中关闭：
-            // B 进主区，它原来的 slot 由 setMain 让空（方案 §8.3、§10）。
+            // B becomes main while retaining its thumbnail slot.
             placement.setMain(target)
         } else {
             // 事实已变化：不假提交，也不动已写入的窗口（方案 §8.3）。
@@ -1660,9 +1660,8 @@ public enum WorkbenchReducer {
     // MARK: - 轨道初始化与占用
 
     /// 首次生成或恢复既有上下文（方案 §4.2.3、§4.4.6、§6）：
-    /// - 同一主身份：恢复原轨道；
-    /// - 选中的是轨道上的窗口：它进主区，原主回它的 slot；
-    /// - 其他：选中窗口进主区，其余按稳定顺序补位。
+    /// 中文：恢复固定轨道；主窗口也保留卡片，选择只更新主区身份。
+    /// English: Restore stable rails, including the main thumbnail; selection changes only main identity.
     /// 返回补位后内容轨道延长过的布局。
     @discardableResult
     private static func initializeRailOccupants(_ placement: inout WorkbenchPlacement,
@@ -1678,18 +1677,7 @@ public enum WorkbenchReducer {
             placement = fresh
             return extended
         }
-        if placement.main == target {
-            return layout
-        }
-        if let slot = placement.slot(of: target) {
-            let previousMain = placement.main ?? state.workbench.lastSelectedMain
-            placement.setMain(target)
-            if let previousMain, state.records[previousMain] != nil {
-                placement.place(previousMain, at: slot)
-            }
-        } else {
-            placement.setMain(target)
-        }
+        placement.setMain(target)
         return fillRailOccupants(&placement, state: state, layout: layout)
     }
 
@@ -1700,7 +1688,7 @@ public enum WorkbenchReducer {
                                           layout: WorkbenchLayout) -> WorkbenchLayout {
         let missing = stableOrder(state).filter { identity in
             state.records[identity] != nil && mayBeDisplayed(state.records[identity]!)
-                && identity != placement.main && !placement.contains(identity)
+                && placement.slot(of: identity) == nil
         }
         guard !missing.isEmpty else { return layout }
         var vacant = vacantSlots(placement: placement, layout: layout)
@@ -1797,7 +1785,7 @@ public enum WorkbenchReducer {
         var ranks: [WindowIdentity: Int] = [:]
         if let main = state.workbench.placement.main { ranks[main] = 0 }
         for (offset, pair) in state.workbench.placement.occupants.sorted(by: { $0.key < $1.key }).enumerated() {
-            ranks[pair.value] = offset + 1
+            if ranks[pair.value] == nil { ranks[pair.value] = offset + 1 }
         }
         return ranks
     }

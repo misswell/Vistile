@@ -562,4 +562,44 @@ final class WorkbenchRailViewTests: XCTestCase {
         XCTAssertEqual(offset, -event.scrollingDeltaY * 10)
     }
 
+    func testSelectionKeepsThumbnailsInPlaceAndMovesOnlyTheCurrentBorder() throws {
+        var placement = fixture.placement
+        let main = try XCTUnwrap(placement.main)
+        let mainSlot = try XCTUnwrap(fixture.layout.slotOrder.first { placement.occupant(at: $0) == nil })
+        XCTAssertTrue(placement.place(main, at: mainSlot))
+        sync(placement: placement)
+        let target = try XCTUnwrap(fixture.presentation.cards.first)
+        let before = placement.occupants
+        func rail(_ slot: RailSlotID) -> WorkbenchRailView {
+            slot.rail == .top ? controller.topRail : controller.sideRail
+        }
+        XCTAssertEqual(rail(mainSlot).chrome(for: mainSlot)?.border.borderWidth, 2)
+        let startCenter = try XCTUnwrap(rail(target.slot).cellCenter(for: target.slot))
+        XCTAssertTrue(placement.swapMain(with: target.slot))
+        sync(placement: placement)
+        XCTAssertEqual(placement.occupants, before)
+        XCTAssertEqual(rail(target.slot).cellCenter(for: target.slot), startCenter)
+        XCTAssertEqual(rail(target.slot).lastCards[target.slot]?.identity, target.identity)
+        XCTAssertEqual(rail(mainSlot).lastCards[mainSlot]?.identity, main)
+        XCTAssertEqual(rail(target.slot).chrome(for: target.slot)?.border.borderWidth, 2)
+        XCTAssertEqual(rail(mainSlot).chrome(for: mainSlot)?.border.borderWidth, 1)
+        XCTAssertTrue(rail(target.slot).accessibilityCardDescriptors.contains { $0.statusText.contains("当前窗口") })
+    }
+
+    func testTitleUsesAvailableWidthAndReservesStatusOnlyWhenVisible() {
+        let chrome = CardChrome()
+        let rect = CGRect(x: 0, y: 0, width: 200, height: 140)
+        chrome.layout(in: rect, style: .standard, showsTitle: true, showsStatus: false)
+        XCTAssertEqual(chrome.titleText.frame.minX, 8)
+        XCTAssertEqual(chrome.titleText.frame.maxX, 192)
+        let fullWidth = chrome.titleText.frame.width
+        chrome.applyPinned(true)
+        XCTAssertLessThanOrEqual(chrome.titleText.frame.maxX, chrome.pinBadge.frame.minX)
+        chrome.applyPinned(false)
+        XCTAssertEqual(chrome.titleText.frame.width, fullWidth)
+        chrome.layout(in: rect, style: .standard, showsTitle: true, showsStatus: true)
+        XCTAssertLessThan(chrome.titleText.frame.width, fullWidth)
+        XCTAssertLessThanOrEqual(chrome.titleText.frame.maxX, chrome.statusText.frame.minX)
+    }
+
 }
