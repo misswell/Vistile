@@ -110,7 +110,7 @@ struct HotKeyBinding: Codable, Equatable {
 /// 设置项集中在此，UI 只显示有意义的选项，不暴露 buffer 参数。
 final class SettingsModel: ObservableObject {
     fileprivate enum Key: String {
-        case launchAtLogin, hotKeyCode, hotKeyModifiers, density, showsTitles, sortMode
+        case launchAtLogin, hotKeyCode, hotKeyModifiers, opensCurrentWindowWorkbench, density, showsTitles, sortMode
         case foregroundWidth, foregroundHeight, backgroundClickSwitches, preserveUserGeometry
         case tier, priorityKeys, excludedBundles, orderingStrategy, didCompleteGuidedSetup
         case slotOrder, compactMode, systemLogging
@@ -129,6 +129,7 @@ final class SettingsModel: ObservableObject {
             defaults.set(Int(truncatingIfNeeded: hotKey.carbonModifiers), for: .hotKeyModifiers)
         }
     }
+    @Published var opensCurrentWindowWorkbench: Bool { didSet { defaults.set(opensCurrentWindowWorkbench, for: .opensCurrentWindowWorkbench) } }
     @Published var density: LayoutDensity { didSet { defaults.set(density.rawValue, for: .density) } }
     @Published var showsTitles: Bool { didSet { defaults.set(showsTitles, for: .showsTitles) } }
     @Published var sortMode: OverviewSortMode { didSet { defaults.set(sortMode.rawValue, for: .sortMode) } }
@@ -191,6 +192,7 @@ final class SettingsModel: ObservableObject {
         self.defaults = defaults
         defaults.register(defaults: [
             Key.launchAtLogin.rawValue: false,
+            Key.opensCurrentWindowWorkbench.rawValue: false,
             Key.hotKeyCode.rawValue: Int(truncatingIfNeeded: HotKeyBinding.default.keyCode),
             Key.hotKeyModifiers.rawValue: Int(truncatingIfNeeded: HotKeyBinding.default.carbonModifiers),
             Key.density.rawValue: LayoutDensity.standard.rawValue,
@@ -209,6 +211,7 @@ final class SettingsModel: ObservableObject {
         ])
 
         launchAtLogin = defaults.bool(for: .launchAtLogin)
+        opensCurrentWindowWorkbench = defaults.bool(for: .opensCurrentWindowWorkbench)
         hotKey = HotKeyBinding(keyCode: UInt32(max(0, defaults.integer(for: .hotKeyCode))),
                                carbonModifiers: UInt32(max(0, defaults.integer(for: .hotKeyModifiers))))
         density = LayoutDensity(rawValue: defaults.string(for: .density) ?? "") ?? .standard

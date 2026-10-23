@@ -264,6 +264,12 @@ struct SettingsRootView: View {
                 Spacer()
                 Text(settings.hotKey.displayString).monospaced()
             }
+            Picker("快捷键打开方式", selection: binding({ $0.opensCurrentWindowWorkbench }, { $0.opensCurrentWindowWorkbench = $1 })) {
+                Text("窗口总览").tag(false)
+                Text("当前窗口工作台").tag(true)
+            }
+            Text("当前窗口工作台会直接使用正在操作的窗口作为主窗口，其余窗口保留在预览栏。")
+                .font(.callout).foregroundStyle(.secondary)
             HStack {
                 Button("录制新组合键", action: onRecordHotKey)
                 Button("恢复默认") {
@@ -296,7 +302,7 @@ struct SettingsRootView: View {
     }
 
     @ViewBuilder private var workbench: some View {
-        Section("工作台（L 型）") {
+        Section("工作台") {
             Picker("侧栏方向", selection: Binding(get: { settings.workbenchSide },
                                               set: { onWorkbenchSide($0) })) {
                 Text("左栏").tag(RailSide.left)

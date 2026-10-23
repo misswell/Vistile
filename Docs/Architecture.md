@@ -89,7 +89,7 @@ Effect：`discover`、`startCapture`、`stopCapture`、`stopAllCapture`、`showO
 
 ## 7. 模式过渡与几何事务
 
-两种模式：`.overview`（每屏全屏总览：全部窗口的固定格子实时缩略图，`activeMain == nil`）与 `.workbench`（主窗口＋L 型预览栏）。每次启动都从总览开始，只有点击卡片才进入工作台；进入与返回都由 `WorkbenchReducer` 的单一状态机驱动（阶段 `.overview → .expanding → .focused → .collapsing`），过渡令牌化、可打断——新令牌作废旧过渡，锁屏/退屏/退出由系统级恢复接管（方案 §4、§10.4）。
+两种模式：`.overview`（每屏全屏总览：全部窗口的固定格子实时缩略图，`activeMain == nil`）与 `.workbench`（主窗口＋L 型预览栏）。默认从总览开始、点击卡片进入工作台；也可显式选择“以当前窗口开启工作台”或配置快捷键直达；进入与返回都由 `WorkbenchReducer` 的单一状态机驱动（阶段 `.overview → .expanding → .focused → .collapsing`），过渡令牌化、可打断——新令牌作废旧过渡，锁屏/退屏/退出由系统级恢复接管（方案 §4、§10.4）。
 
 **进入（`enteringWorkbench`）**：先冻结总览快照、写事务日志（被点窗口的原 frame），再把**被点窗口**带进主区（`FocusGeometry.dockedRect`，比例来自设置；自身不可调整尺寸的窗口按其当前尺寸对中）；其余窗口的真实几何**一个都不动**，作为背景留在原地。L 型栏由两个 `WorkbenchWindowController` 面板绘制（顶栏＋侧栏），栏内预览卡片从各自总览格子动画到确定的 slot rect（`railHandoffs`）——这是视图层的空间变化，不是真实窗口的移动。成功后撤下全屏总览面板；失败把已写入的几何补偿回原 frame、状态机退回总览，并把补偿结果同步回报给状态机（`geometryRestoreSettled`），绝不留下半套 L 型或空白主区。
 
@@ -180,3 +180,8 @@ or the release page when no package exists. Do not upload releases to a personal
   网络取数、当前版本与时钟都是注入接缝，宿主测试不碰真实 GitHub。
 - UI 只有菜单项与一个弹窗：从 GitHub 下载（无资产时打开 GitHub 发布页）/ 稍后 / 跳过此版本；**不做静默自动安装**。
   安装仍是用户动作（覆盖 `/Applications/Vistile.app`），发布包继续走 Developer ID 签名 + 公证。
+
+### Current-window Workbench entry / 当前窗口工作台入口
+
+中文（0.1.30）：默认打开方式仍为总览。显式当前窗口入口先读取具体 AX 焦点窗口，刷新目录并复核焦点后才开会话；准备期间不展示总览、不接管其键盘焦点。`currentWindowWorkbenchRequested` 仍通过同一 reducer 和写前 journal 闸门，动画使用真实窗口起点。取消、前台变化或过期的异步结果不得触发几何写入；写前拒绝后可回到可操作的总览。
+English (0.1.30): Overview remains the default entry. The explicit current-window entry resolves the concrete AX-focused window, refreshes the catalog, and rechecks focus before opening a session. Preparation neither presents nor focuses Overview. `currentWindowWorkbenchRequested` shares the reducer and journal-before-write gate, with animation starting at the native window frame. Cancellation, foreground changes, or stale asynchronous results cannot authorize geometry writes; rejected preparation can return to a usable Overview.

@@ -7,6 +7,20 @@ import CoreGraphics
 /// W12（设置持久化迁移）随 M2 的 SettingsModel 落地，见任务清单。
 final class WorkbenchTests: XCTestCase {
 
+    func testCurrentWindowEntryUsesNativeFrameAndStillPreparesJournal() throws {
+        var (state, list) = openState(count: 4)
+        let target = list[2]
+        let pending = Fixtures.dispatch(&state, .currentWindowWorkbenchRequested(target.identity))
+        XCTAssertNil(enterPlan(pending), "No geometry execution before journal confirmation")
+        XCTAssertNotNil(state.workbench.armed)
+        let released = confirmJournal(&state, pending)
+        let plan = try XCTUnwrap(enterPlan(released))
+        XCTAssertEqual(plan.identity, target.identity)
+        XCTAssertEqual(plan.animationFrom, target.frame, "Direct entry starts at the native window, not a grid card")
+        XCTAssertTrue(plan.railHandoffs.isEmpty, "There is no visible overview to animate other cards from")
+        XCTAssertEqual(plan.presentation.cards.count, 4)
+    }
+
     // MARK: - 骨架
 
     private func openState(count: Int = 4,

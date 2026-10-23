@@ -18,6 +18,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     private let statusLine = NSMenuItem(title: "准备中", action: nil, keyEquivalent: "")
     let openItem = NSMenuItem()
+    let currentWindowItem = NSMenuItem()
+    private var entryProcessID: pid_t?
     let backItem = NSMenuItem()
     let hideItem = NSMenuItem()
     private let permissionsItem = NSMenuItem(title: "权限与诊断…", action: nil, keyEquivalent: "")
@@ -48,7 +50,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         // 只允许缩小，不允许放大：菜单栏变矮时保持与系统图标同样的视觉大小，而不是撑满。
         item?.button?.imageScaling = .scaleProportionallyDown
         item?.button?.image = Self.menuBarIcon()
-        item?.button?.toolTip = "Vistile 窗口总览"
+        item?.button?.toolTip = "Vistile 工作台与窗口总览"
         statusItem = item
 
         let menu = statusMenu
@@ -59,11 +61,16 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.addItem(statusLine)
         menu.addItem(.separator())
 
-        // 三个入口分开写：打开永远先全屏总览，回来才是回到全部窗口，隐藏是明确动作（方案 §11、§16）。
+        // Explicit overview and current-window Workbench entries stay independent of shortcut preferences.
         openItem.title = "打开窗口总览"
         openItem.target = self
         openItem.action = #selector(openOverview)
         menu.addItem(openItem)
+
+        currentWindowItem.title = "以当前窗口开启工作台"
+        currentWindowItem.target = self
+        currentWindowItem.action = #selector(openCurrentWindowWorkbench)
+        menu.addItem(currentWindowItem)
 
         backItem.title = "回到全部窗口"
         backItem.target = self
@@ -116,7 +123,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let visible = coordinator.state.phase.isVisible
         let inWorkbench = coordinator.state.mode == .workbench
         // 已开着时「打开」没有意义，反之亦然；工作台外「回到全部窗口」也是空动作。
+        entryProcessID = coordinator.frontmostProcessID()
         openItem.isEnabled = !visible
+        currentWindowItem.isEnabled = coordinator.state.phase == .hidden && !coordinator.isOpeningCurrentWindowWorkbench
         backItem.isEnabled = inWorkbench
         hideItem.isEnabled = visible
         permissionsItem.title = permissions.status.isComplete
@@ -215,6 +224,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     /// 只在隐藏态可用：每次打开都先落在全屏总览，工作台只能由点击卡片进入（方案 §4.1、§16）。
     @objc func openOverview() { coordinator.toggleOverview() }
+    @objc func openCurrentWindowWorkbench() { coordinator.openCurrentWindowWorkbench(processID: entryProcessID) }
     @objc func returnToOverview() { coordinator.returnToAllWindows() }
     @objc func hideOverview() { coordinator.hideNow() }
     @objc private func organize() { coordinator.organizeNow() }

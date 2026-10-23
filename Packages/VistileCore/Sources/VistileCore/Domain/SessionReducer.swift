@@ -86,6 +86,9 @@ public enum SessionReducer {
         switch event {
         case .globalShortcut:
             return handleShortcut(&state)
+        case .currentWindowWorkbenchRequested:
+            // WorkbenchReducer accepts this only after discovery has prepared the session.
+            return []
 
         case .returnShortcut:
             switch state.phase {

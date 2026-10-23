@@ -894,6 +894,78 @@ final class WorkbenchEntryTests: XCTestCase {
         XCTAssertFalse(late.isPersisted, "条目已清理时必须拒绝迟到写入：\(late)")
     }
 
+    func testShortcutCanOpenFocusedWindowWorkbenchWithoutShowingOverview() throws {
+        let coordinator = makeCoordinator()
+        let target = HostFixtures.identity(2)
+        let element = try XCTUnwrap(catalogSource.element(for: target))
+        writer.setExternalFocus(element, pid: target.processID)
+        coordinator.frontmostProcessID = { target.processID }
+        settings.opensCurrentWindowWorkbench = true
+        var overviewActivations = 0
+        coordinator.activateApplication = { overviewActivations += 1 }
+        coordinator.hotKey.onFire?()
+        waitUntil(timeout: 5) { coordinator.state.mode == .workbench }
+        XCTAssertEqual(coordinator.state.workbench.placement.main, target)
+        XCTAssertTrue(coordinator.controllers.values.allSatisfy { !$0.isVisible })
+        XCTAssertEqual(overviewActivations, 0, "Direct entry must not flash or activate the overview")
+        XCTAssertEqual(coordinator.workbenchPresentation?.cards.count, 4)
+    }
+
+    func testMenuOffersExplicitCurrentWindowWorkbenchEntry() throws {
+        let coordinator = makeCoordinator()
+        let target = HostFixtures.identity(1)
+        writer.setExternalFocus(try XCTUnwrap(catalogSource.element(for: target)), pid: target.processID)
+        coordinator.frontmostProcessID = { target.processID }
+        let menu = MenuBarController(coordinator: coordinator, settings: settings,
+                                     permissions: PermissionManager(), installsStatusItem: false,
+                                     performsAutomaticUpdateCheck: false)
+        menu.menuNeedsUpdate(menu.statusMenu)
+        XCTAssertEqual(menu.currentWindowItem.title, "以当前窗口开启工作台")
+        XCTAssertTrue(menu.currentWindowItem.isEnabled)
+        XCTAssertTrue(menu.openItem.isEnabled)
+        NSApp.sendAction(try XCTUnwrap(menu.currentWindowItem.action), to: menu.currentWindowItem.target, from: menu.currentWindowItem)
+        waitUntil(timeout: 5) { coordinator.state.mode == .workbench }
+        XCTAssertEqual(coordinator.state.workbench.placement.main, target)
+        menu.menuNeedsUpdate(menu.statusMenu)
+        XCTAssertFalse(menu.currentWindowItem.isEnabled)
+    }
+
+    func testUnresolvableCurrentWindowDoesNotMoveAnotherWindow() {
+        let coordinator = makeCoordinator()
+        coordinator.frontmostProcessID = { 987_654 }
+        coordinator.openCurrentWindowWorkbench()
+        waitUntil(timeout: 2) { !coordinator.isOpeningCurrentWindowWorkbench }
+        XCTAssertEqual(coordinator.state.phase, .hidden)
+        XCTAssertTrue(writer.writtenFrames.isEmpty)
+        XCTAssertFalse(statuses.isEmpty)
+    }
+
+    func testSecondShortcutCancelsPendingDirectEntry() async throws {
+        let coordinator = makeCoordinator()
+        let target = HostFixtures.identity(1)
+        writer.setExternalFocus(try XCTUnwrap(catalogSource.element(for: target)), pid: target.processID)
+        coordinator.frontmostProcessID = { target.processID }
+        settings.opensCurrentWindowWorkbench = true
+        catalogSource.gatesNextCatalogLoad = true
+        coordinator.performGlobalShortcut()
+        try await awaitUntil(timeout: 2) { self.catalogSource.isBlockedInCatalogLoad }
+        XCTAssertTrue(catalogSource.isBlockedInCatalogLoad)
+        coordinator.performGlobalShortcut()
+        catalogSource.openCatalogLoadGate()
+        await catalog.refreshAndWait(reason: .harnessProbe)
+        XCTAssertEqual(coordinator.state.phase, .hidden)
+        XCTAssertTrue(writer.writtenFrames.isEmpty)
+        XCTAssertFalse(coordinator.isOpeningCurrentWindowWorkbench)
+    }
+
+    func testShortcutEntryPreferencePersistsAndDefaultsToOverview() {
+        let defaults = transientDefaults()
+        let first = SettingsModel(defaults: defaults)
+        XCTAssertFalse(first.opensCurrentWindowWorkbench)
+        first.opensCurrentWindowWorkbench = true
+        XCTAssertTrue(SettingsModel(defaults: defaults).opensCurrentWindowWorkbench)
+    }
+
     // MARK: - 组装辅助
 
     private func makeScratchDirectory() throws -> URL {

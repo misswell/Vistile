@@ -66,6 +66,11 @@ final class AppCoordinator {
     private var observersDeferredWhilePresenting = false
     /// 每个窗口第一次出现在会话里的时刻：用来判断"焦点丢失是不是因为开了新窗口"。
     private var recordFirstSeenAt: [WindowIdentity: CFTimeInterval] = [:]
+    private var directEntryTask: Task<Void, Never>?
+    private var directEntryRevision: UInt64 = 0
+    private var directWorkbenchTarget: WindowIdentity?
+    private var directEntrySelectionQueued = false
+    var isOpeningCurrentWindowWorkbench: Bool { directEntryTask != nil || directWorkbenchTarget != nil }
     private var focusFollowTask: Task<Void, Never>?
     private var focusFollowRevision: UInt64 = 0
     private let focusReader: GeometryWriting
@@ -322,7 +327,7 @@ final class AppCoordinator {
         }
 
         metrics.onSample = { [weak self] sample in self?.recorder.recordPerformance(sample) }
-        hotKey.onFire = { [weak self] in self?.toggleOverview() }
+        hotKey.onFire = { [weak self] in self?.performGlobalShortcut() }
 
         registerSystemObservers()
         lastOpenConditions = openConditions()
@@ -362,8 +367,75 @@ final class AppCoordinator {
 
     /// 快捷键与菜单共用：hidden 打开、focused 回总览、overview 退出（方案 §11）。
     func toggleOverview() {
+        cancelDirectEntry()
         if state.phase == .hidden { prepareSlotMemory() }
         dispatch(.globalShortcut)
+    }
+
+    func performGlobalShortcut() {
+        if isOpeningCurrentWindowWorkbench {
+            cancelDirectEntry()
+            if state.phase.isVisible { dispatch(.globalShortcut) }
+        } else if state.phase == .hidden && settings.opensCurrentWindowWorkbench {
+            openCurrentWindowWorkbench()
+        } else {
+            toggleOverview()
+        }
+    }
+
+    private func cancelDirectEntry() {
+        directEntryRevision &+= 1
+        directEntryTask?.cancel()
+        directEntryTask = nil
+        directWorkbenchTarget = nil
+        directEntrySelectionQueued = false
+    }
+
+    /// 中文：在打开任何面板前读取具体 AX 焦点窗口，后台核对目录后直接进入工作台。
+    /// English: Resolve the concrete AX-focused window before showing panels, then enter Workbench directly.
+    func openCurrentWindowWorkbench(processID: pid_t? = nil) {
+        guard state.phase == .hidden, !isTerminationBegun, !isOpeningCurrentWindowWorkbench else { return }
+        permissionsMayHaveChanged()
+        let status = permissions.status
+        guard status.isComplete else {
+            present(.permissionMissing(status.screenRecording ? .accessibility : .screenRecording))
+            return
+        }
+        guard let pid = processID ?? frontmostProcessID(), pid != ProcessInfo.processInfo.processIdentifier else {
+            present(.workbenchTransitionFailed("请先选中要使用的窗口，再开启工作台。"))
+            return
+        }
+        directEntryRevision &+= 1
+        let revision = directEntryRevision
+        let epoch = state.sessionEpoch
+        directEntryTask = Task { [weak self] in
+            guard let self else { return }
+            defer { if self.directEntryRevision == revision { self.directEntryTask = nil } }
+            guard let focused = await self.focusReader.focusedWindow(pid: pid), !focused.snapshot.isSheetLike else {
+                if !Task.isCancelled, self.directEntryRevision == revision,
+                   self.state.sessionEpoch == epoch, !self.isTerminationBegun { self.present(.cannotLocateWindow) }
+                return
+            }
+            guard !Task.isCancelled, self.directEntryRevision == revision,
+                  self.state.phase == .hidden, self.state.sessionEpoch == epoch else { return }
+            await self.catalog.refreshAndWait(reason: .shortcut)
+            let current = await self.focusReader.focusedWindow(pid: pid)
+            guard !Task.isCancelled, self.directEntryRevision == revision,
+                  self.state.phase == .hidden, self.state.sessionEpoch == epoch,
+                  !self.isTerminationBegun else { return }
+            let front = self.frontmostProcessID()
+            let isMenuActivation = processID != nil && front == ProcessInfo.processInfo.processIdentifier
+            guard (front == pid || isMenuActivation), let current,
+                  CFEqual(current.element, focused.element),
+                  let record = self.catalog.record(forAXElement: focused.element, processID: pid) else {
+                self.present(.workbenchTransitionFailed("当前窗口已变化或暂时无法识别，请重新选择窗口后重试。"))
+                return
+            }
+            self.directWorkbenchTarget = record.identity
+            self.directEntrySelectionQueued = false
+            self.prepareSlotMemory()
+            self.dispatch(.globalShortcut)
+        }
     }
 
     func returnToOverview() { dispatch(.returnShortcut) }
@@ -669,14 +741,19 @@ final class AppCoordinator {
         let beforeMode = state.mode
         let beforeTransition = state.workbench.modeTransition
         switch event {
-        case .overviewCardSelected, .railCardSelected, .returnToOverviewRequested:
+        case .overviewCardSelected, .currentWindowWorkbenchRequested, .railCardSelected, .returnToOverviewRequested:
             focusFollowTask?.cancel()
             focusFollowTask = nil
             focusFollowRevision &+= 1
         default:
             break
         }
-        if case let .overviewCardSelected(identity, _, _) = event {
+        let entryIdentity: WindowIdentity?
+        switch event {
+        case let .overviewCardSelected(identity, _, _), let .currentWindowWorkbenchRequested(identity): entryIdentity = identity
+        default: entryIdentity = nil
+        }
+        if let identity = entryIdentity {
             let preferred = state.workbench.preferredDisplayID.flatMap { id in state.displays.first { $0.id == id } }
             if let displayID = preferred?.id ?? state.records[identity]?.displayID {
                 let sizes = settings.workbenchRailSizes(for: Self.displaySettingsKey(displayID))
@@ -684,7 +761,16 @@ final class AppCoordinator {
                 state.workbench.sideWidthPreference = sizes.sideWidth
             }
         }
-        let effects = SessionReducer.reduce(&state, event)
+        var effects = SessionReducer.reduce(&state, event)
+        if directEntrySelectionQueued, directWorkbenchTarget != nil,
+           case .overview = state.phase, state.workbench.armed == nil,
+           state.workbench.modeTransition == .idle {
+            // A rejected target or journal preparation falls back to a usable overview.
+            cancelDirectEntry()
+            effects.append(.showOverview(displayID: nil))
+            effects.append(.setKeyboardFocus(.overview))
+        }
+        if state.phase == .hidden && beforePhase != .hidden { cancelDirectEntry() }
         if !canFollowWorkbenchFocus {
             focusFollowTask?.cancel()
             focusFollowTask = nil
@@ -756,6 +842,7 @@ final class AppCoordinator {
     private static func eventLabel(_ event: SessionEvent) -> String {
         switch event {
         case .globalShortcut: return "globalShortcut"
+        case .currentWindowWorkbenchRequested: return "currentWindowWorkbenchRequested"
         case .returnShortcut: return "returnShortcut"
         case .escapePressed: return "escapePressed"
         case let .cardClicked(identity): return "cardClicked(\(identity.journalKey))"
@@ -856,6 +943,14 @@ final class AppCoordinator {
             if hidden { renderer.releaseAll() }
 
         case let .showOverview(displayID):
+            if let target = directWorkbenchTarget, !directEntrySelectionQueued {
+                directEntrySelectionQueued = true
+                if let display = state.workbench.preferredDisplayID ?? state.records[target]?.displayID {
+                    modes.prewarm(displayID: display)
+                }
+                dispatch(.currentWindowWorkbenchRequested(target))
+                break
+            }
             if var reveal = pendingReveal {
                 reveal.showOverview = true
                 reveal.preferredDisplay = displayID
@@ -971,6 +1066,7 @@ final class AppCoordinator {
         // MARK: 工作台（方案 §4、§8）
 
         case let .enterWorkbench(plan):
+            cancelDirectEntry()
             registerContext(plan.operationContext)
             // 投影立刻生效：总览面板收起、两栏按冻结几何显示，然后才写主窗口（方案 §4.2）。
             workbenchPresentation = plan.presentation
@@ -1060,6 +1156,7 @@ final class AppCoordinator {
                                      animationMS: animationMS)
 
         case let .setKeyboardFocus(focus):
+            if focus == .overview, directWorkbenchTarget != nil { break }
             // 返回总览的键盘移交推迟到揭示那一刻：目标面板还没上屏就不该先接管键盘（方案 §10.1）。
             if case .overview = focus, var reveal = pendingReveal {
                 reveal.keyboard = true
@@ -1245,6 +1342,7 @@ final class AppCoordinator {
     /// 返回总览的飞行还在屏幕上时也不例外：等揭示再显示，避免"一闪关掉再弹新界面"（方案 §10.1）。
     private func syncOverviewPanels() {
         let shouldShow = state.mode == .overview
+            && directWorkbenchTarget == nil
             && !state.workbench.modeTransition.isTransitioning
             && pendingReveal == nil
         for controller in controllers.values {
@@ -2308,6 +2406,7 @@ final class AppCoordinator {
     }
 
     func beginTermination(settled: @escaping @MainActor () -> Void) {
+        cancelDirectEntry()
         guard !isTerminationBegun else { return }
         isTerminationBegun = true
         // 1. 先停掉一切会产生新写入的来源：热键、AX 观察、目录定时任务、结构刷新。

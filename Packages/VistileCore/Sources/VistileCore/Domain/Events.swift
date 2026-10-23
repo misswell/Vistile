@@ -57,6 +57,9 @@ public struct DiscoveryRequest: Hashable, Sendable {
 /// 全部输入统一转成事件，交给单一 reducer（方案 §7）。
 public enum SessionEvent: Hashable, Sendable {
     case globalShortcut
+    /// 中文：以已可靠识别的当前窗口开启工作台，不要求总览卡片点击。
+    /// English: Enter Workbench using a verified current window without an overview click.
+    case currentWindowWorkbenchRequested(WindowIdentity)
     case returnShortcut
     case escapePressed
     case cardClicked(WindowIdentity)

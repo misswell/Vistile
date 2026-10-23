@@ -33,6 +33,9 @@ public enum WorkbenchReducer {
         case let .overviewCardSelected(identity, _, _):
             clearPendingFocus(&state)
             return beginEnterWorkbench(&state, identity: identity)
+        case let .currentWindowWorkbenchRequested(identity):
+            clearPendingFocus(&state)
+            return beginEnterWorkbench(&state, identity: identity, fromCurrentWindow: true)
         case let .railCardSelected(slot, identity):
             clearPendingFocus(&state)
             return beginRailSelection(&state, slot: slot, identity: identity)
@@ -520,17 +523,17 @@ public enum WorkbenchReducer {
 
     // MARK: - 总览 → 工作台（方案 §4.2）
 
-    private static func beginEnterWorkbench(_ state: inout SessionState, identity: WindowIdentity) -> [SessionEffect] {
-        // 只在总览落地态、且没有进行中的工作台动作时开始；未点击前绝不改真实窗口（方案 §4.1）。
+    private static func beginEnterWorkbench(_ state: inout SessionState, identity: WindowIdentity, fromCurrentWindow: Bool = false) -> [SessionEffect] {
+        // Explicit card selection or current-window entry must pass the same settled-session and journal gates.
         guard state.mode == .overview, case .overview = state.phase,
               state.workbench.modeTransition == .idle else { return [] }
         // 上一笔操作还在落盘：不覆盖它备好的意图，第二次点击必须等前一次收敛（方案 §7.1、§10.4）。
         guard state.workbench.armed == nil else { return [] }
         if let blocked = recoveryBlock(&state) { return blocked }
-        return startEnterWorkbench(&state, identity: identity)
+        return startEnterWorkbench(&state, identity: identity, fromCurrentWindow: fromCurrentWindow)
     }
 
-    private static func startEnterWorkbench(_ state: inout SessionState, identity: WindowIdentity) -> [SessionEffect] {
+    private static func startEnterWorkbench(_ state: inout SessionState, identity: WindowIdentity, fromCurrentWindow: Bool = false) -> [SessionEffect] {
         if state.workbench.activeContext != nil { return [] }
         guard let record = state.records[identity] else { return [.presentHint(.cannotLocateWindow)] }
         guard record.allowsAutoFocus else {
@@ -597,9 +600,9 @@ public enum WorkbenchReducer {
                                            displayID: display.id,
                                            snapshot: snapshot,
                                            targetFrame: targetFrame,
-                                           animationFrom: state.cellRect(for: identity),
+                                           animationFrom: fromCurrentWindow ? (actualFrame(state, identity) ?? record.frame) : state.cellRect(for: identity),
                                            animationTo: targetFrame,
-                                           railHandoffs: railHandoffs(state, snapshot: snapshot,
+                                           railHandoffs: fromCurrentWindow ? [] : railHandoffs(state, snapshot: snapshot,
                                                                       placement: prospective,
                                                                       excluding: identity, entering: true),
                                            animationMS: layout.style.entryAnimationMS(reduceMotion: state.policy.reduceMotion),
