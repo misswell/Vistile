@@ -655,8 +655,10 @@ final class WorkbenchSwitchTests: XCTestCase {
         writer.setSiblingHoldingFocus(true, for: bElement)
 
         coordinator.perform(plan)
-        await pendingUntil { !self.failureReasons().isEmpty }
-        await pendingUntil { !self.coordinator.isBusy }
+        // 满载/慢 runner 上补偿链的异步推进会超过默认 2s 预算（CI 曾间歇红、本机 8 轮零失败、重跑即过）：
+        // 这里等的是事实条件而不是固定时长，预算放宽不改变判定。
+        await pendingUntil(timeout: 6) { !self.failureReasons().isEmpty }
+        await pendingUntil(timeout: 6) { !self.coordinator.isBusy }
 
         XCTAssertTrue(committedTokens().isEmpty, "前景没到位就不许提交：\(committedTokens())")
         XCTAssertEqual(stepEvents().map(\.step), [.prepare, .moveToMain, .activateMain],

@@ -1,5 +1,10 @@
 # Vistile
 
+## 0.1.39 (53) — 2026-10-24
+
+- 前景化失败用例的等待预算放宽到 6 秒，消除 CI 慢 runner 的间歇超时；等待条件不变。
+  The activation-failure case's wait budget widens to 6 s, removing intermittent timeouts on slow CI runners; the awaited facts are unchanged.
+
 ## 0.1.38 (52) — 2026-10-24
 
 - 手动选择/返回/收起时作废在途的自动焦点跟随查询：晚到的旧结果不再把用户刚选下的主窗口切走；用例覆盖"选择落定后旧查询晚到"的时序。
