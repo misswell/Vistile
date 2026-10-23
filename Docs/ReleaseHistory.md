@@ -1,5 +1,10 @@
 # Vistile
 
+## 0.1.40 (54) — 2026-10-24
+
+- CI 宿主测试失败时把日志文件里的断言明细带进 console，间歇失败可定位。
+  Failing host-test assertions from the runner-side log are now surfaced in the console, making intermittent failures diagnosable.
+
 ## 0.1.39 (53) — 2026-10-24
 
 - 前景化失败用例的等待预算放宽到 6 秒，消除 CI 慢 runner 的间歇超时；等待条件不变。
