@@ -1598,3 +1598,21 @@ hover 触发一次主区抓帧、阈值/计数不退化）。
   日志应出现 `总览里出现新窗口 <identity>：纳入布局并保持总览，不退出会话`，
   且不应再出现由 `focusLost(别的应用(...))` 触发的 `overview→hidden`。
   反向检查：Cmd+Tab 切到总览里已有的应用，仍应立即退出会话。
+
+### 12.35 0.1.29 发布与安装包（2026-10-23 15:52）
+
+- 发布页：<https://github.com/misswell/Vistile/releases/tag/v0.1.29>；标签 `v0.1.29` → `f252134`
+  （代码 `8d20f57`：可拖栏与具体窗口跟随；`f252134`：版本 0.1.29/43）。
+- CI run `39919394993` success；Release run `39920074505` success。
+- 资产：`Vistile_v0.1.29_macos_arm64.dmg`，**2,537,700 字节**，
+  `sha256 90c8cf8a47488d2a64307115e42775840bb7879fed02faead4f5a762d7df24a2`
+  （与 GitHub asset digest 一致；本地重新下载后同值）。
+- 包内二进制：`sha256 340dd7e5b6f5c87b3a142bd668fb482e849f6ec782c4c6d1da0462d5cb9cea47`，
+  `0.1.29 / 43`，`arm64`；codesign / stapler / spctl（Notarized Developer ID，Team `U8U443D7ZL`）全通过。
+- 公证是一对：`.notarization.zip`（`.app`）与 `.dmg` 两次 submission 均为 `Accepted`；
+  `spctl` 读回 `source=Notarized Developer ID`。
+- 未覆盖安装：`/Applications/Vistile.app` 仍是 0.1.28（pid 28541），本次只发布线上包；
+  更新走应用内检查或手动下载。
+- 自动化验证：核心 XCTest 124 + Swift Testing 155，0 失败（删除 `Packages/VistileCore/.build` 后重跑）；
+  宿主全量 266 项，265 通过、1 项环境跳过、0 失败。真实鼠标拖动、跨应用 Esc、Dock/跨 Space
+  的物理输入仍未在自动化环境端到端验收。
