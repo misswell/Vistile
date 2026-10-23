@@ -593,6 +593,10 @@ final class FakeGeometryWriter: GeometryWriting, @unchecked Sendable {
         return focusCalls[Self.key(of: element)] ?? 0
     }
 
+    func setExternalFocus(_ element: AXUIElement, pid: pid_t) {
+        lock.lock(); focusedByPID[Int(pid)] = element; lock.unlock()
+    }
+
     private var focusedByPID: [Int: AXUIElement] = [:]
     /// 前景化判定读过几次 focused window：测试用它等"读回这一步真的发生了"。
     private var focusedReads = 0

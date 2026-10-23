@@ -66,7 +66,10 @@ final class AppCoordinator {
     private var observersDeferredWhilePresenting = false
     /// 每个窗口第一次出现在会话里的时刻：用来判断"焦点丢失是不是因为开了新窗口"。
     private var recordFirstSeenAt: [WindowIdentity: CFTimeInterval] = [:]
-    private var pendingWorkbenchFocusLoss: (bundleID: String, event: SessionEvent)?
+    private var focusFollowTask: Task<Void, Never>?
+    private var focusFollowRevision: UInt64 = 0
+    private let focusReader: GeometryWriting
+    var frontmostProcessID: () -> pid_t? = { NSWorkspace.shared.frontmostApplication?.processIdentifier }
     /// 打开总览那一刻已经在布局里的身份：之后只有基线之外、最近才出现的窗口才算"用户开了新 App"。
     /// 没有基线就会误伤普通切换——会话开场时所有记录都是"刚出现"，首次出现时刻全等于打开时刻。
     private var overviewBaselineIdentities: Set<WindowIdentity> = []
@@ -104,6 +107,7 @@ final class AppCoordinator {
     private var observers: [NSObjectProtocol] = []
     /// 分隔线拖动期间的外部写入节流（方案 §11.2）：15–20Hz 且一次在途；每个鼠标事件的预览不受它限制。
     private var railSizeWritePolicy = RailSizeWritePolicy()
+    private var railSizeBeforeDrag: (topHeight: CGFloat?, sideWidth: CGFloat?)?
     /// 过渡动效等级决策（方案 §20.4）：基准来自系统减少动态效果与采集档位，连续卡顿观测再降级。
     private var motionController = MotionLevelController()
 
@@ -171,6 +175,7 @@ final class AppCoordinator {
         let catalog = catalog ?? WindowCatalog(permissions: permissions, resolver: resolver)
         let geometryWriter = writer ?? resolver
 
+        self.focusReader = geometryWriter
         self.settings = settings
         self.permissions = permissions
         self.metrics = metrics
@@ -214,6 +219,7 @@ final class AppCoordinator {
                                                             metrics: metrics,
                                                             recorder: recorder,
                                                             scheduler: geometry)
+        self.switchCoordinator.frontmostProcessID = { [weak self] in self?.frontmostProcessID() }
     }
 
     // MARK: - 启动
@@ -288,6 +294,11 @@ final class AppCoordinator {
         modes.onSceneStats = { [weak self] kind, stats in self?.handleSceneStats(kind: kind, stats: stats) }
         modes.onSceneFacts = { [weak self] kind, facts in self?.handleSceneFacts(kind: kind, facts: facts) }
         // 交换执行器不自己判断状态：每一步都回来问唯一状态机这次交换还算不算数（方案 §8.2）。
+        switchCoordinator.shouldPreserveExternalFocus = { [weak self] token in
+            guard let self, self.state.workbench.mainSwitch.intent?.token == token else { return false }
+            return self.state.workbench.pendingExternalFocus != nil
+                || self.state.workbench.pendingRailSelection?.followsExternalFocus == true
+        }
         switchCoordinator.directive = { [weak self] token in
             guard let self else { return .aborted }
             switch self.state.workbench.mainSwitch {
@@ -370,16 +381,25 @@ final class AppCoordinator {
 
     func organizeNow() { dispatch(.organizeRequested) }
 
-    /// 分隔线拖动结束（M3 接拖动 UI）：写盘只在拖动结束，且只有状态真的收下最终值才写（方案 §11.2、§16）。
     func reportWorkbenchRailSize(topHeight: CGFloat?, sideWidth: CGFloat?) {
         dispatch(.workbenchRailSizeChanged(topHeight: topHeight, sideWidth: sideWidth))
-        // 分维结算：两条分隔线独立拖动，只写状态真的收下（且非 nil）的那一维。
-        if let topHeight, state.workbench.topHeightPreference == topHeight {
-            settings.workbenchTopHeight = topHeight
+        guard topHeight == nil || state.workbench.topHeightPreference == topHeight,
+              sideWidth == nil || state.workbench.sideWidthPreference == sideWidth else { return }
+        persistWorkbenchRailSizes()
+    }
+
+    private func persistWorkbenchRailSizes() {
+        guard state.mode == .workbench, let displayID = state.workbench.snapshot?.displayID else { return }
+        settings.saveWorkbenchRailSizes(for: Self.displaySettingsKey(displayID),
+                                       topHeight: state.workbench.topHeightPreference,
+                                       sideWidth: state.workbench.sideWidthPreference)
+    }
+
+    static func displaySettingsKey(_ displayID: UInt32) -> String {
+        guard let uuid = CGDisplayCreateUUIDFromDisplayID(displayID)?.takeRetainedValue() else {
+            return "display-\(displayID)"
         }
-        if let sideWidth, state.workbench.sideWidthPreference == sideWidth {
-            settings.workbenchSideWidth = sideWidth
-        }
+        return CFUUIDCreateString(nil, uuid) as String
     }
 
     /// 拖动中的节流写入（方案 §11.2）：15–20Hz，且同一时刻最多一次在途——不排队堆积 AX 写入。
@@ -387,7 +407,8 @@ final class AppCoordinator {
     private func settleRailSizeIfDue(rail: RailKind, value: CGFloat) {
         let now = CACurrentMediaTime()
         guard railSizeWritePolicy.allowsWrite(now: now,
-                                              hasInFlightWrite: state.workbench.mainFrameWrite != nil) else { return }
+                                              hasInFlightWrite: state.workbench.mainFrameWrite != nil
+                                                || state.workbench.armed != nil) else { return }
         railSizeWritePolicy.recordWrite(at: now)
         dispatch(.workbenchRailSizeChanged(topHeight: rail == .top ? value : nil,
                                            sideWidth: rail == .side ? value : nil))
@@ -495,38 +516,76 @@ final class AppCoordinator {
     /// 工作台/总览里切到别的应用：如果对方带来了此前不在布局里的新窗口，把它纳入卡片，
     /// 而不是整场退出。返回 true 表示这次焦点丢失已被宿主接管。
     private func interceptFocusLoss(_ event: SessionEvent) -> Bool {
-        guard case let .focusLost(origin) = event,
-              case let .otherApplication(bundleID?) = origin,
-              state.workbench.modeTransition == .idle,
-              !state.workbench.mainSwitch.isBusy else { return false }
-        if state.mode == .workbench {
-            guard pendingWorkbenchFocusLoss == nil else { return false }
-            // 窗口记录通常已经先到：直接判断，能命中就不延迟。
-            if hasRecentlyAppearedWindow() {
-                dispatch(.returnToOverviewRequested)
-                return true
-            }
-            // 新窗口的目录记录可能比前台变更晚到，先等 250ms 再判。
-            pendingWorkbenchFocusLoss = (bundleID, event)
-            Task { [weak self] in
-                try? await Task.sleep(nanoseconds: 250_000_000)
-                guard let self, let pending = self.pendingWorkbenchFocusLoss,
-                      pending.bundleID == bundleID else { return }
-                self.pendingWorkbenchFocusLoss = nil
-                if self.hasRecentlyAppearedWindow() {
-                    self.dispatch(.returnToOverviewRequested)
-                } else {
-                    // 直接入队：再走一次分流会让每次宽限结束都重新开始等待，永远退不出去。
-                    self.enqueue(pending.event)
-                }
-            }
+        guard case let .focusLost(origin) = event else { return false }
+        if state.mode == .workbench || state.workbench.modeTransition.isTransitioning {
+            if case .internalInteraction = origin { return false }
+            requestWorkbenchFocusFollow()
             return true
         }
-        guard case .overview = state.phase else { return false }
+        guard case let .otherApplication(bundleID?) = origin,
+              state.workbench.modeTransition == .idle,
+              !state.workbench.mainSwitch.isBusy,
+              case .overview = state.phase else { return false }
         // 宽限期内再来一次焦点丢失（例如用户连续切应用）：仍按第一次的决定收口，
         // 不能在这里抢先退出，否则新窗口还在路上就先把总览关了。
         guard pendingOverviewFocusLoss == nil else { return true }
         return handleOverviewDeparture(bundleID: bundleID, event: event)
+    }
+
+    private var canFollowWorkbenchFocus: Bool {
+        state.phase.isVisible && (state.mode == .workbench || state.workbench.modeTransition.isTransitioning)
+            && !state.workbench.pendingReturnToOverview
+    }
+
+    func requestWorkbenchFocusFollow() {
+        guard canFollowWorkbenchFocus else { return }
+        focusFollowTask?.cancel()
+        focusFollowRevision &+= 1
+        let revision = focusFollowRevision
+        let sessionID = state.sessionID
+        let epoch = state.sessionEpoch
+        focusFollowTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            guard let self else { return }
+            defer { if self.focusFollowRevision == revision { self.focusFollowTask = nil } }
+            var unresolvedPID: pid_t?
+            for attempt in 0..<6 {
+                guard !Task.isCancelled, self.focusFollowRevision == revision,
+                      self.state.sessionID == sessionID, self.state.sessionEpoch == epoch,
+                      self.canFollowWorkbenchFocus else { return }
+                if let pid = self.frontmostProcessID(), pid != ProcessInfo.processInfo.processIdentifier {
+                    let focused = await self.focusReader.focusedWindow(pid: pid)
+                    guard !Task.isCancelled, self.focusFollowRevision == revision,
+                          self.state.sessionID == sessionID, self.state.sessionEpoch == epoch,
+                          self.canFollowWorkbenchFocus else { return }
+                    guard self.frontmostProcessID() == pid else { continue }
+                    if focused?.snapshot.isSheetLike == true { return }
+                    if let focused,
+                       let record = self.catalog.record(forAXElement: focused.element, processID: pid),
+                       self.state.records[record.identity] != nil {
+                        if let closed = self.state.workbench.pendingReplacement,
+                           !self.state.workbench.hasAutoPromotionAttempted {
+                            self.dispatch(.workbenchReplacementResolved(closed: closed, candidate: record.identity))
+                        } else {
+                            self.dispatch(.externalWindowFocused(record.identity))
+                        }
+                        return
+                    }
+                    unresolvedPID = pid
+                }
+                if !self.state.isDiscoveryInFlight { self.dispatch(.reconcileTick) }
+                if attempt < 5 { try? await Task.sleep(nanoseconds: 120_000_000) }
+            }
+            guard !Task.isCancelled, self.focusFollowRevision == revision,
+                  self.state.sessionID == sessionID, self.state.sessionEpoch == epoch,
+                  self.canFollowWorkbenchFocus else { return }
+            if let pid = unresolvedPID, self.frontmostProcessID() == pid,
+               self.state.workbench.pendingReplacement?.processID != pid {
+                self.dispatch(.workbenchFocusUnavailable(reason: "可能的问题：当前窗口暂时无法可靠识别。处理方法：已保留原生窗口，请稍后从总览重新选择。"))
+            } else if let closed = self.state.workbench.pendingReplacement {
+                self.dispatch(.workbenchReplacementResolved(closed: closed, candidate: nil))
+            }
+        }
     }
 
     /// 总览里的外部激活：只有"打开总览后新出现的窗口"才留下总览，
@@ -586,13 +645,6 @@ final class AppCoordinator {
         applyKeyboardFocus(.overview)
     }
 
-    /// 最近 3 秒内是否有窗口第一次出现：这是"用户打开了新软件"的可靠信号，
-    /// 不要求 bundleID 对得上（新进程的 bundle 识别可能晚一拍）。
-    private func hasRecentlyAppearedWindow() -> Bool {
-        let cutoff = recentlyAppearedCutoff
-        return state.records.keys.contains { (recordFirstSeenAt[$0] ?? 0) > cutoff }
-    }
-
     private func syncIfRequired() {
         guard needsSync else { return }
         needsSync = false
@@ -616,7 +668,29 @@ final class AppCoordinator {
         let beforePhase = state.phase
         let beforeMode = state.mode
         let beforeTransition = state.workbench.modeTransition
+        switch event {
+        case .overviewCardSelected, .railCardSelected, .returnToOverviewRequested:
+            focusFollowTask?.cancel()
+            focusFollowTask = nil
+            focusFollowRevision &+= 1
+        default:
+            break
+        }
+        if case let .overviewCardSelected(identity, _, _) = event {
+            let preferred = state.workbench.preferredDisplayID.flatMap { id in state.displays.first { $0.id == id } }
+            if let displayID = preferred?.id ?? state.records[identity]?.displayID {
+                let sizes = settings.workbenchRailSizes(for: Self.displaySettingsKey(displayID))
+                state.workbench.topHeightPreference = sizes.topHeight
+                state.workbench.sideWidthPreference = sizes.sideWidth
+            }
+        }
         let effects = SessionReducer.reduce(&state, event)
+        if !canFollowWorkbenchFocus {
+            focusFollowTask?.cancel()
+            focusFollowTask = nil
+            focusFollowRevision &+= 1
+            railSizeBeforeDrag = nil
+        }
         let now = CACurrentMediaTime()
         for identity in state.records.keys where recordFirstSeenAt[identity] == nil {
             recordFirstSeenAt[identity] = now
@@ -707,6 +781,10 @@ final class AppCoordinator {
         case .captureDowngraded: return "captureDowngraded"
         case let .overviewCardSelected(identity, _, _): return "overviewCardSelected(\(identity.journalKey))"
         case let .railCardSelected(slot, identity): return "railCardSelected(\(slot.rail.displayName)#\(slot.ordinal), \(identity.journalKey))"
+        case let .externalWindowFocused(identity): return "externalWindowFocused(\(identity.journalKey))"
+        case .workbenchFocusUnavailable: return "workbenchFocusUnavailable"
+        case let .workbenchReplacementResolved(closed, candidate):
+            return "workbenchReplacementResolved(\(closed.journalKey), \(candidate?.journalKey ?? "无"))"
         case .railPinToggled: return "railPinToggled"
         case let .railCardDragged(from, to): return "railCardDragged(\(from.ordinal)→\(to.ordinal))"
         case .railScrolled: return "railScrolled"
@@ -932,12 +1010,12 @@ final class AppCoordinator {
             // 落在承载层保持/淡出阶段，避免动画中途真实窗口"跳"一下。
             let swapAnimationMS = state.workbench.snapshot?.layout.style
                 .switchAnimationMS(reduceMotion: state.policy.reduceMotion) ?? 180
-            let swapDelayNS = UInt64(max(80, swapAnimationMS)) * 1_000_000
+            let swapDelayNS = UInt64(plan.intent.followsExternalFocus ? 16 : max(80, swapAnimationMS)) * 1_000_000
             Task { [weak self] in
                 try? await Task.sleep(nanoseconds: swapDelayNS)
                 guard let self else { return }
-                guard case let .switching(intent, _) = self.state.workbench.mainSwitch,
-                      intent.token == swapToken else { return }
+                guard self.state.workbench.mainSwitch.intent?.token == swapToken,
+                      self.state.workbench.activeContext == plan.intent.operationContext else { return }
                 self.switchCoordinator.perform(plan)
             }
 
@@ -957,10 +1035,15 @@ final class AppCoordinator {
             }
 
         case let .updateWorkbenchLayout(presentation):
-            workbenchPresentation = presentation
+            if workbenchPresentation?.snapshot.revision ?? 0 <= presentation.snapshot.revision {
+                workbenchPresentation = presentation
+            }
+
+        case .resolveWorkbenchReplacement:
+            requestWorkbenchFocusFollow()
 
         case let .settleMainFrame(identity, targetFrame, context, animationMS):
-            // M2 不做动画：主区几何立即写入并读回（方案 §21，动画在 M3）。
+            // 拖动预览可能已领先本次写入，包含性必须按提交时的目标矩形核对。
             registerContext(context)
             guard let rects = settleRects() else {
                 log("workbench", "布局投影缺失，布局微调未发起")
@@ -970,9 +1053,9 @@ final class AppCoordinator {
                                      targetFrame: targetFrame,
                                      displayID: rects.displayID,
                                      token: context.transitionToken,
-                                     mainRect: rects.mainRect,
-                                     topRailRect: rects.topRailRect,
-                                     sideRailRect: rects.sideRailRect,
+                                     mainRect: targetFrame,
+                                     topRailRect: .null,
+                                     sideRailRect: .null,
                                      context: context,
                                      animationMS: animationMS)
 
@@ -1115,7 +1198,7 @@ final class AppCoordinator {
         // 过渡飞行在屏上时，捕获层的重配会与 displayLink 抢主线程，是帧间隔抖动的来源之一；
         // 飞行期间只推迟 capture.sync（≤240ms），场景结束时立刻补一次——画面先由已有纹理兜住。
         let presentingTransition = modes.isPresenting && transitionActivity.modeTransition
-        if presentingTransition {
+        if presentingTransition || railSizeBeforeDrag != nil {
             deferredCaptureSync = true
         } else {
             deferredCaptureSync = false
@@ -1131,7 +1214,7 @@ final class AppCoordinator {
         mark("层级")
         // 飞行期间 AX 观察者增删实测 43–101ms/次，会直接挤掉 displayLink 的 tick；
         // 订阅变化不需要在飞行中立即生效，场景结束的 requestSync 会补一次。
-        if modes.isPresenting {
+        if modes.isPresenting || railSizeBeforeDrag != nil {
             observersDeferredWhilePresenting = true
         } else {
             observersDeferredWhilePresenting = false
@@ -1864,7 +1947,7 @@ final class AppCoordinator {
         case let .railScrolled(rail, offset):
             dispatch(.railScrolled(rail: rail, offset: offset))
         case .railDividerDragBegan:
-            // 新的拖动开始：第一次移动就允许写入，不必等上一个拖动的节流窗口。
+            railSizeBeforeDrag = (state.workbench.topHeightPreference, state.workbench.sideWidthPreference)
             railSizeWritePolicy.reset()
         case let .railDividerDragged(rail, value):
             // 每个鼠标事件都推本机预览；外部 AX 写入由节流策略决定（方案 §11.2）。
@@ -1872,8 +1955,21 @@ final class AppCoordinator {
                                                sideWidth: rail == .side ? value : nil))
             settleRailSizeIfDue(rail: rail, value: value)
         case let .railDividerDragEnded(rail, value):
+            railSizeBeforeDrag = nil
             reportWorkbenchRailSize(topHeight: rail == .top ? value : nil,
                                     sideWidth: rail == .side ? value : nil)
+        case .railDividerDragCancelled:
+            guard let previous = railSizeBeforeDrag else { break }
+            railSizeBeforeDrag = nil
+            state.workbench.topHeightPreference = previous.topHeight
+            state.workbench.sideWidthPreference = previous.sideWidth
+            dispatch(.workbenchRailSizeChanged(topHeight: nil, sideWidth: nil))
+        case let .railDividerReset(rail):
+            railSizeBeforeDrag = nil
+            if rail == .top { state.workbench.topHeightPreference = nil }
+            else { state.workbench.sideWidthPreference = nil }
+            dispatch(.workbenchRailSizeChanged(topHeight: nil, sideWidth: nil))
+            persistWorkbenchRailSizes()
         case let .railPinToggled(identity):
             dispatch(.railPinToggled(identity: identity))
         case .organize:
@@ -1930,11 +2026,13 @@ final class AppCoordinator {
 
     private func handle(_ event: AXWindowEvent) {
         metrics.increment("ax.notification")
-        // 同应用换了前台窗口（菜单栏 / Mission Control / Dock）：受控窗口不再是前台时必须核对（方案 §14）。
-        if event.name == kAXFocusedWindowChangedNotification || event.name == kAXMainWindowChangedNotification,
-           let target = state.phase.controlledTarget, target.processID == event.processID {
-            log("focus", "AX 焦点通知 \(event.name) pid=\(event.processID) → 核对受控窗口 \(target.journalKey)")
-            verifyControlledWindowIsFrontmost(target, trigger: "AX \(event.name)")
+        if event.name == kAXFocusedWindowChangedNotification || event.name == kAXMainWindowChangedNotification
+            || event.name == kAXWindowCreatedNotification || event.name == kAXWindowDeminiaturizedNotification {
+            if canFollowWorkbenchFocus, frontmostProcessID() == event.processID {
+                requestWorkbenchFocusFollow()
+            } else if let target = state.phase.controlledTarget, target.processID == event.processID {
+                verifyControlledWindowIsFrontmost(target, trigger: "AX \(event.name)")
+            }
         }
         guard let record = catalog.record(forAXElement: event.element, processID: event.processID) else {
             // 元素对不上身份时不猜是哪个窗口，直接要一次目录。
@@ -1973,6 +2071,10 @@ final class AppCoordinator {
     /// 被当成用户离开、整段会话静默退出）。交换与模式过渡在途时不插话——
     /// 那时候前台归属由执行器自己的写入读回判定，否则我们自己的唤起会被误读成用户离开。
     private func verifyControlledWindowIsFrontmost(_ target: WindowIdentity, trigger: String) {
+        if canFollowWorkbenchFocus {
+            requestWorkbenchFocusFollow()
+            return
+        }
         guard state.workbench.modeTransition == .idle, !state.workbench.mainSwitch.isBusy else {
             log("focus", "核对受控窗口 \(target.journalKey) 跳过（过渡/交换在途）：\(trigger)")
             return
@@ -2015,6 +2117,10 @@ final class AppCoordinator {
     /// 读不到不算证据；前台是我们自己或受控进程都保持会话，确证是别的应用才退出
     /// （方案 §14；「读不到 ≠ 不可以」）。过渡/交换在途时交给执行器自己的读回判定。
     private func confirmExternalDeparture(bundleID: String?, processIdentifier: pid_t?) {
+        if canFollowWorkbenchFocus {
+            requestWorkbenchFocusFollow()
+            return
+        }
         let controlledPID = state.phase.controlledTarget?.processID
         Task { [weak self] in
             try? await Task.sleep(nanoseconds: 300_000_000)

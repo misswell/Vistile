@@ -398,6 +398,34 @@ final class TransitionSceneTests: XCTestCase {
         XCTAssertTrue(scene.hiddenRailIdentities.isEmpty, "Switching keeps the selected thumbnail visible")
     }
 
+    func testExternalFocusUsesShortStationaryFadeWithoutMovingRailCards() throws {
+        let fixture = HostWorkbench.fixture(count: 3)
+        let to = HostFixtures.identity(1)
+        let slot = try XCTUnwrap(fixture.placement.slot(of: to))
+        let base = HostPlanFacts.switchIntent(token: TransitionToken(generation: 25),
+                                              from: HostFixtures.identity(0), to: to,
+                                              source: .rail(slot: slot), placementRevision: 1,
+                                              targetDisplayID: displayID)
+        let intent = WorkbenchSwitchIntent(token: base.token, from: base.from, to: to,
+                                            source: base.source, placementRevision: base.placementRevision,
+                                            targetDisplayID: displayID, operationContext: base.operationContext,
+                                            beforeOperation: base.beforeOperation, followsExternalFocus: true)
+        let plan = WorkbenchSwitchPlan(intent: intent, displayID: displayID,
+                                       mainTargetFrame: fixture.layout.mainRect,
+                                       restingTargetFrame: nil, restingSlot: slot,
+                                       snapshot: fixture.snapshot, presentation: fixture.presentation,
+                                       placement: HostPlanFacts.placement(target: fixture.layout.mainRect))
+        var factory = baseFactory(imageRects: [:])
+        let scene = try XCTUnwrap(factory.swapping(plan))
+        XCTAssertTrue(scene.fadeOnly)
+        XCTAssertEqual(scene.durationMS, 120)
+        XCTAssertEqual(scene.cards.count, 1)
+        XCTAssertEqual(scene.focusCard?.start, scene.focusCard?.end)
+        XCTAssertTrue(scene.hiddenRailIdentities.isEmpty)
+        factory.reduceMotion = { true }
+        XCTAssertEqual(factory.swapping(plan)?.durationMS, 80)
+    }
+
     // MARK: - 降级与限额
 
     /// A41（方案 §18 A41）：系统"减少动态效果"下只做短淡化，时长取降级值且严格短于完整动效。

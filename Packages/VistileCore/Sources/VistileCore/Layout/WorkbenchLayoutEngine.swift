@@ -12,10 +12,8 @@ public struct WorkbenchStyle: Hashable, Sendable {
     public var cardGap: CGFloat
     /// 面板内边距：轨道内容与面板边缘之间。
     public var railPadding: CGFloat
-    /// 顶栏高度 = 内区高度 × 0.11，clamp 96–160。
     public var topHeightRatio: CGFloat
     public var topHeightRange: ClosedRange<CGFloat>
-    /// 侧栏宽度 = 内区宽度 × 0.12，clamp 168–248。
     public var sideWidthRatio: CGFloat
     public var sideWidthRange: ClosedRange<CGFloat>
     /// 卡片标题条 20pt。
@@ -39,9 +37,9 @@ public struct WorkbenchStyle: Hashable, Sendable {
                 cardGap: CGFloat = 8,
                 railPadding: CGFloat = 6,
                 topHeightRatio: CGFloat = 0.11,
-                topHeightRange: ClosedRange<CGFloat> = 96...160,
+                topHeightRange: ClosedRange<CGFloat> = 96...320,
                 sideWidthRatio: CGFloat = 0.12,
-                sideWidthRange: ClosedRange<CGFloat> = 168...248,
+                sideWidthRange: ClosedRange<CGFloat> = 168...480,
                 titleHeight: CGFloat = 20,
                 cornerRadius: CGFloat = 8,
                 borderWidth: CGFloat = 1,
@@ -103,8 +101,11 @@ public struct WorkbenchLayout: Hashable, Sendable {
     public let sideCardSize: CGSize
     public let topCapacity: Int
     public let sideCapacity: Int
+    public let topSlotCount: Int
     /// 侧栏内容覆盖的逻辑 slot 数（≥ sideCapacity）：超出可见容量的卡片留在侧栏滚动轨道（方案 §6.2、§5.4）。
     public let sideSlotCount: Int
+    public let effectiveTopHeightRange: ClosedRange<CGFloat>
+    public let effectiveSideWidthRange: ClosedRange<CGFloat>
     /// 可用区连一条栏都放不下：布局退化为"只有主区"，不产生负尺寸。
     public let isDegenerate: Bool
 
@@ -123,19 +124,19 @@ public struct WorkbenchLayout: Hashable, Sendable {
 
     /// 顶栏在前、侧栏在后：逻辑 slot 顺序与轨道显示顺序一致。
     public var slotOrder: [RailSlotID] {
-        let top = (0..<topCapacity).map { RailSlotID(displayID: displayID, rail: .top, ordinal: $0) }
+        let top = (0..<topSlotCount).map { RailSlotID(displayID: displayID, rail: .top, ordinal: $0) }
         let side = (0..<sideSlotCount).map { RailSlotID(displayID: displayID, rail: .side, ordinal: $0) }
         return top + side
     }
 
     /// 内容总长度（含卡片之间的间距，末尾不留 gap）。
     public var topContentLength: CGFloat {
-        guard topCapacity > 0 else { return 0 }
-        return CGFloat(topCapacity) * topCardSize.width + CGFloat(topCapacity - 1) * style.cardGap
+        guard topSlotCount > 0, !isDegenerate else { return 0 }
+        return CGFloat(topSlotCount) * topCardSize.width + CGFloat(topSlotCount - 1) * style.cardGap
     }
 
     public var sideContentLength: CGFloat {
-        guard sideSlotCount > 0 else { return 0 }
+        guard sideSlotCount > 0, !isDegenerate else { return 0 }
         return CGFloat(sideSlotCount) * sideCardSize.height + CGFloat(sideSlotCount - 1) * style.cardGap
     }
 
@@ -152,25 +153,29 @@ public struct WorkbenchLayout: Hashable, Sendable {
         guard slot.displayID == displayID, !isDegenerate else { return nil }
         switch slot.rail {
         case .top:
-            guard slot.ordinal >= 0, slot.ordinal < topCapacity else { return nil }
+            guard slot.ordinal >= 0, slot.ordinal < topSlotCount else { return nil }
             let offset = clampedScroll(rail: .top, offset: scrollOffset)
             let x = topViewport.minX + CGFloat(slot.ordinal) * (topCardSize.width + style.cardGap) - offset
-            return CGRect(x: x, y: topViewport.minY, width: topCardSize.width, height: topCardSize.height)
+            return CGRect(x: x, y: topViewport.midY - topCardSize.height / 2,
+                          width: topCardSize.width, height: topCardSize.height)
         case .side:
             guard slot.ordinal >= 0, slot.ordinal < sideSlotCount else { return nil }
             let offset = clampedScroll(rail: .side, offset: scrollOffset)
             let y = sideViewport.minY + CGFloat(slot.ordinal) * (sideCardSize.height + style.cardGap) - offset
-            return CGRect(x: sideViewport.minX, y: y, width: sideCardSize.width, height: sideCardSize.height)
+            return CGRect(x: sideViewport.midX - sideCardSize.width / 2, y: y,
+                          width: sideCardSize.width, height: sideCardSize.height)
         }
     }
 
     /// 只有内容矩形（去掉标题条）：画面按这个区域 aspectFit。
     public func contentRect(for slot: RailSlotID, scrollOffset: CGFloat) -> CGRect? {
         guard let rect = rect(for: slot, scrollOffset: scrollOffset) else { return nil }
-        return CGRect(x: rect.minX,
-                      y: rect.minY + style.titleHeight,
-                      width: rect.width,
-                      height: max(0, rect.height - style.titleHeight))
+        let container = CGRect(x: rect.minX,
+                               y: rect.minY + style.titleHeight,
+                               width: rect.width,
+                               height: max(0, rect.height - style.titleHeight))
+        return GridLayoutEngine.aspectFitRect(sourceSize: CGSize(width: style.displayAspect, height: 1),
+                                              in: container).rect
     }
 
     /// 该 slot 此刻是否落在 viewport 里（部分可见也算）：捕获需求按它决定优先级。
@@ -256,10 +261,14 @@ public struct WorkbenchLayout: Hashable, Sendable {
         return CGRect(x: band.midX - thickness / 2, y: band.minY, width: thickness, height: band.height)
     }
 
-    /// 按实际占用延长侧栏内容轨道：只改逻辑 slot 数与可滚动长度，不动任何可见几何（方案 §6.2）。
     public func extending(sideSlots: Int) -> WorkbenchLayout {
-        let count = max(sideCapacity, sideSlots)
-        guard count != sideSlotCount else { return self }
+        extending(topSlots: topSlotCount, sideSlots: sideSlots)
+    }
+
+    public func extending(topSlots: Int, sideSlots: Int) -> WorkbenchLayout {
+        let topCount = max(topCapacity, topSlots)
+        let sideCount = max(sideCapacity, sideSlots)
+        guard topCount != topSlotCount || sideCount != sideSlotCount else { return self }
         return WorkbenchLayout(displayID: displayID,
                                visibleFrame: visibleFrame,
                                side: side,
@@ -275,7 +284,10 @@ public struct WorkbenchLayout: Hashable, Sendable {
                                sideCardSize: sideCardSize,
                                topCapacity: topCapacity,
                                sideCapacity: sideCapacity,
-                               sideSlotCount: count,
+                               topSlotCount: topCount,
+                               sideSlotCount: sideCount,
+                               effectiveTopHeightRange: effectiveTopHeightRange,
+                               effectiveSideWidthRange: effectiveSideWidthRange,
                                isDegenerate: isDegenerate)
     }
 }
@@ -288,25 +300,25 @@ public enum WorkbenchLayoutEngine {
                               style: WorkbenchStyle = WorkbenchStyle(),
                               compact: Bool = false,
                               topHeightOverride: CGFloat? = nil,
-                              sideWidthOverride: CGFloat? = nil) -> WorkbenchLayout {
+                              sideWidthOverride: CGFloat? = nil,
+                              minimumMainSize: CGSize? = nil) -> WorkbenchLayout {
         let margin = compact ? style.compactMargin : style.margin
+        let gap = max(0, style.gap)
         let inner = visibleFrame.insetBy(dx: margin, dy: margin)
-        guard inner.width > 1, inner.height > 1 else {
+        guard inner.width > gap + 1, inner.height > gap + 1 else {
             return degenerate(displayID: displayID, visibleFrame: visibleFrame, side: side,
                               style: style, margin: margin)
         }
 
-        // 顶栏与侧栏都要跟着内区缩：小屏时不产生负的主区。
-        // 拖动分隔线后的偏好值同样在这里 clamp，绝不让用户拖出负的主区（方案 §11.2）。
-        let requestedTop = topHeightOverride.map { clamp($0, style.topHeightRange) }
-            ?? clamp(inner.height * style.topHeightRatio, style.topHeightRange)
-        let topHeight = min(requestedTop, max(0, inner.height * 0.4))
-        let requestedSide = sideWidthOverride.map { clamp($0, style.sideWidthRange) }
-            ?? clamp(inner.width * style.sideWidthRatio, style.sideWidthRange)
-        let sideWidth = min(requestedSide, max(0, inner.width * 0.4))
-        let gap = style.gap
-        let bodyHeight = max(1, inner.height - topHeight - gap)
-        let mainWidth = max(1, inner.width - sideWidth - gap)
+        let minimum = minimumMainSize ?? style.minimumMainSize
+        let topRange = effectiveRange(style.topHeightRange, available: inner.height - gap,
+                                      minimumMainLength: minimum.height)
+        let sideRange = effectiveRange(style.sideWidthRange, available: inner.width - gap,
+                                       minimumMainLength: minimum.width)
+        let topHeight = clamp(topHeightOverride ?? inner.height * style.topHeightRatio, topRange)
+        let sideWidth = clamp(sideWidthOverride ?? inner.width * style.sideWidthRatio, sideRange)
+        let bodyHeight = inner.height - topHeight - gap
+        let mainWidth = inner.width - sideWidth - gap
 
         let topRailRect = CGRect(x: inner.minX, y: inner.minY, width: inner.width, height: topHeight)
         let bodyMinY = inner.minY + topHeight + gap
@@ -341,23 +353,21 @@ public enum WorkbenchLayoutEngine {
                                  height: max(0, topRailRect.height - 2 * padding))
         }
         let sideViewport = sideRailRect.insetBy(dx: padding, dy: padding)
-        guard topViewport.width > 1, topViewport.height > 1, sideViewport.width > 1, sideViewport.height > 1 else {
+        guard topViewport.width > 1, topViewport.height > style.titleHeight + 1,
+              sideViewport.width > 1, sideViewport.height > style.titleHeight + 1,
+              style.displayAspect > 0 else {
             return degenerate(displayID: displayID, visibleFrame: visibleFrame, side: side,
                               style: style, margin: margin)
         }
 
-        // 卡片尺寸：统一展示比 16:10 + 标题条，再 clamp 到可辨识范围。
-        let topCardHeight = topViewport.height
-        let topImageHeight = max(1, topCardHeight - style.titleHeight)
-        let rawTopWidth = topImageHeight * style.displayAspect
-        let topCardWidth = clamp(rawTopWidth, style.topCardWidthRange)
+        let rawTopWidth = (topViewport.height - style.titleHeight) * style.displayAspect
+        let topCardWidth = min(clamp(rawTopWidth, style.topCardWidthRange), topViewport.width)
         let topCardSize = CGSize(width: topCardWidth,
-                                 height: topCardWidth / style.displayAspect + style.titleHeight)
+                                 height: min(topViewport.height, topCardWidth / style.displayAspect + style.titleHeight))
 
-        let sideCardWidth = sideViewport.width
-        let rawSideHeight = sideCardWidth / style.displayAspect + style.titleHeight
-        let sideCardHeight = clamp(rawSideHeight, style.sideCardHeightRange)
-        let sideCardSize = CGSize(width: sideCardWidth, height: sideCardHeight)
+        let rawSideHeight = sideViewport.width / style.displayAspect + style.titleHeight
+        let sideCardHeight = min(clamp(rawSideHeight, style.sideCardHeightRange), sideViewport.height)
+        let sideCardSize = CGSize(width: sideViewport.width, height: sideCardHeight)
 
         let topCapacity = capacity(viewportLength: topViewport.width,
                                    cardLength: topCardSize.width,
@@ -381,7 +391,10 @@ public enum WorkbenchLayoutEngine {
                                sideCardSize: sideCardSize,
                                topCapacity: topCapacity,
                                sideCapacity: sideCapacity,
+                               topSlotCount: topCapacity,
                                sideSlotCount: sideCapacity,
+                               effectiveTopHeightRange: topRange,
+                               effectiveSideWidthRange: sideRange,
                                isDegenerate: false)
     }
 
@@ -394,6 +407,13 @@ public enum WorkbenchLayoutEngine {
 
     static func clamp(_ value: CGFloat, _ range: ClosedRange<CGFloat>) -> CGFloat {
         min(range.upperBound, max(range.lowerBound, value))
+    }
+
+    private static func effectiveRange(_ range: ClosedRange<CGFloat>, available: CGFloat,
+                                       minimumMainLength: CGFloat) -> ClosedRange<CGFloat> {
+        let reserved = min(max(1, minimumMainLength), max(1, available - range.lowerBound))
+        let upper = max(0, min(range.upperBound, available - reserved))
+        return min(range.lowerBound, upper)...upper
     }
 
     private static func degenerate(displayID: UInt32,
@@ -416,7 +436,10 @@ public enum WorkbenchLayoutEngine {
                         sideCardSize: .zero,
                         topCapacity: 0,
                         sideCapacity: 0,
+                        topSlotCount: 0,
                         sideSlotCount: 0,
+                        effectiveTopHeightRange: 0...0,
+                        effectiveSideWidthRange: 0...0,
                         isDegenerate: true)
     }
 }

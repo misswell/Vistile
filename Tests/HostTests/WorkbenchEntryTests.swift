@@ -303,6 +303,94 @@ final class WorkbenchEntryTests: XCTestCase {
                       "写过的窗口必须留下待恢复事务，退出时才能还原")
     }
 
+    func testRailSizePreferencesAreIndependentPerDisplayAndResetToDefault() {
+        settings.workbenchTopHeight = 125
+        settings.workbenchSideWidth = 210
+        settings.saveWorkbenchRailSizes(for: "display-a", topHeight: 240, sideWidth: 350)
+        settings.saveWorkbenchRailSizes(for: "display-b", topHeight: 180, sideWidth: 270)
+        XCTAssertEqual(settings.workbenchRailSizes(for: "display-a").topHeight, 240)
+        XCTAssertEqual(settings.workbenchRailSizes(for: "display-b").sideWidth, 270)
+        XCTAssertEqual(settings.workbenchRailSizes(for: "display-c").topHeight, 125)
+        settings.saveWorkbenchRailSizes(for: "display-a", topHeight: nil, sideWidth: 350)
+        XCTAssertNil(settings.workbenchRailSizes(for: "display-a").topHeight)
+        XCTAssertEqual(settings.workbenchRailSizes(for: "display-a").sideWidth, 350)
+        XCTAssertEqual(settings.workbenchTopHeight, 125)
+        settings.saveWorkbenchRailSizes(for: "display-a", topHeight: .nan, sideWidth: -10)
+        XCTAssertNil(settings.workbenchRailSizes(for: "display-a").topHeight)
+        XCTAssertNil(settings.workbenchRailSizes(for: "display-a").sideWidth)
+    }
+
+    func testExternalFocusFollowsLatestWindowThroughHostWithoutActivatingIt() throws {
+        let coordinator = makeCoordinator()
+        coordinator.activateApplication = {}
+        coordinator.frontmostProcessID = { nil }
+        coordinator.toggleOverview()
+        try waitForVisibleOverview()
+        let view = try overviewView()
+        view.onAction?(.cardClicked(HostFixtures.identity(0)))
+        waitUntil(timeout: 5) { coordinator.state.mode == .workbench }
+        XCTAssertEqual(coordinator.state.mode, .workbench)
+        let before = coordinator.state.workbench.placement.occupants
+        let focusWrites = writer.raiseCount + writer.focusCount
+        let obsolete = HostFixtures.identity(1)
+        let latest = HostFixtures.identity(2)
+        writer.setExternalFocus(try XCTUnwrap(catalogSource.element(for: obsolete)), pid: obsolete.processID)
+        writer.setExternalFocus(try XCTUnwrap(catalogSource.element(for: latest)), pid: latest.processID)
+        coordinator.frontmostProcessID = { obsolete.processID }
+        coordinator.requestWorkbenchFocusFollow()
+        coordinator.frontmostProcessID = { latest.processID }
+        coordinator.requestWorkbenchFocusFollow()
+        waitUntil(timeout: 5) { coordinator.state.workbench.placement.main == latest }
+        XCTAssertEqual(coordinator.state.workbench.placement.main, latest, "\(statuses)")
+        XCTAssertEqual(coordinator.state.mode, .workbench)
+        XCTAssertEqual(coordinator.state.workbench.placement.occupants, before)
+        XCTAssertEqual(writer.raiseCount + writer.focusCount, focusWrites)
+    }
+
+    func testManualSelectionInvalidatesAnOlderHostFocusQuery() throws {
+        let coordinator = makeCoordinator()
+        coordinator.activateApplication = {}
+        coordinator.frontmostProcessID = { nil }
+        coordinator.toggleOverview()
+        try waitForVisibleOverview()
+        try overviewView().onAction?(.cardClicked(HostFixtures.identity(0)))
+        waitUntil(timeout: 5) { coordinator.state.mode == .workbench }
+        let stale = HostFixtures.identity(2)
+        let selected = HostFixtures.identity(1)
+        writer.setExternalFocus(try XCTUnwrap(catalogSource.element(for: stale)), pid: stale.processID)
+        coordinator.frontmostProcessID = { stale.processID }
+        coordinator.requestWorkbenchFocusFollow()
+        let slot = try XCTUnwrap(coordinator.state.workbench.slot(of: selected))
+        coordinator.dispatch(.railCardSelected(slot: slot, identity: selected))
+        waitUntil(timeout: 5) { coordinator.state.workbench.placement.main == selected }
+        XCTAssertEqual(coordinator.state.workbench.placement.main, selected)
+        XCTAssertNil(coordinator.state.workbench.pendingExternalFocus)
+        XCTAssertEqual(coordinator.state.mode, .workbench)
+    }
+
+    func testMainMinimizedBeforeDeferredSwitchStartsStillResolvesReplacement() throws {
+        let coordinator = makeCoordinator()
+        coordinator.activateApplication = {}
+        coordinator.frontmostProcessID = { nil }
+        coordinator.toggleOverview()
+        try waitForVisibleOverview()
+        let a = HostFixtures.identity(0), b = HostFixtures.identity(1), c = HostFixtures.identity(2)
+        try overviewView().onAction?(.cardClicked(a))
+        waitUntil(timeout: 5) { coordinator.state.mode == .workbench }
+        coordinator.dispatch(.railCardSelected(slot: try XCTUnwrap(coordinator.state.workbench.slot(of: b)), identity: b))
+        waitUntil(timeout: 5) { coordinator.state.workbench.mainSwitch.isBusy }
+        XCTAssertEqual(writer.totalWrites, 1)
+        writer.setMinimizedState(true, for: try XCTUnwrap(catalogSource.element(for: a)))
+        writer.setExternalFocus(try XCTUnwrap(catalogSource.element(for: c)), pid: c.processID)
+        coordinator.frontmostProcessID = { c.processID }
+        coordinator.dispatch(.windowMinimized(a, true))
+        waitUntil(timeout: 5) { coordinator.state.workbench.placement.main == c }
+        XCTAssertEqual(coordinator.state.workbench.placement.main, c, "\(statuses)")
+        XCTAssertEqual(coordinator.state.mode, .workbench)
+        XCTAssertNil(coordinator.state.workbench.pendingReplacement)
+        XCTAssertNil(coordinator.state.workbench.recoveryRequired)
+    }
+
     // MARK: - 壁纸底：看起来只有一个真实窗口在最前
 
     /// 工作台必须有一层壁纸底，且**压在真实主窗口下一层**；窗口编号登记为自有窗口，
@@ -343,35 +431,38 @@ final class WorkbenchEntryTests: XCTestCase {
 
     // MARK: - 工作台里出现新窗口：纳入布局而不是整场消失
 
-    /// 工作台里打开新应用：新窗口应当被纳入布局（回到冻结总览），
-    /// 而不是触发 focusLost → 整场隐藏，用户看到"所有窗口都不见了"。
-    func testNewWindowFocusLossReturnsToOverviewInsteadOfHiding() throws {
+    func testNewWindowJoinsBackgroundThenFollowsConcreteFocusWithoutLeavingWorkbench() throws {
         let coordinator = makeCoordinator()
+        coordinator.activateApplication = {}
+        coordinator.frontmostProcessID = { nil }
         coordinator.toggleOverview()
         try waitForVisibleOverview()
-
-        let view = try overviewView()
-        view.layoutSubtreeIfNeeded()
         let identity = HostFixtures.identity(0)
-        let cell = try XCTUnwrap(coordinator.cardRects[identity])
-        let point = HostFixtures.viewPoint(of: cell, in: view, cgOrigin: HostFixtures.offscreenOrigin)
-        view.mouseDown(with: HostEvents.mouse(.leftMouseDown, in: view.window, point: point))
-        view.mouseUp(with: HostEvents.mouse(.leftMouseUp, in: view.window, point: point))
-        waitUntil(timeout: 5) { self.coordinator.state.mode == .workbench }
-        XCTAssertEqual(coordinator.state.mode, .workbench)
+        try overviewView().onAction?(.cardClicked(identity))
+        waitUntil(timeout: 5) { coordinator.state.mode == .workbench }
+        let homes = coordinator.state.workbench.placement.occupants
+        let focusWrites = writer.raiseCount + writer.focusCount
 
-        // 新应用窗口出现（目录里多一个不属于当前布局成员的窗口）。
+        let added = HostFixtures.identity(4)
         catalogSource.addWindows([4])
+        let element = try XCTUnwrap(catalogSource.element(for: added))
+        writer.setInitialFrame(FakeCatalogSource.frame(for: 4), for: element)
         catalog.refresh(reason: .windowEvent)
-        waitUntil(timeout: 3) { self.coordinator.state.records[HostFixtures.identity(4)] != nil }
-        XCTAssertNotNil(coordinator.state.records[HostFixtures.identity(4)])
+        waitUntil(timeout: 3) { coordinator.state.records[added] != nil }
+        XCTAssertNotNil(coordinator.state.workbench.slot(of: added))
+        XCTAssertEqual(coordinator.state.workbench.placement.main, identity)
+        XCTAssertEqual(writer.raiseCount + writer.focusCount, focusWrites)
 
-        // 新应用抢到前台：不能整场退出，应回到冻结总览把这个窗口纳入布局。
+        writer.setExternalFocus(element, pid: added.processID)
+        coordinator.frontmostProcessID = { added.processID }
         coordinator.dispatch(.focusLost(origin: .otherApplication(bundleID: "com.test.app4")))
-        waitUntil(timeout: 5) { self.coordinator.state.mode == .overview }
-        XCTAssertEqual(coordinator.state.mode, .overview,
-                       "开新窗口应回总览并纳入新卡片，而不是整场隐藏（phase=\(coordinator.state.phase)）")
-        XCTAssertNotNil(coordinator.state.records[HostFixtures.identity(4)])
+        waitUntil(timeout: 5) { coordinator.state.workbench.placement.main == added }
+        XCTAssertEqual(coordinator.state.workbench.placement.main, added, "\(statuses)")
+        XCTAssertEqual(coordinator.state.mode, .workbench)
+        XCTAssertEqual(writer.raiseCount + writer.focusCount, focusWrites)
+        for (slot, member) in homes {
+            XCTAssertEqual(coordinator.state.workbench.placement.occupant(at: slot), member)
+        }
     }
 
     // MARK: - 总览里出现新窗口：纳入卡片而不是整场消失

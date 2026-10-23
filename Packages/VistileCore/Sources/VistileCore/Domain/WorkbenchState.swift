@@ -221,10 +221,12 @@ public enum MainSwitchPhase: Hashable, Sendable {
 public struct WorkbenchPendingSelection: Hashable, Sendable {
     public let identity: WindowIdentity
     public let slot: RailSlotID
+    public let followsExternalFocus: Bool
 
-    public init(identity: WindowIdentity, slot: RailSlotID) {
+    public init(identity: WindowIdentity, slot: RailSlotID, followsExternalFocus: Bool = false) {
         self.identity = identity
         self.slot = slot
+        self.followsExternalFocus = followsExternalFocus
     }
 }
 
@@ -346,6 +348,15 @@ public struct WorkbenchState: Hashable, Sendable {
     public var modeTransition: ModeTransition = .idle
     public var mainSwitch: MainSwitchPhase = .idle
     public var pendingRailSelection: WorkbenchPendingSelection?
+    /// 中文：外部、手动选择和返回意图互斥，后到者覆盖；自身目标确认不覆盖外部意图。
+    /// English: External, manual and return intents are mutually exclusive; target acknowledgements never replace external intent.
+    public var pendingExternalFocus: WindowIdentity?
+    /// 中文：关闭或最小化后等待宿主焦点回执的主身份。
+    /// English: Main identity awaiting host focus resolution after closure or minimization.
+    public var pendingReplacement: WindowIdentity?
+    /// 中文：本会话成功成为主窗口的 MRU，不用于跨会话自动激活。
+    /// English: Session-local MRU of successfully committed main windows, never used for cross-session activation.
+    public var recentMainIdentities: [WindowIdentity] = []
     /// 交换进行中按下的「全部窗口」：等这次收敛后再回总览（方案 §4.5）。两个 pending 互斥，后到者覆盖。
     public var pendingReturnToOverview = false
     public var mainFrameWrite: WorkbenchFrameWrite?
@@ -368,6 +379,7 @@ public struct WorkbenchState: Hashable, Sendable {
     public var transitionActivity = TransitionActivity()
     /// 过渡期间收到过栏尺寸更新：偏好已经记下，但投影要到收敛那一刻才重算一次（方案 §13.2）。
     public var railSizeRecomputePending = false
+    public var observedMinimumMainSizes: [WindowIdentity: CGSize] = [:]
 
     public init() {}
 
@@ -436,6 +448,9 @@ public struct WorkbenchState: Hashable, Sendable {
         modeTransition = .idle
         mainSwitch = .idle
         pendingRailSelection = nil
+        pendingExternalFocus = nil
+        pendingReplacement = nil
+        recentMainIdentities.removeAll()
         pendingReturnToOverview = false
         mainFrameWrite = nil
         switchCorrection = nil
@@ -447,5 +462,6 @@ public struct WorkbenchState: Hashable, Sendable {
         recoveryRequired = nil
         transitionActivity = TransitionActivity()
         railSizeRecomputePending = false
+        observedMinimumMainSizes.removeAll()
     }
 }

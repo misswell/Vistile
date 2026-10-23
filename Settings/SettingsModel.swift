@@ -115,6 +115,7 @@ final class SettingsModel: ObservableObject {
         case tier, priorityKeys, excludedBundles, orderingStrategy, didCompleteGuidedSetup
         case slotOrder, compactMode, systemLogging
         case workbenchSide, workbenchTopHeight, workbenchSideWidth, workbenchDisplay
+        case workbenchRailSizesByDisplay
         case workbenchOverflow, workbenchSchema, workbenchRailOrder, workbenchPins
         case autoCheckUpdates, skippedUpdateVersion, lastUpdateCheckAt
     }
@@ -297,6 +298,27 @@ final class SettingsModel: ObservableObject {
         defaults.set(stored.railOrderPreference.mapValues { NSNumber(value: $0) }, for: .workbenchRailOrder)
         defaults.set(stored.pinnedKeys.sorted(), for: .workbenchPins)
         defaults.set(WorkbenchPreferences.currentSchemaVersion, for: .workbenchSchema)
+    }
+
+    func workbenchRailSizes(for displayKey: String) -> (topHeight: CGFloat?, sideWidth: CGFloat?) {
+        guard let values = defaults.dictionaryValue(for: .workbenchRailSizesByDisplay)?[displayKey] as? [String: Double] else {
+            return (workbenchTopHeight, workbenchSideWidth)
+        }
+        let preferences = WorkbenchPreferences(
+            topHeightPreference: values["topHeight"].map { CGFloat($0) },
+            sideWidthPreference: values["sideWidth"].map { CGFloat($0) }).sanitized()
+        return (preferences.topHeightPreference, preferences.sideWidthPreference)
+    }
+
+    func saveWorkbenchRailSizes(for displayKey: String, topHeight: CGFloat?, sideWidth: CGFloat?) {
+        let preferences = WorkbenchPreferences(topHeightPreference: topHeight,
+                                               sideWidthPreference: sideWidth).sanitized()
+        var displays = defaults.dictionaryValue(for: .workbenchRailSizesByDisplay) ?? [:]
+        var values: [String: Double] = [:]
+        values["topHeight"] = preferences.topHeightPreference.map(Double.init)
+        values["sideWidth"] = preferences.sideWidthPreference.map(Double.init)
+        displays[displayKey] = values
+        defaults.set(displays, for: .workbenchRailSizesByDisplay)
     }
 
     var reduceMotion: Bool {

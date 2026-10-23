@@ -327,6 +327,24 @@ struct TransitionSceneFactory {
         let intent = plan.intent
         var cards: [TransitionScene.Card] = []
 
+        if intent.followsExternalFocus {
+            let card = TransitionScene.Card(identity: intent.to,
+                                            start: plan.mainTargetFrame,
+                                            end: plan.mainTargetFrame,
+                                            cellStart: nil,
+                                            cellEnd: nil,
+                                            startAlpha: 0,
+                                            endAlpha: 0.35,
+                                            aspect: aspect(intent.to, plan.mainTargetFrame),
+                                            hidesRailCard: false,
+                                            isFocus: true,
+                                            panelFrom: plan.mainTargetFrame,
+                                            panelTo: plan.mainTargetFrame)
+            return TransitionScene(kind: .swapping, token: intent.token, displayID: plan.displayID,
+                                   backdrop: .transparent, cards: [card],
+                                   durationMS: reduceMotion() ? 80 : 120, fadeOnly: true,
+                                   level: level, content: content(for: snapshot))
+        }
         if let slot = intent.railSlot {
             let cell = snapshot.rect(for: slot)
             let start = snapshot.contentRect(for: slot) ?? cell

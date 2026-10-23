@@ -242,8 +242,15 @@ final class WorkbenchRailViewTests: XCTestCase {
 
         // 面板 frame 由投影取整而来：AppKit 本就会对窗口 frame 舍入，产品主动对齐。
         // 窗口 = 栏 ∪ 它与主区之间的空带（方案 §11.2）：分隔线命中区必须落在某个窗口里才收得到鼠标。
-        XCTAssertEqual(controller.topPanelFrame, HostFixtures.mapper.cgToAppKit(layout.topPanelWindowRect).integral)
-        XCTAssertEqual(controller.sidePanelFrame, HostFixtures.mapper.cgToAppKit(layout.sidePanelWindowRect).integral)
+        let rawTop = HostFixtures.mapper.cgToAppKit(layout.topPanelWindowRect)
+        let rawSide = HostFixtures.mapper.cgToAppKit(layout.sidePanelWindowRect)
+        let main = HostFixtures.mapper.cgToAppKit(layout.mainRect)
+        XCTAssertEqual(controller.topPanelFrame.minY, ceil(rawTop.minY))
+        XCTAssertEqual(controller.topPanelFrame.maxY, ceil(rawTop.maxY))
+        XCTAssertEqual(controller.sidePanelFrame.minX, ceil(rawSide.minX))
+        XCTAssertEqual(controller.sidePanelFrame.maxX, ceil(rawSide.maxX))
+        XCTAssertFalse(controller.topPanelFrame.intersects(main))
+        XCTAssertFalse(controller.sidePanelFrame.intersects(main))
 
         // 卡片中心的完整往返：投影 CG → 面板窗口 → 视图本地，与视图自己算出的中心一致。
         let slot = topSlot(0)
@@ -274,8 +281,7 @@ final class WorkbenchRailViewTests: XCTestCase {
                          hint: nil)
         XCTAssertEqual(secondary.topRail.metalLayer.contentsScale, 1,
                        "混合倍率下栏的像素密度必须跟随它所在的屏，不能所有屏共用 2x")
-        XCTAssertEqual(secondary.topPanelFrame,
-                       CoordinateMapper(displays: [scale1]).cgToAppKit(fixture.layout.topPanelWindowRect).integral,
+        XCTAssertEqual(secondary.topPanelFrame, controller.topPanelFrame,
                        "同一块屏的倍率变化不改变逻辑坐标")
     }
 

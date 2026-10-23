@@ -71,6 +71,13 @@ public enum SessionEvent: Hashable, Sendable {
     case openConditionsChanged(conditions: OpenConditions, reopenIfReady: Bool)
     case windowClosed(WindowIdentity)
     case windowMinimized(WindowIdentity, Bool)
+    /// 中文：系统最终激活的具体窗口，不按应用身份推断。
+    /// English: The concrete window finally focused by the system, not an application-level guess.
+    case externalWindowFocused(WindowIdentity)
+    case workbenchFocusUnavailable(reason: String)
+    /// 中文：宿主读取关闭后的系统焦点；closed 必须匹配当前待替补身份。
+    /// English: Host-observed focus after closure; closed must match the pending replacement.
+    case workbenchReplacementResolved(closed: WindowIdentity, candidate: WindowIdentity?)
     case windowGeometryChangedExternally(WindowIdentity, CGRect, source: GeometryChangeSource)
     /// AX 写入与读回结果必须回报给状态机，函数返回成功不等于到位（方案 §6 末）。
     case geometryWriteFinished(GeometryWriteResult)
@@ -192,6 +199,9 @@ public enum SessionEffect: Hashable, Sendable {
     case returnToOverview(WorkbenchTransitionPlan)
     /// 开始一次 A/B 交换：按步骤串行执行，撤销时按逆序回滚（方案 §8.1、§8.3）。
     case beginMainSwitch(WorkbenchSwitchPlan)
+    /// 中文：读取关闭/最小化主窗口后系统选择的窗口，不主动激活任何候选。
+    /// English: Resolve system focus after main closure/minimization without activating a candidate.
+    case resolveWorkbenchReplacement(closed: WindowIdentity)
     /// 撤销进行中的模式过渡：目标已消失或超时，不留半套界面（方案 §10.5）。
     case cancelWorkbenchTransition
     /// 撤下工作台面板（返回总览、回滚、隐藏）：不留下透明的全屏命中层（方案 §9.1）。

@@ -77,6 +77,23 @@ final class WorkbenchDividerTests: XCTestCase {
         CGPoint(x: view.bounds.midX, y: view.bounds.midY)
     }
 
+    private func syncLayout(top: CGFloat, width: CGFloat, side: RailSide = .right, size: CGSize? = nil) {
+        let layout = WorkbenchLayoutEngine.layout(displayID: HostFixtures.display.id,
+                                                  visibleFrame: CGRect(origin: HostFixtures.offscreenOrigin,
+                                                                       size: size ?? HostFixtures.offscreenSize),
+                                                  side: side, topHeightOverride: top, sideWidthOverride: width)
+        fixture = HostWorkbenchFixture(state: fixture.state, placement: fixture.placement,
+                                       snapshot: fixture.snapshot.replacing(layout: layout,
+                                                                             revision: fixture.snapshot.revision + 1))
+        sync(fixture)
+    }
+
+    private func send(_ type: NSEvent.EventType, to view: NSView, screenPoint: CGPoint) throws {
+        let window = try XCTUnwrap(view.window)
+        let local = view.convert(window.convertPoint(fromScreen: screenPoint), from: nil)
+        try send(type, to: view, at: local)
+    }
+
     private func windowPoint(of cgPoint: CGPoint, in view: NSView) throws -> CGPoint {
         let window = try XCTUnwrap(view.window)
         return window.convertPoint(fromScreen: HostFixtures.mapper.cgToAppKit(CGRect(origin: cgPoint, size: .zero)).origin)
@@ -98,9 +115,11 @@ final class WorkbenchDividerTests: XCTestCase {
 
     func testDividerHitBandSitsInGapAndOnlyTheBandTakesTheDrag() throws {
         let layout = fixture.layout
-        // 面板窗口 = 栏 ∪ 空带：分隔线命中区必须落在某个窗口里才收得到鼠标（方案 §11.2）。
-        XCTAssertEqual(controller.topPanelFrame, HostFixtures.mapper.cgToAppKit(layout.topPanelWindowRect).integral)
-        XCTAssertEqual(controller.sidePanelFrame, HostFixtures.mapper.cgToAppKit(layout.sidePanelWindowRect).integral)
+        let mainFrame = HostFixtures.mapper.cgToAppKit(layout.mainRect)
+        XCTAssertGreaterThanOrEqual(controller.topPanelFrame.minY, mainFrame.maxY)
+        XCTAssertGreaterThanOrEqual(controller.sidePanelFrame.minX, mainFrame.maxX)
+        XCTAssertTrue(controller.topPanelFrame.contains(HostFixtures.mapper.cgToAppKit(layout.topDividerRect)))
+        XCTAssertTrue(controller.sidePanelFrame.contains(HostFixtures.mapper.cgToAppKit(layout.sideDividerRect)))
 
         XCTAssertEqual(controller.topDivider.frame.height, layout.topDividerRect.height, accuracy: 0.01)
         XCTAssertEqual(controller.sideDivider.frame.width, layout.sideDividerRect.width, accuracy: 0.01)
@@ -127,6 +146,67 @@ final class WorkbenchDividerTests: XCTestCase {
                                                                                           y: layout.sideRailRect.midY),
                                                                                in: controller.sideDivider))
         XCTAssertTrue(sideCenterHit === controller.sideDivider, "侧栏空带中央必须命中分隔线")
+    }
+
+    func testWindowDispatchKeepsDraggingAfterPanelMovesWithoutTakingFocus() throws {
+        let keyWindow = NSApp.keyWindow
+        let active = NSApp.isActive
+        controller.show()
+        for side in [RailSide.left, .right] {
+            for rail in [RailKind.top, .side] {
+                actions = []
+                syncLayout(top: 120, width: 220, side: side)
+                let divider = rail == .top ? controller.topDivider : controller.sideDivider
+                let monitors = DividerEventMonitors()
+                divider.eventMonitoring = monitors.monitoring
+                let window = try XCTUnwrap(divider.window)
+                let start = window.convertPoint(toScreen: divider.convert(center(of: divider), to: nil))
+                let delta = CGPoint(x: rail == .side ? (side == .left ? 30 : -30) : 0,
+                                    y: rail == .top ? -30 : 0)
+                let destination = CGPoint(x: start.x + delta.x, y: start.y + delta.y)
+                let expected: CGFloat = rail == .top ? 150 : 250
+                window.sendEvent(HostEvents.mouse(.leftMouseDown, in: window,
+                                                  point: window.convertPoint(fromScreen: start)))
+                window.sendEvent(HostEvents.mouse(.leftMouseDragged, in: window,
+                                                  point: window.convertPoint(fromScreen: destination)))
+                XCTAssertEqual(draggedValues(), [expected])
+                syncLayout(top: rail == .top ? expected : 120,
+                           width: rail == .side ? expected : 220, side: side)
+                window.sendEvent(HostEvents.mouse(.leftMouseDragged, in: window,
+                                                  point: window.convertPoint(fromScreen: destination)))
+                window.sendEvent(HostEvents.mouse(.leftMouseUp, in: window,
+                                                  point: window.convertPoint(fromScreen: destination)))
+                XCTAssertEqual(beganCount(), 1)
+                XCTAssertEqual(draggedValues(), [expected, expected])
+                XCTAssertEqual(endedValues(), [expected])
+                XCTAssertFalse(divider.isDragging)
+                XCTAssertTrue(monitors.active.isEmpty)
+                XCTAssertFalse(window.isKeyWindow)
+            }
+        }
+        XCTAssertTrue(NSApp.keyWindow === keyWindow)
+        XCTAssertEqual(NSApp.isActive, active)
+    }
+
+    func testWindowDispatchDoubleClickOnlyResetsTheHitDivider() throws {
+        controller.show()
+        for divider in [controller.topDivider, controller.sideDivider] {
+            actions = []
+            let window = try XCTUnwrap(divider.window)
+            let point = divider.convert(center(of: divider), to: nil)
+            let event = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseDown, location: point,
+                                                        modifierFlags: [], timestamp: 0,
+                                                        windowNumber: window.windowNumber, context: nil,
+                                                        eventNumber: 0, clickCount: 2, pressure: 1))
+            window.sendEvent(event)
+            window.sendEvent(HostEvents.mouse(.leftMouseUp, in: window, point: point))
+            XCTAssertEqual(actions.count, 1)
+            guard case let .railDividerReset(rail) = actions.first else {
+                return XCTFail("Window dispatch must reach the divider reset action")
+            }
+            XCTAssertEqual(rail, divider.rail)
+            XCTAssertTrue(endedValues().isEmpty)
+        }
     }
 
     // MARK: - 拖动换算
@@ -160,7 +240,7 @@ final class WorkbenchDividerTests: XCTestCase {
         try send(.leftMouseDragged, to: divider, at: CGPoint(x: grab.x, y: grab.y - 600))
         try send(.leftMouseUp, to: divider, at: CGPoint(x: grab.x, y: grab.y - 600))
         XCTAssertEqual(try XCTUnwrap(endedValues().first),
-                       fixture.layout.style.topHeightRange.upperBound,
+                       fixture.layout.effectiveTopHeightRange.upperBound,
                        accuracy: 0.01)
     }
 
@@ -188,6 +268,285 @@ final class WorkbenchDividerTests: XCTestCase {
         try send(.leftMouseUp, to: left, at: CGPoint(x: leftGrab.x + 30, y: leftGrab.y))
         XCTAssertEqual(try XCTUnwrap(endedValues().first), leftStart + 30, accuracy: 0.5,
                        "左栏向右拖 30pt = 侧栏宽 30pt")
+    }
+
+    func testMovingPanelAndPresentationChangesKeepMouseDownAnchor() throws {
+        for rail in [RailKind.top, .side] {
+            actions = []
+            syncLayout(top: 120, width: 200)
+            let divider = rail == .top ? controller.topDivider : controller.sideDivider
+            let monitors = DividerEventMonitors()
+            divider.eventMonitoring = monitors.monitoring
+            let window = try XCTUnwrap(divider.window)
+            let pressed = window.convertPoint(toScreen: divider.convert(center(of: divider), to: nil))
+            try send(.leftMouseDown, to: divider, screenPoint: pressed)
+            syncLayout(top: 140, width: 220)
+            let moved = CGPoint(x: pressed.x - (rail == .side ? 30 : 0),
+                                y: pressed.y - (rail == .top ? 30 : 0))
+            try send(.leftMouseDragged, to: divider, screenPoint: moved)
+            let expected: CGFloat = rail == .top ? 150 : 230
+            XCTAssertEqual(try XCTUnwrap(draggedValues().last), expected, accuracy: 0.01)
+            XCTAssertTrue(divider.hasEscapeMonitor)
+            XCTAssertEqual(monitors.active, [.local, .global])
+            syncLayout(top: rail == .top ? expected : 140, width: rail == .side ? expected : 220)
+            try send(.leftMouseDragged, to: divider, screenPoint: moved)
+            try send(.leftMouseUp, to: divider, screenPoint: moved)
+            XCTAssertEqual(try XCTUnwrap(endedValues().last), expected, accuracy: 0.01)
+            XCTAssertEqual(beganCount(), 1)
+            XCTAssertFalse(divider.hasEscapeMonitor)
+            XCTAssertTrue(monitors.active.isEmpty)
+            XCTAssertEqual(monitors.removed, [.local, .global])
+        }
+    }
+
+    func testCancelReportsOriginalValueOnceWithoutEndOrFocusChange() throws {
+        let divider = controller.topDivider
+        let window = try XCTUnwrap(divider.window)
+        let keyWindow = NSApp.keyWindow
+        let active = NSApp.isActive
+        let start = divider.displayedValue
+        let grab = center(of: divider)
+        try send(.leftMouseDown, to: divider, at: grab)
+        XCTAssertFalse(divider.hasEscapeMonitor)
+        try send(.leftMouseDragged, to: divider, at: CGPoint(x: grab.x, y: grab.y - 30))
+        XCTAssertTrue(divider.hasEscapeMonitor)
+        syncLayout(top: start + 30, width: fixture.layout.sideRailRect.width)
+        let escape = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [],
+                                                   timestamp: 0, windowNumber: window.windowNumber, context: nil,
+                                                   characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}",
+                                                   isARepeat: false, keyCode: 53))
+        NSApp.sendEvent(escape)
+        XCTAssertFalse(divider.isDragging)
+        divider.cancelDragging()
+        try send(.leftMouseUp, to: divider, at: grab)
+        let cancelled = actions.compactMap { action -> CGFloat? in
+            if case let .railDividerDragCancelled(rail, value) = action, rail == .top { return value }
+            return nil
+        }
+        XCTAssertEqual(cancelled, [start])
+        XCTAssertTrue(endedValues().isEmpty)
+        XCTAssertFalse(divider.isDragging)
+        XCTAssertFalse(divider.hasEscapeMonitor)
+        XCTAssertFalse(divider.isSizeLabelVisible)
+        XCTAssertFalse(window.isKeyWindow)
+        XCTAssertFalse(window.canBecomeKey)
+        XCTAssertTrue(NSApp.keyWindow === keyWindow)
+        XCTAssertEqual(NSApp.isActive, active)
+    }
+
+    func testGlobalEscapeCancelsOnceWithoutLateCommitOrFocusChange() throws {
+        let keyWindow = NSApp.keyWindow
+        let active = NSApp.isActive
+        for rail in [RailKind.top, .side] {
+            actions = []
+            let divider = rail == .top ? controller.topDivider : controller.sideDivider
+            let monitors = DividerEventMonitors()
+            divider.eventMonitoring = monitors.monitoring
+            let window = try XCTUnwrap(divider.window)
+            let start = divider.displayedValue
+            let grab = center(of: divider)
+            try send(.leftMouseDown, to: divider, at: grab)
+            try send(.leftMouseDragged, to: divider, at: CGPoint(x: grab.x - 1, y: grab.y - 1))
+            XCTAssertTrue(monitors.active.isEmpty, "阈值内不得安装键盘监听")
+            let moved = CGPoint(x: grab.x - 30, y: grab.y - 30)
+            try send(.leftMouseDragged, to: divider, at: moved)
+            try send(.leftMouseDragged, to: divider, at: moved)
+            XCTAssertEqual(monitors.active, [.local, .global])
+            let global = try XCTUnwrap(monitors.globalHandler)
+            let local = try XCTUnwrap(monitors.localHandler)
+            let ordinaryKey = HostEvents.key(0)
+            global(ordinaryKey)
+            XCTAssertTrue(local(ordinaryKey) === ordinaryKey)
+            XCTAssertTrue(divider.isDragging)
+            syncLayout(top: rail == .top ? start + 30 : fixture.layout.topRailRect.height,
+                       width: rail == .side ? start + 30 : fixture.layout.sideRailRect.width)
+
+            // 直接调用已注册回调，不把键盘事件发到真实前台应用。
+            let escape = HostEvents.key(53)
+            global(escape)
+            XCTAssertFalse(divider.isDragging, "取消必须同步完成，不能排在 mouseUp 后面")
+            XCTAssertTrue(monitors.active.isEmpty)
+            global(escape)
+            XCTAssertTrue(local(escape) === escape)
+            divider.cancelDragging()
+            try send(.leftMouseDragged, to: divider, at: moved)
+            try send(.leftMouseUp, to: divider, at: grab)
+            let cancelled = actions.compactMap { action -> CGFloat? in
+                if case let .railDividerDragCancelled(kind, value) = action, kind == rail { return value }
+                return nil
+            }
+            XCTAssertEqual(cancelled, [start])
+            XCTAssertEqual(beganCount(), 1)
+            XCTAssertEqual(draggedValues().count, 2)
+            XCTAssertTrue(endedValues().isEmpty)
+            XCTAssertEqual(monitors.removed, [.local, .global])
+            XCTAssertNil(monitors.localHandler)
+            XCTAssertNil(monitors.globalHandler)
+            XCTAssertFalse(divider.hasEscapeMonitor)
+            XCTAssertFalse(divider.isSizeLabelVisible)
+            XCTAssertFalse(window.isKeyWindow)
+            XCTAssertFalse(window.canBecomeKey)
+        }
+        XCTAssertTrue(NSApp.keyWindow === keyWindow)
+        XCTAssertEqual(NSApp.isActive, active)
+    }
+
+    func testCleanupAndHideDoNotCommitOrCancel() throws {
+        let divider = controller.sideDivider
+        let monitors = DividerEventMonitors()
+        divider.eventMonitoring = monitors.monitoring
+        let grab = center(of: divider)
+        try send(.leftMouseDown, to: divider, at: grab)
+        try send(.leftMouseDragged, to: divider, at: CGPoint(x: grab.x - 30, y: grab.y))
+        XCTAssertTrue(divider.hasEscapeMonitor)
+        XCTAssertEqual(monitors.active, [.local, .global])
+        actions = []
+        divider.cancelMouseGesture()
+        divider.cancelMouseGesture()
+        try send(.leftMouseUp, to: divider, at: grab)
+        XCTAssertTrue(actions.isEmpty)
+        XCTAssertFalse(divider.hasEscapeMonitor)
+        XCTAssertTrue(monitors.active.isEmpty)
+        XCTAssertEqual(monitors.removed, [.local, .global])
+        try send(.leftMouseDown, to: divider, at: grab)
+        try send(.leftMouseDragged, to: divider, at: CGPoint(x: grab.x - 30, y: grab.y))
+        XCTAssertEqual(monitors.active, [.local, .global])
+        let global = try XCTUnwrap(monitors.globalHandler)
+        actions = []
+        controller.hide()
+        global(HostEvents.key(53))
+        try send(.leftMouseUp, to: divider, at: grab)
+        XCTAssertTrue(actions.isEmpty)
+        XCTAssertFalse(divider.hasEscapeMonitor)
+        XCTAssertFalse(divider.isSizeLabelVisible)
+        XCTAssertTrue(monitors.active.isEmpty)
+        XCTAssertEqual(monitors.removed, [.local, .global, .local, .global])
+    }
+
+    func testDeinitRemovesBothEscapeMonitorsWithoutCallbacks() throws {
+        let monitors = DividerEventMonitors()
+        weak var releasedDivider: WorkbenchDividerView?
+        var cancelled = 0
+        var committed = 0
+        // 不挂 superview/window，确保验证的是 deinit，而不是移除视图时的清理。
+        try autoreleasepool {
+            let divider = WorkbenchDividerView(rail: .top, frame: CGRect(x: 0, y: 0, width: 100, height: 8))
+            releasedDivider = divider
+            divider.eventMonitoring = monitors.monitoring
+            divider.updatePresentation(value: 120, range: 96...320, side: .right, reduceMotion: true)
+            divider.onDragCancelled = { cancelled += 1 }
+            divider.onDragEnded = { _ in committed += 1 }
+            divider.mouseDown(with: HostEvents.mouse(.leftMouseDown, in: nil, point: .zero))
+            divider.mouseDragged(with: HostEvents.mouse(.leftMouseDragged, in: nil, point: CGPoint(x: 0, y: -30)))
+            XCTAssertEqual(monitors.active, [.local, .global])
+            _ = try XCTUnwrap(monitors.globalHandler)
+        }
+        XCTAssertNil(releasedDivider, "监听回调不能强引用分隔线")
+        XCTAssertTrue(monitors.active.isEmpty)
+        XCTAssertEqual(monitors.removed, [.local, .global])
+        XCTAssertNil(monitors.localHandler)
+        XCTAssertNil(monitors.globalHandler)
+        XCTAssertEqual(cancelled, 0)
+        XCTAssertEqual(committed, 0)
+    }
+
+    func testDoubleClickOnlyRequestsReset() throws {
+        for divider in [controller.topDivider, controller.sideDivider] {
+            actions = []
+            let window = try XCTUnwrap(divider.window)
+            let event = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseDown,
+                                                        location: divider.convert(center(of: divider), to: nil),
+                                                        modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber,
+                                                        context: nil, eventNumber: 0, clickCount: 2, pressure: 1))
+            divider.mouseDown(with: event)
+            try send(.leftMouseUp, to: divider, at: center(of: divider))
+            XCTAssertEqual(actions.count, 1)
+            guard case let .railDividerReset(rail) = try XCTUnwrap(actions.first) else {
+                return XCTFail("Double-click must only request reset")
+            }
+            XCTAssertEqual(rail, divider.rail)
+            XCTAssertFalse(divider.hasEscapeMonitor)
+            XCTAssertTrue(endedValues().isEmpty)
+        }
+    }
+
+    func testPresentationOwnsSizeLabelAndReusesDecorationLayers() throws {
+        let divider = controller.topDivider
+        let window = try XCTUnwrap(divider.window)
+        divider.updatePresentation(value: fixture.layout.topRailRect.height,
+                                   range: fixture.layout.effectiveTopHeightRange, side: .right, reduceMotion: true)
+        divider.layoutSubtreeIfNeeded()
+        let layers = (divider.layer?.sublayers ?? []).map(ObjectIdentifier.init)
+        let value = divider.displayedValue
+        let grab = center(of: divider)
+        try send(.leftMouseDown, to: divider, at: grab)
+        try send(.leftMouseDragged, to: divider, at: CGPoint(x: grab.x, y: grab.y - 30))
+        XCTAssertTrue(divider.isSizeLabelVisible)
+        XCTAssertEqual(divider.displayedValue, value)
+        for size in 140...160 {
+            divider.updatePresentation(value: CGFloat(size), range: 96...320, side: .right, reduceMotion: true)
+            divider.layoutSubtreeIfNeeded()
+        }
+        XCTAssertEqual(divider.sizeLabelText, "Height 160 pt")
+        XCTAssertEqual((divider.layer?.sublayers ?? []).map(ObjectIdentifier.init), layers)
+        XCTAssertTrue((divider.layer?.sublayers ?? []).allSatisfy { ($0.animationKeys() ?? []).isEmpty })
+        let label = try XCTUnwrap(divider.superview?.subviews.compactMap { $0 as? NSTextField }.first)
+        XCTAssertNil(label.hitTest(CGPoint(x: label.frame.midX, y: label.frame.midY)))
+        XCTAssertTrue(try XCTUnwrap(window.contentView).bounds.contains(label.frame))
+        divider.cancelDragging()
+    }
+
+    func testKeyboardAndAccessibilityAdjustWithinEffectiveRangeWithoutFocus() throws {
+        syncLayout(top: 120, width: 200, size: CGSize(width: 1_280, height: 800))
+        let top = controller.topDivider
+        let side = controller.sideDivider
+        XCTAssertEqual(top.accessibilityLabel(), "Top rail height")
+        XCTAssertEqual(side.accessibilityLabel(), "Side rail width")
+        XCTAssertEqual(top.accessibilityIdentifier(), "workbench.topRailDivider")
+        XCTAssertEqual(side.accessibilityIdentifier(), "workbench.sideRailDivider")
+        XCTAssertTrue(top.accessibilityPerformIncrement())
+        XCTAssertEqual(endedValues(), [128])
+        actions = []
+        top.keyDown(with: HostEvents.key(126, flags: HostEvents.option))
+        XCTAssertEqual(endedValues(), [119])
+        actions = []
+        XCTAssertTrue(side.accessibilityPerformDecrement())
+        XCTAssertEqual(endedValues(), [192])
+        actions = []
+        side.keyDown(with: HostEvents.key(123))
+        XCTAssertEqual(endedValues(), [208])
+        XCTAssertEqual(beganCount(), 0)
+        XCTAssertTrue(draggedValues().isEmpty)
+        XCTAssertFalse(try XCTUnwrap(top.window).canBecomeKey)
+        XCTAssertFalse(try XCTUnwrap(side.window).canBecomeKey)
+        syncLayout(top: 9_999, width: 9_999, size: CGSize(width: 1_280, height: 800))
+        actions = []
+        XCTAssertFalse(top.accessibilityPerformIncrement())
+        XCTAssertFalse(side.accessibilityPerformIncrement())
+        XCTAssertTrue(actions.isEmpty)
+    }
+
+    func testEffectiveDragLimitsAndFractionalPanelsDoNotCoverMainBorder() throws {
+        for side in [RailSide.left, .right] {
+            syncLayout(top: 120.25, width: 220.25, side: side, size: CGSize(width: 1_280, height: 800))
+            let main = HostFixtures.mapper.cgToAppKit(fixture.layout.mainRect)
+            XCTAssertGreaterThanOrEqual(controller.topPanelFrame.minY, main.maxY)
+            if side == .left {
+                XCTAssertLessThanOrEqual(controller.sidePanelFrame.maxX, main.minX)
+            } else {
+                XCTAssertGreaterThanOrEqual(controller.sidePanelFrame.minX, main.maxX)
+            }
+            for divider in [controller.topDivider, controller.sideDivider] {
+                actions = []
+                let grab = center(of: divider)
+                let destination = CGPoint(x: grab.x + (side == .left ? 9_999 : -9_999), y: grab.y - 9_999)
+                try send(.leftMouseDown, to: divider, at: grab)
+                try send(.leftMouseDragged, to: divider, at: destination)
+                try send(.leftMouseUp, to: divider, at: destination)
+                let range = divider.rail == .top ? fixture.layout.effectiveTopHeightRange : fixture.layout.effectiveSideWidthRange
+                XCTAssertEqual(try XCTUnwrap(endedValues().last), range.upperBound)
+            }
+        }
     }
 
     // MARK: - 节流策略（方案 §11.2：15–20Hz）
@@ -591,6 +950,38 @@ final class WorkbenchDividerTests: XCTestCase {
         }
         testDefaultsSuites.append(name)
         return defaults
+    }
+}
+
+/// 只保存监听回调和令牌，不注册系统监听，也不发送全局事件或要求 AX 权限。
+@MainActor
+private final class DividerEventMonitors {
+    enum Kind: Hashable { case local, global }
+    private(set) var active: Set<Kind> = []
+    private(set) var removed: [Kind] = []
+    private(set) var localHandler: ((NSEvent) -> NSEvent?)?
+    private(set) var globalHandler: ((NSEvent) -> Void)?
+
+    var monitoring: WorkbenchDividerView.EventMonitoring {
+        WorkbenchDividerView.EventMonitoring(addLocal: { [self] mask, handler in
+            XCTAssertEqual(mask, .keyDown)
+            XCTAssertTrue(active.insert(.local).inserted, "不得重复注册局部监听")
+            localHandler = handler
+            return Kind.local
+        }, addGlobal: { [self] mask, handler in
+            XCTAssertEqual(mask, .keyDown)
+            XCTAssertTrue(active.insert(.global).inserted, "不得重复注册全局监听")
+            globalHandler = handler
+            return Kind.global
+        }, remove: { [self] token in
+            guard let kind = token as? Kind else { return XCTFail("未知监听令牌") }
+            XCTAssertNotNil(active.remove(kind), "每个监听令牌只能移除一次")
+            removed.append(kind)
+            switch kind {
+            case .local: localHandler = nil
+            case .global: globalHandler = nil
+            }
+        })
     }
 }
 

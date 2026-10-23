@@ -121,6 +121,9 @@ public struct WorkbenchSwitchIntent: Hashable, Sendable {
     public let operationContext: GeometryOperationContext
     /// 操作前快照（方案 §6.3）：宿主按它逆序补偿，不再靠"有没有事务"猜成功与否。
     public let beforeOperation: WorkbenchOperationSnapshot
+    /// 中文：系统已激活目标；宿主应跟随焦点，不重新抢焦点。
+    /// English: The system already focused this target; follow it without stealing focus.
+    public let followsExternalFocus: Bool
 
     public init(token: TransitionToken,
                 from: WindowIdentity?,
@@ -129,7 +132,8 @@ public struct WorkbenchSwitchIntent: Hashable, Sendable {
                 placementRevision: UInt64,
                 targetDisplayID: UInt32,
                 operationContext: GeometryOperationContext,
-                beforeOperation: WorkbenchOperationSnapshot) {
+                beforeOperation: WorkbenchOperationSnapshot,
+                followsExternalFocus: Bool = false) {
         self.token = token
         self.from = from
         self.to = to
@@ -138,6 +142,7 @@ public struct WorkbenchSwitchIntent: Hashable, Sendable {
         self.targetDisplayID = targetDisplayID
         self.operationContext = operationContext
         self.beforeOperation = beforeOperation
+        self.followsExternalFocus = followsExternalFocus
     }
 
     /// 操作类型：替补与手动交换走同一条执行链，但失败落点不同（方案 §10）。

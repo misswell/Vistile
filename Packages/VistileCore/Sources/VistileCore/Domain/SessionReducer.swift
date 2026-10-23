@@ -47,9 +47,13 @@ public enum SessionReducer {
                                                                    identity: identity,
                                                                    mutation: .remove(identity))))
                 state.pendingTarget = nil
-                state.phase = .overview
-                state.keyboardFocus = .overview
-                effects.append(.setKeyboardFocus(.overview))
+                // 中文：工作台的阶段由自身收口，不能先激活总览抢走系统替补焦点。
+                // English: Workbench owns its phase convergence; never steal system replacement focus with overview.
+                if !WorkbenchReducer.isEngaged(state) {
+                    state.phase = .overview
+                    state.keyboardFocus = .overview
+                    effects.append(.setKeyboardFocus(.overview))
+                }
             } else if state.pendingTarget == identity {
                 state.pendingTarget = nil
             }
@@ -312,7 +316,7 @@ public enum SessionReducer {
             record.isMinimized = minimized
             record.capture = minimized ? .pausedMinimized : (record.capture == .pausedMinimized ? .idle : record.capture)
             state.records[identity] = record
-            return []
+            return minimized ? WorkbenchReducer.handleWindowMinimized(&state, identity: identity) : []
 
         case .reconcileTick:
             guard state.phase.isVisible, !state.isDiscoveryInFlight, !state.isDiscoveryBudgetExhausted else { return [] }
@@ -594,6 +598,11 @@ public enum SessionReducer {
         // 宿主把这份身份下发给调度器，普通写入此后连准入都拿不到（方案 §5.1、§15）。
         state.sessionEpoch &+= 1
         state.workbench.armed = nil
+        state.workbench.pendingExternalFocus = nil
+        state.workbench.pendingRailSelection = nil
+        state.workbench.pendingReturnToOverview = false
+        state.workbench.pendingReplacement = nil
+        state.workbench.recentMainIdentities.removeAll()
         state.workbench.runningOperation = nil
         state.workbench.activeContext = nil
         state.workbench.switchCorrection = nil

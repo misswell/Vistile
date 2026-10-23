@@ -14,12 +14,27 @@ public enum WorkbenchReducer {
     // MARK: - 事件入口
 
     static func reduce(_ state: inout SessionState, _ event: SessionEvent) -> [SessionEffect]? {
+        guard let effects = reduceEvent(&state, event) else { return nil }
+        return effects + consumePendingIntent(&state)
+    }
+
+    private static func reduceEvent(_ state: inout SessionState, _ event: SessionEvent) -> [SessionEffect]? {
         // 会话不可见（隐藏/恢复中）时工作台事件一律不认领：旧完成回调不能复活工作台（方案 §4.5、§10.5）。
         guard state.phase.isVisible else { return nil }
         switch event {
+        case let .externalWindowFocused(identity):
+            return handleExternalFocus(&state, identity: identity)
+        case let .workbenchReplacementResolved(closed, candidate):
+            return resolveReplacement(&state, closed: closed, candidate: candidate)
+        case let .workbenchFocusUnavailable(reason):
+            guard isEngaged(state) else { return [] }
+            clearPendingFocus(&state)
+            return SessionReducer.exitToHidden(&state) + [.presentHint(.restrictedWindow(reason))]
         case let .overviewCardSelected(identity, _, _):
+            clearPendingFocus(&state)
             return beginEnterWorkbench(&state, identity: identity)
         case let .railCardSelected(slot, identity):
+            clearPendingFocus(&state)
             return beginRailSelection(&state, slot: slot, identity: identity)
         case let .railCardDragged(from, to):
             return handleRailDrag(&state, from: from, to: to)
@@ -30,6 +45,7 @@ public enum WorkbenchReducer {
         case let .railSideChanged(side):
             return handleSideChanged(&state, side: side)
         case .returnToOverviewRequested:
+            clearPendingFocus(&state)
             return beginReturnOverview(&state)
         case let .workbenchTransitionFinished(token, kind, result):
             return finishModeTransition(&state, token: token, kind: kind, result: result)
@@ -74,6 +90,13 @@ public enum WorkbenchReducer {
 
         guard isEngaged(state) else { return nil }
         switch event {
+        case let .focusLost(origin):
+            // 中文：应用级通知不能决定主窗口，等待宿主最终具体窗口事件。
+            // English: Application-level notifications cannot choose a main; await concrete window focus.
+            if case let .internalInteraction(token) = origin, state.trustedInteraction == token {
+                state.trustedInteraction = nil
+            }
+            return []
         case let .backgroundClicked(interaction):
             // 点击栏内空白：保持主窗口与模式，只登记可信交互，不收起、不穿透（方案 §7.2）。
             state.trustedInteraction = interaction
@@ -95,8 +118,113 @@ public enum WorkbenchReducer {
     }
 
     /// 工作台事件占据中：模式已完成切换，或正在模式过渡。
-    private static func isEngaged(_ state: SessionState) -> Bool {
+    static func isEngaged(_ state: SessionState) -> Bool {
         state.mode == .workbench || state.workbench.modeTransition.isTransitioning
+            || state.workbench.armed?.staged.modeTransition.isTransitioning == true
+    }
+
+    private static func clearPendingFocus(_ state: inout SessionState) {
+        state.workbench.pendingExternalFocus = nil
+        state.workbench.pendingRailSelection = nil
+        state.workbench.pendingReturnToOverview = false
+        state.workbench.pendingReplacement = nil
+    }
+
+    private static func focusOperationIsBusy(_ state: SessionState) -> Bool {
+        state.workbench.armed != nil || state.workbench.activeContext != nil
+            || !state.workbench.acceptsNewOrdinaryOperation
+    }
+
+    /// 中文：所有来源共享一个最新意图；仅在上一笔日志/几何完全收敛后消费。
+    /// English: All sources share one latest intent, consumed only after journal and geometry converge.
+    private static func consumePendingIntent(_ state: inout SessionState) -> [SessionEffect] {
+        guard state.phase.isVisible else { return [] }
+        guard isEngaged(state) else {
+            clearPendingFocus(&state)
+            return []
+        }
+        guard state.mode == .workbench, !focusOperationIsBusy(state) else { return [] }
+        if state.workbench.pendingReturnToOverview {
+            state.workbench.pendingReturnToOverview = false
+            return beginReturnOverview(&state)
+        }
+        if let external = state.workbench.pendingExternalFocus {
+            state.workbench.pendingExternalFocus = nil
+            return handleExternalFocus(&state, identity: external)
+        }
+        guard let pending = state.workbench.pendingRailSelection else { return [] }
+        state.workbench.pendingRailSelection = nil
+        let isReplacement = state.workbench.pendingReplacement != nil && state.workbench.hasAutoPromotionAttempted
+        state.workbench.pendingReplacement = nil
+        guard state.workbench.placement.occupant(at: pending.slot) == pending.identity,
+              state.workbench.placement.main != pending.identity else { return [] }
+        if isReplacement {
+            guard canFollowFocus(state, identity: pending.identity) else { return [] }
+            return startSwitch(&state, to: pending.identity, slot: pending.slot, kind: .promoteCandidate,
+                               followsExternalFocus: pending.followsExternalFocus)
+        }
+        return beginRailSelection(&state, slot: pending.slot, identity: pending.identity,
+                                  followsExternalFocus: pending.followsExternalFocus)
+    }
+
+    private static func focusRestriction(_ state: SessionState, identity: WindowIdentity) -> String? {
+        guard let record = state.records[identity] else {
+            return "无法唯一定位外部窗口；请重新打开总览后选择可控制的窗口。"
+        }
+        let displayID = state.workbench.activeDisplayID ?? state.workbench.snapshot?.displayID
+            ?? state.workbench.armed?.staged.snapshot?.displayID
+        guard record.displayID == displayID else {
+            return "外部窗口位于其他显示器；请在该屏重新打开工作台，或先将窗口移回当前屏幕。"
+        }
+        guard !record.isMinimized else {
+            return "外部窗口已最小化；请先通过系统恢复窗口，再重新打开工作台。"
+        }
+        guard record.allowsAutoFocus, record.isMovable, record.restriction?.blocksGeometry != true else {
+            return "外部窗口无法安全控制（匹配、辅助功能或窗口限制）；请检查辅助功能权限、退出全屏或改选普通窗口。"
+        }
+        return nil
+    }
+
+    private static func canFollowFocus(_ state: SessionState, identity: WindowIdentity) -> Bool {
+        state.records[identity]?.axSnapshot?.isSheetLike != true
+            && focusRestriction(state, identity: identity) == nil
+    }
+
+    private static func handleExternalFocus(_ state: inout SessionState,
+                                             identity: WindowIdentity) -> [SessionEffect] {
+        guard isEngaged(state) else { return [] }
+        guard state.records[identity]?.axSnapshot?.isSheetLike != true else { return [] }
+        // 中文：自身正在激活的目标只是确认，不得覆盖后来收到的外部意图。
+        // English: Acknowledging our in-flight target must not overwrite a newer external intent.
+        let entering = state.workbench.modeTransition.target ?? state.workbench.armed?.staged.modeTransition.target
+        let switching = state.workbench.mainSwitch.isBusy ? state.workbench.mainSwitch.intent?.to
+            : state.workbench.armed?.staged.mainSwitch.intent?.to
+        if identity == entering || identity == switching { return [] }
+        clearPendingFocus(&state)
+        if focusOperationIsBusy(state), state.workbench.recoveryRequired == nil {
+            state.workbench.pendingExternalFocus = identity
+            return []
+        }
+        if let reason = focusRestriction(state, identity: identity) {
+            return SessionReducer.exitToHidden(&state) + [.presentHint(.restrictedWindow(reason))]
+        }
+        if let blocked = recoveryBlock(&state) { return blocked }
+        if state.workbench.placement.main == identity {
+            state.phase = .focused(target: identity)
+            state.keyboardFocus = .targetApplication
+            syncTransitionActivity(&state)
+            return []
+        }
+        var effects = syncCatalog(&state, generation: state.catalogGeneration)
+        guard let slot = state.workbench.placement.slot(of: identity) else { return effects }
+        effects += beginRailSelection(&state, slot: slot, identity: identity, followsExternalFocus: true)
+        return effects
+    }
+
+    private static func rememberMain(_ state: inout SessionState, identity: WindowIdentity) {
+        state.workbench.recentMainIdentities.removeAll { $0 == identity }
+        state.workbench.recentMainIdentities.insert(identity, at: 0)
+        state.workbench.pendingReplacement = nil
     }
 
     /// 令牌只对工作台自己的过渡/交换/备料有效，否则交回既有超时逻辑。
@@ -181,9 +309,18 @@ public enum WorkbenchReducer {
         for identity in armed.transactions.keys where state.records[identity] == nil {
             return "日志落盘期间窗口已消失：\(identity.journalKey)"
         }
-        if case let .switching(intent, _) = armed.staged.mainSwitch,
-           intent.placementRevision != state.workbench.placement.revision {
-            return "日志落盘期间轨道占用已变化，本次交换未开始"
+        if let intent = armed.staged.mainSwitch.intent {
+            guard let slot = intent.railSlot,
+                  state.workbench.placement.occupant(at: slot) == intent.to,
+                  state.workbench.placement.main == intent.from else {
+                return "日志落盘期间交换目标占用已变化，本次交换未开始"
+            }
+            if (intent.followsExternalFocus || intent.isPromotion), !canFollowFocus(state, identity: intent.to) {
+                return "日志落盘期间目标不再允许跟随焦点，请重新选择可控制的窗口"
+            }
+        }
+        if let target = armed.staged.modeTransition.target, state.records[target]?.isMinimized == true {
+            return "日志落盘期间目标已最小化，请先通过系统恢复窗口"
         }
         if let main = armed.staged.mainFrameWrite?.identity, state.records[main] == nil {
             return "日志落盘期间主窗口已消失"
@@ -210,7 +347,6 @@ public enum WorkbenchReducer {
                                                armed: ArmedGeometryOperation,
                                                reason: String) -> [SessionEffect] {
         state.workbench.armed = nil
-        state.workbench.pendingRailSelection = nil
         // 未落盘的事务从不进内存：这里只清意图，事务与 journal 都还是操作前的样子。
         switch armed.context.kind {
         case .enterWorkbench:
@@ -231,9 +367,10 @@ public enum WorkbenchReducer {
             // A 保持工作台：placement、滚动、焦点都不动，只留一个可重试的失败态。
             state.workbench.mainSwitch = .failed(intent: intent, reason: reason)
             state.phase = .focused(target: old)
-            state.keyboardFocus = .targetApplication
+            state.keyboardFocus = intent.followsExternalFocus || state.workbench.pendingExternalFocus != nil
+                ? .none : .targetApplication
             syncTransitionActivity(&state)
-            return [.setKeyboardFocus(.targetApplication), .presentHint(.journalWriteFailed(reason))]
+            return [.setKeyboardFocus(state.keyboardFocus), .presentHint(.journalWriteFailed(reason))]
                 + layoutEffects(state)
 
         case .promoteCandidate:
@@ -247,10 +384,7 @@ public enum WorkbenchReducer {
                 syncTransitionActivity(&state)
                 return [.setKeyboardFocus(.targetApplication), .presentHint(.journalWriteFailed(reason))]
             }
-            state.phase = .overview
-            state.keyboardFocus = .overview
-            syncTransitionActivity(&state)
-            return [.setKeyboardFocus(.overview), .presentHint(.journalWriteFailed(reason))]
+            return landEmptyMain(&state, hint: .journalWriteFailed(reason))
 
         case .settleLayout:
             // 已提交布局原样保留：暂存的新投影从未落地，pending frame write 也从未建立（方案 §7.2、§11.2）。
@@ -265,16 +399,14 @@ public enum WorkbenchReducer {
         }
     }
 
-    /// 替补或无旧主的交换没能开始：主区继续空、候选仍在轨道、键盘留在 Vistile 一侧（方案 §7.2、§10）。
+    /// 中文：替补或无旧主的交换没能开始：主区继续空、候选留原卡位，不激活总览。
+    /// English: Failed replacement leaves main empty and the candidate in its slot, without activating overview.
     private static func landEmptyMain(_ state: inout SessionState, hint: HintKind) -> [SessionEffect] {
         state.workbench.mainSwitch = .idle
         state.workbench.activeContext = nil
         state.workbench.runningOperation = nil
         if state.workbench.placement.main == nil, state.mode == .workbench {
-            state.phase = .overview
-            state.keyboardFocus = .overview
-            syncTransitionActivity(&state)
-            return [.setKeyboardFocus(.overview), .presentHint(hint)] + layoutEffects(state)
+            return emptyMainStateEffects(&state) + [.presentHint(hint)] + layoutEffects(state)
         }
         if let main = state.workbench.placement.main, state.records[main] != nil {
             state.phase = .focused(target: main)
@@ -517,13 +649,14 @@ public enum WorkbenchReducer {
             }
             state.workbench.activeDisplayID = snapshot.displayID
             state.workbench.lastSelectedMain = target
+            rememberMain(&state, identity: target)
             // 主窗口已确定：这次会话的关闭事件重新获得一次自动替补额度（方案 §10）。
             state.workbench.hasAutoPromotionAttempted = false
             state.mode = .workbench
             state.phase = .focused(target: target)
             state.keyboardFocus = .targetApplication
             var effects = recordObservedWrite(&state, identity: target, outcome: result)
-            effects.append(.setKeyboardFocus(.targetApplication))
+            if state.workbench.pendingExternalFocus == nil { effects.append(.setKeyboardFocus(.targetApplication)) }
             effects.append(.updateWorkbenchLayout(WorkbenchPresenter.make(state: state,
                                                                           snapshot: state.workbench.snapshot ?? snapshot,
                                                                           placement: state.workbench.placement)))
@@ -571,24 +704,15 @@ public enum WorkbenchReducer {
     // MARK: - 工作台 → 总览（方案 §4.4）
 
     private static func beginReturnOverview(_ state: inout SessionState) -> [SessionEffect] {
-        guard state.mode == .workbench else { return [] }
-        guard state.workbench.modeTransition == .idle else { return [] }
+        guard isEngaged(state) else { return [] }
         if let blocked = recoveryBlock(&state) { return blocked }
-        if state.workbench.mainSwitch.isBusy {
-            // 交换进行中：记住意图，等这次收敛后再回总览（方案 §4.5、§7.2）。
+        if focusOperationIsBusy(state) {
             state.workbench.pendingReturnToOverview = true
             state.workbench.pendingRailSelection = nil
+            state.workbench.pendingExternalFocus = nil
             return []
         }
-        // 上一笔操作还在落盘：交换类的记下"要回总览"，其余一律等它自己收敛（方案 §7.2、§10.4）。
-        if let armed = state.workbench.armed {
-            if armed.staged.mainSwitch.isBusy {
-                state.workbench.pendingReturnToOverview = true
-                state.workbench.pendingRailSelection = nil
-            }
-            return []
-        }
-        guard let snapshot = state.workbench.snapshot else { return [] }
+        guard state.mode == .workbench, let snapshot = state.workbench.snapshot else { return [] }
         guard let main = state.workbench.placement.main, let record = state.records[main] else {
             // 没有主窗口：没有真实几何要动，直接落回总览。
             state.workbench.saveScrollOffsets()
@@ -649,39 +773,39 @@ public enum WorkbenchReducer {
 
     private static func beginRailSelection(_ state: inout SessionState,
                                            slot: RailSlotID,
-                                           identity: WindowIdentity) -> [SessionEffect] {
-        guard state.mode == .workbench, state.workbench.modeTransition == .idle else { return [] }
+                                           identity: WindowIdentity,
+                                           followsExternalFocus: Bool = false) -> [SessionEffect] {
+        guard isEngaged(state) else { return [] }
         if let blocked = recoveryBlock(&state) { return blocked }
-        // 事实对不上（占用已变化）就不写几何；以 placement 为准。
-        guard state.workbench.placement.occupant(at: slot) == identity else { return [] }
-        guard state.workbench.placement.main != identity else { return [] }
-        if state.workbench.mainSwitch.isBusy {
-            // 交换已进入写入通道：只保存最新目标，前一次收敛后再处理（方案 §7.2、§10.4）。后到的点击覆盖先前意图。
-            state.workbench.pendingRailSelection = WorkbenchPendingSelection(identity: identity, slot: slot)
-            state.workbench.pendingReturnToOverview = false
-            return []
-        }
-        // 尚未写入的自动替补意图可以被用户的手动选择顶掉：preparing 阶段最新选择优先（方案 §10 第 291 行、§15）。
-        // 这条判定必须排在"armed 里有一次在途交换"之前：替补的 staged 同样是 `.switching`，
-        // 走排队会让一个连一个像素都没写的意图真的去写 B，再写 C。
-        if state.workbench.armed?.context.kind == .promoteCandidate {
+        // 中文：手动选择可撤销尚未准入的替补，已经写入的操作必须先收敛。
+        // English: Manual selection may replace an unadmitted promotion, never an operation already writing.
+        if !followsExternalFocus, state.workbench.armed?.context.kind == .promoteCandidate {
             state.workbench.armed = nil
-            state.workbench.pendingRailSelection = nil
             syncTransitionActivity(&state)
-        } else if let armed = state.workbench.armed, armed.staged.mainSwitch.isBusy {
-            // 前一次意图已经进过写入通道：只保存最新目标，等它收敛后再处理（方案 §7.2、§10.4）。
-            state.workbench.pendingRailSelection = WorkbenchPendingSelection(identity: identity, slot: slot)
+        }
+        if focusOperationIsBusy(state) {
+            state.workbench.pendingRailSelection = WorkbenchPendingSelection(identity: identity, slot: slot,
+                                                                             followsExternalFocus: followsExternalFocus)
+            state.workbench.pendingExternalFocus = nil
             state.workbench.pendingReturnToOverview = false
             return []
         }
-        return startSwitch(&state, to: identity, slot: slot, kind: .mainSwitch)
+        guard state.mode == .workbench,
+              state.workbench.placement.occupant(at: slot) == identity,
+              state.workbench.placement.main != identity else { return [] }
+        return startSwitch(&state, to: identity, slot: slot, kind: .mainSwitch,
+                           followsExternalFocus: followsExternalFocus)
     }
 
     private static func startSwitch(_ state: inout SessionState,
                                     to identity: WindowIdentity,
                                     slot: RailSlotID,
-                                    kind: GeometryOperationKind) -> [SessionEffect] {
-        guard state.workbench.activeContext == nil || kind == .promoteCandidate else { return [] }
+                                    kind: GeometryOperationKind,
+                                    followsExternalFocus: Bool = false) -> [SessionEffect] {
+        guard !focusOperationIsBusy(state) else { return [] }
+        if followsExternalFocus || kind == .promoteCandidate {
+            guard canFollowFocus(state, identity: identity) else { return [] }
+        }
         guard let record = state.records[identity] else { return [.presentHint(.cannotLocateWindow)] }
         guard record.allowsAutoFocus else {
             return [.presentHint(record.confidence.isAmbiguous ? .ambiguousWindow : .cannotLocateWindow)]
@@ -736,7 +860,8 @@ public enum WorkbenchReducer {
                                            placementRevision: placement.revision,
                                            targetDisplayID: snapshot.displayID,
                                            operationContext: context,
-                                           beforeOperation: before)
+                                           beforeOperation: before,
+                                           followsExternalFocus: followsExternalFocus)
         var transactions: [WindowIdentity: WindowTransaction] = [:]
         // 写前事务：B 的目标是主区；A 的目标是它的回落点。都在同一批次里原子落盘（方案 §7.1、§8.2.3）。
         if let transaction = SessionReducer.preparedTransaction(state, target: identity,
@@ -880,6 +1005,13 @@ public enum WorkbenchReducer {
         guard case let .switching(intent, _) = state.workbench.mainSwitch, intent.token == token else { return [] }
         var placement = state.workbench.placement
         let target = intent.to
+        guard state.records[target] != nil, state.records[target]?.isMinimized != true,
+              (!(intent.followsExternalFocus || intent.isPromotion) || canFollowFocus(state, identity: target)),
+              let targetSlot = intent.railSlot, placement.occupant(at: targetSlot) == target else {
+            state.workbench.mainSwitch = .rollingBack(intent: intent, reason: "提交前目标已消失、最小化或离开原卡位")
+            syncTransitionActivity(&state)
+            return [.presentHint(.workbenchSwitchFailed("目标已变化，等待操作补偿"))]
+        }
         var effects: [SessionEffect] = []
         if let from = intent.from, state.records[from] != nil, placement.main == from,
            let slot = intent.railSlot, placement.occupant(at: slot) == target {
@@ -900,6 +1032,7 @@ public enum WorkbenchReducer {
         }
         state.workbench.placement = placement
         state.workbench.lastSelectedMain = target
+        rememberMain(&state, identity: target)
         state.workbench.mainSwitch = .idle
         state.workbench.activeContext = nil
         state.workbench.runningOperation = nil
@@ -908,21 +1041,14 @@ public enum WorkbenchReducer {
         state.phase = .focused(target: target)
         state.keyboardFocus = .targetApplication
         syncTransitionActivity(&state)
-        effects.append(.setKeyboardFocus(.targetApplication))
+        if !intent.followsExternalFocus, state.workbench.pendingExternalFocus == nil {
+            effects.append(.setKeyboardFocus(.targetApplication))
+        }
         effects.append(contentsOf: layoutEffects(state))
         // 交换期间攒下的栏尺寸更新在交换收敛这一刻落地（方案 §13.2）。
         effects.append(contentsOf: applyDeferredRailSize(&state))
-        // latest-wins：前一次已经收敛，现在处理等着的最后意图（方案 §10.4）。
-        if state.workbench.pendingReturnToOverview {
-            state.workbench.pendingReturnToOverview = false
-            effects.append(contentsOf: beginReturnOverview(&state))
-        } else if let pending = state.workbench.pendingRailSelection {
-            state.workbench.pendingRailSelection = nil
-            if pending.identity != target {
-                effects.append(contentsOf: startSwitch(&state, to: pending.identity, slot: pending.slot,
-                                                       kind: .mainSwitch))
-            }
-        }
+        // 中文：统一事件出口在尺寸 settle 收敛后消费最新意图，避免双通道竞争。
+        // English: The shared event exit consumes latest intent after layout settle, avoiding concurrent channels.
         return effects
     }
 
@@ -934,11 +1060,26 @@ public enum WorkbenchReducer {
         guard let intent = state.workbench.mainSwitch.intent, intent.token == token else { return [] }
         state.workbench.switchCorrection = nil
         let old = intent.from
+        if intent.followsExternalFocus || state.workbench.pendingExternalFocus != nil,
+           let compensation, canClaimOperationIsHome(state, intent: intent, compensation: compensation) {
+            state.workbench.mainSwitch = .idle
+            state.workbench.activeContext = nil
+            state.workbench.runningOperation = nil
+            var effects = recordCompensationFacts(&state, intent: intent, compensation: compensation, reason: reason)
+            if state.workbench.pendingExternalFocus != nil || state.workbench.pendingRailSelection != nil {
+                state.phase = .overview
+                state.keyboardFocus = .none
+                syncTransitionActivity(&state)
+                effects += [.setKeyboardFocus(.none)] + layoutEffects(state)
+            } else {
+                effects += SessionReducer.exitToHidden(&state) + [.presentHint(.workbenchSwitchFailed(reason))]
+            }
+            return effects
+        }
         if let compensation, canClaimOldMainStillMain(state, intent: intent, old: old, compensation: compensation) {
             state.workbench.mainSwitch = .idle
             state.workbench.activeContext = nil
             state.workbench.runningOperation = nil
-            state.workbench.pendingRailSelection = nil
             state.phase = .focused(target: old!)
             state.keyboardFocus = .targetApplication
             syncTransitionActivity(&state)
@@ -957,8 +1098,8 @@ public enum WorkbenchReducer {
         }
         // 无旧主（自动替补）失败：候选按事实回到本次操作写入前的位置，几何就是可信的——
         // 主区继续空、候选留在轨道，用户还能自己选别人（方案 §10、§18 A27）。
-        if old == nil, let compensation, canClaimCandidateIsHome(state, intent: intent, compensation: compensation) {
-            state.workbench.pendingRailSelection = nil
+        if state.workbench.placement.main == nil, let compensation,
+           canClaimOperationIsHome(state, intent: intent, compensation: compensation) {
             var effects = landEmptyMain(&state, hint: .workbenchSwitchFailed(reason))
             effects.append(contentsOf: recordCompensationFacts(&state, intent: intent, compensation: compensation,
                                                               reason: reason))
@@ -1011,35 +1152,26 @@ public enum WorkbenchReducer {
         }
     }
 
-    /// 「候选已归位」的判定：本次操作没有旧主（自动替补/空主区提升），补偿把每个写入过的身份
-    /// 都送回了操作前的位置。`isComplete` 在这里不能用——它要求旧主被重新激活，而替补没有旧主。
-    private static func canClaimCandidateIsHome(_ state: SessionState,
+    // 外部跟随与空主区替补只核验几何补偿，不要求重新激活旧主。
+    private static func canClaimOperationIsHome(_ state: SessionState,
                                                 intent: WorkbenchSwitchIntent,
                                                 compensation: WorkbenchCompensationResult) -> Bool {
-        guard state.workbench.placement.main == nil, state.workbench.placement.slot(of: intent.to) != nil else {
-            return false
-        }
         // 解除过但没恢复的最小化：真实系统状态没有收回原样，不能宣称"候选已归位"（方案 §6.4）。
         guard compensation.unresolvedMinimizeRestorations.isEmpty else { return false }
-        for identity in intent.beforeOperation.writtenOrder {
-            // 有宿主写前实读时不需要计划期条目；两者都没有才算缺事实。
-            guard compensationTarget(for: identity, intent: intent, compensation: compensation) != nil else {
+        for identity in intent.beforeOperation.writtenOrder where state.records[identity] != nil {
+            guard let target = compensationTarget(for: identity, intent: intent, compensation: compensation) else {
                 return false
             }
-            guard let action = compensation.action(for: identity), action.isResolved else { return false }
+            switch compensation.action(for: identity) {
+            case .notWritten:
+                continue
+            case let .restoredTo(frame), let .alreadyInPlace(frame):
+                guard WindowTransaction.framesClose(frame, target, tolerance: 2) else { return false }
+            case .refused, nil:
+                return false
+            }
         }
-        guard let target = compensationTarget(for: intent.to, intent: intent, compensation: compensation) else {
-            return false
-        }
-        switch compensation.action(for: intent.to) {
-        case .notWritten:
-            // 候选从未被写过：它还停在原格，这是事实而不是推定。
-            return true
-        case let .restoredTo(frame), let .alreadyInPlace(frame):
-            return WindowTransaction.framesClose(frame, target, tolerance: 2)
-        case .refused, nil:
-            return false
-        }
+        return true
     }
 
     /// 把补偿事实追加进日志：写过什么、回到哪里，都要留得下来（方案 §6.4、§7.3）。
@@ -1116,9 +1248,10 @@ public enum WorkbenchReducer {
                                               sideWidth: CGFloat?) -> [SessionEffect] {
         guard state.mode == .workbench, state.workbench.modeTransition == .idle,
               !state.workbench.mainSwitch.isBusy else { return [] }
-        // 预览取代尚未落盘的上一次调整：拖动继续，写入以最后一次松手为准（方案 §15）。
-        if state.workbench.armed?.context.kind == .settleLayout { state.workbench.armed = nil }
         guard applyRailSize(&state, topHeight: topHeight, sideWidth: sideWidth) != nil else { return [] }
+        if state.workbench.armed != nil || state.workbench.mainFrameWrite != nil {
+            state.workbench.railSizeRecomputePending = true
+        }
         syncTransitionActivity(&state)
         return layoutEffects(state)
     }
@@ -1136,8 +1269,12 @@ public enum WorkbenchReducer {
         }
         guard state.mode == .workbench else { return [] }
         if let blocked = recoveryBlock(&state) { return blocked }
-        state.workbench.railSizeRecomputePending = false
         guard applyRailSize(&state, topHeight: topHeight, sideWidth: sideWidth) != nil else { return [] }
+        if state.workbench.armed != nil || state.workbench.mainFrameWrite != nil {
+            state.workbench.railSizeRecomputePending = true
+            return layoutEffects(state)
+        }
+        state.workbench.railSizeRecomputePending = false
         guard let updated = state.workbench.snapshot else { return [] }
         // 松手后的最终读回收口：先落盘再写，拖动中的节流写入由宿主做（方案 §7.1、§11.2）。
         return settleMainFrame(&state, snapshot: updated, layoutAlreadyApplied: true)
@@ -1242,6 +1379,13 @@ public enum WorkbenchReducer {
         case let .constrained(readBack):
             transaction = transaction.markingWritten(readBack: readBack, displayID: result.displayID,
                                                      note: result.outcome.message)
+            var minimum = state.workbench.observedMinimumMainSizes[result.identity] ?? .zero
+            if readBack.width > result.targetFrame.width + 2 { minimum.width = max(minimum.width, readBack.width) }
+            if readBack.height > result.targetFrame.height + 2 { minimum.height = max(minimum.height, readBack.height) }
+            if minimum != .zero, minimum != state.workbench.observedMinimumMainSizes[result.identity] {
+                state.workbench.observedMinimumMainSizes[result.identity] = minimum
+                state.workbench.railSizeRecomputePending = true
+            }
         case let .cancelled(wroteSize, wrotePosition, readBack):
             // 许可撤销时的部分写入同样是"改过"：保留恢复义务（方案 §5.2）。
             transaction = (wroteSize || wrotePosition)
@@ -1260,6 +1404,7 @@ public enum WorkbenchReducer {
         effects.insert(.updateJournal(JournalUpdateRequest(operationID: result.operationID,
                                                            identity: result.identity,
                                                            mutation: .upsert(transaction))), at: 0)
+        effects.append(contentsOf: applyDeferredRailSize(&state))
         return effects
     }
 
@@ -1522,77 +1667,130 @@ public enum WorkbenchReducer {
 
     // MARK: - 目录同步与窗口关闭
 
-    /// 关闭/消失：原 slot 留空不前移；主窗口自动替补最多一次（方案 §6.2）。
-    /// 由 SessionReducer 的窗口关闭优先级分支调用。
+    /// 中文：关闭只清理该卡位；主区留空，等待宿主读取系统焦点后再选择一次。
+    /// English: Closure vacates only this slot; leave main empty until host system-focus resolution.
     static func handleWindowClosed(_ state: inout SessionState, identity: WindowIdentity) -> [SessionEffect] {
-        guard isEngaged(state) else { return [] }
+        state.workbench.recentMainIdentities.removeAll { $0 == identity }
+        let wasMain = state.workbench.placement.main == identity
+        state.workbench.placement.vacate(identity)
+        if state.workbench.pendingRailSelection?.identity == identity {
+            state.workbench.pendingRailSelection = nil
+            state.workbench.pendingReplacement = nil
+        }
+        if state.workbench.pendingExternalFocus == identity { state.workbench.pendingExternalFocus = nil }
+        guard state.phase.isVisible, isEngaged(state) else { return [] }
         var effects: [SessionEffect] = []
-        // 模式过渡目标关闭：取消过渡，留在原模式（方案 §4.2.7）。
+        if let transaction = state.transactions.removeValue(forKey: identity) {
+            effects.append(.updateJournal(JournalUpdateRequest(operationID: transaction.operationID,
+                                                                identity: identity, mutation: .remove(identity))))
+        }
+        effects += handleUnavailableTarget(&state, identity: identity, reason: "窗口已关闭")
+        if wasMain, state.mode == .workbench {
+            effects += requestReplacement(&state, identity: identity)
+        }
+        effects += layoutEffects(state)
+        syncTransitionActivity(&state)
+        return effects + consumePendingIntent(&state)
+    }
+
+    /// 中文：最小化让出主区但不删除卡片或事务，绝不自动解除最小化。
+    /// English: Minimization yields main without removing its thumbnail or restore obligation, never unminimizing it.
+    static func handleWindowMinimized(_ state: inout SessionState, identity: WindowIdentity) -> [SessionEffect] {
+        guard state.phase.isVisible, isEngaged(state) else { return [] }
+        let wasMain = state.workbench.placement.main == identity
+        if wasMain { state.workbench.placement.setMain(nil) }
+        if state.workbench.pendingExternalFocus == identity { state.workbench.pendingExternalFocus = nil }
+        var effects = handleUnavailableTarget(&state, identity: identity, reason: "窗口已最小化")
+        if wasMain, state.mode == .workbench { effects += requestReplacement(&state, identity: identity) }
+        effects += layoutEffects(state)
+        syncTransitionActivity(&state)
+        return effects + consumePendingIntent(&state)
+    }
+
+    private static func handleUnavailableTarget(_ state: inout SessionState,
+                                                identity: WindowIdentity,
+                                                reason: String) -> [SessionEffect] {
+        if let armed = state.workbench.armed, armed.transactions[identity] != nil {
+            return landPreparationFailure(&state, armed: armed, reason: reason)
+        }
         if state.workbench.modeTransition.target == identity {
+            // 中文：关闭目标不再有几何；最小化目标仍欠恢复，交给统一安全退出排空。
+            // English: Closed targets have no geometry; minimized targets retain obligations and drain through safe exit.
+            if state.records[identity] != nil { return SessionReducer.exitToHidden(&state) }
             state.workbench.modeTransition = .idle
             state.workbench.activeContext = nil
             state.workbench.runningOperation = nil
             state.workbench.snapshot = nil
-            state.workbench.placement.vacate(identity)
             state.phase = .overview
-            state.keyboardFocus = .overview
+            state.keyboardFocus = .none
             syncTransitionActivity(&state)
-            return [.cancelWorkbenchTransition, .hideWorkbench, .setKeyboardFocus(.overview),
-                    .presentHint(.workbenchTransitionFailed("目标窗口已关闭"))]
+            return [.cancelWorkbenchTransition, .hideWorkbench, .setKeyboardFocus(.none),
+                    .presentHint(.workbenchTransitionFailed(reason))]
         }
-        // 备料中的操作目标关闭：还没写任何窗口，直接按 prepare 失败落点收口（方案 §7.2）。
-        if let armed = state.workbench.armed, armed.transactions[identity] != nil {
-            return landPreparationFailure(&state, armed: armed, reason: "落盘期间窗口已关闭：\(identity.journalKey)")
-        }
-        // 交换中的窗口关闭交给宿主补偿后回报 mainSwitchFailed（方案 §8.3）。
-        if case let .switching(intent, _) = state.workbench.mainSwitch,
+        if let intent = state.workbench.mainSwitch.intent, state.workbench.mainSwitch.isBusy,
            intent.to == identity || intent.from == identity {
-            state.workbench.mainSwitch = .rollingBack(intent: intent, reason: "交换中的窗口已关闭")
+            state.workbench.mainSwitch = .rollingBack(intent: intent, reason: reason)
+            // 中文：保留令牌和操作事实，只有宿主完整补偿回执才能收口。
+            // English: Keep token and operation facts until the host reports complete compensation.
         }
-        var placement = state.workbench.placement
-        guard placement.contains(identity) else {
-            syncTransitionActivity(&state)
-            return effects
+        if state.workbench.mainFrameWrite?.identity == identity, state.records[identity] == nil {
+            state.workbench.mainFrameWrite = nil
+            state.workbench.activeContext = nil
+            state.workbench.runningOperation = nil
         }
-        let wasMain = placement.main == identity
-        placement.vacate(identity)
-        state.workbench.placement = placement
-        if wasMain, !state.workbench.mainSwitch.isBusy {
-            effects.append(contentsOf: promoteCandidateIfNeeded(&state))
-        }
-        // 等着的目标已经关闭：直接丢弃，别再发起一次注定失败的交换。
-        if state.workbench.pendingRailSelection?.identity == identity {
-            state.workbench.pendingRailSelection = nil
-        }
-        effects.append(contentsOf: layoutEffects(state))
+        return []
+    }
+
+    private static func requestReplacement(_ state: inout SessionState,
+                                            identity: WindowIdentity) -> [SessionEffect] {
+        state.workbench.pendingReplacement = identity
+        state.workbench.hasAutoPromotionAttempted = false
+        var effects: [SessionEffect] = []
         syncTransitionActivity(&state)
+        if !state.workbench.mainSwitch.isBusy, !state.workbench.modeTransition.isTransitioning {
+            effects += emptyMainStateEffects(&state)
+        }
+        effects.append(.resolveWorkbenchReplacement(closed: identity))
         return effects
     }
 
-    /// 主窗口没了：把替补建模成一个完整操作 `promote(candidate, sourceSlot, from: nil)`（方案 §10）。
-    /// 顺序是建事务 → 落盘 → 放置 → 验证 → 激活 → 提交并从原 slot 移除；
-    /// 一次关闭事件只尝试一个候选，没有候选就保持主区空态让用户自己选。
-    private static func promoteCandidateIfNeeded(_ state: inout SessionState) -> [SessionEffect] {
-        guard state.workbench.placement.main == nil else { return [] }
-        guard state.workbench.hasAutoPromotionAttempted == false else {
-            return emptyMainStateEffects(&state)
-        }
-        guard let candidate = firstControllableCandidate(placement: state.workbench.placement, state: state),
-              let sourceSlot = state.workbench.placement.slot(of: candidate),
-              state.workbench.snapshot != nil,
-              state.records[candidate] != nil else {
-            // 主区空态：轨道还在，键盘仍在 Vistile 一侧以便继续选择（方案 §10）。
-            return emptyMainStateEffects(&state)
-        }
+    private static func resolveReplacement(_ state: inout SessionState,
+                                            closed: WindowIdentity,
+                                            candidate: WindowIdentity?) -> [SessionEffect] {
+        guard state.mode == .workbench, state.workbench.pendingReplacement == closed,
+              state.workbench.placement.main == nil, !state.workbench.hasAutoPromotionAttempted else { return [] }
         state.workbench.hasAutoPromotionAttempted = true
-        return startSwitch(&state, to: candidate, slot: sourceSlot, kind: .promoteCandidate)
+        // 中文：手动/外部最新意图优先于关闭时启动的异步查询。
+        // English: A newer manual/external intent takes priority over asynchronous closure resolution.
+        guard state.workbench.pendingRailSelection == nil, state.workbench.pendingExternalFocus == nil,
+              !state.workbench.pendingReturnToOverview else {
+            state.workbench.pendingReplacement = nil
+            return []
+        }
+        if let candidate, let record = state.records[candidate], !record.isMinimized,
+           record.axSnapshot?.isSheetLike != true,
+           let reason = focusRestriction(state, identity: candidate) {
+            clearPendingFocus(&state)
+            return SessionReducer.exitToHidden(&state) + [.presentHint(.restrictedWindow(reason))]
+        }
+        let host = candidate.flatMap { canFollowFocus(state, identity: $0) ? $0 : nil }
+        let ordered = state.workbench.recentMainIdentities
+            + state.workbench.placement.occupants.sorted { $0.key < $1.key }.map(\.value)
+        guard let selected = host ?? ordered.first(where: { canFollowFocus(state, identity: $0) }),
+              let slot = state.workbench.placement.slot(of: selected) else {
+            state.workbench.pendingReplacement = nil
+            return focusOperationIsBusy(state) ? [] : emptyMainStateEffects(&state) + layoutEffects(state)
+        }
+        state.workbench.pendingRailSelection = WorkbenchPendingSelection(identity: selected, slot: slot,
+                                                                         followsExternalFocus: selected == host)
+        return []
     }
 
     private static func emptyMainStateEffects(_ state: inout SessionState) -> [SessionEffect] {
         state.phase = .overview
-        state.keyboardFocus = .overview
+        state.keyboardFocus = .none
         syncTransitionActivity(&state)
-        return [.setKeyboardFocus(.overview)]
+        return [.setKeyboardFocus(.none)]
     }
 
     /// 替补的事实回报：几何合格且激活成立才提交 B 为主，否则 B 留在原 slot、主区继续空（方案 §10）。
@@ -1631,28 +1829,30 @@ public enum WorkbenchReducer {
 
     /// 目录回来后的轨道同步：关闭的留空，新窗口填空或尾部追加（方案 §6.2、§4.4.7）。
     static func syncCatalog(_ state: inout SessionState, generation _: UInt64) -> [SessionEffect] {
-        guard state.mode == .workbench, let snapshot = state.workbench.snapshot else { return [] }
+        guard state.phase.isVisible, isEngaged(state) else { return [] }
+        var effects: [SessionEffect] = []
+        var missing = state.workbench.members.filter { state.records[$0] == nil }
+        if let target = state.workbench.modeTransition.target ?? state.workbench.armed?.staged.modeTransition.target,
+           state.records[target] == nil { missing.insert(target) }
+        for identity in missing.sorted(by: { $0.journalKey < $1.journalKey }) {
+            effects += handleWindowClosed(&state, identity: identity)
+        }
+        if let main = state.workbench.placement.main, state.records[main]?.isMinimized == true {
+            effects += handleWindowMinimized(&state, identity: main)
+        }
+        guard state.mode == .workbench, let snapshot = state.workbench.snapshot else { return effects }
         var placement = state.workbench.placement
-        // 主窗口从目录里消失（没有独立关闭事件时）：同样让位，不指向已不存在的身份。
-        if let main = placement.main, state.records[main] == nil {
-            placement.setMain(nil)
-        }
-        for identity in placement.occupants.values where state.records[identity] == nil {
-            placement.vacate(identity)
-        }
         let layout = fillRailOccupants(&placement, state: state, layout: snapshot.layout)
-        guard placement != state.workbench.placement || layout != snapshot.layout else { return [] }
+        guard placement != state.workbench.placement || layout != snapshot.layout else { return effects }
         state.workbench.placement = placement
         if layout != snapshot.layout {
             let updated = snapshot.replacing(layout: layout, revision: state.workbench.layoutRevision + 1)
             state.workbench.snapshot = updated
             state.workbench.layoutRevision = updated.revision
         }
-        var effects: [SessionEffect] = []
-        if placement.main == nil, !state.workbench.mainSwitch.isBusy, state.workbench.modeTransition == .idle {
-            effects.append(contentsOf: promoteCandidateIfNeeded(&state))
-        }
-        effects.append(contentsOf: layoutEffects(state))
+        // 中文：目录新增只分配卡位；即使主区为空也不启动替补。
+        // English: Catalog additions only allocate slots, never promote into an empty main.
+        effects += layoutEffects(state)
         syncTransitionActivity(&state)
         return effects
     }
@@ -1732,13 +1932,6 @@ public enum WorkbenchReducer {
             ordinal += 1
         }
         return order
-    }
-
-    private static func firstControllableCandidate(placement: WorkbenchPlacement,
-                                                   state: SessionState) -> WindowIdentity? {
-        placement.occupants.sorted { $0.key < $1.key }
-            .map(\.value)
-            .first { state.records[$0]?.allowsAutoFocus == true }
     }
 
     /// 「可以展示」与「可以自动聚焦」是两件事（方案 §11）：
@@ -1841,12 +2034,23 @@ public enum WorkbenchReducer {
     private static func workbenchLayout(for display: DisplayInfo, state: SessionState) -> WorkbenchLayout? {
         guard display.visibleFrame.width > 1, display.visibleFrame.height > 1 else { return nil }
         let style = WorkbenchStyle()
+        var minimum = style.minimumMainSize
+        if let main = state.workbench.placement.main, let record = state.records[main] {
+            let observed = record.allowsGeometryControl
+                ? state.workbench.observedMinimumMainSizes[main]
+                : (actualFrame(state, main) ?? record.frame).size
+            if let observed {
+                minimum.width = max(minimum.width, observed.width)
+                minimum.height = max(minimum.height, observed.height)
+            }
+        }
         var layout = WorkbenchLayoutEngine.layout(displayID: display.id,
                                                   visibleFrame: display.visibleFrame,
                                                   side: state.workbench.side,
                                                   style: style,
                                                   topHeightOverride: state.workbench.topHeightPreference,
-                                                  sideWidthOverride: state.workbench.sideWidthPreference)
+                                                  sideWidthOverride: state.workbench.sideWidthPreference,
+                                                  minimumMainSize: minimum)
         if layout.isMainAreaConstrained {
             // 小屏自动紧凑，不产生无法辨识的卡片（方案 §5.5）。
             layout = WorkbenchLayoutEngine.layout(displayID: display.id,
@@ -1855,10 +2059,15 @@ public enum WorkbenchReducer {
                                                   style: style,
                                                   compact: true,
                                                   topHeightOverride: state.workbench.topHeightPreference,
-                                                  sideWidthOverride: state.workbench.sideWidthPreference)
+                                                  sideWidthOverride: state.workbench.sideWidthPreference,
+                                                  minimumMainSize: minimum)
         }
-        // 侧栏切换、分隔线收敛、显示器变化都重算几何：内容轨道按当前占用续长，已用 slot 不因重算失联。
-        return layout.extending(sideSlots: maxSideOrdinal(state.workbench.placement) + 1)
+        // 中文：两栏都按已占用最大 ordinal 扩展，容量缩小时也不丢任何稳定卡位。
+        // English: Extend both rails through occupied ordinals so capacity reductions never orphan stable slots.
+        let slots = state.workbench.placement.occupants.keys.filter { $0.displayID == display.id }
+        let topCount = (slots.filter { $0.rail == .top }.map(\.ordinal).max() ?? -1) + 1
+        let sideCount = (slots.filter { $0.rail == .side }.map(\.ordinal).max() ?? -1) + 1
+        return layout.extending(topSlots: topCount, sideSlots: sideCount)
     }
 
     /// 其余卡片在两个位置空间之间的过渡端点（方案 §4.2.5、§10.2）。

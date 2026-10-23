@@ -233,7 +233,11 @@ final class WorkbenchRailView: NSView {
             if let identity = entry.identity, hiddenIdentities.contains(identity) { continue }
             placeholders.append((rect: entry.cellRect, tint: SIMD4<Float>(0.09, 0.09, 0.10, 1)))
             guard let identity = entry.identity else { continue }
-            cards.append(CardDraw(identity: identity, imageRect: entry.contentRect, opacity: 1, frame: nil))
+            let aspect = TransitionSceneFactory.aspect(frame: renderer.texture(for: identity),
+                                                        recordFrame: lastCards[entry.slot]?.record.frame,
+                                                        fallback: entry.contentRect)
+            let imageRect = TransitionTimeline.aspectFit(aspect: aspect, in: entry.contentRect)
+            cards.append(CardDraw(identity: identity, imageRect: imageRect, opacity: 1, frame: nil))
         }
         renderer.draw(layer: metalLayer,
                       cards: cards,

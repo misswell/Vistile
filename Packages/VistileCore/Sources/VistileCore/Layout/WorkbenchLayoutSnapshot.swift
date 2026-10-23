@@ -63,7 +63,8 @@ public struct WorkbenchLayoutSnapshot: Hashable, Sendable {
     /// 重新计算几何后的新投影（侧栏切换、分隔线收敛、显示器变化都用它）。
     public func replacing(layout newLayout: WorkbenchLayout, revision newRevision: Int) -> WorkbenchLayoutSnapshot {
         WorkbenchLayoutSnapshot(displayID: newLayout.displayID,
-                                layout: newLayout,
+                                layout: newLayout.extending(topSlots: max(layout.topSlotCount, newLayout.topSlotCount),
+                                                            sideSlots: max(layout.sideSlotCount, newLayout.sideSlotCount)),
                                 topScrollOffset: topScrollOffset,
                                 sideScrollOffset: sideScrollOffset,
                                 revision: newRevision)

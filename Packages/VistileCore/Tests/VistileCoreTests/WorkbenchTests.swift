@@ -118,6 +118,14 @@ final class WorkbenchTests: XCTestCase {
         return dispatchConfirmed(&state, .catalogUpdated(request: request, records: records))
     }
 
+    private func closeAndResolve(_ state: inout SessionState, identity: WindowIdentity) -> [SessionEffect] {
+        let closed = Fixtures.dispatch(&state, .windowClosed(identity))
+        XCTAssertTrue(prepareRequests(closed).isEmpty, "关闭先留空，等待系统焦点回执")
+        XCTAssertFalse(closed.contains(.setKeyboardFocus(.overview)), "关闭不得抢系统焦点")
+        XCTAssertTrue(closed.contains(.resolveWorkbenchReplacement(closed: identity)))
+        return closed + Fixtures.dispatch(&state, .workbenchReplacementResolved(closed: identity, candidate: nil))
+    }
+
     @discardableResult
     private func returnToOverview(_ state: inout SessionState, success: Bool = true) throws -> WorkbenchTransitionPlan {
         let effects = dispatchConfirmed(&state, .returnToOverviewRequested)
@@ -498,21 +506,24 @@ final class WorkbenchTests: XCTestCase {
             XCTAssertEqual(state.workbench.placement.occupant(at: slot), identity, "已有占用不得重排")
         }
 
-        // 追加：14 个窗口（1 主 + 13 轨道）占满全部可见 slot，新窗口只能追加到侧栏尾部。
-        var (full, fullList) = openState(count: 14)
+        // 追加：按当前布局容量占满全部可见 slot，新窗口只能追加到侧栏尾部。
+        let fullCapacity = try XCTUnwrap(state.workbench.snapshot?.layout.capacity)
+        var (full, fullList) = openState(count: fullCapacity)
         enterWorkbench(&full, target: fullList[0].identity)
         let layout = try XCTUnwrap(full.workbench.snapshot?.layout)
         XCTAssertEqual(layout.slotOrder.count, full.workbench.placement.occupants.count,
-                       "14 个唯一窗口各自保留一个轨道 slot")
+                       "每个唯一窗口各自保留一个轨道 slot")
         XCTAssertTrue(layout.slotOrder.allSatisfy { full.workbench.placement.occupant(at: $0) != nil },
-                      "14 个窗口应占满全部可见 slot")
+                      "窗口应占满全部可见 slot")
         let beforeFull = full.workbench.placement.occupants
         let maxSide = beforeFull.keys.filter { $0.rail == .side }.map(\.ordinal).max() ?? -1
         let another = Fixtures.record(991, 9_002,
                                       frame: CGRect(x: 60, y: 60, width: 1_280, height: 800),
                                       title: "再来一个", app: "NewApp")
         try updateCatalog(&full, records: fullList + [another])
-        XCTAssertNotNil(full.gridCell(for: another.identity))
+        XCTAssertTrue(full.gridCell(for: another.identity) != nil
+                      || full.slots.pending.contains { $0.identity == another.identity },
+                      "总览容量满时允许排队，但轨道仍须可达")
         let appended = try XCTUnwrap(full.workbench.placement.slot(of: another.identity))
         XCTAssertEqual(appended.rail, .side, "溢出只能落在侧栏逻辑轨道上")
         XCTAssertEqual(appended.ordinal, maxSide + 1, "没有空格时在侧栏尾部追加")
@@ -523,7 +534,8 @@ final class WorkbenchTests: XCTestCase {
 
         // 溢出卡片必须能靠滚动到达（方案 §6.2、§5.4）。
         let overflowing = try XCTUnwrap(full.workbench.snapshot)
-        XCTAssertGreaterThan(overflowing.layout.maxSideScroll, 0, "溢出后侧栏必须可滚动")
+        XCTAssertGreaterThan(overflowing.layout.maxSideScroll, 0,
+                             "溢出后侧栏必须可滚动：slot=\(appended), layout=\(overflowing.layout)")
         let atTop = try XCTUnwrap(overflowing.rect(for: appended))
         XCTAssertFalse(overflowing.layout.sideViewport.contains(atTop), "置顶时溢出的卡片不完整可见")
         _ = Fixtures.dispatch(&full, .railScrolled(rail: .side, offset: overflowing.layout.maxSideScroll))
@@ -2125,7 +2137,7 @@ final class WorkbenchTests: XCTestCase {
         let bSlot = try XCTUnwrap(state.workbench.placement.slot(of: b))
         XCTAssertEqual(state.workbench.placement.occupant(at: bSlot), b, "B 一开始就占着自己的格")
 
-        let closed = Fixtures.dispatch(&state, .windowClosed(a))
+        let closed = closeAndResolve(&state, identity: a)
         XCTAssertEqual(prepareRequests(closed).count, 1, "替补的写前事务必须先整批落盘")
         let request = try XCTUnwrap(prepareRequests(closed).first)
         XCTAssertEqual(request.context.kind, .promoteCandidate)
@@ -2155,7 +2167,7 @@ final class WorkbenchTests: XCTestCase {
         let b1 = list1[1].identity
         enterWorkbench(&s1, target: list1[0].identity)
         let bSlot1 = try XCTUnwrap(s1.workbench.placement.slot(of: b1))
-        let closed1 = Fixtures.dispatch(&s1, .windowClosed(list1[0].identity))
+        let closed1 = closeAndResolve(&s1, identity: list1[0].identity)
         let request1 = try XCTUnwrap(prepareRequests(closed1).first)
         let failed1 = rejectPrepare(&s1, request1)
         XCTAssertFalse(hasSettleEffects(failed1), "落盘没成功就不许开始替补写入：\(failed1)")
@@ -2174,7 +2186,7 @@ final class WorkbenchTests: XCTestCase {
             let b = list[1].identity
             enterWorkbench(&state, target: list[0].identity)
             let bSlot = try XCTUnwrap(state.workbench.placement.slot(of: b))
-            let closed = Fixtures.dispatch(&state, .windowClosed(list[0].identity))
+            let closed = closeAndResolve(&state, identity: list[0].identity)
             let plan = try XCTUnwrap(switchPlan(confirmJournal(&state, closed)))
             XCTAssertTrue(plan.intent.isPromotion)
             // B 从未被写过：操作前事实就是目录里的真实矩形，补偿回位按它核对。
@@ -2209,7 +2221,7 @@ final class WorkbenchTests: XCTestCase {
         var (s4, list4) = openState(count: 4)
         let b4 = list4[1].identity
         enterWorkbench(&s4, target: list4[0].identity)
-        let closed4 = Fixtures.dispatch(&s4, .windowClosed(list4[0].identity))
+        let closed4 = closeAndResolve(&s4, identity: list4[0].identity)
         let plan4 = try XCTUnwrap(switchPlan(confirmJournal(&s4, closed4)))
         let refused = reportSwitchFailure(&s4, token: plan4.intent.token, reason: "测试注入：回位被拒",
                                           compensation: WorkbenchCompensationResult(
@@ -2502,7 +2514,7 @@ final class WorkbenchTests: XCTestCase {
         let a = list[0].identity, b = list[1].identity, c = list[2].identity
         enterWorkbench(&state, target: a)
         let bSlot = try XCTUnwrap(state.workbench.placement.slot(of: b))
-        let closed = Fixtures.dispatch(&state, .windowClosed(a))
+        let closed = closeAndResolve(&state, identity: a)
         let promotion = try XCTUnwrap(prepareRequests(closed).first)
         XCTAssertEqual(promotion.context.kind, .promoteCandidate)
         XCTAssertNotNil(state.workbench.armed, "替补正等着落盘确认")
@@ -2524,7 +2536,7 @@ final class WorkbenchTests: XCTestCase {
         // 另一半（方案 §10 第 291 行）：替补已经放出写入通道，这时点 C —— B 先收敛，再执行最新手动选择。
         var (s2, list2) = openState(count: 4)
         enterWorkbench(&s2, target: list2[0].identity)
-        let released = Fixtures.dispatch(&s2, .windowClosed(list2[0].identity))
+        let released = closeAndResolve(&s2, identity: list2[0].identity)
         let promotion2 = try XCTUnwrap(prepareRequests(released).first)
         let releasedEffects = confirmJournal(&s2, [ .prepareJournal(promotion2) ])
         let promotionPlan = try XCTUnwrap(switchPlan(releasedEffects))

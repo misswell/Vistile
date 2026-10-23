@@ -11,7 +11,7 @@ import VistileCore
 /// - 日志先行：`prepare` 成功后才发第一笔 AX 写入（`.journalPrepared`）；
 /// - 进主区的方式由 `MainPlacementPolicy` 决定：可调尺寸=占满主区，固定尺寸=真实尺寸仅移动，
 ///   放不下=拒绝并保持 A 与两栏不动；
-/// - 失败只补偿"确实动过"的窗口，逆序执行，然后把 A 真的激活；
+/// - 失败只补偿"确实动过"的窗口，逆序执行；无需保留外部焦点时才把 A 真的激活；
 /// - 补偿事实（`WorkbenchCompensationResult`）必须先于 `mainSwitchFailed` 回报。
 @MainActor
 final class WorkbenchSwitchCoordinator {
@@ -45,6 +45,9 @@ final class WorkbenchSwitchCoordinator {
 
     /// 由 AppCoordinator 注入：从唯一状态机读出这次交换此刻的态度。
     var directive: (TransitionToken) -> SwitchDirective = { _ in .proceed }
+    /// 当前令牌已有排队的外部焦点：旧交换只补偿几何，不再抢回任何窗口的焦点。
+    var shouldPreserveExternalFocus: (TransitionToken) -> Bool = { _ in false }
+    var frontmostProcessID: () -> pid_t? = { NSWorkspace.shared.frontmostApplication?.processIdentifier }
 
     /// 在途操作：只有它的结果与后续步骤还算数。
     private(set) var activeContext: GeometryOperationContext?
@@ -264,6 +267,7 @@ final class WorkbenchSwitchCoordinator {
 
         // prepare：权限、目录、模态与日志先核对；缺任何一项都不写窗口（方案 §8.2.3、§8.2.4、§7.2）。
         guard stillValid(context, token: token) else { return }
+        guard await proceedOrStop(plan, context: context, after: .succeeded(readBack: nil), token: token) else { return }
         let prepared = await prepare(plan: plan, context: context)
         report(step: .prepare, outcome: prepared, identity: intent.to, token: token, context: context)
         guard await proceedOrStop(plan, context: context, after: prepared, token: token) else { return }
@@ -283,11 +287,17 @@ final class WorkbenchSwitchCoordinator {
 
         // activateMain：真实主窗口必须可操作；只有相反证据才算失败（方案 §12.2）。
         guard stillValid(context, token: token) else { return }
-        sideEffects.append(SideEffect(identity: intent.to, kind: .activation))
-        let activation = await focus.activateAndRaise(intent.to)
-        let activationOutcome: WorkbenchStepOutcome = activation.isProvenBehind
-            ? .rejected("未确认 \(intent.to.journalKey) 已到前台（\(activation.evidence)）")
-            : .succeeded(readBack: nil)
+        guard await proceedOrStop(plan, context: context, after: moved, token: token) else { return }
+        let activationOutcome: WorkbenchStepOutcome
+        if intent.followsExternalFocus {
+            activationOutcome = await verifyExternalFocus(intent.to)
+        } else {
+            sideEffects.append(SideEffect(identity: intent.to, kind: .activation))
+            let activation = await focus.activateAndRaise(intent.to, permit: permit)
+            activationOutcome = activation.isProvenBehind
+                ? .rejected("未确认 \(intent.to.journalKey) 已到前台（\(activation.evidence)）")
+                : .succeeded(readBack: nil)
+        }
         report(step: .activateMain, outcome: activationOutcome, identity: intent.to, token: token, context: context)
         guard await proceedOrStop(plan, context: context, after: activationOutcome, token: token) else { return }
 
@@ -305,11 +315,17 @@ final class WorkbenchSwitchCoordinator {
                                                    fallbackTarget: resting)
             restoreOutcome = enforceDeadline(restorePlacement.step)
             if !restoreOutcome.isFailure {
+                // A 的写回也会让出主 Actor：复核 B 前先处理这期间排队的外部焦点。
+                guard await proceedOrStop(plan, context: context, after: restoreOutcome, token: token) else { return }
                 // 把 B 再提到前台并读回一次：A 已经被动过，B 的前景色此时是提交的凭据，
                 // 不能因为"A 是另一个应用"就不查——同应用兄弟窗口最常见，跨应用则是 A 的应用被顶起来（方案 §8.2、§18 A09）。
-                let recheck = await focus.activateAndRaise(intent.to)
-                if recheck.isProvenBehind {
-                    restoreOutcome = .rejected("写回原主后 B 不再处于前台（\(recheck.evidence)）")
+                if intent.followsExternalFocus {
+                    restoreOutcome = await verifyExternalFocus(intent.to)
+                } else {
+                    let recheck = await focus.activateAndRaise(intent.to, permit: permit)
+                    if recheck.isProvenBehind {
+                        restoreOutcome = .rejected("写回原主后 B 不再处于前台（\(recheck.evidence)）")
+                    }
                 }
             }
         }
@@ -457,6 +473,10 @@ final class WorkbenchSwitchCoordinator {
                          context: GeometryOperationContext) async -> WorkbenchStepOutcome {
         let intent = plan.intent
         guard permissions.status.isComplete else { return .rejected("权限已收回，未写入任何窗口") }
+        if intent.followsExternalFocus {
+            let focus = await verifyExternalFocus(intent.to)
+            if focus.isFailure { return focus }
+        }
         for identity in [intent.to, intent.from].compactMap({ $0 }) {
             guard catalog.record(for: identity) != nil else {
                 return identity == intent.to ? .targetGone : .rejected("原主窗口已不在目录里")
@@ -989,7 +1009,7 @@ final class WorkbenchSwitchCoordinator {
 
     // MARK: - 补偿
 
-    /// 失败补偿：只逆序还原"确实动过"的窗口，然后把旧主真正带回前台，最后合成一份完整补偿事实。
+    /// 失败补偿：只逆序还原"确实动过"的窗口；无需保留外部焦点时才激活旧主，最后回报完整事实。
     /// 补偿用独立授权（`.compensation`），不受普通操作撤销屏障影响（方案 §5.1、§6.3）。
     private func compensate(reason: String,
                             context: GeometryOperationContext,
@@ -1024,6 +1044,10 @@ final class WorkbenchSwitchCoordinator {
                 beforeReads[effect.identity] = before
             }
         }
+        for identity in activeIdentities where !seen.contains(identity) {
+            items.append(.init(identity: identity, action: .notWritten,
+                               displayID: catalog.record(for: identity)?.displayID))
+        }
         // 最小化在几何回位之后再恢复：顺序反过来会先把窗口藏起来，几何补偿就写不进"看不见的窗口"。
         var unresolvedMinimizeRestorations: [WindowIdentity] = []
         for identity in minimizeReleases {
@@ -1037,8 +1061,9 @@ final class WorkbenchSwitchCoordinator {
         await releaseUnwrittenPlans()
 
         var activatedMain: WindowIdentity?
-        if let reActivate, !transition {
-            // 补偿之后必须真的把 A 带回前台：`setKeyboardFocus(.targetApplication)` 只改状态机里的焦点描述，
+        if let reActivate, !transition, !shouldPreserveExternalFocus(token) {
+            // 几何补偿期间也可能出现新的外部焦点，实际激活前必须再查一次。
+            // 未被外部焦点接管时才把 A 带回前台：`setKeyboardFocus(.targetApplication)` 只改状态机描述，
             // 不会改变系统前台，用户看到半套交换（方案 §6.3）。
             let facts = await focus.activateAndRaise(reActivate)
             if !facts.isProvenBehind { activatedMain = reActivate }
@@ -1171,24 +1196,41 @@ final class WorkbenchSwitchCoordinator {
         onEvent?(.mainSwitchFailed(token: token, reason: reason, compensation: compensation))
     }
 
+    private func verifyExternalFocus(_ identity: WindowIdentity) async -> WorkbenchStepOutcome {
+        guard frontmostProcessID() == identity.processID,
+              let record = catalog.record(for: identity), let element = catalog.axEntry(for: record)?.element,
+              let focused = await writer.focusedWindow(pid: identity.processID),
+              frontmostProcessID() == identity.processID, CFEqual(focused.element, element) else {
+            return .rejected("前台窗口已改变或暂时无法确认，未重新激活旧目标")
+        }
+        return .succeeded(readBack: nil)
+    }
+
     // MARK: - reducer 态度
 
-    /// 每步之后问一次 reducer：继续、回滚、还是令牌已作废。
+    /// 每步之后与激活前问一次 reducer：继续、回滚、还是令牌已作废；外部焦点优先保留。
     private func proceedOrStop(_ plan: WorkbenchSwitchPlan,
                                context: GeometryOperationContext,
                                after outcome: WorkbenchStepOutcome,
                                token: TransitionToken) async -> Bool {
         guard activeContext == context else { return false }
+        let preserveExternalFocus = shouldPreserveExternalFocus(token)
+        let reActivate = plan.intent.followsExternalFocus || preserveExternalFocus ? nil : plan.intent.from
+        if preserveExternalFocus {
+            await compensate(reason: "外部焦点已改变，停止旧交换并保留当前焦点",
+                             context: context, token: token, reActivate: reActivate, transition: false)
+            return false
+        }
         if didTimeOut || isPastDeadline {
             didTimeOut = true
             await compensate(reason: "超过 \(Int(Self.switchDeadline.totalNanoseconds / 1_000_000))ms 未收敛",
                              context: context, token: token,
-                             reActivate: plan.intent.from, transition: false)
+                             reActivate: reActivate, transition: false)
             return false
         }
         if outcome.isFailure {
             await compensate(reason: outcome.message, context: context, token: token,
-                             reActivate: plan.intent.from, transition: false)
+                             reActivate: reActivate, transition: false)
             return false
         }
         switch directive(token) {
@@ -1196,7 +1238,7 @@ final class WorkbenchSwitchCoordinator {
             return true
         case let .rollback(reason):
             await compensate(reason: reason, context: context, token: token,
-                             reActivate: plan.intent.from, transition: false)
+                             reActivate: reActivate, transition: false)
             return false
         case .aborted:
             return false

@@ -217,7 +217,8 @@ final class WorkbenchSwitchTests: XCTestCase {
     /// 与 reducer `startSwitch` 同构：计划里的操作上下文、操作前快照都要真的落盘一次，
     /// 因为宿主放行写入核对的就是这个凭据（方案 §7.1、§7.2）。`arm: false` 留给 H14 的"批次没落盘"那一档。
     private func switchPlan(token: TransitionToken = TransitionToken(generation: 1),
-                            arm: Bool = true) async throws -> WorkbenchSwitchPlan {
+                            arm: Bool = true,
+                            followsExternalFocus: Bool = false) async throws -> WorkbenchSwitchPlan {
         let slot = try XCTUnwrap(fixture.placement.slot(of: b), "B 必须占着轨道上的一个 slot")
         let restingSlot = try XCTUnwrap(fixture.placement.slot(of: a), "当前主窗口必须保留自己的 home slot")
         let context = scheduler.makeContext(token: token, kind: .mainSwitch)
@@ -235,7 +236,8 @@ final class WorkbenchSwitchTests: XCTestCase {
                                            targetDisplayID: displayID,
                                            operationContext: context,
                                            beforeOperation: HostPlanFacts.operationSnapshot(context: context,
-                                                                                           preOperation))
+                                                                                           preOperation),
+                                           followsExternalFocus: followsExternalFocus)
         let mainTarget = dockedRect(for: b)
         let plan = WorkbenchSwitchPlan(intent: intent,
                                         displayID: displayID,
@@ -318,6 +320,163 @@ final class WorkbenchSwitchTests: XCTestCase {
         XCTAssertEqual(aFrame, FakeCatalogSource.frame(for: 0), "A 必须回到它原来的几何")
         await pendingUntil { !self.coordinator.isBusy }
         XCTAssertFalse(coordinator.isBusy)
+    }
+
+    func testExternalFocusCommitsWithoutRaiseOrFocusWrites() async throws {
+        _ = try await beginHappyPath()
+        let plan = try await switchPlan(followsExternalFocus: true)
+        writer.setExternalFocus(try element(of: b), pid: b.processID)
+        coordinator.frontmostProcessID = { self.b.processID }
+        coordinator.perform(plan)
+        await pendingUntil { !self.coordinator.isBusy }
+        XCTAssertEqual(committedTokens(), [plan.intent.token])
+        XCTAssertEqual(writer.raiseCount, 0)
+        XCTAssertEqual(writer.focusCount, 0)
+        XCTAssertTrue(failureReasons().isEmpty)
+    }
+
+    func testStaleExternalFocusDoesNotWriteOrReactivatePreviousMain() async throws {
+        _ = try await beginHappyPath()
+        let plan = try await switchPlan(followsExternalFocus: true)
+        writer.setExternalFocus(try element(of: b), pid: b.processID)
+        coordinator.frontmostProcessID = { self.a.processID }
+        coordinator.perform(plan)
+        await pendingUntil { !self.coordinator.isBusy }
+        XCTAssertTrue(committedTokens().isEmpty)
+        XCTAssertFalse(failureReasons().isEmpty)
+        XCTAssertEqual(writer.totalWrites, 0)
+        XCTAssertEqual(writer.raiseCount + writer.focusCount, 0)
+        XCTAssertNil(compensationResults().first?.activatedMain)
+    }
+
+    func testExternalFocusChangesAfterMoveCompensatesWithoutStealingFocus() async throws {
+        _ = try await beginHappyPath()
+        let plan = try await switchPlan(followsExternalFocus: true)
+        writer.setExternalFocus(try element(of: b), pid: b.processID)
+        var front = b.processID
+        coordinator.frontmostProcessID = { front }
+        writer.onWillWrite = { [self] _ in front = a.processID }
+        coordinator.perform(plan)
+        await pendingUntil { !self.coordinator.isBusy }
+        XCTAssertTrue(committedTokens().isEmpty)
+        XCTAssertFalse(failureReasons().isEmpty)
+        XCTAssertEqual(writer.raiseCount + writer.focusCount, 0)
+        let restored = await writer.currentFrame(of: try element(of: b))
+        XCTAssertEqual(restored, FakeCatalogSource.frame(for: 1))
+    }
+
+    func testPendingExternalFocusBeforeManualSwitchReportsEveryIdentityWithoutWrites() async throws {
+        let plan = try await beginHappyPath()
+        coordinator.shouldPreserveExternalFocus = { $0 == plan.intent.token }
+
+        coordinator.perform(plan)
+        await pendingUntil { !self.coordinator.isBusy }
+
+        XCTAssertTrue(stepEvents().isEmpty, "已有外部焦点时，旧手动计划连 prepare 都不应开始")
+        XCTAssertTrue(committedTokens().isEmpty)
+        XCTAssertEqual(failureReasons().count, 1)
+        XCTAssertEqual(writer.totalWrites, 0)
+        XCTAssertEqual(writer.raiseCount + writer.focusCount, 0)
+        let compensation = try XCTUnwrap(compensationResults().first)
+        XCTAssertNil(compensation.activatedMain)
+        XCTAssertEqual(compensation.items.map(\.identity), [b, a])
+        XCTAssertTrue(compensation.items.allSatisfy { $0.action == .notWritten },
+                      "未写入也必须逐身份回报事实，不能留下空补偿清单")
+        XCTAssertTrue(compensation.beforeReads.isEmpty)
+        XCTAssertEqual(store.entry(for: a)?.state.requiresRestore, true)
+        XCTAssertNil(store.entry(for: b))
+    }
+
+    func testExternalFocusDuringManualTargetWriteStopsAndCompensatesWithoutActivation() async throws {
+        let plan = try await beginHappyPath()
+        var preserveExternalFocus = false
+        coordinator.shouldPreserveExternalFocus = { $0 == plan.intent.token && preserveExternalFocus }
+        writer.onWillWrite = { _ in preserveExternalFocus = true }
+
+        coordinator.perform(plan)
+        await pendingUntil { !self.coordinator.isBusy }
+
+        XCTAssertTrue(preserveExternalFocus)
+        XCTAssertTrue(committedTokens().isEmpty)
+        XCTAssertEqual(failureReasons().count, 1)
+        XCTAssertEqual(stepEvents().map(\.step), [.prepare, .moveToMain])
+        XCTAssertEqual(writer.raiseCount + writer.focusCount, 0, "既不激活旧目标 B，也不回滚激活 A")
+        XCTAssertEqual(writer.writtenFrames, [plan.mainTargetFrame, FakeCatalogSource.frame(for: 1)])
+        let aFrame = try await currentFrame(of: a)
+        let bFrame = try await currentFrame(of: b)
+        XCTAssertEqual(aFrame, dockedRect(for: a))
+        XCTAssertEqual(bFrame, FakeCatalogSource.frame(for: 1))
+        let compensation = try XCTUnwrap(compensationResults().first)
+        XCTAssertNil(compensation.activatedMain)
+        XCTAssertEqual(compensation.items.map(\.identity), [b, a])
+        XCTAssertEqual(compensation.items.first?.action, .restoredTo(frame: FakeCatalogSource.frame(for: 1)))
+        XCTAssertEqual(compensation.items.last?.action, .notWritten)
+        XCTAssertEqual(compensation.beforeReads[b], FakeCatalogSource.frame(for: 1))
+        XCTAssertTrue(compensation.unresolvedMinimizeRestorations.isEmpty)
+    }
+
+    func testExternalFocusDuringPreviousMainRestoreSkipsTargetRecheckAndRollbackActivation() async throws {
+        let plan = try await beginHappyPath()
+        var preserveExternalFocus = false
+        coordinator.shouldPreserveExternalFocus = { $0 == plan.intent.token && preserveExternalFocus }
+        writer.onWillWrite = { [weak writer] _ in
+            if writer?.totalWrites == 2 { preserveExternalFocus = true }
+        }
+
+        coordinator.perform(plan)
+        await pendingUntil { !self.coordinator.isBusy }
+
+        XCTAssertTrue(preserveExternalFocus)
+        XCTAssertTrue(committedTokens().isEmpty)
+        XCTAssertEqual(failureReasons().count, 1)
+        XCTAssertEqual(writer.raiseCount, 1, "只允许外部焦点出现前那次 B 激活，不许再 raise B 或 A")
+        XCTAssertEqual(writer.focusCount, 1)
+        XCTAssertEqual(writer.focusCallCount(for: try element(of: a)), 0)
+        XCTAssertEqual(writer.writtenFrames,
+                       [plan.mainTargetFrame, FakeCatalogSource.frame(for: 0),
+                        dockedRect(for: a), FakeCatalogSource.frame(for: 1)])
+        let aFrame = try await currentFrame(of: a)
+        let bFrame = try await currentFrame(of: b)
+        XCTAssertEqual(aFrame, dockedRect(for: a))
+        XCTAssertEqual(bFrame, FakeCatalogSource.frame(for: 1))
+        let compensation = try XCTUnwrap(compensationResults().first)
+        XCTAssertNil(compensation.activatedMain)
+        XCTAssertEqual(compensation.items.map(\.identity), [a, b])
+        XCTAssertEqual(compensation.items.first?.action, .restoredTo(frame: dockedRect(for: a)))
+        XCTAssertEqual(compensation.items.last?.action, .restoredTo(frame: FakeCatalogSource.frame(for: 1)))
+        XCTAssertEqual(compensation.beforeReads[a], dockedRect(for: a))
+        XCTAssertEqual(compensation.beforeReads[b], FakeCatalogSource.frame(for: 1))
+    }
+
+    func testExternalFocusArrivingDuringCompensationPreventsPreviousMainActivation() async throws {
+        let plan = try await beginHappyPath()
+        var rollback = false
+        var preserveExternalFocus = false
+        coordinator.directive = { _ in rollback ? .rollback(reason: "测试回滚") : .proceed }
+        coordinator.shouldPreserveExternalFocus = { $0 == plan.intent.token && preserveExternalFocus }
+        writer.onWillWrite = { [weak writer] _ in
+            switch writer?.totalWrites {
+            case 1: rollback = true
+            case 2: preserveExternalFocus = true
+            default: break
+            }
+        }
+
+        coordinator.perform(plan)
+        await pendingUntil { !self.coordinator.isBusy }
+
+        XCTAssertTrue(preserveExternalFocus, "外部焦点直到补偿几何期间才出现")
+        XCTAssertTrue(committedTokens().isEmpty)
+        XCTAssertEqual(failureReasons(), ["测试回滚"], "进入补偿时仍是普通回滚，原本需要重新激活 A")
+        XCTAssertEqual(writer.raiseCount + writer.focusCount, 0)
+        XCTAssertEqual(writer.writtenFrames, [plan.mainTargetFrame, FakeCatalogSource.frame(for: 1)])
+        let bFrame = try await currentFrame(of: b)
+        XCTAssertEqual(bFrame, FakeCatalogSource.frame(for: 1))
+        let compensation = try XCTUnwrap(compensationResults().first)
+        XCTAssertNil(compensation.activatedMain)
+        XCTAssertEqual(compensation.items.map(\.identity), [b, a])
+        XCTAssertEqual(compensation.items.first?.action, .restoredTo(frame: FakeCatalogSource.frame(for: 1)))
+        XCTAssertEqual(compensation.items.last?.action, .notWritten)
     }
 
     // MARK: - H04 目标写入被拒：不提交、补偿、不假成功
