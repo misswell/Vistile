@@ -1,5 +1,16 @@
 # Vistile
 
+## 0.1.33 (47) — 2026-10-23
+
+- 修复应用内更新在“正在恢复窗口并重新启动”阶段卡住的问题：退出请求原先在更新任务占用主队列时直接调用 `NSApplication.terminate`，`.terminateLater` 的回复与兜底计时都无法送达。现在把退出请求交回主运行循环的下一轮，替换 helper 能按时接管并完成重启。
+  Fixes the in-app update hang at "restoring windows and relaunching". The exit request used to call `NSApplication.terminate` while the update task held the main queue, so the `.terminateLater` reply and the ceiling fallback could never be delivered. Termination is now handed back to the next main-run-loop turn, letting the replacement helper take over and relaunch.
+- 交接超时失败仍保留当前版本，并由 helper 写入诊断结果；下次启动提示“上次更新未完成”。
+  A handoff timeout still keeps the current version, and the helper writes a diagnostic result that is surfaced on the next launch.
+
+自动验证：干净构建目录下核心 XCTest **126** + Swift Testing **155**，0 失败；宿主全量 **298** 项，297 通过、1 项因后台账户无法取得真实前台键盘焦点跳过、0 失败；新增回归断言退出请求不得在当前 MainActor 轮次内同步执行。Release（arm64、未签名）构建通过。GitHub Actions 在 tag 上完成签名、公证、装订与发布。下载产物复核：`Vistile_v0.1.33_macos_arm64.dmg`，SHA-256 `74cf42f62653573d18c74ceb8c0fb3012435b4f3392bec2016bfb655e92e4434`，版本 0.1.33 (47)，TeamIdentifier `U8U443D7ZL`，Gatekeeper 判为 Notarized Developer ID，`stapler validate` 通过，`lipo` 仅含 arm64。
+
+升级说明：0.1.31 与 0.1.32 的应用内更新都会卡在同一处，运行中的旧版本无法用自身代码完成修复；这两版需手动下载 DMG 安装一次，0.1.33 起应用内更新恢复。
+
 ## 0.1.32 (46) — 2026-10-23
 
 - 修复引导页“完成”按钮只记录完成状态、不关闭窗口的问题：点击“完成”现在会关闭引导窗口，完成回调只触发一次；用窗口关闭按钮结束引导时行为不变。
