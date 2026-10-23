@@ -148,7 +148,8 @@ final class OverviewRenderer {
               placeholders: [(rect: CGRect, tint: SIMD4<Float>)],
               panels: [PanelDraw] = [],
               viewBounds: CGRect,
-              scale: CGFloat) {
+              scale: CGFloat,
+              clearColor: SIMD4<Float>? = nil) {
         bump { $0.draws += 1 }
         let pixels = CGSize(width: (viewBounds.width * scale).rounded(),
                             height: (viewBounds.height * scale).rounded())
@@ -170,10 +171,12 @@ final class OverviewRenderer {
         descriptor.colorAttachments[0].texture = drawable.texture
         descriptor.colorAttachments[0].loadAction = .clear
         descriptor.colorAttachments[0].storeAction = .store
-        descriptor.colorAttachments[0].clearColor = MTLClearColor(red: Double(background.x),
-                                                                 green: Double(background.y),
-                                                                 blue: Double(background.z),
-                                                                 alpha: Double(background.w))
+        // Rails clear transparently without changing the shared overview renderer's background.
+        let clear = clearColor ?? background
+        descriptor.colorAttachments[0].clearColor = MTLClearColor(red: Double(clear.x),
+                                                                 green: Double(clear.y),
+                                                                 blue: Double(clear.z),
+                                                                 alpha: Double(clear.w))
         guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor) else {
             // 失败分支不 present，drawable 随作用域结束释放，不能留半张画面在屏上。
             bump { $0.submissionFailures += 1 }

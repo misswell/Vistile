@@ -46,6 +46,7 @@ final class WorkbenchRailView: NSView {
     private var accentColor = NSColor.controlAccentColor
     private var showsTitles = true
     private var chromeStyle = OverviewStyle.standard
+    private var renderConfigurationDirty = true
     /// CG 全局坐标原点到视图左下的换算基准（视图左上角在 CG 里的坐标）。
     private var originInCG = CGPoint.zero
     private var backingScaleFactor: CGFloat = 2
@@ -68,9 +69,12 @@ final class WorkbenchRailView: NSView {
         layerContentsRedrawPolicy = .duringViewResize
         layer = CALayer()
         layer?.masksToBounds = true
+        layer?.isOpaque = false
+        layer?.backgroundColor = NSColor.clear.cgColor
         metalLayer.device = device
         metalLayer.pixelFormat = .bgra8Unorm
-        metalLayer.isOpaque = true
+        metalLayer.isOpaque = false
+        metalLayer.backgroundColor = NSColor.clear.cgColor
         metalLayer.contentsScale = 2
         metalLayer.zPosition = 0
         layer?.addSublayer(metalLayer)
@@ -96,6 +100,9 @@ final class WorkbenchRailView: NSView {
                    chromeStyle: OverviewStyle,
                    showsTitles: Bool,
                    accent: NSColor) {
+        if self.chromeStyle != chromeStyle || backingScaleFactor != scale {
+            renderConfigurationDirty = true
+        }
         self.chromeStyle = chromeStyle
         self.showsTitles = showsTitles
         accentColor = accent
@@ -156,6 +163,7 @@ final class WorkbenchRailView: NSView {
             }
             let record = bySlot[entry.slot]?.record
             if entry.identity == nil, emptySet.contains(entry.slot) {
+                chromeLayers[entry.slot]?.container.isHidden = true
                 let chrome = emptyLayers[entry.slot] ?? {
                     let created = EmptySlotChrome()
                     chromeHost?.addSublayer(created.container)
@@ -166,8 +174,12 @@ final class WorkbenchRailView: NSView {
                 chrome.layout(in: entry.cellRect, style: chromeStyle, scale: backingScaleFactor)
                 continue
             }
+            emptyLayers[entry.slot]?.container.isHidden = true
             let chrome = chromeLayers[entry.slot] ?? {
                 let created = CardChrome()
+                // Rail-only chrome: keep the overview's title treatment unchanged.
+                created.titleBar.backgroundColor = NSColor.white.withAlphaComponent(0.035).cgColor
+                created.titleText.foregroundColor = NSColor.white.withAlphaComponent(0.88).cgColor
                 chromeHost?.addSublayer(created.container)
                 chromeLayers[entry.slot] = created
                 return created
@@ -185,8 +197,9 @@ final class WorkbenchRailView: NSView {
         }
 
         let geometryChanged = slotRects != oldGeometry
-        let forced = geometryChanged || hiddenDirty
+        let forced = geometryChanged || hiddenDirty || renderConfigurationDirty
         hiddenDirty = false
+        renderConfigurationDirty = false
         redraw(using: renderer, mailboxes: mailboxes, force: forced)
     }
 
@@ -201,6 +214,8 @@ final class WorkbenchRailView: NSView {
                      style: chromeStyle,
                      showsTitle: showsTitles,
                      scale: backingScaleFactor)
+        chrome.titleText.contentsScale = backingScaleFactor
+        chrome.pinBadge.contentsScale = backingScaleFactor
         chrome.applyPinned(lastCards[entry.slot]?.isPinned == true)
     }
 
@@ -226,24 +241,43 @@ final class WorkbenchRailView: NSView {
         guard changed || force else { return }
 
         syncLayerGeometry()
+        let content = drawingContent(using: renderer)
+        renderer.draw(layer: metalLayer,
+                      cards: content.cards,
+                      placeholders: [],
+                      panels: content.panels,
+                      viewBounds: bounds,
+                      scale: backingScaleFactor,
+                      clearColor: content.clearColor)
+    }
+
+    /// Shared by submission and geometry tests. Rounded GPU fills, not rectangular
+    /// placeholders under a rounded border, leave the shell visible between cards.
+    func drawingContent(using renderer: OverviewRenderer)
+        -> (cards: [CardDraw], panels: [PanelDraw], clearColor: SIMD4<Float>) {
         var cards: [CardDraw] = []
-        var placeholders: [(rect: CGRect, tint: SIMD4<Float>)] = []
-        for entry in visible {
+        var panels: [PanelDraw] = []
+        for entry in slotRects where entry.cellRect.intersects(bounds) {
             // 由过渡承载层绘制的身份：栏里连底板带画面都不画，交给承载层画一份。
             if let identity = entry.identity, hiddenIdentities.contains(identity) { continue }
-            placeholders.append((rect: entry.cellRect, tint: SIMD4<Float>(0.09, 0.09, 0.10, 1)))
+            let radius = max(0, min(chromeStyle.cornerRadius, min(entry.cellRect.width, entry.cellRect.height) / 2))
+            let fill = entry.identity == nil
+                ? SIMD4<Float>(0.125, 0.133, 0.153, 1)
+                : SIMD4<Float>(0.145, 0.153, 0.176, 1)
+            panels.append(PanelDraw(rect: entry.cellRect, fill: fill, stroke: .zero,
+                                    strokeWidth: 0, cornerRadius: radius))
             guard let identity = entry.identity else { continue }
             let aspect = TransitionSceneFactory.aspect(frame: renderer.texture(for: identity),
                                                         recordFrame: lastCards[entry.slot]?.record.frame,
                                                         fallback: entry.contentRect)
-            let imageRect = TransitionTimeline.aspectFit(aspect: aspect, in: entry.contentRect)
+            // Fit the entire image inside the rounded plate's safe rectangle. Do not
+            // mask the captured image: even a window's bottom corners must remain visible.
+            let safeContent = entry.contentRect.intersection(entry.cellRect.insetBy(dx: radius / 2, dy: radius / 2))
+            guard !safeContent.isNull, safeContent.width > 0, safeContent.height > 0 else { continue }
+            let imageRect = TransitionTimeline.aspectFit(aspect: aspect, in: safeContent)
             cards.append(CardDraw(identity: identity, imageRect: imageRect, opacity: 1, frame: nil))
         }
-        renderer.draw(layer: metalLayer,
-                      cards: cards,
-                      placeholders: placeholders,
-                      viewBounds: bounds,
-                      scale: backingScaleFactor)
+        return (cards, panels, .zero)
     }
 
     func syncLayerGeometry() {
@@ -553,6 +587,7 @@ final class EmptySlotChrome {
 
     init() {
         ImmediateLayerUpdates.configure(container, border, label)
+        container.name = "empty-slot"
         container.masksToBounds = true
         container.contentsScale = 2
         border.borderWidth = 1
@@ -563,7 +598,7 @@ final class EmptySlotChrome {
         label.isWrapped = false
         label.fontSize = 10
         label.font = CTFontCreateWithName(".AppleSystemUIFont" as CFString, 10, nil)
-        label.foregroundColor = NSColor.tertiaryLabelColor.cgColor
+        label.foregroundColor = NSColor.white.withAlphaComponent(0.34).cgColor
         label.contentsScale = 2
         label.string = "空位"
         container.addSublayer(label)
@@ -574,6 +609,8 @@ final class EmptySlotChrome {
         border.frame = CGRect(origin: .zero, size: rect.size)
         container.cornerRadius = style.cornerRadius
         border.cornerRadius = style.cornerRadius
+        container.contentsScale = scale
+        border.contentsScale = scale
         label.contentsScale = scale
         label.frame = CGRect(x: 0, y: rect.height / 2 - 6, width: rect.width, height: 12)
     }

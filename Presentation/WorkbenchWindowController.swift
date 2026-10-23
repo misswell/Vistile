@@ -41,8 +41,8 @@ final class WorkbenchWindowController {
     private let toolbar = WorkbenchToolbarView(frame: .zero)
     /// 面板整块内容：栏视图只占其中的 viewport，角落工具区与分隔线命中区是它的兄弟。
     /// 若把栏视图直接当 contentView，工具区会落在它的 frame 之外，点击在 hitTest 一级就被丢掉。
-    private let topContent = NSView(frame: .zero)
-    private let sideContent = NSView(frame: .zero)
+    private let topContent = WorkbenchRailShellView(frame: .zero)
+    private let sideContent = WorkbenchRailShellView(frame: .zero)
 
     private var display: DisplayInfo
     private var mapper: CoordinateMapper
@@ -141,6 +141,10 @@ final class WorkbenchWindowController {
         let sideDivider = sidePanel.convertFromScreen(mapper.cgToAppKit(layout.sideDividerRect))
         if topDividerView.frame != topDivider { topDividerView.frame = topDivider }
         if sideDividerView.frame != sideDivider { sideDividerView.frame = sideDivider }
+        topContent.updateShell(in: topPanel.convertFromScreen(mapper.cgToAppKit(layout.topRailRect)),
+                               dividerHitRect: topDivider, scale: display.backingScale)
+        sideContent.updateShell(in: sidePanel.convertFromScreen(mapper.cgToAppKit(layout.sideRailRect)),
+                                dividerHitRect: sideDivider, scale: display.backingScale)
         let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         topDividerView.updatePresentation(value: layout.topRailRect.height,
                                           range: layout.effectiveTopHeightRange,

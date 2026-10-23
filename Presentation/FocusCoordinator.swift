@@ -531,8 +531,8 @@ final class FocusCoordinator {
             report.raiseReturned = await writer.raise(element: element)
             _ = await writer.focus(element: element)
             // 读回而不是信任写入返回：同应用多窗口时，兄弟窗口占着 focused window 也必须看得出来。
-            if let focused = await writer.focusedWindow(pid: identity.processID) {
-                report.focusedWindowMatches = CFEqual(focused.element, element)
+            if let focused = await writer.focusedWindowElement(pid: identity.processID) {
+                report.focusedWindowMatches = CFEqual(focused, element)
             }
         }
         guard let application = NSRunningApplication(processIdentifier: identity.processID) else {

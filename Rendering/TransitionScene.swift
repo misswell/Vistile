@@ -99,6 +99,13 @@ struct TransitionScene {
         cards.first(where: \.isFocus)
     }
 
+    var isStationarySwap: Bool {
+        guard kind == .swapping, case .panel = content, cards.count == 1,
+              let card = focusCard else { return false }
+        return card.start == card.end && card.panelStart == card.panelEnd
+            && card.startAlpha == 1 && card.endAlpha == 1
+    }
+
     static func backdropColor(_ backdrop: Backdrop) -> SIMD4<Float>? {
         switch backdrop {
         case let .opaque(color), let .rising(color): return color
@@ -120,12 +127,12 @@ struct PanelStyle: Hashable {
     /// 圆角半径（点），取 `WorkbenchStyle.cornerRadius`。
     var cornerRadius: CGFloat
 
-    /// 与总览/两栏卡片同一套 token：底板 RGB(0.09,0.09,0.10)、白 7% 边框、8pt 圆角。
+    /// 与总览/两栏卡片同一套 token：底板 RGB(0.09,0.09,0.10)、白 7% 边框、12pt 圆角。
     /// 面板取比底板略亮的填充，否则在深色桌面上"飞"起来几乎看不见。
     static let standard = PanelStyle(fill: SIMD4<Float>(0.145, 0.153, 0.173, 1),
                                      stroke: SIMD4<Float>(1, 1, 1, 0.10),
                                      strokeWidth: 1,
-                                     cornerRadius: 8)
+                                     cornerRadius: 12)
 }
 
 /// 时间轴上的纯函数：缓动、矩形插值、等比适配、底色透明度。
@@ -320,12 +327,11 @@ struct TransitionSceneFactory {
                                content: content(for: snapshot))
     }
 
-    /// L 型内交换：B 向主区展开，A 向 B 原 slot 收回，其它一律不动（方案 §10.3）。
+    /// 主区原地遮挡真实窗口调整，栏位保持静止，流光不延后几何执行。
     func swapping(_ plan: WorkbenchSwitchPlan) -> TransitionScene? {
-        guard let screen = usableDisplayFrame(plan.displayID) else { return nil }
+        guard usableDisplayFrame(plan.displayID) != nil else { return nil }
         let snapshot = plan.snapshot
         let intent = plan.intent
-        var cards: [TransitionScene.Card] = []
 
         if intent.followsExternalFocus {
             let card = TransitionScene.Card(identity: intent.to,
@@ -345,51 +351,25 @@ struct TransitionSceneFactory {
                                    durationMS: reduceMotion() ? 80 : 120, fadeOnly: true,
                                    level: level, content: content(for: snapshot))
         }
-        if let slot = intent.railSlot {
-            let cell = snapshot.rect(for: slot)
-            let start = snapshot.contentRect(for: slot) ?? cell
-            if let start, start.width > 1, start.height > 1, start.intersects(screen) {
-                cards.append(TransitionScene.Card(identity: intent.to,
-                                                  start: start,
-                                                  end: plan.mainTargetFrame,
-                                                  cellStart: cell,
-                                                  cellEnd: nil,
-                                                  startAlpha: 1,
-                                                  endAlpha: 1,
-                                                  aspect: aspect(intent.to, start),
-                                                  hidesRailCard: false,
-                                                  isFocus: true,
-                                                  panelFrom: cell,
-                                                  panelTo: plan.mainTargetFrame))
-            }
-        }
-        if let from = intent.from {
-            let start = recordFrame(from) ?? snapshot.layout.mainRect
-            let end = plan.restingSlot.flatMap { snapshot.contentRect(for: $0) }
-                ?? plan.restingTargetFrame
-                ?? plan.mainTargetFrame
-            cards.append(TransitionScene.Card(identity: from,
-                                              start: start,
-                                              end: end,
-                                              cellStart: nil,
-                                              cellEnd: nil,
-                                              startAlpha: 1,
-                                              endAlpha: 1,
-                                              aspect: aspect(from, start),
-                                              hidesRailCard: false,
-                                              isFocus: false,
-                                              panelFrom: start,
-                                              panelTo: plan.restingSlot.flatMap { snapshot.rect(for: $0) } ?? end))
-        }
-        let fadeOnly = level == .fade || reduceMotion()
-        let durationMS = snapshot.layout.style.switchAnimationMS(reduceMotion: fadeOnly)
+        let card = TransitionScene.Card(identity: intent.to,
+                                        start: plan.mainTargetFrame,
+                                        end: plan.mainTargetFrame,
+                                        cellStart: nil,
+                                        cellEnd: nil,
+                                        startAlpha: 1,
+                                        endAlpha: 1,
+                                        aspect: aspect(intent.to, plan.mainTargetFrame),
+                                        hidesRailCard: false,
+                                        isFocus: true,
+                                        panelFrom: snapshot.layout.mainRect,
+                                        panelTo: snapshot.layout.mainRect)
         return TransitionScene(kind: .swapping,
                                token: intent.token,
                                displayID: plan.displayID,
                                backdrop: .transparent,
-                               cards: degradeToLight(cards, durationMS: durationMS),
-                               durationMS: durationMS,
-                               fadeOnly: fadeOnly,
+                               cards: [card],
+                               durationMS: 16,
+                               fadeOnly: level == .fade || reduceMotion(),
                                level: level,
                                content: content(for: snapshot))
     }

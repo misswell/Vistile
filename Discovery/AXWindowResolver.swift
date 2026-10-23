@@ -44,6 +44,7 @@ protocol GeometryWriting: AnyObject {
     /// 最小化状态也是一次真实 AX 变更：与几何写入共用许可校验，撤销时不得执行（方案 §5.2）。
     func setMinimized(_ minimized: Bool, element: AXUIElement, permit: GeometryWritePermit) async -> MinimizeWriteOutcome
     func focusedWindow(pid: pid_t) async -> AXWindowEntry?
+    func focusedWindowElement(pid: pid_t) async -> AXUIElement?
     /// 写前直接问窗口一次"位置/尺寸能不能写"：目录快照里的 isMovable/isResizable
     /// 会把读取失败折叠成 false，一次读不到不能当成"窗口不可调整"的事实（方案 §6.1）。
     func geometryWriteability(element: AXUIElement) async -> GeometryWriteability
@@ -143,6 +144,16 @@ final class AXWindowResolver: @unchecked Sendable {
             let element = raw as! AXUIElement
             AXUIElementSetMessagingTimeout(element, Float(self.executor.messagingTimeout))
             return AXWindowEntry(snapshot: self.snapshot(of: element, index: -1), element: element)
+        }
+    }
+
+    func focusedWindowElement(pid: pid_t) async -> AXUIElement? {
+        await executor.submit {
+            let app = self.applicationElement(pid: pid)
+            guard let raw = self.copy(app, kAXFocusedWindowAttribute) else { return nil }
+            let element = raw as! AXUIElement
+            AXUIElementSetMessagingTimeout(element, Float(self.executor.messagingTimeout))
+            return element
         }
     }
 

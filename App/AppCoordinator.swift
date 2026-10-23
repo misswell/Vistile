@@ -1098,17 +1098,10 @@ final class AppCoordinator {
         case let .beginMainSwitch(plan):
             registerContext(plan.intent.operationContext)
             playTransition(sceneFactory.swapping(plan))
-            // 丝滑优先：交换动画先飞，真实 AX 交换在动画中后段再开始。
-            // 实机：AX 步骤在飞行动画期间持续占用主线程，丢帧稳定为 16.7ms（每两帧一次）；
-            // 落定预算还有余量（~250ms 对 500ms 目标），把几何执行后移换取满帧。
             let swapToken = plan.intent.token
-            // 主窗口切换：真实 AX 交换等动画完整播完（旧主缩回、新主放大）再执行，
-            // 落在承载层保持/淡出阶段，避免动画中途真实窗口"跳"一下。
-            let swapAnimationMS = state.workbench.snapshot?.layout.style
-                .switchAnimationMS(reduceMotion: state.policy.reduceMotion) ?? 180
-            let swapDelayNS = UInt64(plan.intent.followsExternalFocus ? 16 : max(80, swapAnimationMS)) * 1_000_000
+            // 给原地主区遮罩一次首帧提交机会，之后在流光保持期间执行 AX。
             Task { [weak self] in
-                try? await Task.sleep(nanoseconds: swapDelayNS)
+                try? await Task.sleep(nanoseconds: 16_000_000)
                 guard let self else { return }
                 guard self.state.workbench.mainSwitch.intent?.token == swapToken,
                       self.state.workbench.activeContext == plan.intent.operationContext else { return }

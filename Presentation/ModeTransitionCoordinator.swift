@@ -28,12 +28,198 @@ final class TransitionCarrierWindow: NSWindow {
     override var canBecomeMain: Bool { false }
 }
 
+/// Only the focus panel owns this chrome. Geometry follows Metal's panel rect;
+/// Core Animation moves colors, never a rotated rectangle or a CPU-driven clock.
+@MainActor
+final class TransitionFocusGlow {
+    enum Phase { case idle, playing, holding, fading }
+    enum Quality { case flowing, staticRim }
+
+    struct Environment {
+        var lowPower: Bool
+        var thermalState: ProcessInfo.ThermalState
+
+        static var current: Environment {
+            Environment(lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled,
+                        thermalState: ProcessInfo.processInfo.thermalState)
+        }
+
+        var requiresStaticRim: Bool { lowPower || thermalState != .nominal }
+    }
+
+    let container = CALayer()
+    private let rim = CAGradientLayer()
+    private let halo = CAGradientLayer()
+    private let rimMask = CAShapeLayer()
+    private let haloMask = CAShapeLayer()
+    private(set) var phase: Phase = .idle
+    private(set) var quality: Quality = .staticRim
+    /// Panel outline in carrier-view coordinates, excluding the halo's padding.
+    private(set) var bounds: CGRect?
+    private(set) var cornerRadius: CGFloat = 0
+    private var animationBudget: TimeInterval = 0
+    private var fadeFromOpacity: Float = 0
+    private static let animationKey = "focus.colors"
+    private static let haloPadding: CGFloat = 8
+    private static let palette: [CGColor] = {
+        let values: [UInt32] = [0x55DDF5, 0x668AFF, 0xBA86FF, 0xF58BB9, 0xF5B583]
+        return values.map { hex in
+            let red = CGFloat((hex >> 16) & 0xff) / 255
+            let green = CGFloat((hex >> 8) & 0xff) / 255
+            let blue = CGFloat(hex & 0xff) / 255
+            return CGColor(srgbRed: red, green: green, blue: blue, alpha: 1)
+        }
+    }()
+
+    var isActive: Bool { bounds != nil && !container.isHidden }
+    var isAnimating: Bool {
+        rim.animation(forKey: Self.animationKey) != nil || halo.animation(forKey: Self.animationKey) != nil
+    }
+
+    init() {
+        ImmediateLayerUpdates.configure(container, rim, halo, rimMask, haloMask)
+        container.name = "transition.focusGlow"
+        container.zPosition = 1
+        container.isHidden = true
+        // Masks leave the panel interior completely clear. Only the broad rim's
+        // alpha is blurred; no full-panel filter, raster cache or animated path.
+        for (gradient, mask) in [(halo, haloMask), (rim, rimMask)] {
+            gradient.type = .conic
+            gradient.startPoint = CGPoint(x: 0.5, y: 0.5)
+            gradient.endPoint = CGPoint(x: 0.5, y: 1)
+            gradient.colors = Self.palette + [Self.palette[0]]
+            gradient.locations = [0, 0.2, 0.4, 0.6, 0.8, 1]
+            mask.fillColor = nil
+            mask.strokeColor = CGColor(gray: 1, alpha: 1)
+            gradient.mask = mask
+            container.addSublayer(gradient)
+        }
+        rimMask.lineWidth = 1.5
+        // A wide, low-opacity band reads as a soft bloom on dark panels without
+        // a per-frame blur filter or a monochrome layer shadow.
+        haloMask.lineWidth = 10
+        halo.opacity = 0.55
+    }
+
+    func prepare(scene: TransitionScene, environment: Environment, budget: TimeInterval) {
+        stop()
+        phase = .playing
+        quality = scene.fadeOnly || scene.level != .full || environment.requiresStaticRim ? .staticRim : .flowing
+        animationBudget = budget
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for gradient in [rim, halo] { gradient.colors = Self.palette + [Self.palette[0]] }
+        halo.isHidden = quality == .staticRim
+        CATransaction.commit()
+    }
+
+    func update(rect: CGRect?, cornerRadius: CGFloat, opacity: CGFloat, scale: CGFloat) {
+        guard phase == .playing || phase == .holding else { return }
+        guard let rect, rect.width > 1, rect.height > 1, opacity > 0.01 else {
+            removeAnimations()
+            bounds = nil
+            container.isHidden = true
+            return
+        }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        let radius = min(max(0, cornerRadius), min(rect.width, rect.height) / 2)
+        if bounds != rect || self.cornerRadius != radius {
+            bounds = rect
+            self.cornerRadius = radius
+            container.frame = rect
+            rim.frame = container.bounds
+            halo.frame = container.bounds.insetBy(dx: -Self.haloPadding, dy: -Self.haloPadding)
+            rimMask.frame = rim.bounds
+            haloMask.frame = halo.bounds
+            let inset = rimMask.lineWidth / 2
+            rimMask.path = CGPath(roundedRect: rim.bounds.insetBy(dx: inset, dy: inset),
+                                  cornerWidth: max(0, radius - inset), cornerHeight: max(0, radius - inset), transform: nil)
+            // Push the bloom just outside the panel so it reads as light leaving the edge.
+            let haloRect = halo.bounds.insetBy(dx: Self.haloPadding / 2, dy: Self.haloPadding / 2)
+            haloMask.path = CGPath(roundedRect: haloRect, cornerWidth: radius, cornerHeight: radius, transform: nil)
+        }
+        for layer in [container, rim, halo, rimMask, haloMask] { layer.contentsScale = scale }
+        container.opacity = Float(min(1, max(0, opacity)))
+        container.isHidden = false
+        CATransaction.commit()
+        if quality == .flowing, !isAnimating { startColorFlow() }
+    }
+
+    func hold(environment: Environment) {
+        guard phase == .playing else { return }
+        phase = .holding
+        if environment.requiresStaticRim { useStaticRim() }
+    }
+
+    /// Pressure notifications also reach a held panel without waking Metal.
+    func reduceForEnvironment(_ environment: Environment) {
+        guard phase == .playing || phase == .holding, environment.requiresStaticRim else { return }
+        useStaticRim()
+    }
+
+    func beginFade() {
+        guard phase != .idle else { return }
+        phase = .fading
+        removeAnimations()
+        fadeFromOpacity = container.opacity
+    }
+
+    func fade(progress: CGFloat) {
+        guard phase == .fading else { return }
+        container.opacity = fadeFromOpacity * Float(1 - min(1, max(0, progress)))
+    }
+
+    func stop() {
+        removeAnimations()
+        container.isHidden = true
+        container.opacity = 0
+        bounds = nil
+        phase = .idle
+    }
+
+    private func useStaticRim() {
+        removeAnimations()
+        quality = .staticRim
+        halo.isHidden = true
+    }
+
+    private func startColorFlow() {
+        // Cyclic color stops close the conic seam without ever rotating the mask.
+        let colors = Self.palette
+        let frames: [[CGColor]] = (0...colors.count).map { offset in
+            let rotated = (0..<colors.count).map { colors[($0 + offset) % colors.count] }
+            return rotated + [rotated[0]]
+        }
+        let animation = CAKeyframeAnimation(keyPath: "colors")
+        animation.values = frames
+        animation.duration = 4.2
+        animation.calculationMode = .linear
+        // Finite even if the host never gets another run-loop callback.
+        animation.repeatDuration = max(0.016, animationBudget)
+        for gradient in [rim, halo] { gradient.add(animation, forKey: Self.animationKey) }
+    }
+
+    private func removeAnimations() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for gradient in [rim, halo] {
+            if let colors = (gradient.presentation() as? CAGradientLayer)?.colors { gradient.colors = colors }
+        }
+        for layer in [container, rim, halo, rimMask, haloMask] { layer.removeAllAnimations() }
+        CATransaction.commit()
+    }
+}
+
 /// 在一层短时透明 Metal 层里合成所有参与画面（方案 §10.6）：
 /// 卡片容器按 ease-out 插值、内容等比适配、底板随飞行淡出；真实窗口是否到位不阻塞动画，
 /// 到点后保持稳定并显示「正在切换」，等 confirm（真实窗口验证通过/提交）再短淡化交接。
 /// 时间轴由 CADisplayLink 驱动，按真实 elapsed time 推进；静止或等待期间不发 tick。
 final class TransitionCarrierView: NSView {
     let metalLayer = CAMetalLayer()
+    let focusGlow = TransitionFocusGlow()
+    /// Sampled at play/hold and on system pressure notifications, never per frame.
+    var glowEnvironment: () -> TransitionFocusGlow.Environment = { .current }
 
     private var renderer: OverviewRenderer?
     private var originInCG = CGPoint.zero
@@ -96,11 +282,17 @@ final class TransitionCarrierView: NSView {
     private var firstPresentDelayMS: Double?
     private var tickCount = 0
     private var rearmTimer: Timer?
-    private var holdLabelTimer: Timer?
-    private var holdDeadlineTimer: Timer?
-    private var sceneDeadlineTimer: Timer?
+    // Read-only timer handles let host tests fire real deadline paths without sleeping.
+    private(set) var holdLabelTimer: Timer?
+    private(set) var holdDeadlineTimer: Timer?
+    private(set) var sceneDeadlineTimer: Timer?
+    private var timerGeneration: UInt64 = 0
     private let holdBadge = CALayer()
     private let holdLabel = CATextLayer()
+    private(set) var renderCount = 0
+    var metalPresentCount: Int { renderer?.diagnostics().presents ?? 0 }
+    var hasDisplayLink: Bool { displayLink != nil }
+    var isHoldIndicatorVisible: Bool { !holdBadge.isHidden || !holdLabel.isHidden }
 
     var onReachedEnd: ((TransitionToken) -> Void)?
     var onFinished: ((TransitionToken) -> Void)?
@@ -131,6 +323,7 @@ final class TransitionCarrierView: NSView {
         metalLayer.contentsScale = 2
         metalLayer.zPosition = 0
         layer?.addSublayer(metalLayer)
+        layer?.addSublayer(focusGlow.container)
         // 参与画面全部由这一台渲染器合成；底色透明，未覆盖处透出真实窗口与桌面。
         renderer = OverviewRenderer(metal: metal)
         renderer?.background = SIMD4<Float>(0, 0, 0, 0)
@@ -152,6 +345,11 @@ final class TransitionCarrierView: NSView {
     func play(_ scene: TransitionScene, sources: [WindowIdentity: MetalFrame], anchorAt: CFTimeInterval? = nil,
               startAt: CFTimeInterval? = nil) {
         let interrupting = phase != .idle
+        // Keep presented geometry for continuation, but never inherit old chrome or callbacks.
+        stopClock()
+        stopTimers()
+        hideHoldIndicator()
+        stopGlow()
         self.scene = scene
         // 令牌与场景一起绑定：之后的每个回调都只报这个令牌，绝不在回调时刻回看协调器状态（方案 §16.2）。
         self.playingToken = scene.token
@@ -161,7 +359,7 @@ final class TransitionCarrierView: NSView {
         for card in scene.cards {
             var startRect = card.start
             var startAlpha = card.startAlpha
-            if let presented = presentedRects[card.identity] {
+            if !scene.isStationarySwap, let presented = presentedRects[card.identity] {
                 startRect = presented
                 startAlpha = presentedAlphas[card.identity] ?? startAlpha
             }
@@ -169,7 +367,7 @@ final class TransitionCarrierView: NSView {
                                               end: viewRect(card.end ?? startRect),
                                               cellStart: card.cellStart.map { viewRect($0) },
                                               cellEnd: card.cellEnd.map { viewRect($0) },
-                                              panelFrom: (presentedPanelRects[card.identity] ?? card.panelFrom).map { viewRect($0) },
+                                              panelFrom: (scene.isStationarySwap ? card.panelFrom : (presentedPanelRects[card.identity] ?? card.panelFrom)).map { viewRect($0) },
                                               panelTo: card.panelTo.map { viewRect($0) },
                                               startAlpha: startAlpha,
                                               endAlpha: card.endAlpha,
@@ -198,6 +396,11 @@ final class TransitionCarrierView: NSView {
         // CACurrentMediaTime() 与测试自己读的那次抢时间——机器一慢，中点就跑到终点之后。
         startTimestamp = startAt ?? CACurrentMediaTime()
         lastTickAt = 0
+        renderCount = 0
+        if case .panel = scene.content, focusIdentity != nil {
+            focusGlow.prepare(scene: scene, environment: glowEnvironment(), budget: duration + 2.6)
+            observeGlowPressure()
+        }
         render(progress: 0)
         startClock()
         scheduleRearm()
@@ -222,6 +425,8 @@ final class TransitionCarrierView: NSView {
         guard phase != .idle else { return }
         stopTimers()
         hideHoldIndicator()
+        stopObservingGlowPressure()
+        focusGlow.beginFade()
         fadeFrom = CGFloat(metalLayer.opacity)
         fadeStartTimestamp = CACurrentMediaTime()
         fadeDuration = max(0.016, TimeInterval(durationMS) / 1000)
@@ -235,6 +440,7 @@ final class TransitionCarrierView: NSView {
         stopClock()
         stopTimers()
         hideHoldIndicator()
+        stopGlow()
         phase = .idle
         metalLayer.opacity = 1
         presentedRects.removeAll()
@@ -250,6 +456,7 @@ final class TransitionCarrierView: NSView {
         stopClock()
         stopTimers()
         hideHoldIndicator()
+        stopGlow()
         phase = .idle
         metalLayer.opacity = 1
         // 只报本段场景自己的令牌：这一刻协调器可能已经在放下一段（方案 §16.2）。
@@ -291,6 +498,9 @@ final class TransitionCarrierView: NSView {
             if progress >= 1 {
                 phase = .holding
                 stopClock()
+                rearmTimer?.invalidate()
+                rearmTimer = nil
+                focusGlow.hold(environment: glowEnvironment())
                 // 呈现事实只算这一段：tick 次数与 present 增量并列报告，谁也不替谁（方案 §20.2）。
                 if let scene {
                     let presented = (renderer?.diagnostics().presents ?? 0) - presentsAtSceneStart
@@ -318,6 +528,7 @@ final class TransitionCarrierView: NSView {
             let raw = fadeDuration > 0 ? (now - fadeStartTimestamp) / fadeDuration : 1
             let t = CGFloat(min(1, max(0, raw)))
             metalLayer.opacity = Float(fadeFrom * (1 - t))
+            focusGlow.fade(progress: t)
             if t >= 1 { finishNow() }
         case .idle, .holding:
             break
@@ -339,9 +550,10 @@ final class TransitionCarrierView: NSView {
     /// 视图不在任何屏幕上时 displayLink 不会回调：250ms 后还没 tick 就重新取一次显示时钟。
     private func scheduleRearm() {
         rearmTimer?.invalidate()
+        let generation = timerGeneration
         let timer = Timer(timeInterval: 0.25, repeats: false) { [weak self] _ in
-            guard let self else { return }
-            guard self.phase != .idle, self.lastTickAt == 0 else { return }
+            guard let self, self.timerGeneration == generation else { return }
+            guard self.phase == .playing, self.lastTickAt == 0 else { return }
             self.stopClock()
             self.startClock()
         }
@@ -352,8 +564,9 @@ final class TransitionCarrierView: NSView {
     /// 场景绝对限时：任何回调丢失都不许让承载层无限期留在屏幕上。
     private func scheduleSceneDeadline(budget: TimeInterval) {
         sceneDeadlineTimer?.invalidate()
+        let generation = timerGeneration
         let timer = Timer(timeInterval: budget, repeats: false) { [weak self] _ in
-            guard let self, self.phase != .idle else { return }
+            guard let self, self.timerGeneration == generation, self.phase != .idle else { return }
             VistileLog.ui.log("[过渡] 承载层超过限时，按结束处理")
             self.finishNow()
         }
@@ -363,9 +576,10 @@ final class TransitionCarrierView: NSView {
 
     private func scheduleHoldChecks() {
         holdLabelTimer?.invalidate()
+        let generation = timerGeneration
         // 大多数等待只有几十毫秒：先安静一会儿，超过 350ms 才显示「正在切换」。
         let label = Timer(timeInterval: 0.35, repeats: false) { [weak self] _ in
-            guard let self, self.phase == .holding else { return }
+            guard let self, self.timerGeneration == generation, self.phase == .holding else { return }
             self.showHoldIndicator()
         }
         RunLoop.main.add(label, forMode: .common)
@@ -373,7 +587,7 @@ final class TransitionCarrierView: NSView {
 
         holdDeadlineTimer?.invalidate()
         let deadline = Timer(timeInterval: TimeInterval(Self.holdDeadlineMS) / 1000, repeats: false) { [weak self] _ in
-            guard let self, self.phase == .holding else { return }
+            guard let self, self.timerGeneration == generation, self.phase == .holding else { return }
             VistileLog.ui.log("[过渡] 真实窗口未在限时内到位，收起承载层")
             self.beginFade(durationMS: 140)
         }
@@ -382,6 +596,7 @@ final class TransitionCarrierView: NSView {
     }
 
     private func stopTimers() {
+        timerGeneration &+= 1
         rearmTimer?.invalidate()
         rearmTimer = nil
         holdLabelTimer?.invalidate()
@@ -392,10 +607,44 @@ final class TransitionCarrierView: NSView {
         sceneDeadlineTimer = nil
     }
 
+    // MARK: - Focus chrome pressure (notification-driven, no polling)
+
+    private func observeGlowPressure() {
+        NotificationCenter.default.addObserver(self, selector: #selector(glowPressureDidChange(_:)),
+                                               name: .NSProcessInfoPowerStateDidChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(glowPressureDidChange(_:)),
+                                               name: ProcessInfo.thermalStateDidChangeNotification, object: nil)
+    }
+
+    private func stopObservingGlowPressure() {
+        NotificationCenter.default.removeObserver(self, name: .NSProcessInfoPowerStateDidChange, object: nil)
+        NotificationCenter.default.removeObserver(self, name: ProcessInfo.thermalStateDidChangeNotification, object: nil)
+    }
+
+    @objc nonisolated private func glowPressureDidChange(_ notification: Notification) {
+        // System notifications need not arrive on the main thread. Re-sample the
+        // current scene/environment on main rather than retaining an old scene.
+        if !Thread.isMainThread {
+            DispatchQueue.main.async { [weak self] in self?.refreshGlowPressure() }
+        } else {
+            MainActor.assumeIsolated { refreshGlowPressure() }
+        }
+    }
+
+    private func refreshGlowPressure() {
+        focusGlow.reduceForEnvironment(glowEnvironment())
+    }
+
+    private func stopGlow() {
+        stopObservingGlowPressure()
+        focusGlow.stop()
+    }
+
     // MARK: - 绘制
 
     private func render(progress: CGFloat) {
         guard let renderer, let scene else { return }
+        renderCount += 1
         lastProgress = progress
         let eased = TransitionTimeline.easeOutCubic(progress)
 
@@ -415,11 +664,17 @@ final class TransitionCarrierView: NSView {
 
         var presented: [WindowIdentity: CGRect] = [:]
         var panelRects: [WindowIdentity: CGRect] = [:]
+        var glowRect: CGRect?
+        var glowRadius: CGFloat = 0
+        var glowAlpha: CGFloat = 0
         for identity in drawOrder {
             guard let state = states[identity] else { continue }
             let container: CGRect
             let alpha: CGFloat
-            if scene.fadeOnly {
+            if scene.isStationarySwap {
+                container = state.end
+                alpha = 1
+            } else if scene.fadeOnly {
                 // 最简模式：不飞行，卡片固定在终点短淡化（方案 §10.5）。
                 container = state.end
                 alpha = (state.endAlpha > 0.01 ? eased : 1 - eased) * state.endAlpha
@@ -443,6 +698,11 @@ final class TransitionCarrierView: NSView {
                                                      progress: eased)
                 guard panelRect.width > 1, panelRect.height > 1 else { continue }
                 panelRects[identity] = cgRect(fromView: panelRect)
+                if identity == focusIdentity {
+                    glowRect = panelRect
+                    glowRadius = style.cornerRadius
+                    glowAlpha = alpha
+                }
                 panels.append(PanelDraw(rect: panelRect,
                                         fill: style.fill,
                                         stroke: style.stroke,
@@ -468,6 +728,8 @@ final class TransitionCarrierView: NSView {
         }
         presentedRects = presented
         presentedPanelRects = panelRects
+        focusGlow.update(rect: glowRect, cornerRadius: glowRadius, opacity: glowAlpha,
+                         scale: max(1, metalLayer.contentsScale))
         renderer.draw(layer: metalLayer,
                       cards: cards,
                       placeholders: placeholders,
@@ -714,11 +976,12 @@ final class ModeTransitionCoordinator {
         view.updateSource(identity, frame: frame, aspect: aspect)
     }
 
-    /// 真实窗口已到位/已提交：飞行结束（或已在保持）后开始短淡化交接。
+    /// 原地交换不等动画时长；几何飞行仍在到位后交接。
     func confirm(_ token: TransitionToken) {
         guard activeToken == token else { return }
         confirmed = true
-        guard let view = activeCarrierView, view.isHolding else { return }
+        guard let view = activeCarrierView,
+              view.isHolding || view.scene?.isStationarySwap == true else { return }
         view.beginFade()
     }
 

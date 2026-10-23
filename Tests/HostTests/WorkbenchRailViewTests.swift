@@ -233,6 +233,107 @@ final class WorkbenchRailViewTests: XCTestCase {
         XCTAssertEqual(top.visibleCardCount + side.visibleCardCount, 3, "两张顶栏卡片加一张侧栏卡片")
     }
 
+    func testRailShellsAreTransparentRoundedAndStatic() throws {
+        let background = renderer.background
+        let draws = renderer.diagnostics().draws
+        let shells = try [controller.topRail, controller.sideRail].map { view in
+            try XCTUnwrap(view.window?.contentView as? WorkbenchRailShellView)
+        }
+        let layers = shells.map { ObjectIdentifier($0.shellLayer) }
+        sync()
+        XCTAssertEqual(renderer.diagnostics().draws, draws, "An unchanged rail must not submit another frame")
+        XCTAssertEqual(renderer.background, background, "Rail transparency must not change the shared overview background")
+        XCTAssertEqual(shells.map { ObjectIdentifier($0.shellLayer) }, layers)
+        for shell in shells {
+            let window = try XCTUnwrap(shell.window)
+            XCTAssertFalse(window.isOpaque)
+            XCTAssertEqual(window.backgroundColor?.alphaComponent, 0)
+            XCTAssertFalse(window.hasShadow, "Window shadows must not spill over mainRect")
+            XCTAssertEqual(window.appearance?.name, .darkAqua)
+            XCTAssertFalse(shell.isOpaque)
+            XCTAssertEqual(shell.layer?.backgroundColor?.alpha, 0)
+            XCTAssertEqual(shell.layer?.cornerRadius, 0, "The divider hit band must not be rounded away")
+            XCTAssertEqual(shell.layer?.masksToBounds, true)
+            XCTAssertEqual(shell.shellLayer.cornerRadius, 18)
+            XCTAssertEqual(shell.shellLayer.cornerCurve, .continuous)
+            XCTAssertEqual(shell.shellLayer.borderWidth, 0.5)
+            XCTAssertEqual(shell.shellLayer.backgroundColor?.alpha, 1)
+            XCTAssertTrue(shell.bounds.contains(shell.shellLayer.frame))
+            XCTAssertTrue((shell.shellLayer.animationKeys() ?? []).isEmpty)
+            XCTAssertTrue((shell.dividerHitLayer.animationKeys() ?? []).isEmpty)
+        }
+        for view in [controller.topRail, controller.sideRail] {
+            XCTAssertFalse(view.metalLayer.isOpaque)
+            XCTAssertEqual(view.metalLayer.backgroundColor?.alpha, 0)
+            XCTAssertEqual(view.drawingContent(using: renderer).clearColor, .zero)
+        }
+    }
+
+    func testRoundedCardPlatesKeepFullAspectFitImagesAndRectangularHitAreas() throws {
+        for size in [CGSize(width: 1_600, height: 1_000), CGSize(width: 400, height: 1_200),
+                     CGSize(width: 2_400, height: 400)] {
+            var state = fixture.state
+            for identity in Array(state.records.keys) { state.records[identity]?.frame.size = size }
+            fixture = HostWorkbenchFixture(state: state, placement: fixture.placement, snapshot: fixture.snapshot)
+            sync()
+            for view in [controller.topRail, controller.sideRail] {
+                let content = view.drawingContent(using: renderer)
+                XCTAssertEqual(content.cards.count, view.visibleCardCount)
+                for card in content.cards {
+                    let slot = try XCTUnwrap(view.lastCards.values.first { $0.identity == card.identity }?.slot)
+                    let chrome = try XCTUnwrap(view.chrome(for: slot))
+                    let plate = try XCTUnwrap(content.panels.first { $0.rect == chrome.container.frame })
+                    XCTAssertEqual(plate.cornerRadius, 12)
+                    XCTAssertEqual(chrome.container.cornerRadius, plate.cornerRadius)
+                    XCTAssertEqual(chrome.border.cornerRadius, plate.cornerRadius)
+                    XCTAssertEqual(plate.fill.w, 1)
+                    XCTAssertEqual(card.imageRect.width / card.imageRect.height, size.width / size.height, accuracy: 0.0001)
+                    let safeRect = plate.rect.insetBy(dx: plate.cornerRadius / 2, dy: plate.cornerRadius / 2)
+                    XCTAssertTrue(safeRect.insetBy(dx: -0.001, dy: -0.001).contains(card.imageRect),
+                                  "Image corners must fit inside the plate, not be cut off by a rounded mask")
+                    XCTAssertLessThanOrEqual(card.imageRect.maxY, chrome.container.frame.maxY - fixture.layout.style.titleHeight + 0.001)
+                    let roundedCorner = CGPoint(x: plate.rect.minX + 1, y: plate.rect.minY + 1)
+                    XCTAssertEqual(view.hitTestCard(at: roundedCorner)?.slot, slot,
+                                   "Visual rounding must not change the frozen rectangular hit target")
+                    XCTAssertEqual(chrome.titleBar.backgroundColor?.alpha ?? 0, 0.035, accuracy: 0.001)
+                    XCTAssertTrue((chrome.container.animationKeys() ?? []).isEmpty)
+                }
+            }
+        }
+        let overview = CardChrome()
+        XCTAssertEqual(overview.titleBar.backgroundColor?.alpha ?? 0, 0.55, accuracy: 0.001)
+        XCTAssertEqual(OverviewStyle.standard.cornerRadius, 10, "Overview chrome must retain its own defaults")
+    }
+
+    func testRoundedPlatesFollowHiddenCardsAndEmptySlots() throws {
+        let view = controller.topRail
+        let slot = topSlot(0)
+        let identity = try XCTUnwrap(fixture.placement.occupant(at: slot))
+        let rect = try XCTUnwrap(view.chrome(for: slot)?.container.frame)
+        XCTAssertTrue(controller.setHiddenRailIdentities([identity]))
+        sync()
+        let hidden = view.drawingContent(using: renderer)
+        XCTAssertFalse(hidden.cards.contains { $0.identity == identity })
+        XCTAssertFalse(hidden.panels.contains { $0.rect == rect }, "A hidden card must not leave its plate behind")
+        XCTAssertTrue(controller.setHiddenRailIdentities([]))
+        sync()
+        XCTAssertTrue(view.drawingContent(using: renderer).panels.contains { $0.rect == rect })
+
+        fixture = HostWorkbench.fixture(count: 0)
+        sync()
+        for rail in [controller.topRail, controller.sideRail] {
+            let content = rail.drawingContent(using: renderer)
+            XCTAssertTrue(content.cards.isEmpty)
+            XCTAssertFalse(content.panels.isEmpty)
+            XCTAssertTrue(content.panels.allSatisfy { $0.cornerRadius == 12 })
+            XCTAssertEqual(content.clearColor, .zero)
+            let host = try XCTUnwrap(rail.layer?.sublayers?.first { $0.name == "chrome" })
+            let emptyLayers = host.sublayers?.filter { $0.name == "empty-slot" && !$0.isHidden } ?? []
+            XCTAssertFalse(emptyLayers.isEmpty)
+            XCTAssertTrue(emptyLayers.allSatisfy { $0.cornerRadius == 12 })
+        }
+    }
+
     // MARK: - H11 坐标与屏幕
 
     func testPanelFramesAndCardCentersMatchProjectionAtNegativeOrigin() throws {
@@ -283,6 +384,11 @@ final class WorkbenchRailViewTests: XCTestCase {
                        "混合倍率下栏的像素密度必须跟随它所在的屏，不能所有屏共用 2x")
         XCTAssertEqual(secondary.topPanelFrame, controller.topPanelFrame,
                        "同一块屏的倍率变化不改变逻辑坐标")
+        let shell = try XCTUnwrap(secondary.topRail.window?.contentView as? WorkbenchRailShellView)
+        XCTAssertEqual(shell.shellLayer.borderWidth, 1, "The shell stroke remains one physical pixel at 1x")
+        let chrome = try XCTUnwrap(secondary.topRail.chrome(for: topSlot(0)))
+        XCTAssertEqual(chrome.titleText.contentsScale, 1)
+        XCTAssertEqual(chrome.pinBadge.contentsScale, 1)
     }
 
     // MARK: - H02/H17 「全部窗口」按钮

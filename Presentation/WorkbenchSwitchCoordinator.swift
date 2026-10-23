@@ -1199,8 +1199,8 @@ final class WorkbenchSwitchCoordinator {
     private func verifyExternalFocus(_ identity: WindowIdentity) async -> WorkbenchStepOutcome {
         guard frontmostProcessID() == identity.processID,
               let record = catalog.record(for: identity), let element = catalog.axEntry(for: record)?.element,
-              let focused = await writer.focusedWindow(pid: identity.processID),
-              frontmostProcessID() == identity.processID, CFEqual(focused.element, element) else {
+              let focused = await writer.focusedWindowElement(pid: identity.processID),
+              frontmostProcessID() == identity.processID, CFEqual(focused, element) else {
             return .rejected("前台窗口已改变或暂时无法确认，未重新激活旧目标")
         }
         return .succeeded(readBack: nil)

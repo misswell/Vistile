@@ -41,7 +41,7 @@ public struct WorkbenchStyle: Hashable, Sendable {
                 sideWidthRatio: CGFloat = 0.12,
                 sideWidthRange: ClosedRange<CGFloat> = 168...480,
                 titleHeight: CGFloat = 20,
-                cornerRadius: CGFloat = 8,
+                cornerRadius: CGFloat = 12,
                 borderWidth: CGFloat = 1,
                 displayAspect: CGFloat = 1.6,
                 topCardWidthRange: ClosedRange<CGFloat> = 140...240,

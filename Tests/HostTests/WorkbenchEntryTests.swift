@@ -303,6 +303,36 @@ final class WorkbenchEntryTests: XCTestCase {
                       "写过的窗口必须留下待恢复事务，退出时才能还原")
     }
 
+    func testManualSwitchInputToFirstWriteBaseline() throws {
+        let coordinator = makeCoordinator()
+        coordinator.activateApplication = {}
+        coordinator.frontmostProcessID = { nil }
+        coordinator.toggleOverview()
+        try waitForVisibleOverview()
+        try overviewView().onAction?(.cardClicked(HostFixtures.identity(0)))
+        waitUntil(timeout: 5) { coordinator.state.mode == .workbench && !coordinator.transitionActivity.isActive }
+        var samples: [Double] = []
+        for index in 0..<6 {
+            let target = HostFixtures.identity(index.isMultiple(of: 2) ? 1 : 0)
+            let slot = try XCTUnwrap(coordinator.state.workbench.slot(of: target))
+            var firstWriteAt: TimeInterval?
+            writer.onWillWrite = { _ in
+                if firstWriteAt == nil { firstWriteAt = ProcessInfo.processInfo.systemUptime }
+            }
+            let started = ProcessInfo.processInfo.systemUptime
+            coordinator.workbenchControllers[displayID]?.onAction?(.railCardClicked(slot: slot, identity: target))
+            waitUntil(timeout: 5) {
+                coordinator.state.workbench.placement.main == target && !coordinator.transitionActivity.isActive
+            }
+            XCTAssertEqual(coordinator.state.workbench.placement.main, target)
+            samples.append((try XCTUnwrap(firstWriteAt) - started) * 1000)
+        }
+        writer.onWillWrite = nil
+        let ordered = samples.sorted()
+        print("[switch-latency] input-to-first-write-ms=\(samples) median=\(ordered[ordered.count / 2])")
+        XCTAssertEqual(samples.count, 6)
+    }
+
     func testRailSizePreferencesAreIndependentPerDisplayAndResetToDefault() {
         settings.workbenchTopHeight = 125
         settings.workbenchSideWidth = 210

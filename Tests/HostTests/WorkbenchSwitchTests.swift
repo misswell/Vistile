@@ -322,6 +322,17 @@ final class WorkbenchSwitchTests: XCTestCase {
         XCTAssertFalse(coordinator.isBusy)
     }
 
+    func testSwitchConfirmsFocusWithoutLoadingWindowSnapshots() async throws {
+        let plan = try await beginHappyPath()
+        let snapshotsBefore = writer.focusedWindowSnapshotReadCount
+        coordinator.perform(plan)
+        await pendingUntil { !self.coordinator.isBusy }
+        XCTAssertEqual(committedTokens(), [plan.intent.token])
+        XCTAssertEqual(writer.focusedWindowReadCount, 2)
+        XCTAssertEqual(writer.focusedWindowSnapshotReadCount - snapshotsBefore, 0,
+                       "身份确认只需要 AXFocusedWindow 句柄，不应每步读取标题、尺寸和可写性")
+    }
+
     func testExternalFocusCommitsWithoutRaiseOrFocusWrites() async throws {
         _ = try await beginHappyPath()
         let plan = try await switchPlan(followsExternalFocus: true)
@@ -332,6 +343,8 @@ final class WorkbenchSwitchTests: XCTestCase {
         XCTAssertEqual(committedTokens(), [plan.intent.token])
         XCTAssertEqual(writer.raiseCount, 0)
         XCTAssertEqual(writer.focusCount, 0)
+        XCTAssertEqual(writer.focusedWindowSnapshotReadCount, 0)
+        XCTAssertEqual(writer.focusedWindowReadCount, 3)
         XCTAssertTrue(failureReasons().isEmpty)
     }
 

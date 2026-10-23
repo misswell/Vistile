@@ -600,14 +600,26 @@ final class FakeGeometryWriter: GeometryWriting, @unchecked Sendable {
     private var focusedByPID: [Int: AXUIElement] = [:]
     /// 前景化判定读过几次 focused window：测试用它等"读回这一步真的发生了"。
     private var focusedReads = 0
+    private var focusedSnapshotReads = 0
 
     var focusedWindowReadCount: Int {
         lock.lock(); defer { lock.unlock() }
         return focusedReads
     }
 
+    var focusedWindowSnapshotReadCount: Int {
+        lock.lock(); defer { lock.unlock() }
+        return focusedSnapshotReads
+    }
+
+    func focusedWindowElement(pid: pid_t) async -> AXUIElement? {
+        lock.lock(); defer { lock.unlock() }
+        focusedReads += 1
+        return focusedByPID[Int(pid)]
+    }
+
     func focusedWindow(pid: pid_t) async -> AXWindowEntry? {
-        lock.lock(); let element = focusedByPID[Int(pid)]; focusedReads += 1; lock.unlock()
+        lock.lock(); let element = focusedByPID[Int(pid)]; focusedReads += 1; focusedSnapshotReads += 1; lock.unlock()
         guard let element else { return nil }
         return AXWindowEntry(snapshot: AXWindowSnapshot(index: -1,
                                                         frame: nil,

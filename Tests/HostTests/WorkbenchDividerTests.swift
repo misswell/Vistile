@@ -148,6 +148,44 @@ final class WorkbenchDividerTests: XCTestCase {
         XCTAssertTrue(sideCenterHit === controller.sideDivider, "侧栏空带中央必须命中分隔线")
     }
 
+    func testRoundedShellsPreserveMirroredViewportsAndFullDividerHitBands() throws {
+        for side in [RailSide.left, .right] {
+            syncLayout(top: 120.25, width: 220.25, side: side)
+            let layout = fixture.layout
+            let main = HostFixtures.mapper.cgToAppKit(layout.mainRect)
+            for rail in [RailKind.top, .side] {
+                let view = rail == .top ? controller.topRail : controller.sideRail
+                let divider = rail == .top ? controller.topDivider : controller.sideDivider
+                let window = try XCTUnwrap(view.window)
+                let shell = try XCTUnwrap(window.contentView as? WorkbenchRailShellView)
+                let railRect = rail == .top ? layout.topRailRect : layout.sideRailRect
+                let viewport = rail == .top ? layout.topViewport : layout.sideViewport
+                let band = rail == .top ? layout.topDividerRect : layout.sideDividerRect
+                XCTAssertEqual(shell.shellLayer.frame,
+                               window.convertFromScreen(HostFixtures.mapper.cgToAppKit(railRect)).intersection(shell.bounds))
+                XCTAssertEqual(view.frame, window.convertFromScreen(HostFixtures.mapper.cgToAppKit(viewport)))
+                XCTAssertEqual(divider.frame, window.convertFromScreen(HostFixtures.mapper.cgToAppKit(band)))
+                XCTAssertEqual(shell.dividerHitLayer.frame, divider.frame.intersection(shell.bounds))
+                XCTAssertEqual(shell.dividerHitLayer.backgroundColor?.alpha ?? 0, 0.01, accuracy: 0.001,
+                               "Only the existing hit band gets a nonzero-alpha backing against window click-through")
+                XCTAssertFalse(shell.shellLayer.frame.intersects(divider.frame), "The divider gap must remain outside the shell")
+                XCTAssertFalse(window.frame.intersects(main), "Transparent corners must not enlarge a panel into mainRect")
+                XCTAssertEqual(shell.shellLayer.cornerRadius, 18)
+                let points: [CGPoint] = rail == .top
+                    ? [CGPoint(x: 1, y: divider.bounds.midY), center(of: divider),
+                       CGPoint(x: divider.bounds.maxX - 1, y: divider.bounds.midY)]
+                    : [CGPoint(x: divider.bounds.midX, y: 1), center(of: divider),
+                       CGPoint(x: divider.bounds.midX, y: divider.bounds.maxY - 1)]
+                for point in points {
+                    XCTAssertTrue(shell.hitTest(divider.convert(point, to: shell)) === divider,
+                                  "The entire rectangular hit band must survive visual rounding on either side")
+                }
+                let mainCenter = window.convertPoint(fromScreen: CGPoint(x: main.midX, y: main.midY))
+                XCTAssertNil(shell.hitTest(mainCenter))
+            }
+        }
+    }
+
     func testWindowDispatchKeepsDraggingAfterPanelMovesWithoutTakingFocus() throws {
         let keyWindow = NSApp.keyWindow
         let active = NSApp.isActive
