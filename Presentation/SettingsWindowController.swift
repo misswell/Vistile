@@ -23,6 +23,7 @@ final class SettingsWindowController {
     private let coordinator: AppCoordinator
     private let settings: SettingsModel
     private let permissions: PermissionManager
+    private let accessibilityRepair: AccessibilityPermissionRepair
     private var window: NSWindow?
     private var host: NSHostingController<SettingsRootView>?
     private var permissionObserver: NSObjectProtocol?
@@ -33,6 +34,7 @@ final class SettingsWindowController {
         self.coordinator = coordinator
         self.settings = settings
         self.permissions = permissions
+        accessibilityRepair = AccessibilityPermissionRepair(permissions: permissions)
     }
 
     func showWindow() {
@@ -63,6 +65,7 @@ final class SettingsWindowController {
     private func makeView() -> SettingsRootView {
         SettingsRootView(settings: settings,
                          permission: permissions.status,
+                         accessibilityRepair: accessibilityRepair,
                          launchStatus: Self.launchAtLoginStatus,
                          launchNote: notice,
                          windowChoices: currentWindowChoices(),
@@ -212,6 +215,7 @@ final class SettingsWindowController {
 struct SettingsRootView: View {
     @ObservedObject var settings: SettingsModel
     let permission: PermissionStatus
+    let accessibilityRepair: AccessibilityPermissionRepair
     let launchStatus: String
     let launchNote: String
     let windowChoices: [WindowChoice]
@@ -396,6 +400,9 @@ struct SettingsRootView: View {
             }
             Text("两项权限只用于窗口画面与窗口位置，标题不会写入日志或磁盘记录。")
                 .font(.callout).foregroundStyle(.secondary)
+            if !permission.accessibility {
+                AccessibilityPermissionRepairView(repair: accessibilityRepair)
+            }
             Button("导出诊断记录", action: onExportDiagnostics)
         }
     }

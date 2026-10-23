@@ -40,6 +40,8 @@
 		8B982C03FCC650B8B81541B1 /* WorkbenchSwitchCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98AB559EDFDC85872A2B45BC /* WorkbenchSwitchCoordinator.swift */; };
 		8C680B76804D12E45651287C /* WorkbenchDividerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2233DD7AF52DBBC20E183330 /* WorkbenchDividerTests.swift */; };
 		8EB78F1BF7959667448D358E /* AXObserverHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13A406160D736525598664BF /* AXObserverHub.swift */; };
+		98CD63629037A536EE1A98D5 /* AccessibilityPermissionResetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F2FDF53BF3434FCC2CA9AAA /* AccessibilityPermissionResetTests.swift */; };
+		9BE8DA018C9464A586202B12 /* AccessibilityPermissionReset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 841E90B3E3E5126FB915ED07 /* AccessibilityPermissionReset.swift */; };
 		9E830163D80D04874A4521DD /* PermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CF719590410959C2EA74B9A /* PermissionManager.swift */; };
 		A0AEFF687AD710EE5AAEB70D /* SettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24ACA3AFFAF93FB4D2243C31 /* SettingsModel.swift */; };
 		A6F728561CFD07C73C93990F /* GeometryOperationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10303880BC65AF6FC4E2C137 /* GeometryOperationScheduler.swift */; };
@@ -57,6 +59,7 @@
 		D334CE436697ED2B30EE4285 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 33C1B8EF35C3D6FD4AB6F52D /* Assets.xcassets */; };
 		D81624689580BC06920FA2C6 /* WorkbenchSwitchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0835996FC2F7D88298E9D135 /* WorkbenchSwitchTests.swift */; };
 		D98D3B857A5562CD929B9D7D /* T14OrderingAndNativeInputTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11E28C546EEB4AA80C716B9F /* T14OrderingAndNativeInputTests.swift */; };
+		DAE5C547BF66B27C3B91E623 /* AccessibilityPermissionRepairView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 005F96FA649CE19F51D7F8D5 /* AccessibilityPermissionRepairView.swift */; };
 		DAE89AA003FF425046CB9C0C /* FocusCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E829AF8FD1B927477BF3DFF7 /* FocusCoordinator.swift */; };
 		DC01AB1F309878C525CFD4A6 /* RecoveryCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96CB721A1AD333FC7EF7238E /* RecoveryCoordinator.swift */; };
 		DE36F90E6C36EDBD3FE76196 /* CompatibilityRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C29A00FE838E5D6DC5E84B3 /* CompatibilityRecorder.swift */; };
@@ -67,6 +70,7 @@
 		E2C44C14FE1AC9EEDD89E723 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35DACB50468E3040BDEB483A /* SettingsWindowController.swift */; };
 		E74BFB699DB1FE9AD6CAE191 /* TransitionScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70023C34738AF4359F754189 /* TransitionScene.swift */; };
 		EA92472FC61319D925DB9675 /* AppMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF1575851720940E48C98EF /* AppMain.swift */; };
+		ED31014F948EAF84D419DC0E /* OnboardingPermissionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A9B0CD07FD04EA9C700C1E5 /* OnboardingPermissionTests.swift */; };
 		F32331CD94A7445BC97D329B /* OverviewWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CCD0E79BD0162DFC25D3FF6 /* OverviewWindowController.swift */; };
 		F4C60ACDD4844F6E0411AEC1 /* OverviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9461AE7F36EBEB52DA9621A5 /* OverviewPanel.swift */; };
 		F5C3E048BF992AD9B2218515 /* TransitionProxyWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E40CDA738024A315D4897E /* TransitionProxyWindow.swift */; };
@@ -84,6 +88,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		005F96FA649CE19F51D7F8D5 /* AccessibilityPermissionRepairView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityPermissionRepairView.swift; sourceTree = "<group>"; };
 		04D019FC787F5F1113453C96 /* CaptureCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureCoordinator.swift; sourceTree = "<group>"; };
 		0835996FC2F7D88298E9D135 /* WorkbenchSwitchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkbenchSwitchTests.swift; sourceTree = "<group>"; };
 		094AC6BDD927BE302227D9C5 /* ShaderSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShaderSource.swift; sourceTree = "<group>"; };
@@ -121,17 +126,20 @@
 		555B91B9AE72BE7C34201968 /* StreamFrameInfoReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamFrameInfoReader.swift; sourceTree = "<group>"; };
 		5A448B92D1F9A36C4552FE80 /* T05T07GeometryTransactionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = T05T07GeometryTransactionTests.swift; sourceTree = "<group>"; };
 		6803AFD08D18C59EC43BB922 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
+		6F2FDF53BF3434FCC2CA9AAA /* AccessibilityPermissionResetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityPermissionResetTests.swift; sourceTree = "<group>"; };
 		70023C34738AF4359F754189 /* TransitionScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitionScene.swift; sourceTree = "<group>"; };
 		706165B8FEFF2F2BEBA18DD7 /* TexturePool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TexturePool.swift; sourceTree = "<group>"; };
 		70D235D93911E381066BCE3A /* VistileHostTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VistileHostTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		77152A385FDC4AEE49D6B57F /* VistileCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = VistileCore; path = Packages/VistileCore; sourceTree = SOURCE_ROOT; };
 		7EDE34CF9D3F74B9154A5099 /* OnboardingWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWindowController.swift; sourceTree = "<group>"; };
+		841E90B3E3E5126FB915ED07 /* AccessibilityPermissionReset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityPermissionReset.swift; sourceTree = "<group>"; };
 		91FD08B025E2B7EF42D6783C /* CardAccessibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardAccessibility.swift; sourceTree = "<group>"; };
 		924104F29146981BFEBCCFCD /* WindowCaptureSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowCaptureSession.swift; sourceTree = "<group>"; };
 		9461AE7F36EBEB52DA9621A5 /* OverviewPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewPanel.swift; sourceTree = "<group>"; };
 		96CB721A1AD333FC7EF7238E /* RecoveryCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryCoordinator.swift; sourceTree = "<group>"; };
 		98AB559EDFDC85872A2B45BC /* WorkbenchSwitchCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkbenchSwitchCoordinator.swift; sourceTree = "<group>"; };
 		9A810703B0CA9D645B20D789 /* ModeTransitionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModeTransitionCoordinator.swift; sourceTree = "<group>"; };
+		9A9B0CD07FD04EA9C700C1E5 /* OnboardingPermissionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingPermissionTests.swift; sourceTree = "<group>"; };
 		A0E4C9BDD8AEBC206E6BBB9D /* TransitionSceneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitionSceneTests.swift; sourceTree = "<group>"; };
 		A3A3A3E86AC83E4EA4F33BBD /* WorkbenchDividerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkbenchDividerView.swift; sourceTree = "<group>"; };
 		AABDFAE8285C19BA0293515F /* WorkbenchRailPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkbenchRailPanel.swift; sourceTree = "<group>"; };
@@ -186,6 +194,7 @@
 		06BB384E80742A7B4B575146 /* Presentation */ = {
 			isa = PBXGroup;
 			children = (
+				005F96FA649CE19F51D7F8D5 /* AccessibilityPermissionRepairView.swift */,
 				E829AF8FD1B927477BF3DFF7 /* FocusCoordinator.swift */,
 				10303880BC65AF6FC4E2C137 /* GeometryOperationScheduler.swift */,
 				9A810703B0CA9D645B20D789 /* ModeTransitionCoordinator.swift */,
@@ -240,6 +249,8 @@
 				0A27BD05F7079C345A3B95CF /* _HostCaptureFakes.swift */,
 				47EE4603B7D957841ADCD86A /* _HostGeometryFakes.swift */,
 				2ABCE49D751144985B381F37 /* _HostTestSupport.swift */,
+				6F2FDF53BF3434FCC2CA9AAA /* AccessibilityPermissionResetTests.swift */,
+				9A9B0CD07FD04EA9C700C1E5 /* OnboardingPermissionTests.swift */,
 				E35B95703E76B3642D977F59 /* T01ActionRoutingTests.swift */,
 				DCC62AE118E51125D0D37AAD /* T02MetalPresentationTests.swift */,
 				5A448B92D1F9A36C4552FE80 /* T05T07GeometryTransactionTests.swift */,
@@ -263,6 +274,7 @@
 		41225BD09527C15ED7187DFD /* Permissions */ = {
 			isa = PBXGroup;
 			children = (
+				841E90B3E3E5126FB915ED07 /* AccessibilityPermissionReset.swift */,
 				0CF719590410959C2EA74B9A /* PermissionManager.swift */,
 			);
 			path = Permissions;
@@ -479,6 +491,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				98CD63629037A536EE1A98D5 /* AccessibilityPermissionResetTests.swift in Sources */,
+				ED31014F948EAF84D419DC0E /* OnboardingPermissionTests.swift in Sources */,
 				20A2ACF88FA737CC7EF59529 /* T01ActionRoutingTests.swift in Sources */,
 				C170972E12CDFC5BD041B69A /* T02MetalPresentationTests.swift in Sources */,
 				85AE44E45926C8A2BC41A5CB /* T05T07GeometryTransactionTests.swift in Sources */,
@@ -515,6 +529,8 @@
 			files = (
 				8EB78F1BF7959667448D358E /* AXObserverHub.swift in Sources */,
 				4AB099B12F1206ADA90EBEA8 /* AXWindowResolver.swift in Sources */,
+				DAE5C547BF66B27C3B91E623 /* AccessibilityPermissionRepairView.swift in Sources */,
+				9BE8DA018C9464A586202B12 /* AccessibilityPermissionReset.swift in Sources */,
 				E06AE1979EBF8532A052284B /* AppCoordinator.swift in Sources */,
 				EA92472FC61319D925DB9675 /* AppMain.swift in Sources */,
 				AF79A5ACC2EE0C0859F94087 /* CaptureCoordinator.swift in Sources */,

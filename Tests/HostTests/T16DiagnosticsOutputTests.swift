@@ -235,10 +235,9 @@ final class UpdateChannelHostTests: XCTestCase {
         }
         XCTAssertEqual(package.version.description, "0.1.14")
         XCTAssertEqual(package.asset?.name, "Vistile_v0.1.14_macos_arm64.dmg")
-        XCTAssertEqual(package.mirrorURL?.absoluteString,
-                       "https://autocrop.liuguofeng.com/vistile/releases/v0.1.14/Vistile_v0.1.14_macos_arm64.dmg",
-                       "更新必须优先给国内可下载的镜像路径：GitHub 直链在无代理网络下会超时")
-        XCTAssertNotNil(package.checksumURL, "镜像旁边要有同名 .sha256 校验文件")
+        XCTAssertEqual(package.downloadURL.absoluteString,
+                       "https://github.com/misswell/Vistile/releases/download/v0.1.14/Vistile_v0.1.14_macos_arm64.dmg",
+                       "有安装包资产时更新入口应直接打开 GitHub Release 下载链接")
         XCTAssertNotNil(settings.lastUpdateCheckAt, "成功检查后要记时间，自动检查按它节流")
     }
 

@@ -100,25 +100,15 @@ public struct UpdatePackage: Hashable, Sendable {
     /// 首选下载资产；nil 表示没有可识别的安装包，只能打开发布页。
     public let asset: GitHubReleaseAsset?
 
-    /// 自建镜像地址（自有域名）：国内直连 GitHub release 资产常超时，镜像优先。
-    /// nil 表示没有安装包资产或没有可用镜像路径，界面退回 GitHub 发布页。
-    public let mirrorURL: URL?
-    /// 与安装包同目录的 sha256 校验文件（镜像上一起发布）。
-    public var checksumURL: URL? {
-        mirrorURL.flatMap { URL(string: $0.absoluteString + ".sha256") }
-    }
-
-    /// GitHub 直链（需要能访问 GitHub；作为镜像失败时的兜底入口）。
+    /// GitHub Release 资产直链；无可识别资产时返回发布页。
     public var downloadURL: URL { asset?.browserDownloadURL ?? release.htmlURL }
 
     public init(version: AppVersion,
                 release: GitHubRelease,
-                asset: GitHubReleaseAsset?,
-                mirrorURL: URL? = nil) {
+                asset: GitHubReleaseAsset?) {
         self.version = version
         self.release = release
         self.asset = asset
-        self.mirrorURL = mirrorURL
     }
 }
 
@@ -127,10 +117,6 @@ public enum UpdateChannelPolicy {
     /// 更新通道就是本仓库的 GitHub Releases（其他项目通用做法：不打自建服务器）。
     public static let defaultRepository = "misswell/Vistile"
     public static let userAgentProduct = "Vistile"
-    /// 自建下载镜像（自有域名 + nginx，国内直连）。
-    /// 每发一版需把 dmg 与同名 `.sha256` 放到 `releases/<tag>/` 下；见 Acceptance §12.9。
-    public static let mirrorBase = "https://autocrop.liuguofeng.com/vistile"
-
     public static func releasesEndpoint(repository: String = defaultRepository,
                                         perPage: Int = 20) -> URL {
         var components = URLComponents(string: "https://api.github.com/repos/\(repository)/releases")!
@@ -157,17 +143,7 @@ public enum UpdateChannelPolicy {
         let asset = preferredAsset(in: best.1)
         return UpdatePackage(version: best.0,
                              release: best.1,
-                             asset: asset,
-                             mirrorURL: asset.flatMap { mirrorURL(for: best.1, asset: $0) })
-    }
-
-    /// 自建镜像上的安装包地址：`<mirrorBase>/releases/<tag>/<asset 文件名>`。
-    public static func mirrorURL(for release: GitHubRelease,
-                                 asset: GitHubReleaseAsset) -> URL? {
-        let safeTag = release.tagName.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)
-        let safeName = asset.name.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)
-        guard let safeTag, let safeName else { return nil }
-        return URL(string: "\(mirrorBase)/releases/\(safeTag)/\(safeName)")
+                             asset: asset)
     }
 
     /// 首选资产：arm64 dmg → 任意 dmg → zip；都没有就返回 nil（只打开发布页）。

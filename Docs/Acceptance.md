@@ -1,3 +1,9 @@
+# 当前变更说明 / Current change note — 2026-10-23
+本次源码新增辅助功能授权清除与重新申请入口，并将更新下载改为仅使用 GitHub Releases。
+下文自建镜像与服务器上传记录是历史事实，不再作为当前发布步骤。宿主相关测试 22 项及核心更新通道测试 9 项通过；本次未发布、未安装，也未执行真实授权清除验收。
+The current source adds an Accessibility reset and reauthorization action and uses GitHub Releases exclusively for updates.
+Self-hosted mirror and server-upload entries below are historical, not current release steps. The 22 related host tests and 9 core update-channel tests passed. This change has not been released or installed, and an actual authorization reset has not been exercised.
+
 # Vistile 验收说明（P0 门禁）
 
 判据来自方案 §4：**必须用屏幕录制与窗口顺序诊断确认，不能仅凭"返回无错误"通过。**

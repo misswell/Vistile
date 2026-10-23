@@ -182,18 +182,13 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let alert = NSAlert()
         alert.messageText = "发现新版本 \(package.version)"
         alert.informativeText = Self.updateNotes(for: package)
-        // 顺序：镜像优先（国内直连 GitHub release 资产常超时）→ GitHub 兜底 → 稍后 → 跳过。
-        let hasMirror = package.mirrorURL != nil
-        if hasMirror { alert.addButton(withTitle: "从镜像下载") }
-        alert.addButton(withTitle: hasMirror ? "打开 GitHub 发布页" : "打开发布页")
+        alert.addButton(withTitle: package.asset == nil ? "打开 GitHub 发布页" : "从 GitHub 下载")
         alert.addButton(withTitle: "稍后")
         alert.addButton(withTitle: "跳过此版本")
         let index = alert.runModal().rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
         switch index {
-        case 0 where hasMirror:
-            NSWorkspace.shared.open(package.mirrorURL!)
-        case 0, 1:
-            NSWorkspace.shared.open(package.release.htmlURL)
+        case 0:
+            NSWorkspace.shared.open(package.downloadURL)
         case alert.buttons.count - 1:
             updateChecker.skip(package)
         default:
@@ -207,13 +202,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             lines.append("安装包：\(asset.name)（\(ByteCountFormatter.string(fromByteCount: Int64(asset.size), countStyle: .file))）")
         } else {
             lines.append("发布页：\(package.release.htmlURL.absoluteString)")
-        }
-        if package.mirrorURL != nil {
-            lines.append("镜像：autocrop.liuguofeng.com（自有服务器，国内直连）")
-            lines.append("国内网络直连 GitHub release 资产常超时；镜像不可用时再走 GitHub 发布页。")
-        }
-        if let checksum = package.checksumURL {
-            lines.append("校验：\(checksum.absoluteString)")
         }
         if let body = package.release.body, !body.isEmpty {
             let trimmed = body.count > 700 ? String(body.prefix(700)) + "…" : body

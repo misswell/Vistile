@@ -81,43 +81,25 @@ final class UpdateChannelTests: XCTestCase {
         XCTAssertEqual(UpdateChannelPolicy.preferredAsset(in: onlyZip)?.name, "Vistile.zip")
     }
 
-    // MARK: - 自建镜像
+    // MARK: - GitHub 下载地址
 
-    func testPackageCarriesOwnMirrorAndChecksumURL() throws {
+    func testPackageUsesGitHubReleaseAssetDirectly() throws {
         let current = try XCTUnwrap(AppVersion("0.1.13"))
         let list = [release("v0.1.14", assets: [
             ("Vistile_v0.1.14_macos_arm64.dmg", "https://github.com/misswell/Vistile/releases/download/v0.1.14/Vistile_v0.1.14_macos_arm64.dmg", 2_420_239)
         ])]
         let package = try XCTUnwrap(UpdateChannelPolicy.latest(from: list, current: current))
-        XCTAssertEqual(package.mirrorURL?.absoluteString,
-                       "https://autocrop.liuguofeng.com/vistile/releases/v0.1.14/Vistile_v0.1.14_macos_arm64.dmg",
-                       "国内直连 GitHub release 资产会超时，更新通道优先走自有镜像")
-        XCTAssertEqual(package.checksumURL?.absoluteString,
-                       "https://autocrop.liuguofeng.com/vistile/releases/v0.1.14/Vistile_v0.1.14_macos_arm64.dmg.sha256")
         XCTAssertEqual(package.downloadURL.absoluteString,
                        "https://github.com/misswell/Vistile/releases/download/v0.1.14/Vistile_v0.1.14_macos_arm64.dmg",
-                       "GitHub 直链保留作兜底入口")
+                       "有资产时直接打开 GitHub Release 下载链接")
     }
 
-    func testPackageWithoutAssetHasNoMirror() throws {
+    func testPackageWithoutAssetOpensGitHubReleasePage() throws {
         let current = try XCTUnwrap(AppVersion("0.1.13"))
         let list = [release("v0.1.14")]
         let package = try XCTUnwrap(UpdateChannelPolicy.latest(from: list, current: current))
-        XCTAssertNil(package.mirrorURL, "没有安装包资产时没有可镜像的路径")
-        XCTAssertNil(package.checksumURL)
         XCTAssertEqual(package.downloadURL.absoluteString,
                        "https://github.com/misswell/Vistile/releases/tag/v0.1.14")
-    }
-
-    func testMirrorURLEncodesTagAndAssetName() throws {
-        let asset = GitHubReleaseAsset(name: "Vistile 0.1.14.dmg",
-                                       browserDownloadURL: URL(string: "https://example.com/x.dmg")!,
-                                       size: 1)
-        let release = self.release("v0.1.14")
-        let url = try XCTUnwrap(UpdateChannelPolicy.mirrorURL(for: release, asset: asset))
-        XCTAssertEqual(url.absoluteString,
-                       "https://autocrop.liuguofeng.com/vistile/releases/v0.1.14/Vistile%200.1.14.dmg",
-                       "文件名里的空格要编码，不能拼出坏 URL")
     }
 
     // MARK: - GitHub JSON 解码

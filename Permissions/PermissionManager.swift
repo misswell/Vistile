@@ -17,7 +17,13 @@ protocol PermissionChecking {
     func refresh() -> PermissionStatus
 }
 
-extension PermissionManager: PermissionChecking {}
+protocol PermissionGuiding: PermissionChecking {
+    @discardableResult func requestScreenRecording() -> Bool
+    @discardableResult func requestAccessibility(prompt: Bool) -> Bool
+    func resetAccessibility() async throws
+}
+
+extension PermissionManager: PermissionGuiding {}
 
 extension PermissionChecking {
     /// 替身的固定事实不会在两次读取之间变化：默认原样回报。
@@ -28,6 +34,7 @@ extension PermissionChecking {
 final class PermissionManager {
     private(set) var status = PermissionStatus(screenRecording: false, accessibility: false)
     private var promptSeen: Set<String> = []
+    private let accessibilityReset = AccessibilityPermissionReset()
 
     init() {
         refresh()
@@ -64,12 +71,18 @@ final class PermissionManager {
     /// 辅助功能：用于激活和调整窗口。
     @discardableResult
     func requestAccessibility(prompt: Bool) -> Bool {
-        if status.accessibility { return true }
+        if refresh().accessibility { return true }
         let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
         let options: [String: Bool] = prompt ? [key: true] : [:]
         let trusted = AXIsProcessTrustedWithOptions(options as CFDictionary)
         refresh()
         return trusted || status.accessibility
+    }
+
+    func resetAccessibility() async throws {
+        try await accessibilityReset.reset()
+        promptSeen.remove(PermissionKind.accessibility.rawValue)
+        refresh()
     }
 
     /// 同一步只提示一次，避免未授予时持续弹窗。

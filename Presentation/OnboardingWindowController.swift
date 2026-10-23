@@ -9,26 +9,41 @@ final class OnboardingWindowController {
     var onFinished: (() -> Void)?
 
     private let settings: SettingsModel
-    private let permissions: PermissionManager
-    private var window: NSWindow?
+    private let permissions: PermissionGuiding
+    private let accessibilityRepair: AccessibilityPermissionRepair
+    private(set) var window: NSWindow?
     private var host: NSHostingController<OnboardingView>?
     private var closeHandler: CloseHandler?
     private var step = 0
+    private var observers: [NSObjectProtocol] = []
 
-    init(settings: SettingsModel, permissions: PermissionManager) {
+    init(settings: SettingsModel, permissions: PermissionGuiding) {
         self.settings = settings
         self.permissions = permissions
+        accessibilityRepair = AccessibilityPermissionRepair(permissions: permissions)
+        let center = NotificationCenter.default
+        observers.append(center.addObserver(forName: .vistilePermissionsChanged, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.rerender() }
+        })
+        observers.append(center.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.refreshPermissions() }
+        })
+    }
+
+    deinit {
+        for observer in observers { NotificationCenter.default.removeObserver(observer) }
     }
 
     func showWindow() {
-        if window == nil { build() }
-        rerender()
+        loadWindow()
+        refreshPermissions()
         window?.center()
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    private func build() {
+    func loadWindow() {
+        guard window == nil else { return }
         let host = NSHostingController(rootView: makeView())
         let window = NSWindow(contentViewController: host)
         window.styleMask = [.titled, .closable]
@@ -45,10 +60,11 @@ final class OnboardingWindowController {
     private func makeView() -> OnboardingView {
         OnboardingView(step: step,
                        permission: permissions.status,
+                       accessibilityRepair: accessibilityRepair,
                        hotKey: settings.hotKey.displayString,
-                       onNext: advance,
+                       onNext: { [weak self] in self?.advance() },
                        onBack: { [weak self] in self?.move(-1) },
-                       onRequest: request,
+                       onRequest: { [weak self] kind in self?.request(kind) },
                        onOpenSettings: { pane in
                            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)") {
                                NSWorkspace.shared.open(url)
@@ -59,7 +75,23 @@ final class OnboardingWindowController {
 
     private func rerender() { host?.rootView = makeView() }
 
-    private func advance() { move(1) }
+    private func refreshPermissions() {
+        _ = permissions.refresh()
+        rerender()
+    }
+
+    private func advance() {
+        refreshPermissions()
+        // 未授权时留在对应步骤，不能进入“可以开始了”。
+        if step == 1 && !permissions.status.screenRecording { return }
+        if step == 2 {
+            guard permissions.status.isComplete else {
+                if !permissions.status.screenRecording { step = 1; rerender() }
+                return
+            }
+        }
+        move(1)
+    }
 
     private func move(_ delta: Int) {
         step = min(3, max(0, step + delta))
@@ -77,15 +109,21 @@ final class OnboardingWindowController {
     }
 
     private func finish() {
+        refreshPermissions()
+        guard permissions.status.isComplete else {
+            step = permissions.status.screenRecording ? 2 : 1
+            rerender()
+            return
+        }
         settings.didCompleteGuidedSetup = true
         step = 3
         rerender()
-        // 权限还没到位时不算完成：下次启动继续引导。
-        if permissions.status.isComplete { onFinished?() }
+        onFinished?()
     }
 
     /// 关窗也算完成引导的前提是权限已就绪；否则下次启动还会再引导一次。
     private func finishIfReady() {
+        refreshPermissions()
         guard permissions.status.isComplete else { return }
         settings.didCompleteGuidedSetup = true
         onFinished?()
@@ -95,6 +133,7 @@ final class OnboardingWindowController {
 struct OnboardingView: View {
     let step: Int
     let permission: PermissionStatus
+    let accessibilityRepair: AccessibilityPermissionRepair
     let hotKey: String
     let onNext: () -> Void
     let onBack: () -> Void
@@ -106,8 +145,9 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text(title).font(.title2.weight(.semibold))
             Text(stepCaption).font(.body).foregroundStyle(.primary)
-            content
-            Spacer()
+            ScrollView {
+                content.frame(maxWidth: .infinity, alignment: .leading)
+            }
             footer
         }
         .padding(22)
@@ -159,8 +199,11 @@ struct OnboardingView: View {
                 Button("申请辅助功能") { onRequest(.accessibility) }
                     .disabled(permission.accessibility)
                 Button("在系统设置中打开") { onOpenSettings("Privacy_Accessibility") }
-                Text("列表里勾选 Vistile 后，请回到本窗口点“下一步”重新读取系统状态。")
+                Text("开启 Vistile 后，回到本窗口点“已处理，重新检查”。系统也可能将此权限称为“设备控制和数据访问”。")
                     .font(.callout).foregroundStyle(.secondary)
+                if !permission.accessibility {
+                    AccessibilityPermissionRepairView(repair: accessibilityRepair)
+                }
             }
         case 3:
             VStack(alignment: .leading, spacing: 10) {
