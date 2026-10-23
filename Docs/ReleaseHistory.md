@@ -1,5 +1,20 @@
 # Vistile
 
+## 0.1.34 (48) — 2026-10-23
+
+- 槽位与网格一致性：窗口从待整理队列落入空位时同步移出队列，溢出数量不再重复计数；登记表恢复丢弃负 slot，容量按实际条目计算，不再越界崩溃；极小屏单列兜底的内容区按格高收缩，不再跑出格子。
+  Slot and grid consistency: a queued window that lands in a vacancy leaves the pending queue, so overflow counts are no longer duplicated; restoring slots drops negative indices and derives capacity from real entries instead of trapping; fallback-card content is clamped inside cells shorter than the title bar.
+- 极端布局与设置：兜底网格先压缩间距再分配行高，不再产出负或零格高；按显示器读取栏尺寸时两个字段分别校验，单个坏值不再拖垮另一项有效偏好，NaN/负值读入即清洗写回。
+  Extreme layout and settings: the fallback grid compresses gaps before row height, so no negative or zero cell heights; per-display rail sizes validate each field independently, so one corrupt value no longer discards a valid sibling, and NaN/negative values are cleaned and written back on read.
+- 输入与热键：搜索词忽略首尾空白，只剩空格等同没有查询；越界或缺少修饰键的持久化热键回退默认，注册层拒绝无修饰键绑定，避免劫持普通按键。
+  Input and hotkeys: search ignores leading/trailing whitespace, so a whitespace-only query behaves as no query; persisted hotkeys with out-of-range codes or missing modifiers fall back to the default, and registration refuses modifier-less bindings to avoid hijacking plain keys.
+- 更新通道：版本标签拒绝空段与非 ASCII 数字，坏 tag 不再参与版本比较；自动检查把未来时间戳视为到期，系统时间回拨或坏值不会永久压住检查。
+  Update channel: version tags reject empty and non-ASCII numeric segments so malformed tags never enter comparisons; automatic checks treat future timestamps as due, so clock rollback or corrupt values cannot throttle checks forever.
+- 新增确定性边界扫描：400 组极端工作台帧与子像素/NaN 覆盖、120 组敌意滚动偏移、1500 步槽位操作序列、180 组随机网格几何，全部离线运行且不触碰真实窗口。
+  Added deterministic boundary scans: 400 extreme workbench frames with sub-pixel/NaN overrides, 120 hostile scroll offsets, 1,500-step slot operation sequences and 180 random grid geometries, all offline and without touching real windows.
+
+自动验证：干净构建目录下核心 XCTest **133** + Swift Testing **159**，0 失败；宿主全量 **307** 项，306 通过、1 项因后台账户无法取得真实前台键盘焦点跳过、0 失败。Release（arm64、未签名）构建通过。GitHub Actions 在 tag 上完成签名、公证、装订与发布，App 与 DMG 两份公证均为 `Accepted`。下载产物复核：`Vistile_v0.1.34_macos_arm64.dmg`，SHA-256 `d727c5d69df0903cdee1198ba28836baf0d205e8c20ae73d8b9df5b708f8a28f`，版本 0.1.34 (48)，TeamIdentifier `U8U443D7ZL`，Gatekeeper 判为 Notarized Developer ID，`stapler validate` 通过，`lipo` 仅含 arm64。
+
 ## 0.1.33 (47) — 2026-10-23
 
 - 修复应用内更新在“正在恢复窗口并重新启动”阶段卡住的问题：退出请求原先在更新任务占用主队列时直接调用 `NSApplication.terminate`，`.terminateLater` 的回复与兜底计时都无法送达。现在把退出请求交回主运行循环的下一轮，替换 helper 能按时接管并完成重启。
