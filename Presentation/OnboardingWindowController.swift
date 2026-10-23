@@ -15,6 +15,7 @@ final class OnboardingWindowController {
     private var host: NSHostingController<OnboardingView>?
     private var closeHandler: CloseHandler?
     private var step = 0
+    private var hasFinished = false
     private var observers: [NSObjectProtocol] = []
 
     init(settings: SettingsModel, permissions: PermissionGuiding) {
@@ -118,14 +119,22 @@ final class OnboardingWindowController {
         settings.didCompleteGuidedSetup = true
         step = 3
         rerender()
-        onFinished?()
+        complete()
+        window?.close()
     }
 
     /// 关窗也算完成引导的前提是权限已就绪；否则下次启动还会再引导一次。
     private func finishIfReady() {
+        guard !hasFinished else { return }
         refreshPermissions()
         guard permissions.status.isComplete else { return }
         settings.didCompleteGuidedSetup = true
+        complete()
+    }
+
+    private func complete() {
+        guard !hasFinished else { return }
+        hasFinished = true
         onFinished?()
     }
 }

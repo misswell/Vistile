@@ -106,6 +106,19 @@ final class OnboardingPermissionTests: XCTestCase {
         XCTAssertTrue(finished)
         XCTAssertTrue(settings.didCompleteGuidedSetup)
     }
+
+    func testFinishClosesWindowAndNotifiesOnce() {
+        goToAccessibility()
+        permissions.systemStatus.accessibility = true
+        view.onNext()
+        var finishCount = 0
+        controller.onFinished = { finishCount += 1 }
+        expectation(forNotification: NSWindow.willCloseNotification, object: controller.window)
+        view.onFinish()
+        waitForExpectations(timeout: 1)
+        XCTAssertFalse(controller.window!.isVisible)
+        XCTAssertEqual(finishCount, 1)
+    }
 }
 
 private final class OnboardingPermissions: PermissionGuiding {
