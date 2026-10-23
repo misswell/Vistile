@@ -5,6 +5,18 @@ import Darwin
 
 @MainActor
 final class UpdatePresentationTests: XCTestCase {
+    func testTerminationRequestIsDeferredPastTheCurrentMainActorTurn() {
+        var ranInline = true
+        let requested = expectation(description: "termination requested")
+        ApplicationTermination.request {
+            ranInline = false
+            requested.fulfill()
+        }
+        XCTAssertTrue(ranInline, "terminate must not run inside the main-actor turn that starts the handoff")
+        wait(for: [requested], timeout: 2)
+        XCTAssertFalse(ranInline)
+    }
+
     func testNotesShowChangesWithoutManualInstallInstructionsOrMarkdownHeadings() throws {
         let release = GitHubRelease(tagName: "v1.2.3", name: nil, body: """
         # Vistile

@@ -1,6 +1,18 @@
 import AppKit
 import VistileCore
 
+/// `.terminateLater` 的回复由主队列投递，而 `NSApplication.terminate` 会在嵌套事件循环里等它；
+/// 在 MainActor 任务内直接调用会把主队列占住，回复永远送不到。交回运行循环下一轮再退出。
+@MainActor
+enum ApplicationTermination {
+    static func request(_ terminate: @MainActor @escaping () -> Void = { NSApp.terminate(nil) }) {
+        CFRunLoopPerformBlock(CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue) {
+            MainActor.assumeIsolated { terminate() }
+        }
+        CFRunLoopWakeUp(CFRunLoopGetMain())
+    }
+}
+
 /// The update stays cancellable until the verified replacement helper takes ownership.
 @MainActor
 final class UpdateInstallationWindowController: NSWindowController, NSWindowDelegate {
@@ -72,7 +84,7 @@ final class UpdateInstallationWindowController: NSWindowController, NSWindowDele
                 self.cancelButton.isEnabled = false
                 self.status.stringValue = "更新已就绪，正在恢复窗口并重新启动…"
                 try prepared.launchAndRelaunch()
-                NSApp.terminate(nil)
+                ApplicationTermination.request()
             } catch is CancellationError {
                 self.close()
             } catch {
