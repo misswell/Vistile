@@ -27,6 +27,8 @@ final class GlobalHotKey {
 
     @discardableResult
     func register(_ binding: HotKeyBinding) -> Bool {
+        // 没有修饰键的组合会劫持普通按键：拒绝注册，调用方回退到菜单入口。
+        guard binding.hasModifier else { return false }
         unregister()
         installHandlerIfNeeded()
         var ref: EventHotKeyRef?

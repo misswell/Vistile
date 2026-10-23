@@ -80,6 +80,115 @@ final class T14OrderingAndNativeInputTests: XCTestCase {
         XCTAssertNil(settings.migratedOrderingStrategy)
     }
 
+    // MARK: - 热键持久化边界
+
+    /// 盘上修饰键被清空（旧版本或手改 plist）时，不能把空格这类普通按键注册成全局热键。
+    func testModifierlessPersistedHotKeyFallsBackToDefault() {
+        let suite = transientDefaults()
+        suite.set(Int(HotKeyBinding.default.keyCode), forKey: "hotKeyCode")
+        suite.set(0, forKey: "hotKeyModifiers")
+
+        settings = SettingsModel(defaults: suite)
+        XCTAssertEqual(settings.hotKey, .default, "无修饰键的绑定会全局劫持普通按键")
+        XCTAssertTrue(settings.hotKey.hasModifier)
+        XCTAssertEqual(suite.integer(forKey: "hotKeyModifiers"),
+                       Int(HotKeyBinding.default.carbonModifiers),
+                       "坏值必须写回，否则每次启动都要重新兜底")
+    }
+
+    func testNegativePersistedModifiersFallBackToDefault() {
+        let suite = transientDefaults()
+        suite.set(Int(HotKeyBinding.default.keyCode), forKey: "hotKeyCode")
+        suite.set(-1, forKey: "hotKeyModifiers")
+
+        settings = SettingsModel(defaults: suite)
+        XCTAssertEqual(settings.hotKey, .default)
+    }
+
+    /// `UInt32(Int)` 对超范围值会直接崩溃，持久化层必须先挡掉。
+    func testOutOfRangePersistedKeyCodeFallsBackWithoutTrap() {
+        let suite = transientDefaults()
+        suite.set(Int(UInt32.max) + 1, forKey: "hotKeyCode")
+        suite.set(Int(HotKeyBinding.default.carbonModifiers), forKey: "hotKeyModifiers")
+
+        settings = SettingsModel(defaults: suite)
+        XCTAssertEqual(settings.hotKey, .default)
+        XCTAssertEqual(suite.integer(forKey: "hotKeyCode"), Int(HotKeyBinding.default.keyCode),
+                       "坏键码必须写回默认值")
+    }
+
+    func testValidPersistedHotKeyIsPreserved() {
+        let suite = transientDefaults()
+        let custom = HotKeyBinding(keyCode: HotKeyBinding.default.keyCode + 1,
+                                   carbonModifiers: HotKeyBinding.default.carbonModifiers)
+        suite.set(Int(custom.keyCode), forKey: "hotKeyCode")
+        suite.set(Int(custom.carbonModifiers), forKey: "hotKeyModifiers")
+
+        settings = SettingsModel(defaults: suite)
+        XCTAssertEqual(settings.hotKey, custom, "兜底只处理坏值，不能覆盖用户的有效组合")
+    }
+
+    /// 设置层已兜底；注册层再挡一次，避免任何调用方把普通按键注册成全局热键。
+    func testGlobalHotKeyRefusesModifierlessBinding() {
+        let hub = GlobalHotKey()
+        XCTAssertFalse(hub.register(HotKeyBinding(keyCode: HotKeyBinding.default.keyCode,
+                                                  carbonModifiers: 0)))
+        XCTAssertFalse(hub.isActive)
+    }
+
+    // MARK: - 工作台尺寸持久化边界（方案 §5.2、§16）
+
+    /// 盘上的 NaN/负值都会让主区算出坏几何：读入时按"没有偏好"处理并写回。
+    func testCorruptGlobalRailPreferencesAreDiscardedAndRewritten() {
+        let suite = transientDefaults()
+        suite.set(Double.nan, forKey: "workbenchTopHeight")
+        suite.set(-12.0, forKey: "workbenchSideWidth")
+
+        settings = SettingsModel(defaults: suite)
+        XCTAssertNil(settings.workbenchTopHeight)
+        XCTAssertNil(settings.workbenchSideWidth)
+        XCTAssertNil(suite.object(forKey: "workbenchTopHeight"), "坏值必须从盘上清掉，不能每次启动重演")
+        XCTAssertNil(suite.object(forKey: "workbenchSideWidth"))
+    }
+
+    /// 同一显示器的两个尺寸分开读：一个字段是字符串/NaN 时，另一个有效字段不能跟着作废。
+    func testRailSizeDictionaryKeepsValidFieldWhenSiblingIsCorrupt() {
+        let suite = transientDefaults()
+        settings = SettingsModel(defaults: suite)
+        settings.workbenchTopHeight = 125
+        settings.workbenchSideWidth = 210
+        suite.set([
+            "display-a": ["topHeight": 240.0, "sideWidth": 350.0],
+            "display-b": ["topHeight": "not-a-size", "sideWidth": 270.0],
+            "display-c": "not-a-dictionary",
+            "display-d": ["topHeight": Double.nan, "sideWidth": -10.0],
+        ], forKey: "workbenchRailSizesByDisplay")
+
+        XCTAssertEqual(settings.workbenchRailSizes(for: "display-a").topHeight, 240)
+        XCTAssertEqual(settings.workbenchRailSizes(for: "display-a").sideWidth, 350)
+        XCTAssertNil(settings.workbenchRailSizes(for: "display-b").topHeight, "坏字段按无偏好处理")
+        XCTAssertEqual(settings.workbenchRailSizes(for: "display-b").sideWidth, 270,
+                       "同组另一个字段有效时不能被连坐丢弃")
+        XCTAssertEqual(settings.workbenchRailSizes(for: "display-c").topHeight, 125,
+                       "整条记录类型错误时回退全局偏好")
+        XCTAssertEqual(settings.workbenchRailSizes(for: "display-c").sideWidth, 210)
+        XCTAssertNil(settings.workbenchRailSizes(for: "display-d").topHeight)
+        XCTAssertNil(settings.workbenchRailSizes(for: "display-d").sideWidth)
+    }
+
+    /// 未知枚举值不能让启动失败，也不能把无意义的显示器编号带进会话。
+    func testCorruptWorkbenchEnumsFallBackToDefaults() {
+        let suite = transientDefaults()
+        suite.set("diagonal", forKey: "workbenchSide")
+        suite.set("explode", forKey: "workbenchOverflow")
+        suite.set(-7, forKey: "workbenchDisplay")
+
+        settings = SettingsModel(defaults: suite)
+        XCTAssertEqual(settings.workbenchSide, .right)
+        XCTAssertEqual(settings.workbenchOverflow, .scroll)
+        XCTAssertNil(settings.preferredWorkbenchDisplayID)
+    }
+
     // MARK: - 轨道跨会话记忆（方案 §6.2/§16）
 
     /// 持久化键与 `SettingsModel.Key.workbenchRailOrder` / `.workbenchPins` 的 rawValue 同一个字符串。

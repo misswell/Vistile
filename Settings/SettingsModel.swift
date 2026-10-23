@@ -96,6 +96,16 @@ struct HotKeyBinding: Codable, Equatable {
         carbonModifiers & UInt32(controlKey | optionKey | cmdKey | shiftKey) != 0
     }
 
+    /// 持久化值进入 Carbon 前必须过这里：越界键码会让 `UInt32(...)` 直接崩溃，
+    /// 没有修饰键的组合则会把普通按键注册成全局热键。nil 表示应回退到默认值。
+    static func sanitizing(keyCode: Int, carbonModifiers: Int) -> HotKeyBinding? {
+        let known = controlKey | optionKey | cmdKey | shiftKey
+        guard keyCode >= 0, keyCode <= Int(UInt16.max),
+              carbonModifiers >= 0, carbonModifiers & ~known == 0 else { return nil }
+        let binding = HotKeyBinding(keyCode: UInt32(keyCode), carbonModifiers: UInt32(carbonModifiers))
+        return binding.hasModifier ? binding : nil
+    }
+
     /// NSEvent 修饰位映射到 Carbon 位；必须用 mask 比较，equal 判断会漏掉其它位。
     static func carbonModifiers(of flags: NSEvent.ModifierFlags) -> UInt32 {
         var carbon: UInt32 = 0
@@ -212,8 +222,14 @@ final class SettingsModel: ObservableObject {
 
         launchAtLogin = defaults.bool(for: .launchAtLogin)
         opensCurrentWindowWorkbench = defaults.bool(for: .opensCurrentWindowWorkbench)
-        hotKey = HotKeyBinding(keyCode: UInt32(max(0, defaults.integer(for: .hotKeyCode))),
-                               carbonModifiers: UInt32(max(0, defaults.integer(for: .hotKeyModifiers))))
+        // 盘上坏值（旧版本或手改 plist）不能让普通按键变成全局热键，也不能把键码转换撑崩。
+        let storedHotKey = HotKeyBinding.sanitizing(keyCode: defaults.integer(for: .hotKeyCode),
+                                                    carbonModifiers: defaults.integer(for: .hotKeyModifiers))
+        hotKey = storedHotKey ?? .default
+        if storedHotKey == nil {
+            defaults.set(Int(truncatingIfNeeded: HotKeyBinding.default.keyCode), for: .hotKeyCode)
+            defaults.set(Int(truncatingIfNeeded: HotKeyBinding.default.carbonModifiers), for: .hotKeyModifiers)
+        }
         density = LayoutDensity(rawValue: defaults.string(for: .density) ?? "") ?? .standard
         showsTitles = defaults.bool(for: .showsTitles)
         sortMode = OverviewSortMode(rawValue: defaults.string(for: .sortMode) ?? "") ?? .remembered
@@ -304,13 +320,19 @@ final class SettingsModel: ObservableObject {
     }
 
     func workbenchRailSizes(for displayKey: String) -> (topHeight: CGFloat?, sideWidth: CGFloat?) {
-        guard let values = defaults.dictionaryValue(for: .workbenchRailSizesByDisplay)?[displayKey] as? [String: Double] else {
+        guard let displays = defaults.dictionaryValue(for: .workbenchRailSizesByDisplay),
+              let values = displays[displayKey] as? [String: Any] else {
             return (workbenchTopHeight, workbenchSideWidth)
         }
+        // 两个字段分开读取：盘上某一项是字符串/布尔等坏值时，不能让另一项的有效偏好跟着作废。
         let preferences = WorkbenchPreferences(
-            topHeightPreference: values["topHeight"].map { CGFloat($0) },
-            sideWidthPreference: values["sideWidth"].map { CGFloat($0) }).sanitized()
+            topHeightPreference: Self.number(values["topHeight"]).map { CGFloat($0) },
+            sideWidthPreference: Self.number(values["sideWidth"]).map { CGFloat($0) }).sanitized()
         return (preferences.topHeightPreference, preferences.sideWidthPreference)
+    }
+
+    private static func number(_ value: Any?) -> Double? {
+        (value as? NSNumber)?.doubleValue
     }
 
     func saveWorkbenchRailSizes(for displayKey: String, topHeight: CGFloat?, sideWidth: CGFloat?) {

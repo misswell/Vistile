@@ -278,6 +278,22 @@ final class UpdateChannelHostTests: XCTestCase {
         XCTAssertEqual(outcome, .throttled)
     }
 
+    /// 系统时间曾跳到未来（或盘上被写坏）时，未来时间戳会让 24h 节流永远成立。
+    func testAutomaticCheckTreatsFutureTimestampAsDue() async throws {
+        let settings = makeSettings()
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        settings.lastUpdateCheckAt = now.addingTimeInterval(86_400)
+        let checker = UpdateChecker(settings: settings,
+                                    fetcher: FakeFetcher(result: .success(payload("v0.1.14"))),
+                                    currentVersion: AppVersion("0.1.13"),
+                                    now: { now })
+        guard case let .available(package) = await checker.checkIfDue() else {
+            return XCTFail("未来时间戳不应永久压住自动检查")
+        }
+        XCTAssertEqual(package.version.description, "0.1.14")
+        XCTAssertEqual(settings.lastUpdateCheckAt, now, "检查成功后要用当前时间覆盖坏时间戳")
+    }
+
     func testAutomaticCheckRespectsDisabledSetting() async throws {
         let settings = makeSettings()
         settings.autoCheckUpdates = false

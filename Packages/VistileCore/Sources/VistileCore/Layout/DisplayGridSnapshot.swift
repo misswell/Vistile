@@ -32,10 +32,13 @@ public struct GridGeometry: Hashable, Sendable {
 
     public func contentRect(at index: Int) -> CGRect? {
         guard let cell = cellRect(at: index) else { return nil }
+        // 极端小屏的单列兜底里，格高可能小于标题条：内容区必须夹在格内，
+        // 否则零高度矩形会跑到格子上方，命中测试与裁剪各说各话。
+        let title = min(style.titleHeight, cell.height)
         return CGRect(x: cell.minX,
-                      y: cell.minY + style.titleHeight,
+                      y: cell.minY + title,
                       width: cell.width,
-                      height: max(0, cell.height - style.titleHeight))
+                      height: max(0, cell.height - title))
     }
 }
 

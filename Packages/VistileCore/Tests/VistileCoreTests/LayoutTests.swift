@@ -113,6 +113,49 @@ struct GridLayoutEngineTests {
         let compact = GridLayoutEngine.layout(sourceSizes: sizes, availableRect: Fixtures.screen, style: .compact)
         #expect(compact.cellSize.width >= standard.cellSize.width)
     }
+
+    @Test("极小屏 + 窗口超量：兜底网格仍收在可用区内")
+    func fallbackGridStaysInsideTinyScreen() {
+        assertFallbackStaysInside(screen: CGRect(x: -1_600, y: 0, width: 260, height: 120), count: 20)
+    }
+
+    @Test("窄屏 + 窗口数远超像素：兜底网格仍收在可用区内")
+    func fallbackGridStaysInsideOverloadedScreen() {
+        assertFallbackStaysInside(screen: CGRect(x: -1_600, y: 0, width: 260, height: 1_200), count: 2_000)
+    }
+
+    private func assertFallbackStaysInside(screen: CGRect, count: Int) {
+        let layout = GridLayoutEngine.layout(sourceSizes: Fixtures.sizes(count), availableRect: screen)
+        let style = OverviewStyle.standard
+        let usable = CGRect(x: screen.minX + style.margin,
+                            y: screen.minY + style.margin + style.toolbarHeight,
+                            width: screen.width - 2 * style.margin,
+                            height: screen.height - 2 * style.margin - style.toolbarHeight)
+        #expect(layout.cards.count == count, "兜底路径不能丢卡片")
+        #expect(!layout.isReadable)
+        for card in layout.cards {
+            #expect(card.cellRect.width > 0)
+            #expect(card.cellRect.height > 0)
+            #expect(usable.insetBy(dx: -0.5, dy: -0.5).contains(card.cellRect),
+                    "兜底网格越界：\(card.cellRect) 不在 \(usable) 内")
+        }
+    }
+
+    @Test("零尺寸可用区与零尺寸画面不产生 NaN")
+    func zeroSizedInputsStayFinite() {
+        let layout = GridLayoutEngine.layout(sourceSizes: Fixtures.sizes(5), availableRect: .zero)
+        #expect(layout.cards.isEmpty)
+        #expect(layout.columns == 0)
+        #expect(layout.rows == 0)
+        #expect(layout.isReadable)
+
+        let zeroSource = GridLayoutEngine.aspectFitRect(sourceSize: .zero, in: Fixtures.screen)
+        #expect(zeroSource.rect == .zero)
+        #expect(zeroSource.scale == 0)
+        let zeroContainer = GridLayoutEngine.aspectFitRect(sourceSize: CGSize(width: 100, height: 50), in: .zero)
+        #expect(zeroContainer.rect == .zero)
+        #expect(zeroContainer.scale == 0)
+    }
 }
 
 @Suite("SlotRegistry")
@@ -230,5 +273,24 @@ struct SlotRegistryTests {
         registry.compactVacancies()
         #expect(registry.slots.count == 3)
         #expect(registry.identity(at: SlotID(index: 1)) == list[2].identity)
+    }
+
+    @Test("非法负 slot 被丢弃，容量按合法条目兜底")
+    func adoptIgnoresNegativeSlots() {
+        let list = Fixtures.records(2)
+        var registry = SlotRegistry(capacity: 0)
+        registry.adopt(capacity: -3,
+                       occupied: [(SlotID(index: -1), list[0].identity, list[0].memoryKey),
+                                  (SlotID(index: 2), list[1].identity, list[1].memoryKey)],
+                       pending: [])
+        #expect(registry.capacity == 3, "容量必须覆盖实际用到的最高 slot")
+        #expect(registry.slots.count == 3)
+        #expect(registry.identity(at: SlotID(index: 2)) == list[1].identity)
+        #expect(registry.identity(at: SlotID(index: -1)) == nil)
+
+        var empty = SlotRegistry(capacity: 0)
+        empty.adopt(capacity: -3, occupied: [], pending: [])
+        #expect(empty.capacity == 0)
+        #expect(empty.slots.isEmpty)
     }
 }

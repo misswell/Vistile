@@ -305,14 +305,21 @@ public enum GridLayoutEngine {
                                          usable: CGRect,
                                          style: OverviewStyle,
                                          availableRect: CGRect) -> GridGeometry {
-        let rows = count
-        let cellHeight = max(1, (usable.height - CGFloat(max(0, rows - 1)) * style.gap) / CGFloat(max(rows, 1)))
+        let rows = max(1, count)
+        let gapCount = CGFloat(max(0, rows - 1))
+        // 间距本身也会把格子推出可用区：先按「每行至少 1pt」压缩间距，再让行高吃掉剩余高度。
+        var fittedStyle = style
+        if gapCount > 0 {
+            let gapsBudget = max(0, usable.height - CGFloat(rows))
+            fittedStyle.gap = min(style.gap, gapsBudget / gapCount)
+        }
+        let cellHeight = (usable.height - gapCount * fittedStyle.gap) / CGFloat(rows)
         return GridGeometry(columns: 1,
                             rows: rows,
                             cellSize: CGSize(width: usable.width, height: cellHeight),
                             usable: usable,
                             availableRect: availableRect,
-                            style: style,
+                            style: fittedStyle,
                             cellCount: rows,
                             emptyCells: 0,
                             score: 0,

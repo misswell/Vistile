@@ -68,8 +68,13 @@ final class UpdateInstallerValidationTests: XCTestCase {
     func testSHA256NormalizationAndComparison() {
         let digest = String(repeating: "ab", count: 32)
         XCTAssertEqual(UpdateInstallerValidation.normalizedSHA256("sha256:\(digest.uppercased())"), digest)
+        XCTAssertEqual(UpdateInstallerValidation.normalizedSHA256("SHA256:\(digest)"), digest)
         XCTAssertTrue(UpdateInstallerValidation.matchesSHA256(expected: "SHA256:\(digest)", actual: digest.uppercased()))
         XCTAssertNil(UpdateInstallerValidation.normalizedSHA256("sha256:1234"))
+        XCTAssertNil(UpdateInstallerValidation.normalizedSHA256(String(repeating: "a", count: 63)), "63 位不是 SHA-256")
+        XCTAssertNil(UpdateInstallerValidation.normalizedSHA256(String(repeating: "a", count: 65)), "65 位不是 SHA-256")
+        XCTAssertNil(UpdateInstallerValidation.normalizedSHA256(String(repeating: "z", count: 64)), "非十六进制必须拒绝")
+        XCTAssertNil(UpdateInstallerValidation.normalizedSHA256(" \(digest)"))
         XCTAssertFalse(UpdateInstallerValidation.matchesSHA256(expected: digest, actual: String(repeating: "cd", count: 32)))
     }
 
@@ -113,12 +118,19 @@ final class UpdateInstallerValidationTests: XCTestCase {
 
     func testDownloadAndInstallationLocationBoundaries() {
         XCTAssertTrue(UpdateInstallerValidation.isTrustedDownloadURL(URL(string: "https://github.com/misswell/Vistile/releases/download/v1.2.3/Vistile.dmg")!))
+        XCTAssertTrue(UpdateInstallerValidation.isTrustedDownloadURL(URL(string: "https://GITHUB.com/misswell/Vistile/releases/download/v1.2.3/Vistile.dmg")!))
         XCTAssertFalse(UpdateInstallerValidation.isTrustedDownloadURL(URL(string: "http://github.com/misswell/Vistile/releases/download/v1.2.3/Vistile.dmg")!))
         XCTAssertFalse(UpdateInstallerValidation.isTrustedDownloadURL(URL(string: "https://example.com/Vistile.dmg")!))
+        XCTAssertFalse(UpdateInstallerValidation.isTrustedDownloadURL(URL(string: "https://github.com.evil.com/Vistile.dmg")!),
+                       "外观相似的域名不是 GitHub")
+        XCTAssertFalse(UpdateInstallerValidation.isTrustedDownloadURL(URL(string: "https://evil.com/github.com/Vistile.dmg")!))
 
         XCTAssertTrue(UpdateInstallerValidation.isSupportedInstallLocation("/Applications/Vistile.app", homeDirectory: "/Users/test"))
+        XCTAssertTrue(UpdateInstallerValidation.isSupportedInstallLocation("/Applications/./Vistile.app", homeDirectory: "/Users/test"))
         XCTAssertTrue(UpdateInstallerValidation.isSupportedInstallLocation("/Users/test/Applications/Vistile.app", homeDirectory: "/Users/test"))
+        XCTAssertTrue(UpdateInstallerValidation.isSupportedInstallLocation("/Users/test/Applications/Vistile.app", homeDirectory: "/Users/test/"))
         XCTAssertFalse(UpdateInstallerValidation.isSupportedInstallLocation("/Applications/Vistile.app.backup", homeDirectory: "/Users/test"))
+        XCTAssertFalse(UpdateInstallerValidation.isSupportedInstallLocation("/Applications/Vistile.app.evil/Vistile.app", homeDirectory: "/Users/test"))
         XCTAssertFalse(UpdateInstallerValidation.isSupportedInstallLocation("/tmp/Vistile.app", homeDirectory: "/Users/test"))
     }
 }

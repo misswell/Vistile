@@ -18,6 +18,21 @@ final class UpdateChannelTests: XCTestCase {
         XCTAssertNil(AppVersion("v1.x.0"))
     }
 
+    /// GitHub tag 一旦手滑写成 `v1..2`，旧解析会把空段悄悄丢掉当成 1.2：
+    /// 更新通道据此比较版本并下载资产，坏的 tag 不能变成合法版本。
+    func testVersionRejectsEmptySegmentsAndNonASCIIDigits() {
+        XCTAssertNil(AppVersion("1..2"))
+        XCTAssertNil(AppVersion("1."))
+        XCTAssertNil(AppVersion(".1"))
+        XCTAssertNil(AppVersion("1.2."))
+        XCTAssertNil(AppVersion("1.+2"), "Int(\"+2\") 会成功，但 tag 里的加号不是段内数字")
+        XCTAssertNil(AppVersion("1. 2"))
+        XCTAssertNil(AppVersion("1.٢"), "只接受 ASCII 数字段")
+        XCTAssertNil(AppVersion(""))
+        XCTAssertNil(AppVersion("v"))
+        XCTAssertEqual(AppVersion("01.002"), AppVersion("1.2"), "前导 0 不改变数值语义")
+    }
+
     func testAssetDecodesDigestAndAcceptsOlderReleasesWithoutIt() throws {
         let json = #"{"name":"Vistile.dmg","browser_download_url":"https://github.com/misswell/Vistile/releases/download/v1/Vistile.dmg","size":12,"digest":"sha256:abcd"}"#
         let asset = try JSONDecoder().decode(GitHubReleaseAsset.self, from: Data(json.utf8))

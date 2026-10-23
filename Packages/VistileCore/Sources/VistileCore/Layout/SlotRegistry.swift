@@ -59,9 +59,14 @@ public struct SlotRegistry: Hashable, Sendable {
     /// 新窗口填入第一个空 slot；容量不足进入待整理队列。
     @discardableResult
     public mutating func assign(_ identity: WindowIdentity, memoryKey: String) -> SlotID? {
-        if let existing = slot(for: identity) { return existing }
+        if let existing = slot(for: identity) {
+            pending.removeAll { $0.identity == identity }
+            return existing
+        }
         if let vacantIndex = slots.firstIndex(where: { $0.identity == nil }) {
             slots[vacantIndex] = .occupied(identity, memoryKey: memoryKey)
+            // 之前排队时留下的条目必须同时移除，否则同一窗口既落位又计数为溢出。
+            pending.removeAll { $0.identity == identity }
             return SlotID(index: vacantIndex)
         }
         guard slots.count < capacity else {
@@ -71,6 +76,7 @@ public struct SlotRegistry: Hashable, Sendable {
             return nil
         }
         slots.append(.occupied(identity, memoryKey: memoryKey))
+        pending.removeAll { $0.identity == identity }
         return SlotID(index: slots.count - 1)
     }
 
@@ -165,10 +171,12 @@ public struct SlotRegistry: Hashable, Sendable {
     public mutating func adopt(capacity: Int,
                                occupied: [(slot: SlotID, identity: WindowIdentity, memoryKey: String)],
                                pending: [PendingWindow]) {
-        self.capacity = max(capacity, occupied.count)
-        let highest = occupied.map { $0.slot.index }.max() ?? -1
-        var table = Array(repeating: SlotContent.vacant, count: max(highest + 1, occupied.count))
-        for entry in occupied { table[entry.slot.index] = .occupied(entry.identity, memoryKey: entry.memoryKey) }
+        // 负 slot 会让表下标直接越界崩溃；无效条目丢弃，容量也按实际条目计算。
+        let valid = occupied.filter { $0.slot.index >= 0 }
+        let highest = valid.map { $0.slot.index }.max() ?? -1
+        self.capacity = max(0, max(capacity, max(highest + 1, valid.count)))
+        var table = Array(repeating: SlotContent.vacant, count: max(highest + 1, valid.count))
+        for entry in valid { table[entry.slot.index] = .occupied(entry.identity, memoryKey: entry.memoryKey) }
         slots = table
         self.pending = pending
         persistOrder()

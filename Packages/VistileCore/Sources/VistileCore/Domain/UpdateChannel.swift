@@ -12,11 +12,15 @@ public struct AppVersion: Hashable, Sendable, Comparable, CustomStringConvertibl
         if let cut = trimmed.firstIndex(where: { $0 == "-" || $0 == "+" }) {
             trimmed = String(trimmed[..<cut])
         }
-        let parts = trimmed.split(separator: ".")
+        // 空段（`1..2`、`1.`）与非数字段（`1.+2`）都不是合法版本：
+        // 旧解析会把空段静默丢掉，坏 tag 于是被当成另一个版本参与比较。
+        let parts = trimmed.split(separator: ".", omittingEmptySubsequences: false)
         guard !parts.isEmpty else { return nil }
         var numbers: [Int] = []
         for part in parts {
-            guard let value = Int(part), value >= 0 else { return nil }
+            guard !part.isEmpty,
+                  part.allSatisfy({ $0.isASCII && $0.isNumber }),
+                  let value = Int(part), value >= 0 else { return nil }
             numbers.append(value)
         }
         // 去掉尾部 0，让 1.0 与 1.0.0 相等。

@@ -430,7 +430,10 @@ final class UpdateChecker: ObservableObject {
     /// 启动/定时用的自动检查：开关关闭或仍在上次检查的 24h 内则直接跳过。
     func checkIfDue() async -> UpdateCheckOutcome {
         guard settings.autoCheckUpdates else { return .throttled }
-        if let last = settings.lastUpdateCheckAt, now().timeIntervalSince(last) < Self.automaticInterval {
+        let current = now()
+        // 未来时间戳（系统时间回拨或盘上坏值）不能永久压住自动检查。
+        if let last = settings.lastUpdateCheckAt, last <= current,
+           current.timeIntervalSince(last) < Self.automaticInterval {
             return .throttled
         }
         return await performCheck()

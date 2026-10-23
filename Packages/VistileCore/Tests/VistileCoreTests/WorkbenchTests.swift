@@ -1079,6 +1079,8 @@ final class WorkbenchTests: XCTestCase {
         record.applicationName = "Preview"
 
         XCTAssertTrue(record.matches(searchQuery: ""), "空查询不过滤任何窗口")
+        XCTAssertTrue(record.matches(searchQuery: "   "), "只有空白的查询等同于没有查询")
+        XCTAssertTrue(record.matches(searchQuery: " 季度 "), "首尾空白不该把命中变成不命中")
         XCTAssertTrue(record.matches(searchQuery: "季度"))
         XCTAssertTrue(record.matches(searchQuery: "preview"), "应用名匹配且大小写不敏感")
         XCTAssertTrue(record.matches(searchQuery: "草稿"))

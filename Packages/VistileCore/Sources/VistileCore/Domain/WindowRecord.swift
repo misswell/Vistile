@@ -119,10 +119,12 @@ public struct WindowRecord: Hashable, Sendable {
     }
 
     /// 搜索过滤的唯一规则：总览与工作台两栏共用，标题或应用名包含查询词即算命中（方案 §5.5.5）。
+    /// 首尾空白不参与匹配：只剩空白的查询等同于没有查询，否则输入框里一个误触空格就会清空总览。
     public func matches(searchQuery: String) -> Bool {
-        searchQuery.isEmpty
-            || title.localizedCaseInsensitiveContains(searchQuery)
-            || applicationName.localizedCaseInsensitiveContains(searchQuery)
+        let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        return query.isEmpty
+            || title.localizedCaseInsensitiveContains(query)
+            || applicationName.localizedCaseInsensitiveContains(query)
     }
 
     /// 跨会话顺序记忆用的稳定键。0.1.10 起只用应用标识，不含窗口标题（方案 §16）：
