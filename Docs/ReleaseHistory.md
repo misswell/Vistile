@@ -1,5 +1,12 @@
 # Vistile
 
+## 0.1.44 (58) — 2026-10-24
+
+- 修复 v0.1.43 的过渡完成依赖：代理动画不再只依赖显示时钟回调，按自身时长到点收尾；前景化用例改用确定性激活替身，不再受 runner 的 PID 环境抽签影响。
+  Fixes the v0.1.43 transition-completion dependency: the proxy animation no longer relies solely on display-link callbacks and closes on its own deadline; the foreground test now uses a deterministic activation double instead of depending on the runner's PID namespace.
+
+自动验证 / Automated validation: 核心 143 + 159，0 失败；宿主 357 项，356 通过、1 跳过 / 357 host tests, 356 passed, 1 skipped, 0 failed.
+
 ## 0.1.43 (57) — 2026-10-24
 
 - 动效与性能：承载层改由显示时钟驱动、透明度只应用一次、落定后停止重绘；切换流光与飞行面板贴合真实停靠窗口，落定时收束为边缘光晕。控制流程：激活/置前/读回/目录/带回/前台复核绑定会话代次与写许可，跨会话晚到回调不再改动窗口；新选择作废在途焦点跟随；退出与启动恢复串行化。
