@@ -34,6 +34,10 @@ final class TransitionProxyView: NSView {
     private var heldFrame: MetalFrame?
     private var displayLink: CADisplayLink?
     private let tickBridge = ProxyTickBridge()
+    /// 显示时钟在无活动显示、代理窗口不在屏上时可能整段不回调；动画到点收尾不能只依赖它。
+    private let makeCompletionTimer: (TimeInterval, @escaping @Sendable (Timer) -> Void) -> Timer
+    private var completionTimer: Timer?
+    private var animationGeneration = 0
     /// 动画起点用单调时钟（方案 §20.2）：`Date()` 是墙钟，NTP 步进或用户改表会把进行中的动画
     /// 一次性推完或拉回去——那正好是 §16 要排除的"回跳"，不能让计时器自己制造它。
     private var startStamp = CACurrentMediaTime()
@@ -47,7 +51,12 @@ final class TransitionProxyView: NSView {
     private var originInCG = CGPoint.zero
     var onComplete: (() -> Void)?
 
-    init(frame frameRect: NSRect, metal: MetalContext) {
+    init(frame frameRect: NSRect,
+         metal: MetalContext,
+         makeCompletionTimer: ((TimeInterval, @escaping @Sendable (Timer) -> Void) -> Timer)? = nil) {
+        self.makeCompletionTimer = makeCompletionTimer ?? { interval, body in
+            Timer(timeInterval: interval, repeats: false, block: body)
+        }
         super.init(frame: frameRect)
         wantsLayer = true
         layer = CALayer()
@@ -69,7 +78,10 @@ final class TransitionProxyView: NSView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    deinit { displayLink?.invalidate() }
+    deinit {
+        displayLink?.invalidate()
+        completionTimer?.invalidate()
+    }
 
     var hasDisplayLink: Bool { displayLink != nil }
     var hasSource: Bool { heldFrame != nil }
@@ -113,6 +125,9 @@ final class TransitionProxyView: NSView {
         _ = reverse
         displayLink?.invalidate()
         displayLink = nil
+        completionTimer?.invalidate()
+        completionTimer = nil
+        animationGeneration &+= 1
         animationMode = mode
         startRect = viewRect(source)
         endRect = viewRect(destination)
@@ -128,9 +143,29 @@ final class TransitionProxyView: NSView {
         let link = self.displayLink(target: tickBridge, selector: #selector(ProxyTickBridge.tick(_:)))
         link.add(to: .main, forMode: .common)
         displayLink = link
+        scheduleCompletionDeadline()
+    }
+
+    /// 显示时钟一旦不回调，动画也必须按自己的时长收尾：
+    /// 状态机等的是"动画结束"，不是"某一帧被画过"（CI 无活动显示时曾只能等 1.5s 超时）。
+    private func scheduleCompletionDeadline() {
+        completionTimer?.invalidate()
+        let generation = animationGeneration
+        // 略过终点：`startStamp + duration` 在浮点减法后可能差 1e-13 没到 progress == 1。
+        let deadline = startStamp + duration + 0.001
+        let timer = makeCompletionTimer(duration + 0.02) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.animationGeneration == generation, self.isAnimating else { return }
+                self.advance(to: deadline)
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        completionTimer = timer
     }
 
     func stop() {
+        completionTimer?.invalidate()
+        completionTimer = nil
         displayLink?.invalidate()
         displayLink = nil
         isAnimating = false

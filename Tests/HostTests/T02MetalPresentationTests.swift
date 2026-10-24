@@ -179,6 +179,38 @@ final class T02MetalPresentationTests: XCTestCase {
         XCTAssertFalse(proxy.hasDisplayLink)
     }
 
+    /// 显示时钟在无活动显示/离屏时可能整段不回调：动画仍须按自身时长收尾。
+    /// 状态机等的是「动画结束」，不是「某一帧被画过」——否则只能等到 1.5s 超时降级。
+    @MainActor
+    func testProxyCompletionDeadlineCompletesWithoutDisplayLinkTicks() throws {
+        let probe = CompletionProbe()
+        let proxy = TransitionProxyView(frame: NSRect(origin: .zero, size: HostFixtures.offscreenSize),
+                                        metal: metal,
+                                        makeCompletionTimer: { interval, body in
+            probe.interval = interval
+            probe.fire = { body(Timer(timeInterval: 1, repeats: false) { _ in }) }
+            return Timer(timeInterval: 3600, repeats: false) { _ in }
+        })
+        defer { proxy.stop() }
+        proxy.configure(cgOrigin: HostFixtures.offscreenOrigin, scale: 2)
+        proxy.layout()
+        proxy.setSource(try HostFixtures.metalFrame(metal: metal), sourceAspect: 2)
+        let rect = CGRect(x: HostFixtures.offscreenOrigin.x + 20, y: 40, width: 200, height: 120)
+        var completions = 0
+        proxy.onComplete = { completions += 1 }
+        proxy.animate(fromCG: rect, toCG: rect, durationMS: 100, reverse: false, startAt: 100)
+
+        XCTAssertTrue(proxy.isAnimating)
+        XCTAssertEqual(probe.interval, 0.12, accuracy: 0.001,
+                       "到点收尾略晚于动画时长，避免与最后一帧抢跑")
+        XCTAssertNotNil(probe.fire, "没有到点收尾时，显示时钟不回调就只能等状态机超时")
+        probe.fire?()
+        XCTAssertFalse(proxy.isAnimating)
+        XCTAssertEqual(completions, 1)
+        probe.fire?()
+        XCTAssertEqual(completions, 1, "收尾必须只发生一次")
+    }
+
     @MainActor
     func testProxyDisplayLinkDoesNotRetainItsView() {
         weak var released: TransitionProxyView?
@@ -322,4 +354,10 @@ final class T02MetalPresentationTests: XCTestCase {
         carrier.stopNow()
     }
 
+}
+
+/// 捕获代理的到点收尾定时器：测试在主线程手动触发它，模拟显示时钟整段不回调。
+private final class CompletionProbe: @unchecked Sendable {
+    var interval: TimeInterval = 0
+    var fire: (() -> Void)?
 }

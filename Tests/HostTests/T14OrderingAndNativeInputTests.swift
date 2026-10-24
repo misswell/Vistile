@@ -344,7 +344,10 @@ final class T14OrderingAndNativeInputTests: XCTestCase {
                                 recorder: CompatibilityRecorder(fileName: "host-test-\(UUID().uuidString)"),
                                 recovery: recovery,
                                 permissions: permissions,
-                                scheduler: scheduler)
+                                scheduler: scheduler,
+                                // CI 的 PID 命名空间不可控：假 PID 可能在 runner 上真是某个活跃进程，
+                                // 让"前台被证伪"变成环境抽签。这里固定成"未被系统接受、也不是前台"。
+                                activateApplication: { _ in (returned: false, isActive: false) })
     }
 
     private func pendingUntil(timeout: TimeInterval = 2, _ condition: @MainActor () -> Bool) async {
