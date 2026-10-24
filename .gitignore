@@ -14,3 +14,4 @@ compile_commands.json
 docs/_work/
 *.log
 release/
+build-signed/
