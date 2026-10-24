@@ -1,5 +1,12 @@
 # Vistile
 
+## 0.1.43 (57) — 2026-10-24
+
+- 动效与性能：承载层改由显示时钟驱动、透明度只应用一次、落定后停止重绘；切换流光与飞行面板贴合真实停靠窗口，落定时收束为边缘光晕。控制流程：激活/置前/读回/目录/带回/前台复核绑定会话代次与写许可，跨会话晚到回调不再改动窗口；新选择作废在途焦点跟随；退出与启动恢复串行化。
+  Motion & performance: the carrier layer is driven by the display clock, opacity is applied once, and redraws stop once settled; the switch flow and flying panels now match the real docking target and settle into the edge glow. Control flow: activation, raising, read-back, catalog, drag-back and foreground checks are bound to the session epoch and write permit, so late cross-session callbacks no longer touch windows; new selections cancel in-flight focus following; termination and launch restore are serialized.
+
+自动验证 / Automated validation: 核心 143 + 159，0 失败；宿主 356 项，355 通过、1 跳过 / 356 host tests, 355 passed, 1 skipped, 0 failed.
+
 ## 0.1.42 (56) — 2026-10-24
 
 - 修复切换无效回归：可调窗口不再因 isMovable 采样折叠被拒（读回兜底才是判据）；主区停靠两种模式（尊重原尺寸/充满主区）可在设置中选择，即时生效。
