@@ -1,5 +1,10 @@
 # Vistile
 
+## 0.1.45 (59) — 2026-10-24
+
+- 修复间歇切换失败：仅位置通道补上与尺寸通道同等的补偿重写（位置异步生效不再被误判拒绝）；替身新增位置延迟脚本并加回归用例。
+  Fixes intermittent switch failures: the position-only channel now retries once like the size channel (async position effects no longer read as rejection); the fake gains a delayed-position script with a regression case.
+
 ## 0.1.44 (58) — 2026-10-24
 
 - 修复 v0.1.43 的过渡完成依赖：代理动画不再只依赖显示时钟回调，按自身时长到点收尾；前景化用例改用确定性激活替身，不再受 runner 的 PID 环境抽签影响。

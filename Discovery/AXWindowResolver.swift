@@ -416,9 +416,16 @@ final class AXWindowResolver: @unchecked Sendable {
     }
 
     /// 仅移动路径：只写 position，尺寸保持实读的当前值（方案 §9.1）。
+    /// "读回晚一拍"的补偿重试在协调器的写入通道里统一做（对真实与替身写入器一致）。
     func applyPosition(_ origin: CGPoint,
                        element: AXUIElement,
                        permit: GeometryWritePermit) async -> GeometryWriteReport {
+        await writePositionOnce(origin, element: element, permit: permit)
+    }
+
+    private func writePositionOnce(_ origin: CGPoint,
+                                   element: AXUIElement,
+                                   permit: GeometryWritePermit) async -> GeometryWriteReport {
         let targetOrigin = origin
         let preparation = await executor.submit {
             guard permit.isGranted else {

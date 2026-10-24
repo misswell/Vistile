@@ -220,6 +220,9 @@ final class FakeGeometryWriter: GeometryWriting, @unchecked Sendable {
         case constrains
         /// AX 写入报错，frame 保持不变。
         case rejects
+        /// 位置异步生效（窗口移动动画）：第一次读回还停在旧位置，重写后才到位。
+        /// 实机时序的替身复现——仅位置通道必须补偿重试，否则整笔切换被误判失败。
+        case delaysPositionOnce
     }
 
     /// 写入里的两个停止点：门的位置决定了取消能拦住哪一半。
@@ -234,6 +237,8 @@ final class FakeGeometryWriter: GeometryWriting, @unchecked Sendable {
     private var frames: [Int: CGRect] = [:]
     private var scripts: [Int: Script] = [:]
     private var defaultScript: Script = .accepts
+    /// delaysPositionOnce 的已消耗标记：同一窗口只延迟第一次位置写入。
+    private var delayedPositionConsumed: Set<Int> = []
     private var writeLog: [Write] = []
     private var raises = 0
     private var focuses = 0
@@ -477,7 +482,7 @@ final class FakeGeometryWriter: GeometryWriting, @unchecked Sendable {
         var positionError = success
         lock.lock()
         switch script {
-        case .accepts:
+        case .accepts, .delaysPositionOnce:
             frames[key] = clamped
         case .constrainsInside:
             // 位置照写，尺寸按应用自己的上限收 60pt：读回小于目标但完全落在主区内。
@@ -534,9 +539,17 @@ final class FakeGeometryWriter: GeometryWriting, @unchecked Sendable {
             before = current
             size = current.size
             let moved = CGRect(origin: origin, size: current.size)
+            let delayedBefore = delayedPositionConsumed.contains(key)
+            if delayedBefore { delayedPositionConsumed.remove(key) }
+            let useDelayed = (scripts[key] ?? defaultScript) == .delaysPositionOnce && !delayedBefore
+            if useDelayed { delayedPositionConsumed.insert(key) }
             switch scripts[key] ?? defaultScript {
-            case .accepts, .constrainsInside:
-                // 仅移动路径没有尺寸可约束：两种脚本在这里都是"位置照写、读回一致"。
+            case .delaysPositionOnce where useDelayed:
+                // 第一次：位置还没生效，读回仍是旧 frame（unchangedByWrite 的来源）。
+                readBack = current
+                outcome = .rejected(.unchangedByWrite(previous: current))
+            case .accepts, .constrainsInside, .delaysPositionOnce:
+                // 仅移动路径没有尺寸可约束：这些脚本在这里都是"位置照写、读回一致"。
                 frames[key] = moved
                 readBack = moved
                 outcome = .exact(readBack: moved)

@@ -1085,6 +1085,25 @@ final class WorkbenchSwitchTests: XCTestCase {
                        "可调尺寸窗口不该为每笔放置多付一次跨进程能力查询（实机 5–20ms、读超时 0.35s）")
     }
 
+    /// 实机时序回归（v0.1.42 修复）：仅位置通道第一次读回还停在旧位置（窗口移动动画
+    /// 异步生效）时，必须补偿重写而不是把整笔切换判成失败——尺寸+位置通道一直有
+    /// 同等补偿兜底，仅位置通道从 v0.1.41 起缺失，真机表现为间歇"切换不成功"。
+    func testDelayedPositionEffectIsRetriedAndSwitchStillCommits() async throws {
+        let plan = try await beginHappyPath()
+        writer.setScript(.delaysPositionOnce, for: try element(of: b))
+
+        coordinator.perform(plan)
+        await pendingUntil(timeout: 8) { self.committedTokens().contains(plan.intent.token) }
+
+        XCTAssertTrue(failureReasons().isEmpty, "位置晚一拍不是失败：\(failureReasons())")
+        let bFrame = await writer.currentFrame(of: try element(of: b))
+        XCTAssertEqual(bFrame, plan.mainTargetFrame,
+                       "补偿重写后 B 必须真的落在主区目标上：\(String(describing: bFrame))")
+        // 重试后成功：B 的位置写了两次（第一次未生效 + 补偿），A 回原位一次"移"。
+        XCTAssertEqual(writer.recordedActions.filter { $0 == "移" }.count, 3,
+                       "补偿重写必须真的再写一次位置：\(writer.recordedActions)")
+    }
+
     // MARK: - A22 受限但仍在主区：记事实、提交、不覆盖预览栏（方案 §9.2、§9.3）
 
     func testConstrainedReadBackInsideMainIsRecordedAndSubmitted() async throws {

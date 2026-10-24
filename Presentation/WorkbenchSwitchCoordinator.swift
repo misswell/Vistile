@@ -444,6 +444,16 @@ final class WorkbenchSwitchCoordinator {
                                                             context: context)))
     }
 
+    /// 仅位置写入的补偿判据：读回原地未动（unchangedByWrite）或部分变化（constrained）
+    /// 都值得再写一次；明确错误码与已到位的 exact 不重试。
+    private func positionWriteWarrantsRetry(_ report: GeometryWriteReport) -> Bool {
+        switch report.outcome {
+        case .constrained: return true
+        case .rejected(.unchangedByWrite): return true
+        default: return false
+        }
+    }
+
     // MARK: - 取消
 
     /// 取消（锁屏、Space 切换、退出）：撤销普通授权，停止后续步骤，不再写任何窗口。
@@ -711,7 +721,19 @@ final class WorkbenchSwitchCoordinator {
             write = await writer.apply(frame: planned, element: ax.element, permit: permit)
         } else {
             // move-only：只写位置，尺寸保持实读值（方案 §9.1）。
-            write = await writer.applyPosition(planned.origin, element: ax.element, permit: permit)
+            var positionWrite = await writer.applyPosition(planned.origin, element: ax.element, permit: permit)
+            // 位置写入在实机上可能异步生效（窗口移动动画）：第一次读回还停在旧位置
+            // 会被判 unchangedByWrite、constrained 则是部分变化——写尺寸+位置的通道
+            // 一直有 apply 的补偿重写兜住这个时序，仅位置通道必须同等补偿一次，
+            // 否则真机表现为间歇"切换不成功"（v0.1.41 回归，两次都不动才算真失败）。
+            if !positionWrite.isCancelled, positionWriteWarrantsRetry(positionWrite), permit.isGranted {
+                var retried = await writer.applyPosition(planned.origin, element: ax.element, permit: permit)
+                if let firstMS = positionWrite.readBackMS {
+                    retried.readBackMS = (retried.readBackMS ?? 0) + firstMS
+                }
+                positionWrite = retried
+            }
+            write = positionWrite
         }
         focus.endProgrammaticWrite(identity, frame: write.displayFrame)
         metrics.measure("工作台:几何写入",
