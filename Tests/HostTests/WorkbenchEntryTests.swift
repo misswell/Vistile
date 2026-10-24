@@ -602,6 +602,122 @@ final class WorkbenchEntryTests: XCTestCase {
                        "没有新窗口的焦点丢失必须在宽限后收口，不能无限延期（phase=\(coordinator.state.phase)）")
     }
 
+    func testGeometryReadbackCannotCrossAReopenedSession() async throws {
+        let coordinator = makeCoordinator()
+        coordinator.toggleOverview()
+        try await awaitUntil(timeout: 3) { coordinator.state.phase == .overview && coordinator.state.records.count == 4 }
+        let identity = HostFixtures.identity(0)
+        let element = try XCTUnwrap(catalogSource.element(for: identity))
+        writer.gatesNextFrameRead = true
+        defer { writer.openReadGate() }
+        let oldRead = try XCTUnwrap(coordinator.handle(AXWindowEvent(processID: identity.processID,
+                                                                    name: kAXWindowMovedNotification,
+                                                                    element: element)))
+        try await awaitUntil(timeout: 2) { self.writer.isBlockedInRead }
+        let oldSession = coordinator.state.sessionID
+        coordinator.hideNow()
+        coordinator.toggleOverview()
+        try await awaitUntil(timeout: 3) { coordinator.state.phase == .overview && !coordinator.state.isDiscoveryInFlight }
+        XCTAssertNotEqual(coordinator.state.sessionID, oldSession)
+        let freshFrame = try XCTUnwrap(coordinator.state.records[identity]?.frame)
+        writer.setInitialFrame(freshFrame.offsetBy(dx: 500, dy: 200), for: element)
+        writer.openReadGate()
+        await oldRead.value
+        XCTAssertEqual(coordinator.state.records[identity]?.frame, freshFrame,
+                       "旧 AX 回调晚到时不得把旧会话几何写回新记录")
+        XCTAssertTrue(writer.writtenFrames.isEmpty)
+    }
+
+    func testPendingIdentityReviewIsCancelledWhenOverviewReopens() async throws {
+        let coordinator = makeCoordinator()
+        coordinator.toggleOverview()
+        try await awaitUntil(timeout: 3) { coordinator.state.phase == .overview && coordinator.state.records.count == 4 }
+        let identity = HostFixtures.identity(0)
+        catalogSource.gatesNextCatalogLoad = true
+        defer { catalogSource.openCatalogLoadGate() }
+        coordinator.dispatch(.reconcileTick)
+        let request = try XCTUnwrap(coordinator.state.pendingDiscovery)
+        var records = Array(coordinator.state.records.values)
+        let index = try XCTUnwrap(records.firstIndex { $0.identity == identity })
+        records[index].confidence = .ambiguous(alternatives: [0, 1])
+        catalog.onRecords?(CatalogUpdate(upserts: records, removals: [], transientUnavailable: []), request)
+        try overviewView().onAction?(.cardClicked(identity))
+        let oldReview = try XCTUnwrap(coordinator.selectionReviewTask)
+        try await awaitUntil(timeout: 2) { self.catalogSource.isBlockedInCatalogLoad }
+        coordinator.hideNow()
+        coordinator.toggleOverview()
+        XCTAssertTrue(oldReview.isCancelled)
+        catalogSource.openCatalogLoadGate()
+        await oldReview.value
+        try await awaitUntil(timeout: 3) { coordinator.state.phase == .overview && !coordinator.state.isDiscoveryInFlight }
+        XCTAssertTrue(writer.writtenFrames.isEmpty, "旧点击不能在重新打开总览后自动展开窗口")
+        XCTAssertNil(coordinator.state.workbench.armed)
+    }
+
+    func testStaleCatalogRemovalDoesNotCloseCurrentSessionWindow() throws {
+        let coordinator = makeCoordinator()
+        coordinator.toggleOverview()
+        try waitForVisibleOverview()
+        let identity = HostFixtures.identity(0)
+        let oldRequest = DiscoveryRequest(sessionID: coordinator.state.sessionID,
+                                          requestID: 0, generation: 0, reason: .windowEvent)
+        coordinator.hideNow()
+        coordinator.toggleOverview()
+        try waitForVisibleOverview()
+        XCTAssertNotEqual(coordinator.state.sessionID, oldRequest.sessionID)
+        waitUntil(timeout: 2) { coordinator.state.slots.slot(for: identity) != nil }
+        let slot = try XCTUnwrap(coordinator.state.slots.slot(for: identity))
+        catalog.onRecords?(CatalogUpdate(upserts: [], removals: [identity], transientUnavailable: []), oldRequest)
+        XCTAssertNotNil(coordinator.state.records[identity], "旧目录的删除事件不能关闭新会话的窗口")
+        XCTAssertEqual(coordinator.state.slots.slot(for: identity), slot)
+    }
+
+    func testQuitDeadlineKeepsJournalWhileStartupRecoveryIsSuspended() async throws {
+        let coordinator = makeCoordinator()
+        await catalog.refreshAndWait(reason: .harnessProbe)
+        let identity = HostFixtures.identity(0)
+        let original = FakeCatalogSource.frame(for: 0)
+        let moved = original.offsetBy(dx: 160, dy: 90)
+        let entry = WindowTransaction(sessionID: store.currentSessionID, identity: identity,
+                                      bundleID: nil, originalFrame: original, originalDisplayID: displayID)
+            .markingPlanned(frame: moved, displayID: displayID)
+            .markingWritten(readBack: moved, displayID: displayID)
+        let persisted = await store.apply(entry)
+        XCTAssertTrue(persisted.isPersisted)
+        writer.setInitialFrame(moved, for: try XCTUnwrap(catalogSource.element(for: identity)))
+        catalogSource.gatesNextCatalogLoad = true
+        let startup = Task { @MainActor in
+            _ = await coordinator.recovery.restoreOnLaunch()
+        }
+        defer { catalogSource.openCatalogLoadGate() }
+        try await awaitUntil(timeout: 2) { self.catalogSource.isBlockedInCatalogLoad }
+        let replied = expectation(description: "Termination deadline")
+        let delegate = AppDelegate(coordinator: coordinator, startup: startup, replyToTermination: { replied.fulfill() })
+        XCTAssertEqual(delegate.applicationShouldTerminate(NSApp), .terminateLater)
+        await fulfillment(of: [replied], timeout: 4)
+        XCTAssertTrue(catalogSource.isBlockedInCatalogLoad, "期限独立于启动目录返回")
+        XCTAssertTrue(writer.writtenFrames.isEmpty, "启动恢复未结束时，退出不能并发启动第二条恢复")
+        XCTAssertNotNil(store.entry(for: identity), "预算耗尽必须保留待恢复事务")
+        catalogSource.openCatalogLoadGate()
+        await startup.value
+        XCTAssertTrue(writer.writtenFrames.isEmpty, "已取消的启动恢复不能在退出后补发写入")
+    }
+
+    func testRepeatedApplicationQuitKeepsWaitingForOneRecovery() async throws {
+        let coordinator = makeCoordinator()
+        let replied = expectation(description: "Application termination settled")
+        var replies = 0
+        let delegate = AppDelegate(coordinator: coordinator, replyToTermination: {
+            replies += 1
+            replied.fulfill()
+        })
+        XCTAssertEqual(delegate.applicationShouldTerminate(NSApp), .terminateLater)
+        XCTAssertEqual(delegate.applicationShouldTerminate(NSApp), .terminateLater,
+                       "重复退出不能绕过仍在进行的异步恢复")
+        await fulfillment(of: [replied], timeout: 5)
+        XCTAssertEqual(replies, 1)
+    }
+
     // MARK: - A39 两种退出入口重复触发：仅一恢复所有者、一次终止回调（方案 §14.2、§14.4）
 
     /// 退出时同时存在两个恢复入口：⌘Q 走进来的终止链，和状态机为同一批窗口算出的 `.restoreAll` 效果；

@@ -32,6 +32,8 @@ final class FocusCoordinator {
     private let recovery: RecoveryCoordinator
     private let permissions: PermissionChecking
     private let scheduler: GeometryOperationScheduler
+    private let activateApplication: (pid_t) -> (returned: Bool, isActive: Bool)?
+    private let makeWatchdogTimer: (TimeInterval, @escaping @Sendable (Timer) -> Void) -> Timer
 
     private var proxy: TransitionProxyWindow?
     private var activeToken: TransitionToken?
@@ -56,7 +58,9 @@ final class FocusCoordinator {
          recorder: CompatibilityRecorder,
          recovery: RecoveryCoordinator,
          permissions: PermissionChecking,
-         scheduler: GeometryOperationScheduler) {
+         scheduler: GeometryOperationScheduler,
+         activateApplication: ((pid_t) -> (returned: Bool, isActive: Bool)?)? = nil,
+         makeWatchdogTimer: ((TimeInterval, @escaping @Sendable (Timer) -> Void) -> Timer)? = nil) {
         self.catalog = catalog
         self.metal = metal
         self.writer = writer
@@ -67,6 +71,13 @@ final class FocusCoordinator {
         self.recovery = recovery
         self.permissions = permissions
         self.scheduler = scheduler
+        self.activateApplication = activateApplication ?? { pid in
+            guard let application = NSRunningApplication(processIdentifier: pid) else { return nil }
+            return (application.activate(options: []), application.isActive)
+        }
+        self.makeWatchdogTimer = makeWatchdogTimer ?? {
+            Timer(timeInterval: $0, repeats: false, block: $1)
+        }
     }
 
     var isAnimating: Bool { activeToken != nil }
@@ -99,7 +110,7 @@ final class FocusCoordinator {
             return
         }
         // 总超时从这一次动作的入口开始算，而不是从动画开始算（方案 §6.3）。
-        beginAnimation(token, identity: identity, budgetMS: animationMS + 1_500)
+        beginAnimation(token, identity: identity, direction: .expand, budgetMS: animationMS + 1_500)
         metrics.begin("过渡:展开")
         // 展开的几何写入只经调度器排队：取消屏障撤销的是同一个许可（方案 §5.2）。
         let context = scheduler.makeContext(token: token, kind: .enterWorkbench)
@@ -263,7 +274,7 @@ final class FocusCoordinator {
 
     func collapse(_ identity: WindowIdentity, token: TransitionToken, animationMS: Int) {
         guard isTokenCurrent?(token) ?? true else { return }
-        beginAnimation(token, identity: identity, budgetMS: animationMS + 200)
+        beginAnimation(token, identity: identity, direction: .collapse, budgetMS: animationMS + 200)
         metrics.begin("过渡:收回")
         let context = scheduler.makeContext(token: token, kind: .returnOverview)
         _ = scheduler.perform(GeometryOperationScheduler.Operation(
@@ -529,24 +540,28 @@ final class FocusCoordinator {
         }
         if let element {
             report.raiseReturned = await writer.raise(element: element)
+            guard permit?.isGranted ?? true else { return report }
             _ = await writer.focus(element: element)
+            guard permit?.isGranted ?? true else { return report }
             // 读回而不是信任写入返回：同应用多窗口时，兄弟窗口占着 focused window 也必须看得出来。
-            if let focused = await writer.focusedWindowElement(pid: identity.processID) {
+            let focused = await writer.focusedWindowElement(pid: identity.processID)
+            guard permit?.isGranted ?? true else { return report }
+            if let focused {
                 report.focusedWindowMatches = CFEqual(focused, element)
             }
         }
-        guard let application = NSRunningApplication(processIdentifier: identity.processID) else {
+        // 目标应用激活是"原生前台输入"的前提；失败时只记录，不伪装成功。
+        // macOS 14 起 .activateIgnoringOtherApps 已失效，只能接受系统的前台限制策略。
+        guard let activation = activateApplication(identity.processID) else {
             onStatus?("激活失败：进程已退出")
             report.frontApplicationMatches = false
             recorder.record("前景化", subject: record.applicationName, result: .failed,
                             detail: "进程已退出，无法前景化（\(report.evidence)）")
             return report
         }
-        // 目标应用激活是"原生前台输入"的前提；失败时只记录，不伪装成功。
-        // macOS 14 起 .activateIgnoringOtherApps 已失效，只能接受系统的前台限制策略。
         report.activationRequested = true
-        report.activationReturned = application.activate(options: [])
-        report.frontApplicationMatches = application.isActive
+        report.activationReturned = activation.returned
+        report.frontApplicationMatches = activation.isActive
         // 这里只证明"目标到了前台"，它没有兄弟窗口可对照，因此不能写矩阵的「层级」格：
         // 那一列的定义是"展开时目标在总览前且不带动兄弟窗口"，只有 P0-3 能判。
         // 0.1.1–0.1.5 五份报告里 UGit 与 ChatGPT 的「层级=通过」就是这行代填的，属过度断言。
@@ -567,9 +582,13 @@ final class FocusCoordinator {
 
     // MARK: - 代理动画
 
-    private func beginAnimation(_ token: TransitionToken, identity: WindowIdentity, budgetMS: Int) {
+    private func beginAnimation(_ token: TransitionToken,
+                                identity: WindowIdentity,
+                                direction: Direction,
+                                budgetMS: Int) {
         activeToken = token
         activeIdentity = identity
+        activeDirection = direction
         transitionBudgetMS = budgetMS
         transitionStartedAt = CACurrentMediaTime()
         scheduleWatchdog(token, budgetMS: budgetMS)
@@ -581,7 +600,6 @@ final class FocusCoordinator {
                          to destination: CGRect,
                          animationMS: Int,
                          reverse: Bool) {
-        activeDirection = reverse ? .collapse : .expand
         guard source.width > 1, source.height > 1, destination.width > 1, destination.height > 1 else {
             finish(token)
             return
@@ -665,7 +683,7 @@ final class FocusCoordinator {
     /// 有界总超时：AX 排队、动画回调丢失都不能让状态机无限期停在过渡态。
     private func scheduleWatchdog(_ token: TransitionToken, budgetMS: Int) {
         watchdog?.invalidate()
-        let timer = Timer(timeInterval: TimeInterval(budgetMS) / 1000, repeats: false) { [weak self] _ in
+        let timer = makeWatchdogTimer(TimeInterval(budgetMS) / 1000) { [weak self] _ in
             MainActor.assumeIsolated { self?.handleTimeout(token) }
         }
         RunLoop.main.add(timer, forMode: .common)

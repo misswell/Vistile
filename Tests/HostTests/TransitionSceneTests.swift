@@ -403,8 +403,8 @@ final class TransitionSceneTests: XCTestCase {
         }
         XCTAssertEqual(TransitionTimeline.flowIntensity(0), 0, accuracy: 0.0001, "光不能突然点亮：起步从零抽出")
         XCTAssertGreaterThan(TransitionTimeline.flowIntensity(0.14), 0.9, "起步段结束时接近全亮")
-        XCTAssertEqual(TransitionTimeline.flowIntensity(1), 0.35, accuracy: 0.0001,
-                       "落定后收到 0.35：持续呼吸交给边缘光晕，Metal 流光只负责飞行段")
+        XCTAssertEqual(TransitionTimeline.flowIntensity(1), 0, accuracy: 0.0001,
+                       "落定后 Metal 流光归零，持续光效无缝交给边缘光晕")
         for index in 0...20 {
             let t = CGFloat(index) / 20
             XCTAssertGreaterThanOrEqual(TransitionTimeline.flowIntensity(t), 0)
@@ -900,8 +900,8 @@ final class TransitionSceneTests: XCTestCase {
         XCTAssertTrue(scene.hiddenRailIdentities.isEmpty)
     }
 
-    /// Light mode must keep the whole main-area panel stationary, not just the content rect.
-    func testLightLevelSwappingKeepsTheWholeMainPanelStationary() throws {
+    /// Light mode keeps the actual docked window panel stationary, not the whole main area.
+    func testLightLevelSwappingKeepsTheDockedPanelStationary() throws {
         let fixture = HostWorkbench.fixture(count: 3)
         let from = HostFixtures.identity(0)
         let to = HostFixtures.identity(1)
@@ -912,24 +912,27 @@ final class TransitionSceneTests: XCTestCase {
                                                 source: .rail(slot: slot),
                                                 placementRevision: 1,
                                                 targetDisplayID: displayID)
+        let dockedTarget = fixture.layout.mainRect.insetBy(dx: 80, dy: 40)
         let plan = WorkbenchSwitchPlan(intent: intent,
                                        displayID: displayID,
-                                       mainTargetFrame: fixture.layout.mainRect,
+                                       mainTargetFrame: dockedTarget,
                                        restingTargetFrame: nil,
                                        restingSlot: slot,
                                        snapshot: fixture.snapshot,
                                        presentation: fixture.presentation,
-                                       placement: HostPlanFacts.placement(target: fixture.layout.mainRect))
+                                       placement: HostPlanFacts.placement(target: dockedTarget))
         var factory = baseFactory(imageRects: [:])
         factory.motionLevel = { .light }
         let scene = try XCTUnwrap(factory.swapping(plan))
 
         XCTAssertEqual(scene.cards.map(\.identity), [to])
         let promoted = try XCTUnwrap(scene.focusCard)
-        XCTAssertEqual(promoted.panelFrom, fixture.layout.mainRect)
-        XCTAssertEqual(promoted.panelTo, fixture.layout.mainRect)
-        XCTAssertEqual(promoted.panelStart, fixture.layout.mainRect)
-        XCTAssertEqual(promoted.panelEnd, fixture.layout.mainRect)
+        XCTAssertEqual(promoted.panelFrom, dockedTarget)
+        XCTAssertEqual(promoted.panelTo, dockedTarget)
+        XCTAssertEqual(promoted.panelStart, dockedTarget)
+        XCTAssertEqual(promoted.panelEnd, dockedTarget)
+        XCTAssertNotEqual(promoted.panelEnd, fixture.layout.mainRect,
+                          "流光与边缘光晕必须贴合原尺寸停靠窗口，不能铺满主区")
         XCTAssertEqual(promoted.startAlpha, 1)
         XCTAssertEqual(promoted.endAlpha, 1)
     }
@@ -2265,6 +2268,218 @@ final class TransitionSceneTests: XCTestCase {
         }
         view.stopNow()
         XCTAssertEqual(view.focusGlow.phase, .idle)
+    }
+
+    @MainActor
+    func testFallbackSwapPanelFlowAndGlowUseTheDockedTarget() throws {
+        let view = try makeGlowView()
+        defer { view.stopNow() }
+        let fixture = HostWorkbench.fixture(count: 3)
+        let to = HostFixtures.identity(1)
+        let slot = try XCTUnwrap(fixture.placement.slot(of: to))
+        let missing = RailSlotID(displayID: displayID, rail: .side, ordinal: 999)
+        XCTAssertFalse(fixture.snapshot.isVisible(missing))
+        let cases: [(MotionLevel, Bool, WorkbenchSelectionSource)] = [
+            (.light, false, .rail(slot: slot)),
+            (.fade, false, .rail(slot: slot)),
+            (.full, true, .rail(slot: slot)),
+            (.full, false, .accessibility),
+            (.full, false, .rail(slot: missing)),
+            (.light, false, .rail(slot: missing))
+        ]
+        for inset in [CGFloat(80), CGFloat(140)] {
+            let target = fixture.layout.mainRect.insetBy(dx: inset, dy: inset / 2).offsetBy(dx: 20, dy: 10)
+            XCTAssertNotEqual(target, fixture.layout.mainRect)
+            for (level, reduced, source) in cases {
+                let intent = HostPlanFacts.switchIntent(token: TransitionToken(generation: 501),
+                                                       from: HostFixtures.identity(0), to: to, source: source,
+                                                       placementRevision: 1, targetDisplayID: displayID)
+                let plan = WorkbenchSwitchPlan(intent: intent, displayID: displayID, mainTargetFrame: target,
+                                               restingTargetFrame: nil, restingSlot: slot,
+                                               snapshot: fixture.snapshot, presentation: fixture.presentation,
+                                               placement: HostPlanFacts.placement(target: target))
+                var factory = baseFactory(imageRects: [:])
+                factory.motionLevel = { level }
+                factory.reduceMotion = { reduced }
+                let scene = try XCTUnwrap(factory.swapping(plan))
+                let card = try XCTUnwrap(scene.focusCard)
+                XCTAssertEqual(card.start, target)
+                XCTAssertEqual(card.end, target)
+                XCTAssertEqual(card.panelStart, target)
+                XCTAssertEqual(card.panelEnd, target)
+                XCTAssertTrue(scene.isStationarySwap)
+                view.play(scene, sources: [:], startAt: 100)
+                let localTarget = CGRect(x: target.minX - HostFixtures.offscreenOrigin.x,
+                                         y: view.bounds.height + HostFixtures.offscreenOrigin.y - target.maxY,
+                                         width: target.width, height: target.height)
+                for progress in [0.0, 0.5, 1.0] {
+                    view.advance(to: 100 + progress * Double(scene.durationMS) / 1000)
+                    XCTAssertLessThan(distance(try XCTUnwrap(view.presentedPanelRect(for: to)), to: target), 0.001)
+                    XCTAssertEqual(view.focusGlow.bounds, localTarget)
+                    XCTAssertEqual(view.focusGlow.container.frame, localTarget)
+                    if level == .light, source == .rail(slot: slot) {
+                        let flow = try XCTUnwrap(view.presentedFlow)
+                        let cell = try XCTUnwrap(fixture.snapshot.rect(for: slot))
+                        XCTAssertEqual(flow.rect, localTarget)
+                        XCTAssertEqual(flow.axis.x, Float(target.midX - cell.midX), accuracy: 0.001)
+                        XCTAssertEqual(flow.axis.y, Float(cell.midY - target.midY), accuracy: 0.001)
+                    } else {
+                        XCTAssertNil(view.presentedFlow)
+                    }
+                }
+                view.stopNow()
+            }
+        }
+    }
+
+    @MainActor
+    func testFadeOnlyMissingReturnTargetFadesOutInsteadOfDisappearing() throws {
+        let view = try makeGlowView()
+        defer { view.stopNow() }
+        let fixture = HostWorkbench.fixture(count: 2)
+        let main = HostFixtures.identity(0)
+        let token = TransitionToken(generation: 502)
+        let start = fixture.layout.mainRect.insetBy(dx: 80, dy: 40)
+        let plan = WorkbenchTransitionPlan(kind: .returningOverview, token: token,
+                                           operationContext: HostPlanFacts.context(token: token, kind: .returnOverview),
+                                           identity: main, displayID: displayID, snapshot: fixture.snapshot,
+                                           targetFrame: start, animationFrom: start, animationTo: nil,
+                                           railHandoffs: [], animationMS: 200, presentation: fixture.presentation,
+                                           placement: HostPlanFacts.placement(target: start))
+        var factory = baseFactory(imageRects: [:])
+        factory.motionLevel = { .fade }
+        let scene = try XCTUnwrap(factory.returning(plan))
+        XCTAssertNil(scene.focusCard?.end)
+        XCTAssertEqual(scene.focusCard?.endAlpha, 0)
+        view.play(scene, sources: [:], startAt: 100)
+        XCTAssertEqual(view.presentedAlpha(for: main), 1)
+        XCTAssertEqual(view.presentedPanelRect(for: main), start)
+        view.advance(to: 100 + Double(scene.durationMS) / 2000)
+        XCTAssertEqual(try XCTUnwrap(view.presentedAlpha(for: main)), 0.125, accuracy: 0.0001)
+        XCTAssertEqual(view.presentedPanelRect(for: main), start)
+        view.advance(to: 101)
+        XCTAssertEqual(view.presentedAlpha(for: main), 0)
+        XCTAssertNil(view.presentedPanelRect(for: main))
+        XCTAssertFalse(view.focusGlow.isActive)
+    }
+
+    @MainActor
+    func testFadeOnlyPreservesAlphaEndpointsAndStationaryFadeIn() throws {
+        let view = try makeGlowView()
+        defer { view.stopNow() }
+        let identity = HostFixtures.identity(0)
+        let start = CGRect(x: HostFixtures.offscreenOrigin.x + 20, y: 40, width: 200, height: 120)
+        let end = start.offsetBy(dx: 300, dy: 180)
+        let cases: [(CGFloat, CGFloat, CGFloat)] = [(0, 0.35, 0), (1, 1, 0), (0.8, 0.2, 0.8), (0, 0, 0)]
+        for (startAlpha, endAlpha, initialAlpha) in cases {
+            let card = TransitionScene.Card(identity: identity, start: start, end: end, cellStart: nil, cellEnd: nil,
+                                           startAlpha: startAlpha, endAlpha: endAlpha, aspect: 2,
+                                           hidesRailCard: false, isFocus: true)
+            let scene = TransitionScene(kind: .entering, token: TransitionToken(generation: 503), displayID: displayID,
+                                        backdrop: .transparent, cards: [card], durationMS: 1000, fadeOnly: true, level: .fade)
+            view.play(scene, sources: [:], startAt: 100)
+            XCTAssertEqual(try XCTUnwrap(view.presentedAlpha(for: identity)), initialAlpha, accuracy: 0.0001)
+            view.advance(to: 100.5)
+            XCTAssertEqual(try XCTUnwrap(view.presentedAlpha(for: identity)),
+                           initialAlpha + (endAlpha - initialAlpha) * 0.875, accuracy: 0.0001)
+            XCTAssertEqual(view.presentedRect(for: identity), end)
+            view.advance(to: 101)
+            XCTAssertEqual(try XCTUnwrap(view.presentedAlpha(for: identity)), endAlpha, accuracy: 0.0001)
+            view.stopNow()
+        }
+    }
+
+    @MainActor
+    func testFlowRespectsCardAlphaAndSettlesContinuouslyIntoGlow() throws {
+        let view = try makeGlowView()
+        defer { view.stopNow() }
+        for alpha in [CGFloat(0), CGFloat(0.25), CGFloat(1)] {
+            var scene = glowScene(focusAlpha: alpha)
+            scene.flow = .standard
+            view.play(scene, sources: [:], startAt: 100)
+            for progress in [0.0, 0.25, 0.5, 0.999, 1.0] {
+                view.advance(to: 100 + progress * 0.24)
+                if alpha == 0 {
+                    XCTAssertNil(view.presentedFlow)
+                    XCTAssertFalse(view.focusGlow.isActive)
+                    continue
+                }
+                let eased = TransitionTimeline.easeOutCubic(CGFloat(progress))
+                let flow = try XCTUnwrap(view.presentedFlow)
+                XCTAssertEqual(flow.intensity, Float(alpha * TransitionTimeline.flowIntensity(eased)), accuracy: 0.0001)
+                XCTAssertEqual(view.focusGlow.container.opacity,
+                               Float(alpha * (0.5 + 0.5 * TransitionTimeline.flowSettle(eased))), accuracy: 0.0001)
+                XCTAssertEqual(view.focusGlow.bounds, flow.rect)
+            }
+            view.advance(to: 101)
+            XCTAssertEqual(view.presentedFlow?.intensity ?? 0, 0, accuracy: 0.0001)
+            XCTAssertFalse(view.hasDisplayLink)
+            view.stopNow()
+            XCTAssertNil(view.presentedFlow)
+        }
+    }
+
+    @MainActor
+    func testRepeatedBeginFadeKeepsTheOriginalDeadlineAndOpacityCurve() throws {
+        let view = try makeGlowView()
+        defer { view.stopNow() }
+        let scene = glowScene(focusAlpha: 0.6)
+        var finished: [TransitionToken] = []
+        view.onFinished = { finished.append($0) }
+        view.play(scene, sources: [:], startAt: 100)
+        view.advance(to: 101)
+        view.beginFade(durationMS: 1000, startAt: 200)
+        let deadline = try XCTUnwrap(view.sceneDeadlineTimer)
+        view.advance(to: 200.5)
+        XCTAssertEqual(view.metalLayer.opacity, 0.5, accuracy: 0.0001)
+        XCTAssertEqual(view.focusGlow.container.opacity, 0.3, accuracy: 0.0001)
+        view.beginFade(durationMS: 2000, startAt: 200.5)
+        XCTAssertTrue(view.sceneDeadlineTimer === deadline)
+        XCTAssertTrue(deadline.isValid)
+        view.advance(to: 200.75)
+        XCTAssertEqual(view.metalLayer.opacity, 0.25, accuracy: 0.0001)
+        XCTAssertEqual(view.focusGlow.container.opacity, 0.15, accuracy: 0.0001)
+        view.advance(to: 201)
+        XCTAssertTrue(view.isIdle)
+        XCTAssertFalse(view.hasDisplayLink)
+        XCTAssertEqual(finished, [scene.token])
+        view.beginFade(startAt: 202)
+        view.advance(to: 203)
+        XCTAssertEqual(finished, [scene.token])
+    }
+
+    @MainActor
+    func testStaleCompletionCannotHideAReusedCarrierWindow() throws {
+        let coordinator = ModeTransitionCoordinator(metal: try HostFixtures.metalContext())
+        defer { coordinator.cancelAll() }
+        coordinator.displayFacts = { _ in
+            let rect = CGRect(origin: HostFixtures.offscreenOrigin, size: HostFixtures.offscreenSize)
+            return .init(cgFrame: rect, appKitFrame: rect, scale: 2)
+        }
+        var finished: [TransitionToken] = []
+        var cancelled: [TransitionToken] = []
+        coordinator.onSceneFinished = { finished.append($0) }
+        coordinator.onSceneCancellationFinished = { cancelled.append($0) }
+        let first = glowScene(generation: 504)
+        coordinator.play(first)
+        let window = try XCTUnwrap(coordinator.carrierWindow(for: displayID))
+        let staleCompletion = try XCTUnwrap(window.carrierView.onFinished)
+        let second = glowScene(generation: 505)
+        coordinator.play(second)
+        staleCompletion(first.token)
+        XCTAssertTrue(window.isVisible)
+        XCTAssertEqual(window.level, .floating)
+        XCTAssertEqual(coordinator.activeToken, second.token)
+        XCTAssertEqual(window.carrierView.playingToken, second.token)
+        XCTAssertTrue(window.carrierView.isPlaying)
+        XCTAssertTrue(finished.isEmpty)
+        XCTAssertTrue(cancelled.isEmpty)
+        window.carrierView.beginFade(durationMS: 1000, startAt: 200)
+        window.carrierView.advance(to: 201)
+        XCTAssertFalse(window.isVisible)
+        XCTAssertTrue(coordinator.isIdle)
+        XCTAssertEqual(finished, [second.token])
+        XCTAssertTrue(cancelled.isEmpty)
     }
 
     @MainActor

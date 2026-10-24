@@ -264,6 +264,7 @@ final class RecoveryCoordinator {
         let transitionToken = token ?? TransitionToken(generation: 0)
         var results: [RestoreItemResult] = []
         for entry in pending {
+            guard !Task.isCancelled else { break }
             let result = await restore(entry: entry, token: transitionToken)
             results.append(result)
             if result.outcome.isSettled {

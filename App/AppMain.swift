@@ -23,6 +23,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var probe: P0Probe?
     private var startup: Task<Void, Never>?
     private var hasBegunTermination = false
+    private let replyToTermination: @MainActor () -> Void
+
+    init(coordinator: AppCoordinator? = nil,
+         startup: Task<Void, Never>? = nil,
+         replyToTermination: @escaping @MainActor () -> Void = { NSApp.reply(toApplicationShouldTerminate: true) }) {
+        self.coordinator = coordinator
+        self.startup = startup
+        self.replyToTermination = replyToTermination
+        super.init()
+    }
 
     /// 宿主测试用同一个 App 承载，但绝不能改动用户桌面状态：
     /// 不注册全局快捷键、不建总览/引导窗口、不启动协调器。
@@ -66,6 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if !restored.isEmpty {
                 VistileLog.session.log(level: .info, "启动恢复处理了 \(restored.count, format: .decimal) 条事务")
             }
+            guard !self.hasBegunTermination else { return }
             coordinator.start()
             self.menuBar = MenuBarController(coordinator: coordinator,
                                              settings: self.settings,
@@ -95,15 +106,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 退出路径：先恢复本次临时修改的几何，再让系统真正终止。
     /// 用 .terminateLater 把恢复做成真正的异步收尾：主线程嵌套 RunLoop 会让事件管线自嵌套（方案 §6.6）。
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard let coordinator, !hasBegunTermination else { return .terminateNow }
+        guard let coordinator else { return .terminateNow }
+        guard !hasBegunTermination else { return .terminateLater }
         hasBegunTermination = true
+        startup?.cancel()
         var hasReplied = false
+        let replyToTermination = self.replyToTermination
         let reply: @MainActor () -> Void = {
             guard !hasReplied else { return }
             hasReplied = true
-            NSApp.reply(toApplicationShouldTerminate: true)
+            replyToTermination()
         }
-        coordinator.beginTermination(settled: reply)
+        coordinator.beginTermination(after: startup, settled: reply)
         // 协调层的期限本身有上限；这里只兜"收尾任务被卡住不返回"，两次回报必须只生效一次。
         DispatchQueue.main.asyncAfter(deadline: .now() + AppCoordinator.terminationCeiling + 0.5, execute: {
             MainActor.assumeIsolated { reply() }

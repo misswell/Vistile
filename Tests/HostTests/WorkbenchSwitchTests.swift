@@ -184,7 +184,9 @@ final class WorkbenchSwitchTests: XCTestCase {
                                        scheduler: scheduler)
     }
 
-    private func startCoordinator() throws {
+    private func startCoordinator(
+        activateApplication: @escaping (pid_t) -> (returned: Bool, isActive: Bool)? = { _ in nil }
+    ) throws {
         let metal = try HostFixtures.metalContext()
         let focus = FocusCoordinator(catalog: catalog,
                                      metal: metal,
@@ -195,7 +197,8 @@ final class WorkbenchSwitchTests: XCTestCase {
                                      recorder: recorder,
                                      recovery: recovery,
                                      permissions: permissions,
-                                     scheduler: scheduler)
+                                     scheduler: scheduler,
+                                     activateApplication: activateApplication)
         coordinator = WorkbenchSwitchCoordinator(catalog: catalog,
                                                  writer: writer,
                                                  store: store,
@@ -1244,6 +1247,106 @@ final class WorkbenchSwitchTests: XCTestCase {
         let aFrame = await writer.currentFrame(of: try element(of: a))
         XCTAssertEqual(aFrame, FakeCatalogSource.frame(for: 0), "被拒绝的进入不许动窗口几何")
         XCTAssertTrue(store.unfinished.isEmpty, "窗口没动过，事务按事实结清，退出时不做无谓恢复")
+    }
+
+    // MARK: - 进入工作台的前景化许可撤销
+
+    func testEnteringWorkbenchRevocationDuringRaiseStopsFocusAndActivation() async throws {
+        try await assertEnteringWorkbenchStopsAfterRaiseRevocation(correctPosition: false)
+    }
+
+    func testEnteringWorkbenchCorrectedPlacementRevocationDuringRaiseStopsFocusAndActivation() async throws {
+        try await assertEnteringWorkbenchStopsAfterRaiseRevocation(correctPosition: true)
+    }
+
+    private func assertEnteringWorkbenchStopsAfterRaiseRevocation(correctPosition: Bool) async throws {
+        await startWorkbench(minimized: [])
+        store = makeStore()
+        let rest = FakeCatalogSource.frame(for: 0)
+        let main = fixture.layout.mainRect
+        let target = try element(of: a)
+        writer.setInitialFrame(rest, for: target)
+        startRecovery()
+        var activatedPIDs: [pid_t] = []
+        try startCoordinator(activateApplication: {
+            activatedPIDs.append($0)
+            return (true, true)
+        })
+        coordinator.mainAreaDocking = .fill
+        if correctPosition {
+            writer.setScript(.constrains, for: target)
+            // 第一笔读回越界，后续位置纠正与补偿照常接受。
+            writer.onWillWrite = { [weak writer] _ in
+                writer?.setScript(.accepts, for: target)
+            }
+        }
+        let token = TransitionToken(generation: 9)
+        let plan = WorkbenchTransitionPlan(kind: .enteringWorkbench,
+                                           token: token,
+                                           operationContext: scheduler.makeContext(token: token, kind: .enterWorkbench),
+                                           identity: a,
+                                           displayID: displayID,
+                                           snapshot: fixture.snapshot,
+                                           targetFrame: main,
+                                           animationFrom: nil,
+                                           animationTo: main,
+                                           railHandoffs: [],
+                                           animationMS: 240,
+                                           presentation: fixture.presentation,
+                                           placement: HostPlanFacts.placement(target: main))
+        await armJournal(plan)
+        let blocked = expectation(description: "进入工作台的 Raise 已挂起")
+        writer.gateNextForegroundCall(.raise) { blocked.fulfill() }
+        defer { writer.openForegroundGate() }
+
+        coordinator.perform(plan)
+        await fulfillment(of: [blocked], timeout: 5)
+        XCTAssertEqual(writer.blockedForegroundGate, .raise)
+        XCTAssertTrue(coordinator.isBusy)
+        XCTAssertEqual(writer.raiseCount, 1)
+        XCTAssertEqual(writer.focusCount, 0)
+        XCTAssertTrue(activatedPIDs.isEmpty)
+        let placementWrites = writer.writtenFrames
+        XCTAssertEqual(placementWrites.count, correctPosition ? 2 : 1,
+                       "前景化前几何已落位；纠正路径必须确实多写一次位置")
+        XCTAssertTrue(placementWrites.allSatisfy { WindowTransaction.framesClose($0, main, tolerance: 0.001) })
+        XCTAssertEqual(writer.recordedActions, correctPosition ? ["写", "移"] : ["写"])
+        let recordedFrame = try XCTUnwrap(store.entry(for: a)?.lastProvisionalFrame)
+        XCTAssertTrue(WindowTransaction.framesClose(recordedFrame, main, tolerance: 0.001))
+
+        scheduler.cancelOrdinaryWrites(sessionID: sessionID)
+        XCTAssertEqual(scheduler.phase, .open, "只撤销旧许可，不能靠关闭相位阻止前景化")
+        writer.openForegroundGate()
+        await pendingUntil(timeout: 4) { !self.coordinator.isBusyIncludingScheduler }
+
+        XCTAssertEqual(writer.raiseCount, 1, "已发起的 Raise 是事实，但不得再次前景化")
+        XCTAssertEqual(writer.focusCount, 0, "Raise 挂起时撤销，释放后不得继续 focus")
+        XCTAssertEqual(writer.focusedWindowReadCount, 0)
+        XCTAssertTrue(activatedPIDs.isEmpty, "撤销后不得调用应用激活接缝")
+        let results = events.compactMap { event -> WorkbenchStepOutcome? in
+            if case let .workbenchTransitionFinished(eventToken, kind, result) = event,
+               eventToken == token, kind == .enteringWorkbench { return result }
+            return nil
+        }
+        XCTAssertEqual(results.count, 1, "撤销必须有且只有一次真实终止回执")
+        XCTAssertFalse(results.contains { $0.allowsContinue }, "撤销不能被当成成功或受限落位")
+        guard case let .rejected(reason)? = results.first else {
+            return XCTFail("撤销后必须拒绝进入工作台，实际：\(results)")
+        }
+        XCTAssertTrue(reason.contains("撤销"))
+        XCTAssertTrue(committedTokens().isEmpty)
+        XCTAssertEqual(writer.writtenFrames, placementWrites + [rest], "既有几何副作用须按独立补偿许可回位")
+        let finalFrame = try await currentFrame(of: a)
+        XCTAssertEqual(finalFrame, rest)
+        let settledIndex = try XCTUnwrap(events.firstIndex {
+            if case let .geometryRestoreSettled(eventToken, _) = $0 { return eventToken == token }
+            return false
+        })
+        let finishedIndex = try XCTUnwrap(events.firstIndex {
+            if case let .workbenchTransitionFinished(eventToken, _, _) = $0 { return eventToken == token }
+            return false
+        })
+        XCTAssertLessThan(settledIndex, finishedIndex, "补偿事实必须先于失败回报")
     }
 
     // MARK: - H23 目录快照滞后一整轮：写前实读把猜测的原位置纠回，返回必须真的写回

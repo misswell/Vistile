@@ -32,7 +32,8 @@ final class TransitionProxyView: NSView {
     let metalLayer = CAMetalLayer()
     private var renderer: OverviewRenderer?
     private var heldFrame: MetalFrame?
-    private var ticker: Timer?
+    private var displayLink: CADisplayLink?
+    private let tickBridge = ProxyTickBridge()
     /// 动画起点用单调时钟（方案 §20.2）：`Date()` 是墙钟，NTP 步进或用户改表会把进行中的动画
     /// 一次性推完或拉回去——那正好是 §16 要排除的"回跳"，不能让计时器自己制造它。
     private var startStamp = CACurrentMediaTime()
@@ -63,9 +64,18 @@ final class TransitionProxyView: NSView {
         // 代理必须透出真实画面，透明底色让位于卡片矩形之外的区域不被涂黑。
         renderer = OverviewRenderer(metal: metal)
         renderer?.background = SIMD4<Float>(0, 0, 0, 0)
+        tickBridge.view = self
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    deinit { displayLink?.invalidate() }
+
+    var hasDisplayLink: Bool { displayLink != nil }
+    var hasSource: Bool { heldFrame != nil }
+    var renderCount: Int { renderer?.diagnostics().draws ?? 0 }
+    private(set) var presentedCardOpacity: Float = 1
+    private(set) var presentedContentRect: CGRect = .zero
 
     func configure(cgOrigin: CGPoint, scale: CGFloat) {
         originInCG = cgOrigin
@@ -97,39 +107,48 @@ final class TransitionProxyView: NSView {
                  reverse: Bool,
                  mode: AnimationMode = .scale,
                  startAlpha: CGFloat = 1,
-                 endAlpha: CGFloat = 1) {
+                 endAlpha: CGFloat = 1,
+                 startAt: CFTimeInterval? = nil) {
         // reverse 只影响调用方的语义（展开/收回），矩形与 alpha 插值本身是对称的。
         _ = reverse
-        ticker?.invalidate()
+        displayLink?.invalidate()
+        displayLink = nil
         animationMode = mode
         startRect = viewRect(source)
         endRect = viewRect(destination)
         currentAnimationRect = startRect
         currentRectInCG = source
-        startStamp = CACurrentMediaTime()
+        startStamp = startAt ?? CACurrentMediaTime()
         duration = max(0.016, TimeInterval(durationMS) / 1000)
         self.startAlpha = startAlpha
         self.endAlpha = endAlpha
-        metalLayer.opacity = Float(startAlpha)
+        metalLayer.opacity = 1
         isAnimating = true
-        let next = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
-            self?.tick()
-        }
-        ticker = next
-        RunLoop.main.add(next, forMode: .common)
+        advance(to: startStamp)
+        let link = self.displayLink(target: tickBridge, selector: #selector(ProxyTickBridge.tick(_:)))
+        link.add(to: .main, forMode: .common)
+        displayLink = link
     }
 
     func stop() {
-        ticker?.invalidate()
-        ticker = nil
+        displayLink?.invalidate()
+        displayLink = nil
         isAnimating = false
+        heldFrame = nil
+        onComplete = nil
     }
 
     private var animationMode: AnimationMode = .scale
 
-    private func tick() {
-        let elapsed = CACurrentMediaTime() - startStamp
-        let progress = min(1, elapsed / duration)
+    fileprivate func handleTick(_ link: CADisplayLink) {
+        guard displayLink === link else { return }
+        advance(to: link.targetTimestamp)
+    }
+
+    func advance(to timestamp: CFTimeInterval) {
+        guard isAnimating else { return }
+        let elapsed = timestamp - startStamp
+        let progress = min(1, max(0, elapsed / duration))
         let eased = easeInOut(progress)
         // fade：矩形固定在终点，只有 alpha 变化；"声称淡化"就必须真的改 alpha。
         let container = animationMode == .fade
@@ -138,23 +157,24 @@ final class TransitionProxyView: NSView {
         currentAnimationRect = container
         currentRectInCG = cgRect(fromView: container)
         let alpha = startAlpha + (endAlpha - startAlpha) * CGFloat(eased)
-        metalLayer.opacity = Float(alpha)
 
         let content = aspectFit(sourceAspect: sourceAspect, in: container)
-        guard let renderer else { return }
         let viewBounds = CGRect(origin: .zero, size: bounds.size)
-        let cards = [CardDraw(identity: CardDraw.proxyIdentity,
-                              imageRect: content,
-                              opacity: Float(alpha),
-                              frame: heldFrame)]
-        renderer.draw(layer: metalLayer,
-                      cards: cards,
-                      placeholders: [],
-                      viewBounds: viewBounds,
-                      scale: max(1, metalLayer.contentsScale))
+        let card = CardDraw(identity: CardDraw.proxyIdentity,
+                            imageRect: content,
+                            opacity: Float(alpha),
+                            frame: heldFrame)
+        presentedCardOpacity = card.opacity
+        presentedContentRect = card.imageRect
+        renderer?.draw(layer: metalLayer,
+                       cards: [card],
+                       placeholders: [],
+                       viewBounds: viewBounds,
+                       scale: max(1, metalLayer.contentsScale))
         if progress >= 1 {
+            let completion = onComplete
             stop()
-            onComplete?()
+            completion?()
         }
     }
 
@@ -198,5 +218,13 @@ final class TransitionProxyView: NSView {
         }
         let width = container.height * sourceAspect
         return CGRect(x: container.midX - width / 2, y: container.minY, width: width, height: container.height)
+    }
+}
+
+private final class ProxyTickBridge: NSObject {
+    weak var view: TransitionProxyView?
+
+    @objc func tick(_ link: CADisplayLink) {
+        view?.handleTick(link)
     }
 }

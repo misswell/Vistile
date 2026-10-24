@@ -780,7 +780,7 @@ final class WorkbenchSwitchCoordinator {
                 : .constrained(readBack: frame, note: write.outcome.message)
             if activate {
                 return await confirmActivation(outcome: outcome, identity: identity, geometry: write.outcome,
-                                               record: record)
+                                               record: record, permit: permit)
             }
             return PlacementResult(step: outcome, geometry: write.outcome)
 
@@ -815,7 +815,7 @@ final class WorkbenchSwitchCoordinator {
                     note: "写回后越界，已一次有界修正到 \(RecoveryCoordinator.text(frame))")
                 if activate {
                     return await confirmActivation(outcome: outcome, identity: identity,
-                                                   geometry: fixed.outcome, record: record)
+                                                   geometry: fixed.outcome, record: record, permit: permit)
                 }
                 return PlacementResult(step: outcome, geometry: fixed.outcome)
             case .correctPosition, .rejected:
@@ -840,9 +840,16 @@ final class WorkbenchSwitchCoordinator {
     private func confirmActivation(outcome: WorkbenchStepOutcome,
                                    identity: WindowIdentity,
                                    geometry: GeometryOutcome?,
-                                   record: WindowRecord) async -> PlacementResult {
+                                   record: WindowRecord,
+                                   permit: GeometryWritePermit) async -> PlacementResult {
+        guard permit.isGranted else {
+            return PlacementResult(step: .rejected("操作许可已撤销，未激活窗口"), geometry: geometry)
+        }
         sideEffects.append(SideEffect(identity: identity, kind: .activation))
-        let facts = await focus.activateAndRaise(identity)
+        let facts = await focus.activateAndRaise(identity, permit: permit)
+        guard permit.isGranted else {
+            return PlacementResult(step: .rejected("操作许可已撤销，未确认激活"), geometry: geometry)
+        }
         if facts.isProvenBehind {
             return PlacementResult(step: .rejected("\(record.applicationName) 没能带到前台（\(facts.evidence)）"),
                                    geometry: geometry)

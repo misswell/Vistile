@@ -264,6 +264,7 @@ final class TransitionCarrierView: NSView {
     /// 上一次 tick 真正画出去的面板矩形（CG 全局）。只读观察点：
     /// 宿主测试据此证明"飞行画的是面板、不是被放大的捕获图"。
     private(set) var presentedPanelRects: [WindowIdentity: CGRect] = [:]
+    private(set) var presentedFlow: FlowDraw?
 
     private var displayLink: CADisplayLink?
     private let tickBridge = TickBridge()
@@ -436,14 +437,14 @@ final class TransitionCarrierView: NSView {
     // MARK: - 交接与结束
 
     /// 短淡化交接：真实窗口已验证（或已提交）后整层淡出（方案 §10.1）。
-    func beginFade(durationMS: Int = TransitionCarrierView.handoffFadeMS) {
-        guard phase != .idle else { return }
+    func beginFade(durationMS: Int = TransitionCarrierView.handoffFadeMS, startAt: CFTimeInterval? = nil) {
+        guard phase == .playing || phase == .holding else { return }
         stopTimers()
         hideHoldIndicator()
         stopObservingGlowPressure()
         focusGlow.beginFade()
         fadeFrom = CGFloat(metalLayer.opacity)
-        fadeStartTimestamp = CACurrentMediaTime()
+        fadeStartTimestamp = startAt ?? CACurrentMediaTime()
         fadeDuration = max(0.016, TimeInterval(durationMS) / 1000)
         phase = .fading
         startClock()
@@ -467,6 +468,7 @@ final class TransitionCarrierView: NSView {
         presentedRects.removeAll()
         presentedAlphas.removeAll()
         presentedPanelRects.removeAll()
+        presentedFlow = nil
         states.removeAll()
         scene = nil
         focusIdentity = nil
@@ -681,6 +683,10 @@ final class TransitionCarrierView: NSView {
         var placeholders: [(rect: CGRect, tint: SIMD4<Float>)] = []
         var panels: [PanelDraw] = []
         var flows: [FlowDraw] = []
+        cards.reserveCapacity(drawOrder.count)
+        placeholders.reserveCapacity(drawOrder.count + 1)
+        panels.reserveCapacity(drawOrder.count)
+        flows.reserveCapacity(1)
 
         var backdropAlpha: CGFloat = 0
         if let color = TransitionScene.backdropColor(scene.backdrop) {
@@ -694,6 +700,8 @@ final class TransitionCarrierView: NSView {
 
         var presented: [WindowIdentity: CGRect] = [:]
         var panelRects: [WindowIdentity: CGRect] = [:]
+        presented.reserveCapacity(drawOrder.count)
+        panelRects.reserveCapacity(drawOrder.count)
         var glowRect: CGRect?
         var glowRadius: CGFloat = 0
         var glowAlpha: CGFloat = 0
@@ -707,7 +715,8 @@ final class TransitionCarrierView: NSView {
             } else if scene.fadeOnly {
                 // 最简模式：不飞行，卡片固定在终点短淡化（方案 §10.5）。
                 container = state.end
-                alpha = (state.endAlpha > 0.01 ? eased : 1 - eased) * state.endAlpha
+                let startAlpha = state.startAlpha == state.endAlpha ? 0 : state.startAlpha
+                alpha = startAlpha + (state.endAlpha - startAlpha) * eased
             } else {
                 container = TransitionTimeline.interpolate(state.start, state.end, progress: eased)
                 let alphaT = TransitionTimeline.alphaProgress(eased, fadeFraction: state.fadeFraction)
@@ -732,8 +741,10 @@ final class TransitionCarrierView: NSView {
                     glowRect = panelRect
                     glowRadius = style.cornerRadius
                     glowAlpha = alpha
-                    // 飞行段 Metal 流光是主角：边缘光晕退半场，落定（progress ≥ 1 的 hold）再全亮。
-                    if scene.flow != nil, progress < 1 { glowAlpha *= 0.5 }
+                    // 到达段让 Metal 流光淡出、边缘光晕淡入，避免到位瞬间亮度跳变。
+                    if scene.flow != nil {
+                        glowAlpha *= 0.5 + 0.5 * TransitionTimeline.flowSettle(eased)
+                    }
                     if let spec = scene.flow {
                         // 场景方向是 CG 全局坐标（y 向下）；着色器在视图本地坐标（y 向上）里取轴。
                         flows.append(FlowDraw(rect: panelRect,
@@ -741,7 +752,7 @@ final class TransitionCarrierView: NSView {
                                               phase: Float(eased),
                                               bandWidth: Float(TransitionTimeline.flowBandWidth(eased)),
                                               trail: Float(TransitionTimeline.flowTrail(eased)),
-                                              intensity: Float(TransitionTimeline.flowIntensity(eased)),
+                                              intensity: Float(alpha * TransitionTimeline.flowIntensity(eased)),
                                               settle: Float(TransitionTimeline.flowSettle(eased)),
                                               colorA: spec.leading,
                                               colorB: spec.trailing,
@@ -773,6 +784,7 @@ final class TransitionCarrierView: NSView {
         }
         presentedRects = presented
         presentedPanelRects = panelRects
+        presentedFlow = flows.first
         focusGlow.update(rect: glowRect, cornerRadius: glowRadius, opacity: glowAlpha,
                          scale: max(1, metalLayer.contentsScale))
         let tracker = phase == .playing ? presentationTracker : nil
@@ -1109,14 +1121,11 @@ final class ModeTransitionCoordinator {
             self.onSceneReachedEnd?(token)
         }
         created.carrierView.onFinished = { [weak self] token in
-            guard let self else { return }
-            // 承载层下屏属于物理事实：即使场景已过期也要把窗口收掉，
-            // 但状态提交（令牌清空、揭示、取消完成）只认当前场景（方案 §16.2）。
+            guard let self, self.activeToken == token, self.activeDisplayID == displayID else { return }
             if let window = self.carriers[displayID] {
                 window.level = .normal
                 window.orderOut(nil)
             }
-            guard self.activeToken == token else { return }
             self.activeToken = nil
             self.activeKind = nil
             self.activeDisplayID = nil

@@ -74,6 +74,123 @@ final class T02MetalPresentationTests: XCTestCase {
         XCTAssertGreaterThan(proxy.metalLayer.frame.width, 1)
     }
 
+    @MainActor
+    func testProxySynchronouslyDrawsAndAdvancesFromInjectedTime() throws {
+        let proxy = TransitionProxyView(frame: NSRect(origin: .zero, size: HostFixtures.offscreenSize), metal: metal)
+        defer { proxy.stop() }
+        proxy.configure(cgOrigin: HostFixtures.offscreenOrigin, scale: 2)
+        proxy.layout()
+        proxy.setSource(try HostFixtures.metalFrame(metal: metal), sourceAspect: 2)
+        let source = CGRect(x: HostFixtures.offscreenOrigin.x + 20, y: 40, width: 200, height: 120)
+        let target = source.offsetBy(dx: 320, dy: 180).insetBy(dx: -100, dy: -80)
+        proxy.animate(fromCG: source, toCG: target, durationMS: 1000, reverse: false, startAt: 100)
+
+        XCTAssertEqual(proxy.renderCount, 1)
+        XCTAssertEqual(proxy.currentRectInCG, source)
+        XCTAssertTrue(proxy.hasDisplayLink)
+        proxy.advance(to: 99)
+        XCTAssertEqual(proxy.currentRectInCG, source)
+        proxy.advance(to: 100.5)
+        XCTAssertEqual(proxy.currentRectInCG, TransitionTimeline.interpolate(source, target, progress: 0.5))
+        let content = proxy.presentedContentRect
+        XCTAssertEqual(content.width / content.height, 2, accuracy: 0.0001)
+        XCTAssertTrue(proxy.currentRect().contains(content))
+        XCTAssertTrue(proxy.isAnimating)
+    }
+
+    @MainActor
+    func testProxyFadeAppliesOpacityOnceAtTheDestination() throws {
+        let proxy = TransitionProxyView(frame: NSRect(origin: .zero, size: HostFixtures.offscreenSize), metal: metal)
+        defer { proxy.stop() }
+        proxy.configure(cgOrigin: HostFixtures.offscreenOrigin, scale: 2)
+        proxy.layout()
+        let source = CGRect(x: HostFixtures.offscreenOrigin.x + 20, y: 40, width: 200, height: 120)
+        let target = source.offsetBy(dx: 320, dy: 180)
+        for (start, end) in [(CGFloat(0), CGFloat(1)), (CGFloat(1), CGFloat(0))] {
+            proxy.setSource(try HostFixtures.metalFrame(metal: metal), sourceAspect: 2)
+            proxy.animate(fromCG: source, toCG: target, durationMS: 1000, reverse: end == 0,
+                          mode: .fade, startAlpha: start, endAlpha: end, startAt: 100)
+            XCTAssertEqual(proxy.currentRectInCG, target)
+            XCTAssertEqual(proxy.metalLayer.opacity * proxy.presentedCardOpacity, Float(start), accuracy: 0.0001)
+            proxy.advance(to: 100.5)
+            XCTAssertEqual(proxy.currentRectInCG, target)
+            XCTAssertEqual(proxy.metalLayer.opacity * proxy.presentedCardOpacity, 0.5, accuracy: 0.0001,
+                           "Layer opacity and card opacity must not square the fade")
+            XCTAssertNil(proxy.metalLayer.animation(forKey: "opacity"))
+            proxy.advance(to: 101)
+            XCTAssertEqual(proxy.metalLayer.opacity * proxy.presentedCardOpacity, Float(end), accuracy: 0.0001)
+            XCTAssertFalse(proxy.isAnimating)
+            XCTAssertFalse(proxy.hasDisplayLink)
+        }
+    }
+
+    @MainActor
+    func testProxyStopAndCompletionReleaseSourceAndIgnoreLateTicks() throws {
+        let proxy = TransitionProxyView(frame: NSRect(origin: .zero, size: HostFixtures.offscreenSize), metal: metal)
+        defer { proxy.stop() }
+        proxy.configure(cgOrigin: HostFixtures.offscreenOrigin, scale: 2)
+        proxy.layout()
+        let rect = CGRect(x: HostFixtures.offscreenOrigin.x + 20, y: 40, width: 200, height: 120)
+        var completions = 0
+        for completes in [false, true] {
+            proxy.setSource(try HostFixtures.metalFrame(metal: metal), sourceAspect: 2)
+            proxy.onComplete = { completions += 1 }
+            proxy.animate(fromCG: rect, toCG: rect, durationMS: 1000, reverse: false, startAt: 100)
+            XCTAssertTrue(proxy.hasSource)
+            if completes { proxy.advance(to: 101) } else { proxy.stop() }
+            let draws = proxy.renderCount
+            XCTAssertFalse(proxy.hasSource)
+            XCTAssertFalse(proxy.hasDisplayLink)
+            XCTAssertFalse(proxy.isAnimating)
+            XCTAssertNil(proxy.onComplete)
+            proxy.advance(to: 102)
+            proxy.advance(to: 103)
+            XCTAssertEqual(proxy.renderCount, draws)
+            XCTAssertEqual(completions, completes ? 1 : 0)
+        }
+    }
+
+    @MainActor
+    func testProxyCompletionCanStartANewAnimationWithoutOldCleanup() throws {
+        let proxy = TransitionProxyView(frame: NSRect(origin: .zero, size: HostFixtures.offscreenSize), metal: metal)
+        defer { proxy.stop() }
+        proxy.configure(cgOrigin: HostFixtures.offscreenOrigin, scale: 2)
+        proxy.layout()
+        let frame = try HostFixtures.metalFrame(metal: metal)
+        let first = CGRect(x: HostFixtures.offscreenOrigin.x + 20, y: 40, width: 200, height: 120)
+        let second = first.offsetBy(dx: 200, dy: 100)
+        var completions = 0
+        proxy.onComplete = {
+            completions += 1
+            proxy.setSource(frame, sourceAspect: 2)
+            proxy.onComplete = { completions += 1 }
+            proxy.animate(fromCG: first, toCG: second, durationMS: 1000, reverse: false, startAt: 200)
+        }
+        proxy.animate(fromCG: first, toCG: first, durationMS: 1000, reverse: false, startAt: 100)
+        proxy.advance(to: 101)
+        XCTAssertEqual(completions, 1)
+        XCTAssertTrue(proxy.isAnimating)
+        XCTAssertTrue(proxy.hasDisplayLink)
+        XCTAssertTrue(proxy.hasSource)
+        proxy.advance(to: 200.5)
+        XCTAssertEqual(proxy.currentRectInCG, TransitionTimeline.interpolate(first, second, progress: 0.5))
+        proxy.advance(to: 201)
+        XCTAssertEqual(completions, 2)
+        XCTAssertFalse(proxy.hasDisplayLink)
+    }
+
+    @MainActor
+    func testProxyDisplayLinkDoesNotRetainItsView() {
+        weak var released: TransitionProxyView?
+        autoreleasepool {
+            let proxy = TransitionProxyView(frame: .zero, metal: metal)
+            released = proxy
+            proxy.animate(fromCG: .zero, toCG: .zero, durationMS: 1000, reverse: false, startAt: 100)
+            XCTAssertTrue(proxy.hasDisplayLink)
+        }
+        XCTAssertNil(released)
+    }
+
     /// 尺寸、倍率与 drawableSize 必须一起换算：点当像素会直接表现为模糊或错位。
     func testDrawableSizeMatchesBackingScale() {
         view.needsLayout = true

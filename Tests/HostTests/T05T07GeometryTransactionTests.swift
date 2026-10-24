@@ -93,7 +93,12 @@ final class T05T07GeometryTransactionTests: XCTestCase {
                                        scheduler: scheduler)
     }
 
-    private func startFocus(store: WindowJournalStore) throws -> FocusCoordinator {
+    private func startFocus(
+        store: WindowJournalStore,
+        recorder: CompatibilityRecorder? = nil,
+        activateApplication: ((pid_t) -> (returned: Bool, isActive: Bool)?)? = nil,
+        makeWatchdogTimer: ((TimeInterval, @escaping @Sendable (Timer) -> Void) -> Timer)? = nil
+    ) throws -> FocusCoordinator {
         let metal = try HostFixtures.metalContext()
         return FocusCoordinator(catalog: catalog,
                                 metal: metal,
@@ -101,10 +106,12 @@ final class T05T07GeometryTransactionTests: XCTestCase {
                                 store: store,
                                 settings: settings,
                                 metrics: .shared,
-                                recorder: CompatibilityRecorder(fileName: "host-test-\(UUID().uuidString)"),
+                                recorder: recorder ?? CompatibilityRecorder(fileName: "host-test-\(UUID().uuidString)"),
                                 recovery: recovery,
                                 permissions: permissions,
-                                scheduler: scheduler)
+                                scheduler: scheduler,
+                                activateApplication: activateApplication,
+                                makeWatchdogTimer: makeWatchdogTimer)
     }
 
     // MARK: - T05 恢复失败留痕，结束项单独清除
@@ -357,6 +364,175 @@ final class T05T07GeometryTransactionTests: XCTestCase {
     }
 
     // MARK: - T07 展开与退出交错
+
+    func testRevocationDuringRaisePreventsFocusAndActivation() async throws {
+        try await assertForegroundStopsAfterRevocation(at: .raise)
+    }
+
+    func testRevocationDuringFocusPreventsReadBackAndActivation() async throws {
+        try await assertForegroundStopsAfterRevocation(at: .focus)
+    }
+
+    func testRevocationDuringFocusedWindowReadPreventsActivation() async throws {
+        try await assertForegroundStopsAfterRevocation(at: .focusedWindow)
+    }
+
+    private func assertForegroundStopsAfterRevocation(at gate: FakeGeometryWriter.ForegroundGate) async throws {
+        await startCatalog(indices: [0])
+        let store = makeStore()
+        startRecovery(store: store)
+        var activatedPIDs: [pid_t] = []
+        let focus = try startFocus(store: store, activateApplication: {
+            activatedPIDs.append($0)
+            return (true, true)
+        })
+        let identity = HostFixtures.identity(0)
+        let blocked = expectation(description: "前景化停在 \(gate)")
+        writer.gateNextForegroundCall(gate) { blocked.fulfill() }
+        defer { writer.openForegroundGate() }
+        let context = scheduler.makeContext(token: TransitionToken(generation: 1), kind: .settleLayout)
+        let run = Task {
+            await self.scheduler.request(context: context, identities: [identity]) { permit in
+                await focus.activateAndRaise(identity, permit: permit)
+            }
+        }
+        await fulfillment(of: [blocked], timeout: 5)
+        XCTAssertEqual(writer.blockedForegroundGate, gate)
+        XCTAssertEqual(writer.raiseCount, 1)
+        XCTAssertTrue(activatedPIDs.isEmpty)
+
+        scheduler.cancelOrdinaryWrites(sessionID: sessionID)
+        XCTAssertEqual(scheduler.phase, .open, "相位仍开放：必须检查原许可，不能重新取得许可")
+        writer.openForegroundGate()
+        let result = await run.value
+        let facts = try XCTUnwrap(result)
+        await scheduler.fence(identities: [identity])
+
+        XCTAssertEqual(writer.focusCount, gate == .raise ? 0 : 1,
+                       "Raise 挂起时撤销，释放后不得再发 focus")
+        XCTAssertEqual(writer.focusedWindowReadCount, gate == .focusedWindow ? 1 : 0,
+                       "focus 挂起时撤销，释放后不得继续读取 focused window")
+        XCTAssertTrue(activatedPIDs.isEmpty, "撤销后旧操作不得调用应用激活接缝")
+        XCTAssertTrue(facts.raiseReturned, "已在途的 Raise 返回值仍是事实")
+        XCTAssertFalse(facts.activationRequested)
+        XCTAssertFalse(facts.activationReturned)
+        XCTAssertNil(facts.focusedWindowMatches, "撤销后不采纳迟到的焦点读回")
+        XCTAssertNil(facts.frontApplicationMatches)
+        XCTAssertEqual(writer.totalWrites, 0)
+    }
+
+    func testGrantedForegroundPermitReachesApplicationActivation() async throws {
+        await startCatalog(indices: [0])
+        let store = makeStore()
+        startRecovery(store: store)
+        var activatedPIDs: [pid_t] = []
+        let focus = try startFocus(store: store, activateApplication: {
+            activatedPIDs.append($0)
+            return (true, true)
+        })
+        let identity = HostFixtures.identity(0)
+        let context = scheduler.makeContext(token: TransitionToken(generation: 1), kind: .settleLayout)
+        let result = await scheduler.request(context: context, identities: [identity]) { permit in
+            await focus.activateAndRaise(identity, permit: permit)
+        }
+        let facts = try XCTUnwrap(result)
+
+        XCTAssertEqual(writer.raiseCount, 1)
+        XCTAssertEqual(writer.focusCount, 1)
+        XCTAssertEqual(writer.focusedWindowReadCount, 1)
+        XCTAssertEqual(activatedPIDs, [identity.processID], "接缝必须在真实前景化路径上被调用")
+        XCTAssertTrue(facts.activationRequested)
+        XCTAssertTrue(facts.activationReturned)
+        XCTAssertEqual(facts.focusedWindowMatches, true)
+        XCTAssertEqual(facts.frontApplicationMatches, true)
+    }
+
+    func testExpandTimeoutBeforeAnimationDoesNotInheritCollapseDirection() async throws {
+        try await assertQueuedTimeoutDirection(expanding: true)
+    }
+
+    func testCollapseTimeoutBeforeAnimationDoesNotInheritExpandDirection() async throws {
+        try await assertQueuedTimeoutDirection(expanding: false)
+    }
+
+    private func assertQueuedTimeoutDirection(expanding: Bool) async throws {
+        scheduler = HostScheduler.make(clock: HostClock(), sessionID: sessionID)
+        await startCatalog(indices: [0])
+        let store = makeStore()
+        startRecovery(store: store)
+        let recorder = CompatibilityRecorder(fileName: "host-test-\(UUID().uuidString)")
+        var timers: [Timer] = []
+        var timerIntervals: [TimeInterval] = []
+        let focus = try startFocus(store: store, recorder: recorder,
+                                   activateApplication: { _ in (true, true) },
+                                   makeWatchdogTimer: { interval, callback in
+            let timer = Timer(fire: .distantFuture, interval: interval, repeats: false, block: callback)
+            timers.append(timer)
+            timerIntervals.append(interval)
+            return timer
+        })
+        defer { focus.cancelAnimation() }
+        focus.cardRectProvider = { _ in .zero }
+        let identity = HostFixtures.identity(0)
+        let previousToken = TransitionToken(generation: 1)
+        let token = TransitionToken(generation: 2)
+        var events: [SessionEvent] = []
+        focus.onEvent = { events.append($0) }
+        if expanding {
+            focus.collapse(identity, token: previousToken, animationMS: 60)
+        } else {
+            await store.apply(plannedTransaction(identity))
+            focus.expand(identity, targetFrame: expandedFrame, token: previousToken, animationMS: 60)
+        }
+        await scheduler.fence(identities: [identity])
+        XCTAssertTrue(focus.isIdle)
+        XCTAssertTrue(events.contains(expanding ? .collapseCompleted(previousToken) : .expandCompleted(previousToken)),
+                      "前一轮相反方向必须真实完成")
+        if !expanding {
+            let entry = try XCTUnwrap(store.entry(for: identity))
+            let restored = await recovery.restore(entry: entry, token: previousToken)
+            XCTAssertEqual(restored.outcome, .restored)
+        }
+        events.removeAll()
+        let writesBeforeTimeout = writer.totalWrites
+
+        let blocked = expectation(description: "通道占用，下一轮尚未进入动画")
+        let release = OneShot<Void>()
+        defer { release.send(()) }
+        let context = scheduler.makeContext(token: previousToken, kind: .settleLayout)
+        XCTAssertTrue(scheduler.perform(GeometryOperationScheduler.Operation(
+            context: context, identities: [identity], run: { _ in
+                blocked.fulfill()
+                await withCheckedContinuation { release.attach($0) }
+            })))
+        await fulfillment(of: [blocked], timeout: 5)
+        if expanding {
+            focus.expand(identity, targetFrame: expandedFrame, token: token, animationMS: 60)
+        } else {
+            focus.collapse(identity, token: token, animationMS: 60)
+        }
+        XCTAssertTrue(focus.isAnimating)
+        XCTAssertEqual(scheduler.queuedCount, 1)
+        XCTAssertEqual(timers.count, 2)
+        let timer = try XCTUnwrap(timers.last)
+        XCTAssertFalse(timers[0].isValid, "前一轮 watchdog 应已收场")
+        let budgetMS = expanding ? 1_560 : 260
+        XCTAssertEqual(timerIntervals.last, TimeInterval(budgetMS) / 1000)
+        timer.fire()
+
+        XCTAssertFalse(focus.isAnimating)
+        XCTAssertEqual(events, [.transitionTimedOut(token)])
+        let direction = expanding ? "展开" : "收回"
+        let previousDirection = expanding ? "收回" : "展开"
+        let report = recorder.markdownText
+        XCTAssertTrue(report.contains("\(direction)在 \(budgetMS)ms 内未确认"), report)
+        XCTAssertFalse(report.contains("\(previousDirection)在 \(budgetMS)ms 内未确认"), report)
+        release.send(())
+        await scheduler.fence(identities: [identity])
+        XCTAssertEqual(events, [.transitionTimedOut(token)], "超时后旧队列项不能再宣布完成")
+        XCTAssertEqual(writer.totalWrites, writesBeforeTimeout)
+        XCTAssertTrue(focus.isIdle)
+    }
 
     func testExpiredTokenCompensatesInsteadOfLeavingWindowResized() async throws {
         await startCatalog(indices: [0])

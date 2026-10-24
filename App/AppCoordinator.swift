@@ -31,7 +31,6 @@ final class AppCoordinator {
     /// 测试宿主为 false：真实注册会占用用户系统里的组合键（方案 §18.2）。
     private let registersGlobalHotKey: Bool
 
-    private let resolver = AXWindowResolver()
     private let renderer: OverviewRenderer
     /// 启动时创建的共享设备：总览图层与代理图层都必须绑定它（R02）。
     private let metal: MetalContext
@@ -73,12 +72,13 @@ final class AppCoordinator {
     var isOpeningCurrentWindowWorkbench: Bool { directEntryTask != nil || directWorkbenchTarget != nil }
     private var focusFollowTask: Task<Void, Never>?
     private var focusFollowRevision: UInt64 = 0
+    private(set) var selectionReviewTask: Task<Void, Never>?
     private let focusReader: GeometryWriting
     var frontmostProcessID: () -> pid_t? = { NSWorkspace.shared.frontmostApplication?.processIdentifier }
     /// 打开总览那一刻已经在布局里的身份：之后只有基线之外、最近才出现的窗口才算"用户开了新 App"。
     /// 没有基线就会误伤普通切换——会话开场时所有记录都是"刚出现"，首次出现时刻全等于打开时刻。
     private var overviewBaselineIdentities: Set<WindowIdentity> = []
-    private var pendingOverviewFocusLoss: (bundleID: String, event: SessionEvent)?
+    private var pendingOverviewFocusLoss: (id: UUID, bundleID: String, event: SessionEvent)?
 
     /// 工作台"壁纸底"：铺满目标屏、压在真实主窗口下面，让背景看起来只有这一个窗口。
     private var workbenchBackdrops: [UInt32: WorkbenchBackdropWindow] = [:]
@@ -252,10 +252,12 @@ final class AppCoordinator {
     // MARK: - 启动
 
     func start() {
+        guard !isTerminationBegun else { return }
         catalog.isExcludedBundle = { [weak self] bundleID in self?.settings.isExcluded(bundleID) ?? false }
         // 结果必须原样带回它对应的那一次请求：旧会话/旧请求的目录不得进入当前状态机（方案 §5.2）。
         catalog.onRecords = { [weak self] update, request in
-            guard let self, let request else { return }
+            guard let self, let request, !self.isTerminationBegun,
+                  self.state.isCurrentDiscovery(request) else { return }
             // 确定销毁先走统一的 .windowClosed，再合并本轮记录：只有一套关闭窗口生命周期（方案 §8.3）。
             for identity in update.removals { self.dispatch(.windowClosed(identity)) }
             self.dispatch(.catalogUpdated(request: request, records: update.upserts))
@@ -583,7 +585,10 @@ final class AppCoordinator {
         // 查询发起于这次选择之前，晚到的结果不得反过来把主窗口再抢走。
         switch event {
         case .railCardSelected, .overviewCardSelected, .currentWindowWorkbenchRequested,
-             .returnToOverviewRequested, .escapePressed, .globalShortcut:
+             .returnToOverviewRequested, .escapePressed, .globalShortcut, .returnShortcut,
+             .backgroundClicked, .quitRequested:
+            selectionReviewTask?.cancel()
+            selectionReviewTask = nil
             focusFollowTask?.cancel()
             focusFollowRevision &+= 1
         default:
@@ -599,16 +604,18 @@ final class AppCoordinator {
         isDraining = true
         defer { isDraining = false }
         var processed = 0
-        while let next = eventQueue.first {
-            eventQueue.removeFirst()
+        var index = 0
+        while index < eventQueue.count {
+            let next = eventQueue[index]
+            index += 1
             processed += 1
             if processed > 512 {
-                eventQueue.removeAll()
                 log("app", "事件队列超过 512 条，已丢弃剩余事件以保护主线程")
                 break
             }
             handleEvent(next)
         }
+        eventQueue.removeAll(keepingCapacity: true)
         let dispatchCostMS = (CACurrentMediaTime() - dispatchStarted) * 1000
         if dispatchCostMS > 20 || (modes.isPresenting && dispatchCostMS > 8) {
             let presenting = modes.isPresenting
@@ -645,8 +652,14 @@ final class AppCoordinator {
         return handleOverviewDeparture(bundleID: bundleID, event: event)
     }
 
+    private func isCurrentVisibleSession(_ sessionID: UUID, epoch: UInt64) -> Bool {
+        !isTerminationBegun && state.phase.isVisible
+            && state.sessionID == sessionID && state.sessionEpoch == epoch
+    }
+
     private var canFollowWorkbenchFocus: Bool {
-        state.phase.isVisible && (state.mode == .workbench || state.workbench.modeTransition.isTransitioning)
+        !isTerminationBegun && state.phase.isVisible
+            && (state.mode == .workbench || state.workbench.modeTransition.isTransitioning)
             && !state.workbench.pendingReturnToOverview
     }
 
@@ -710,12 +723,16 @@ final class AppCoordinator {
         }
         // 目标应用在打开总览时就有窗口：普通切换，立即退出，不额外等待。
         guard !bundleHadBaselineWindows(bundleID) else { return false }
-        pendingOverviewFocusLoss = (bundleID, event)
+        let requestID = UUID()
+        pendingOverviewFocusLoss = (requestID, bundleID, event)
+        let sessionID = state.sessionID
+        let epoch = state.sessionEpoch
         // 刚启动的应用窗口可能比前台变更晚一轮目录才出现：主动核对并在宽限内等它。
         dispatch(.reconcileTick)
         Task { [weak self] in
             try? await Task.sleep(nanoseconds: 600_000_000)
-            guard let self, self.pendingOverviewFocusLoss?.bundleID == bundleID else { return }
+            guard let self, self.isCurrentVisibleSession(sessionID, epoch: epoch),
+                  self.pendingOverviewFocusLoss?.id == requestID else { return }
             if let identity = self.newlyAppearedOverviewWindow() {
                 self.pendingOverviewFocusLoss = nil
                 self.keepOverviewAfterNewWindow(identity)
@@ -723,7 +740,8 @@ final class AppCoordinator {
             }
             if !self.state.isDiscoveryInFlight { self.dispatch(.reconcileTick) }
             try? await Task.sleep(nanoseconds: 600_000_000)
-            guard self.pendingOverviewFocusLoss?.bundleID == bundleID else { return }
+            guard self.isCurrentVisibleSession(sessionID, epoch: epoch),
+                  self.pendingOverviewFocusLoss?.id == requestID else { return }
             self.pendingOverviewFocusLoss = nil
             guard case .overview = self.state.phase else { return }
             if let identity = self.newlyAppearedOverviewWindow() {
@@ -814,7 +832,11 @@ final class AppCoordinator {
             effects.append(.showOverview(displayID: nil))
             effects.append(.setKeyboardFocus(.overview))
         }
-        if state.phase == .hidden && beforePhase != .hidden { cancelDirectEntry() }
+        if state.phase == .hidden && beforePhase != .hidden {
+            cancelDirectEntry()
+            selectionReviewTask?.cancel()
+            selectionReviewTask = nil
+        }
         if !canFollowWorkbenchFocus {
             focusFollowTask?.cancel()
             focusFollowTask = nil
@@ -2132,6 +2154,8 @@ final class AppCoordinator {
         VistileLog.session.log(level: .debug, "[首帧] 输入到达 视图=总览")
         switch action {
         case let .cardClicked(identity):
+            selectionReviewTask?.cancel()
+            selectionReviewTask = nil
             cardClickCount += 1
             let modeLabel = state.mode == .overview ? "总览" : "工作台"
             VistileLog.session.log(level: .debug,
@@ -2144,9 +2168,12 @@ final class AppCoordinator {
             // 身份瞬时未唯一（窗口刚被移动、两侧 frame 还没对齐）：复核目录并重试，
             // 不拿一次坏采样下"定位不到"的结论（方案 §6.1）。唯一时零额外延迟。
             if let record = state.records[identity], !record.confidence.allowsAXWrite {
-                Task { @MainActor in
-                    await reviewRecordUniqueness(identity)
-                    guard state.phase.isVisible, state.mode == .overview else { return }
+                let sessionID = state.sessionID
+                let epoch = state.sessionEpoch
+                selectionReviewTask = Task { @MainActor [weak self] in
+                    guard let self,
+                          await reviewRecordUniqueness(identity, sessionID: sessionID, epoch: epoch),
+                          state.mode == .overview else { return }
                     guard let fresh = state.slots.slot(for: identity) else {
                         // 复核完仍没有格子位置：窗口多半已经走了，别让这次点击无声消失。
                         log("overview", "点击 \(identity.journalKey) 复核后没有格子位置，未发起聚焦")
@@ -2190,6 +2217,8 @@ final class AppCoordinator {
         }
         switch action {
         case let .railCardClicked(slot, identity):
+            selectionReviewTask?.cancel()
+            selectionReviewTask = nil
             // 点击进诊断日志：实机验收要能还原"点是否到达宿主、当时状态机什么态度"（方案 §14）。
             let railLabel = slot.rail == .top ? "顶栏" : "侧栏"
             let mainLabel = state.workbench.placement.main?.journalKey ?? "空"
@@ -2198,9 +2227,13 @@ final class AppCoordinator {
                                    "[点击] 轨道卡片 \(railLabel, privacy: .public)#\(slot.ordinal) \(identity.journalKey, privacy: .public) 主区=\(mainLabel, privacy: .public) 交换=\(switchLabel, privacy: .public)")
             // 与总览点击同一条原则：身份瞬时未唯一时复核重试，不把一次坏采样当"不能交换"。
             if state.records[identity]?.confidence.allowsAXWrite != true {
-                Task { @MainActor in
-                    await reviewRecordUniqueness(identity)
-                    guard state.phase.isVisible, state.mode == .workbench else { return }
+                let sessionID = state.sessionID
+                let epoch = state.sessionEpoch
+                selectionReviewTask = Task { @MainActor [weak self] in
+                    guard let self,
+                          await reviewRecordUniqueness(identity, sessionID: sessionID, epoch: epoch),
+                          state.mode == .workbench,
+                          state.workbench.placement.occupant(at: slot) == identity else { return }
                     dispatch(.railCardSelected(slot: slot, identity: identity))
                 }
                 return
@@ -2259,16 +2292,19 @@ final class AppCoordinator {
     /// 复核目录并重试读取，最多约 2s；读回唯一立刻返回，超时也返回——
     /// 之后一律交给状态机按当时的记录判定（唯一则照常动作，仍不唯一则给出提示）。
     /// 身份本来就唯一时一次都不复核，零额外延迟。
-    private func reviewRecordUniqueness(_ identity: WindowIdentity) async {
-        guard state.records[identity]?.confidence.allowsAXWrite != true else { return }
+    private func reviewRecordUniqueness(_ identity: WindowIdentity, sessionID: UUID, epoch: UInt64) async -> Bool {
+        let mode = state.mode
         VistileLog.session.log(level: .debug,
                                "[点击] \(identity.journalKey, privacy: .public) 身份暂未唯一，复核目录后重试")
-        for _ in 0..<8 {
+        for attempt in 0..<8 {
+            guard !Task.isCancelled, isCurrentVisibleSession(sessionID, epoch: epoch), state.mode == mode else { return false }
+            if state.records[identity]?.confidence.allowsAXWrite == true { return true }
             await catalog.refreshAndWait(reason: .windowEvent)
-            if state.records[identity]?.confidence.allowsAXWrite == true { return }
-            guard state.phase.isVisible else { return }
-            try? await Task.sleep(nanoseconds: 220_000_000)
+            guard !Task.isCancelled, isCurrentVisibleSession(sessionID, epoch: epoch), state.mode == mode else { return false }
+            if state.records[identity]?.confidence.allowsAXWrite == true { return true }
+            if attempt < 7 { try? await Task.sleep(nanoseconds: 220_000_000) }
         }
+        return true
     }
 
     private func handle(_ fact: CaptureFact) {
@@ -2288,7 +2324,9 @@ final class AppCoordinator {
         }
     }
 
-    private func handle(_ event: AXWindowEvent) {
+    @discardableResult
+    func handle(_ event: AXWindowEvent) -> Task<Void, Never>? {
+        guard !isTerminationBegun, state.phase.isVisible else { return nil }
         metrics.increment("ax.notification")
         if event.name == kAXFocusedWindowChangedNotification || event.name == kAXMainWindowChangedNotification
             || event.name == kAXWindowCreatedNotification || event.name == kAXWindowDeminiaturizedNotification {
@@ -2301,7 +2339,7 @@ final class AppCoordinator {
         guard let record = catalog.record(forAXElement: event.element, processID: event.processID) else {
             // 元素对不上身份时不猜是哪个窗口，直接要一次目录。
             scheduleStructuralRefresh()
-            return
+            return nil
         }
         switch event.name {
         case kAXWindowMiniaturizedNotification:
@@ -2314,8 +2352,14 @@ final class AppCoordinator {
             scheduleStructuralRefresh()
         case kAXWindowMovedNotification, kAXWindowResizedNotification:
             let element = event.element
-            Task { [weak self] in
-                guard let self, let frame = await self.resolver.currentFrame(of: element) else { return }
+            let sessionID = state.sessionID
+            let epoch = state.sessionEpoch
+            return Task { [weak self] in
+                guard let self, self.isCurrentVisibleSession(sessionID, epoch: epoch),
+                      let frame = await self.focusReader.currentFrame(of: element),
+                      self.isCurrentVisibleSession(sessionID, epoch: epoch),
+                      self.catalog.record(forAXElement: element, processID: event.processID)?.identity == record.identity,
+                      self.state.records[record.identity] != nil else { return }
                 // 归因由过渡执行器按"写入中/写后读回"判定，不能用一个瞬时布尔猜测（方案 §6.5）。
                 let source = self.focus.changeSource(for: record.identity, observed: frame)
                 self.dispatch(.windowGeometryChangedExternally(record.identity, frame, source: source))
@@ -2334,6 +2378,7 @@ final class AppCoordinator {
         default:
             scheduleStructuralRefresh()
         }
+        return nil
     }
 
     private var mainRedockWork: DispatchWorkItem?
@@ -2342,8 +2387,13 @@ final class AppCoordinator {
     /// 只有拖动停止一小段时间后才真正发起一次带回（尊重原尺寸的归位）。
     private func scheduleMainRedock() {
         mainRedockWork?.cancel()
+        let sessionID = state.sessionID
+        let epoch = state.sessionEpoch
+        let target = state.workbench.placement.main
         let work = DispatchWorkItem { [weak self] in
-            self?.dispatch(.mainWindowDisplaced)
+            guard let self, self.isCurrentVisibleSession(sessionID, epoch: epoch),
+                  self.state.workbench.placement.main == target else { return }
+            self.dispatch(.mainWindowDisplaced)
         }
         mainRedockWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work)
@@ -2375,16 +2425,21 @@ final class AppCoordinator {
             log("focus", "核对受控窗口 \(target.journalKey) 跳过（过渡/交换在途）：\(trigger)")
             return
         }
+        let sessionID = state.sessionID
+        let epoch = state.sessionEpoch
         Task { [weak self] in
             guard let self else { return }
             var reads: [WindowIdentity?] = []
             for attempt in 1...3 {
                 if attempt > 1 { try? await Task.sleep(nanoseconds: 220_000_000) }
                 // 每次读回前复核：会话、受控目标与"静止"都可能已经变了。
-                guard self.state.phase.isVisible, self.state.phase.controlledTarget == target,
+                guard self.isCurrentVisibleSession(sessionID, epoch: epoch), self.state.phase.controlledTarget == target,
                       self.state.workbench.modeTransition == .idle,
                       !self.state.workbench.mainSwitch.isBusy else { return }
-                let focused = await self.resolver.focusedWindow(pid: target.processID)
+                let focused = await self.focusReader.focusedWindow(pid: target.processID)
+                guard self.isCurrentVisibleSession(sessionID, epoch: epoch), self.state.phase.controlledTarget == target,
+                      self.state.workbench.modeTransition == .idle,
+                      !self.state.workbench.mainSwitch.isBusy else { return }
                 var read: WindowIdentity?
                 if let focused,
                    let record = self.catalog.record(forAXElement: focused.element, processID: target.processID) {
@@ -2417,10 +2472,14 @@ final class AppCoordinator {
             requestWorkbenchFocusFollow()
             return
         }
-        let controlledPID = state.phase.controlledTarget?.processID
+        let target = state.phase.controlledTarget
+        let sessionID = state.sessionID
+        let epoch = state.sessionEpoch
         Task { [weak self] in
             try? await Task.sleep(nanoseconds: 300_000_000)
-            guard let self, self.state.phase.isVisible else { return }
+            guard let self, self.isCurrentVisibleSession(sessionID, epoch: epoch),
+                  self.state.phase.controlledTarget == target else { return }
+            let controlledPID = self.state.phase.controlledTarget?.processID
             guard self.state.workbench.modeTransition == .idle, !self.state.workbench.mainSwitch.isBusy else {
                 log("focus", "激活确认 \(bundleID ?? "?")：过渡/交换在途，前台归属交由执行器判定，保持会话")
                 return
@@ -2609,10 +2668,12 @@ final class AppCoordinator {
         var didExpire = false
     }
 
-    func beginTermination(settled: @escaping @MainActor () -> Void) {
+    func beginTermination(after startup: Task<Void, Never>? = nil, settled: @escaping @MainActor () -> Void) {
         cancelDirectEntry()
         guard !isTerminationBegun else { return }
         isTerminationBegun = true
+        selectionReviewTask?.cancel()
+        selectionReviewTask = nil
         visualSyncScheduler.cancel()
         pendingVisualNeedsFullSync = false
         pendingVisualSync = false
@@ -2630,6 +2691,7 @@ final class AppCoordinator {
         // 2. 终止链是唯一的恢复所有者：先按身份栅栏排空在途写入，再在剩余预算内逐条恢复。
         let outcome = OneShot<TerminationOutcome>()
         Task { [weak self] in
+            await startup?.value
             guard let self else { return }
             outcome.send(await self.runTermination(deadline: deadline))
         }

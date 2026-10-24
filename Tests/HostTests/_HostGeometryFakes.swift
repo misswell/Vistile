@@ -359,6 +359,55 @@ final class FakeGeometryWriter: GeometryWriting, @unchecked Sendable {
         }
     }
 
+    // MARK: 前景化的挂起点
+
+    enum ForegroundGate: Hashable {
+        case raise
+        case focus
+        case focusedWindow
+    }
+
+    private var armedForegroundGate: (gate: ForegroundGate, onBlocked: () -> Void)?
+    private var pendingForegroundGate: ForegroundGate?
+    private var pendingForegroundResume: CheckedContinuation<Void, Never>?
+
+    var blockedForegroundGate: ForegroundGate? {
+        lock.lock(); defer { lock.unlock() }
+        return pendingForegroundGate
+    }
+
+    func gateNextForegroundCall(_ gate: ForegroundGate, onBlocked: @escaping () -> Void) {
+        lock.lock()
+        armedForegroundGate = (gate, onBlocked)
+        lock.unlock()
+    }
+
+    func openForegroundGate() {
+        lock.lock()
+        let resume = pendingForegroundResume
+        pendingForegroundResume = nil
+        pendingForegroundGate = nil
+        armedForegroundGate = nil
+        lock.unlock()
+        resume?.resume()
+    }
+
+    private func waitForForegroundGate(_ gate: ForegroundGate) async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            lock.lock()
+            guard let armed = armedForegroundGate, armed.gate == gate else {
+                lock.unlock()
+                continuation.resume()
+                return
+            }
+            armedForegroundGate = nil
+            pendingForegroundGate = gate
+            pendingForegroundResume = continuation
+            lock.unlock()
+            armed.onBlocked()
+        }
+    }
+
     // MARK: GeometryWriting
 
     func currentFrame(of element: AXUIElement) async -> CGRect? {
@@ -547,6 +596,7 @@ final class FakeGeometryWriter: GeometryWriting, @unchecked Sendable {
 
     func raise(element: AXUIElement) async -> Bool {
         lock.lock(); raises += 1; lock.unlock()
+        await waitForForegroundGate(.raise)
         return true
     }
 
@@ -562,6 +612,7 @@ final class FakeGeometryWriter: GeometryWriting, @unchecked Sendable {
             || (siblingHoldsFocusFromCall[key].map { call >= $0 } ?? false)
         focusedByPID[Int(Self.pid(of: element))] = held ? Self.sibling : element
         lock.unlock()
+        await waitForForegroundGate(.focus)
         return true
     }
 
@@ -613,9 +664,12 @@ final class FakeGeometryWriter: GeometryWriting, @unchecked Sendable {
     }
 
     func focusedWindowElement(pid: pid_t) async -> AXUIElement? {
-        lock.lock(); defer { lock.unlock() }
+        lock.lock()
         focusedReads += 1
-        return focusedByPID[Int(pid)]
+        let focused = focusedByPID[Int(pid)]
+        lock.unlock()
+        await waitForForegroundGate(.focusedWindow)
+        return focused
     }
 
     func focusedWindow(pid: pid_t) async -> AXWindowEntry? {

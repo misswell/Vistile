@@ -195,13 +195,12 @@ enum TransitionTimeline {
     }
 
     /// 流光总强度的首尾呼吸：起步从 0 二次缓入（光从格子里"抽出"而不是突然点亮），
-    /// 0.78 之后向 0.35 收拢——落定后的持续呼吸交给边缘光晕，Metal 流光只负责飞行段。
+    /// 到达段与边缘光晕交叉淡化，终态归零，避免保持阶段突然跳亮或残留静态光带。
     static func flowIntensity(_ progress: CGFloat) -> CGFloat {
         let t = min(1, max(0, progress))
         let head = min(1, t / 0.14)
         let headEased = head * head
-        let tail = 1 - 0.65 * min(1, max(0, (t - 0.78) / 0.22))
-        return headEased * tail
+        return headEased * (1 - flowSettle(t))
     }
 
     /// 到达段的展开混合：0.72 之前是纯扫掠光带，之后 smoothstep 升到 1，
@@ -409,7 +408,6 @@ struct TransitionSceneFactory {
                                    level: level, content: content(for: snapshot))
         }
 
-        let mainPanelRect = snapshot.layout.mainRect
         // B 被点选的格子就是飞行的起点；滚出视口的格子没有可信起点，退回原地遮盖。
         let sourceSlot = intent.railSlot.flatMap { slot -> CGRect? in
             guard snapshot.isVisible(slot), let rect = snapshot.rect(for: slot) else { return nil }
@@ -480,13 +478,13 @@ struct TransitionSceneFactory {
                                         aspect: aspect(intent.to, plan.mainTargetFrame),
                                         hidesRailCard: false,
                                         isFocus: true,
-                                        panelFrom: snapshot.layout.mainRect,
-                                        panelTo: snapshot.layout.mainRect)
+                                        panelFrom: plan.mainTargetFrame,
+                                        panelTo: plan.mainTargetFrame)
         var flow: FlowSpec? = nil
         if level == .light, !reduced, let cell = sourceSlot {
             var spec = FlowSpec.standard
-            spec.axis = SIMD2<Float>(Float(mainPanelRect.midX - cell.midX),
-                                     Float(mainPanelRect.midY - cell.midY))
+            spec.axis = SIMD2<Float>(Float(plan.mainTargetFrame.midX - cell.midX),
+                                     Float(plan.mainTargetFrame.midY - cell.midY))
             flow = spec
         }
         return TransitionScene(kind: .swapping,
