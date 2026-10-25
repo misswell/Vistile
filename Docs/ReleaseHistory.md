@@ -1,5 +1,10 @@
 # Vistile
 
+## 0.1.47 (61) — 2026-10-25
+
+- 直入修复：前台读窗各容忍一次 AX 超时（250ms 重试）；隐藏态失败提示显示在菜单栏，不再静默。
+  Direct-entry fix: each focused-window read tolerates one AX timeout (250 ms retry); hidden-state failures now surface on the menu-bar item instead of vanishing.
+
 ## 0.1.46 (60) — 2026-10-24
 
 - 双击缩放充满主区：放不下（zoom/拖大/超屏/主区拖小）即充满，不再等比收缩；纯拖动越位仍原尺寸归位。

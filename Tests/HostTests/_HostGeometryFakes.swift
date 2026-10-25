@@ -685,8 +685,23 @@ final class FakeGeometryWriter: GeometryWriting, @unchecked Sendable {
         return focused
     }
 
+    /// 前 N 次读返回 nil（复现真机 AX 繁忙超时），之后照常：直入重试链的时序替身。
+    private var focusedFailuresRemaining: [pid_t: Int] = [:]
+
+    func failNextFocusedWindowReads(_ count: Int, pid: pid_t) {
+        lock.lock(); focusedFailuresRemaining[pid] = count; lock.unlock()
+    }
+
     func focusedWindow(pid: pid_t) async -> AXWindowEntry? {
-        lock.lock(); let element = focusedByPID[Int(pid)]; focusedReads += 1; focusedSnapshotReads += 1; lock.unlock()
+        lock.lock()
+        focusedReads += 1; focusedSnapshotReads += 1
+        if let remaining = focusedFailuresRemaining[pid], remaining > 0 {
+            focusedFailuresRemaining[pid] = remaining - 1
+            lock.unlock()
+            return nil
+        }
+        let element = focusedByPID[Int(pid)]
+        lock.unlock()
         guard let element else { return nil }
         return AXWindowEntry(snapshot: AXWindowSnapshot(index: -1,
                                                         frame: nil,

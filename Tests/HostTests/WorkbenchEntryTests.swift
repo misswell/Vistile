@@ -1102,6 +1102,44 @@ final class WorkbenchEntryTests: XCTestCase {
         XCTAssertFalse(menu.currentWindowItem.isEnabled)
     }
 
+    /// 隐藏态的失败提示必须在菜单栏可见：面板不在屏上，菜单是唯一出口——
+    /// 「点了没反应」的静默失败从这里根治。可见态则清空菜单栏诊断。
+    func testHiddenStatusHintSurfacesInTheMenuBar() throws {
+        let coordinator = makeCoordinator()
+        let menu = MenuBarController(coordinator: coordinator, settings: settings,
+                                     permissions: PermissionManager(), installsStatusItem: false,
+                                     performsAutomaticUpdateCheck: false)
+        // 隐藏态：前台是自己（无可用窗口）→ 直入被拒，提示必须留在协调器里供菜单读取。
+        coordinator.frontmostProcessID = { ProcessInfo.processInfo.processIdentifier }
+        coordinator.openCurrentWindowWorkbench()
+        XCTAssertNotNil(coordinator.lastHiddenStatus, "隐藏态失败不得静默：菜单栏要有可读的诊断")
+
+        // 总览打开后（面板可见）：诊断过期。
+        coordinator.frontmostProcessID = { nil }
+        coordinator.toggleOverview()
+        try waitForVisibleOverview()
+        XCTAssertNil(coordinator.lastHiddenStatus, "面板可见后隐藏态诊断必须清空")
+    }
+
+    /// 真机时序回归（v0.1.47 修复）：AX 繁忙时前台读窗超时是常态，直入必须重试而不是
+    /// 立刻静默失败——两次读窗各容忍一次超时，重试后直入照常完成。
+    func testDirectEntryRetriesFocusedWindowReadThroughAXBusyPeriods() throws {
+        let coordinator = makeCoordinator()
+        let target = HostFixtures.identity(1)
+        let element = try XCTUnwrap(catalogSource.element(for: target))
+        writer.setExternalFocus(element, pid: target.processID)
+        coordinator.frontmostProcessID = { target.processID }
+        coordinator.activateApplication = {}
+        // 两次读窗各挂第一次（真机 0.35s 超时的替身），重试必须把它带过去。
+        writer.failNextFocusedWindowReads(1, pid: target.processID)
+
+        coordinator.openCurrentWindowWorkbench()
+        waitUntil(timeout: 8) { coordinator.state.mode == .workbench }
+        XCTAssertEqual(coordinator.state.workbench.placement.main, target,
+                       "一次 AX 超时不得让直入静默失败")
+        XCTAssertNil(coordinator.lastHiddenStatus, "重试成功后不得留下失败提示")
+    }
+
     func testUnresolvableCurrentWindowDoesNotMoveAnotherWindow() {
         let coordinator = makeCoordinator()
         coordinator.frontmostProcessID = { 987_654 }

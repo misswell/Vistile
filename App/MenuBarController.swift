@@ -135,6 +135,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         permissions.refresh()
         let visible = coordinator.state.phase.isVisible
         let inWorkbench = coordinator.state.mode == .workbench
+        // 隐藏态产生的失败原因在这里可见：面板不在屏上，菜单是唯一出口。
+        if let status = coordinator.lastHiddenStatus {
+            if statusItem?.title != status { statusItem?.title = status }
+        } else if statusItem?.title?.isEmpty == false {
+            statusItem?.title = ""
+        }
         // 已开着时「打开」没有意义，反之亦然；工作台外「回到全部窗口」也是空动作。
         entryProcessID = coordinator.frontmostProcessID()
         openItem.isEnabled = !visible

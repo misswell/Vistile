@@ -75,6 +75,13 @@ final class AppCoordinator {
     private(set) var selectionReviewTask: Task<Void, Never>?
     private let focusReader: GeometryWriting
     var frontmostProcessID: () -> pid_t? = { NSWorkspace.shared.frontmostApplication?.processIdentifier }
+    /// 隐藏态发出的最近一条提示：面板不在屏上，用户无从得知失败原因；
+    /// 菜单栏在 menuNeedsUpdate 里读它，把静默失败变成可见诊断。
+    private(set) var lastHiddenStatus: String?
+    /// 面板重新可见后，菜单里的隐藏态诊断就过期了。
+    private func retireHiddenStatusIfVisible() {
+        if state.phase.isVisible, lastHiddenStatus != nil { lastHiddenStatus = nil }
+    }
     /// 打开总览那一刻已经在布局里的身份：之后只有基线之外、最近才出现的窗口才算"用户开了新 App"。
     /// 没有基线就会误伤普通切换——会话开场时所有记录都是"刚出现"，首次出现时刻全等于打开时刻。
     private var overviewBaselineIdentities: Set<WindowIdentity> = []
@@ -426,7 +433,10 @@ final class AppCoordinator {
     /// 中文：在打开任何面板前读取具体 AX 焦点窗口，后台核对目录后直接进入工作台。
     /// English: Resolve the concrete AX-focused window before showing panels, then enter Workbench directly.
     func openCurrentWindowWorkbench(processID: pid_t? = nil) {
-        guard state.phase == .hidden, !isTerminationBegun, !isOpeningCurrentWindowWorkbench else { return }
+        guard state.phase == .hidden, !isTerminationBegun, !isOpeningCurrentWindowWorkbench else {
+            VistileLog.session.log(level: .info, "[直入] 忽略：终止=\(self.isTerminationBegun) 直入中=\(self.isOpeningCurrentWindowWorkbench)")
+            return
+        }
         permissionsMayHaveChanged()
         let status = permissions.status
         guard status.isComplete else {
@@ -437,13 +447,22 @@ final class AppCoordinator {
             present(.workbenchTransitionFailed("请先选中要使用的窗口，再开启工作台。"))
             return
         }
+        VistileLog.session.log(level: .info, "[直入] 开始 pid=\(pid, privacy: .public)")
         directEntryRevision &+= 1
         let revision = directEntryRevision
         let epoch = state.sessionEpoch
         directEntryTask = Task { [weak self] in
             guard let self else { return }
             defer { if self.directEntryRevision == revision { self.directEntryTask = nil } }
-            guard let focused = await self.focusReader.focusedWindow(pid: pid), !focused.snapshot.isSheetLike else {
+            // 前台读窗在真机会被 AX 繁忙拖延（0.35s 消息超时实测不够）：用户主动触发的操作
+            // 值得再等一次，而不是立刻宣告"找不到窗口"并静默返回（v0.1.46 的直入无效来源）。
+            var focused: AXWindowEntry?
+            for _ in 0..<2 {
+                if let entry = await self.focusReader.focusedWindow(pid: pid) { focused = entry; break }
+                try? await Task.sleep(nanoseconds: 250_000_000)
+            }
+            guard let focused, !focused.snapshot.isSheetLike else {
+                VistileLog.session.log(level: .info, "[直入] 前台窗口读不到或为 sheet（pid=\(pid, privacy: .public)，含一次重试）")
                 if !Task.isCancelled, self.directEntryRevision == revision,
                    self.state.sessionEpoch == epoch, !self.isTerminationBegun { self.present(.cannotLocateWindow) }
                 return
@@ -451,7 +470,11 @@ final class AppCoordinator {
             guard !Task.isCancelled, self.directEntryRevision == revision,
                   self.state.phase == .hidden, self.state.sessionEpoch == epoch else { return }
             await self.catalog.refreshAndWait(reason: .shortcut)
-            let current = await self.focusReader.focusedWindow(pid: pid)
+            var current: AXWindowEntry?
+            for _ in 0..<2 {
+                if let entry = await self.focusReader.focusedWindow(pid: pid) { current = entry; break }
+                try? await Task.sleep(nanoseconds: 250_000_000)
+            }
             guard !Task.isCancelled, self.directEntryRevision == revision,
                   self.state.phase == .hidden, self.state.sessionEpoch == epoch,
                   !self.isTerminationBegun else { return }
@@ -460,9 +483,15 @@ final class AppCoordinator {
             guard (front == pid || isMenuActivation), let current,
                   CFEqual(current.element, focused.element),
                   let record = self.catalog.record(forAXElement: focused.element, processID: pid) else {
+                let frontText = front.map(String.init) ?? "nil"
+                let elementsEqual = current.map { CFEqual($0.element, focused.element) } ?? false
+                let hasRecord = self.catalog.record(forAXElement: focused.element, processID: pid) != nil
+                VistileLog.session.log(level: .info,
+                                       "[直入] 核对失败 front=\(frontText, privacy: .public) pid=\(pid, privacy: .public) current=\(current != nil) element等=\(elementsEqual) record=\(hasRecord)")
                 self.present(.workbenchTransitionFailed("当前窗口已变化或暂时无法识别，请重新选择窗口后重试。"))
                 return
             }
+            VistileLog.session.log(level: .info, "[直入] 目标确认 \(record.identity.journalKey, privacy: .public)，发起总览会话")
             self.directWorkbenchTarget = record.identity
             self.directEntrySelectionQueued = false
             self.prepareSlotMemory()
@@ -1073,6 +1102,7 @@ final class AppCoordinator {
             if hidden { renderer.releaseAll() }
 
         case let .showOverview(displayID):
+            retireHiddenStatusIfVisible()
             if let target = directWorkbenchTarget, !directEntrySelectionQueued {
                 directEntrySelectionQueued = true
                 if let display = state.workbench.preferredDisplayID ?? state.records[target]?.displayID {
@@ -2632,6 +2662,13 @@ final class AppCoordinator {
         metrics.increment("hint")
         // 每个提示都要在日志里留痕：实机验收要看得出"产品对这次操作有没有说话"（方案 §14）。
         VistileLog.session.log(level: .debug, "[hint] \(text, privacy: .public)")
+        // 隐藏态没有任何面板：提示不落进菜单就等于静默失败（「点了没反应」的真实来源）。
+        if state.phase.isVisible {
+            lastHiddenStatus = nil
+        } else {
+            lastHiddenStatus = text
+            VistileLog.session.log(level: .info, "[hint/隐藏态] \(text, privacy: .public)")
+        }
         pendingHint = text
         onStatus?(text)
         hintTimer?.invalidate()
