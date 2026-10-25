@@ -1193,11 +1193,8 @@ final class WorkbenchTests: XCTestCase {
         let main = FocusGeometry.dockedRect(in: layout.mainRect,
                                             currentSize: CGSize(width: 1_280, height: 800),
                                             isResizable: true)
-        // 尊重原尺寸：1_280×800 超出主区高度时等比收缩贴边，宽高比不得被旧比例改写。
-        XCTAssertEqual(main, FocusGeometry.scaledDownRect(in: layout.mainRect,
-                                                          currentSize: CGSize(width: 1_280, height: 800)))
-        XCTAssertEqual(main.width / main.height, 1_280.0 / 800.0, accuracy: 0.01,
-                       "主区目标保持窗口原宽高比，旧比例不得再叠一次")
+        // 尊重原尺寸：1_280×800 超出主区高度时充满主区；旧比例不得再叠一次。
+        XCTAssertEqual(main, layout.mainRect)
     }
 
     func testW12SanitizeDropsDegenerateRailPreferences() {
@@ -2488,11 +2485,9 @@ final class WorkbenchTests: XCTestCase {
         let enterEffects = select(&entering, fromOverview: oversized.identity)
         let enter = try XCTUnwrap(enterPlan(enterEffects), "可移动窗口不该被缓存尺寸提前拒绝")
         let enterMainRect = enter.snapshot.layout.mainRect
-        // 临时计划目标按"尊重原尺寸"语义从缓存尺寸预估：超屏窗口等比收缩贴边（方案 §9.1 修订）。
-        let enterEstimated = FocusGeometry.scaledDownRect(in: enterMainRect,
-                                                          currentSize: CGSize(width: 2_400, height: 1_600))
-        XCTAssertEqual(enter.targetFrame, enterEstimated, "临时计划目标按缓存尺寸等比收缩预估")
-        XCTAssertEqual(enter.placement, .resizeAndMove(target: enterEstimated),
+        // 临时计划目标按"尊重原尺寸"语义：超屏窗口即主区（放不下给主区）。
+        XCTAssertEqual(enter.targetFrame, enterMainRect, "临时计划目标：放不下即主区")
+        XCTAssertEqual(enter.placement, .resizeAndMove(target: enterMainRect),
                        "计划里的放置方式不能撒谎成 unavailable")
         XCTAssertFalse(hints(enterEffects).contains { if case .restrictedWindow = $0 { return true } else { return false } },
                        "不该出现提前拒绝的受限提示：\(hints(enterEffects))")
@@ -2513,10 +2508,8 @@ final class WorkbenchTests: XCTestCase {
         let switchEffects = selectRail(&swapping, identity: b.identity)
         let swap = try XCTUnwrap(switchPlan(switchEffects), "可移动窗口不该被缓存尺寸提前拒绝交换")
         let swapMainRect = swap.snapshot.layout.mainRect
-        let swapEstimated = FocusGeometry.scaledDownRect(in: swapMainRect,
-                                                         currentSize: CGSize(width: 2_400, height: 1_600))
-        XCTAssertEqual(swap.mainTargetFrame, swapEstimated, "交换的临时计划目标按缓存尺寸等比收缩预估")
-        XCTAssertEqual(swap.placement, .resizeAndMove(target: swapEstimated))
+        XCTAssertEqual(swap.mainTargetFrame, swapMainRect, "交换的临时计划目标：放不下即主区")
+        XCTAssertEqual(swap.placement, .resizeAndMove(target: swapMainRect))
         XCTAssertFalse(hints(switchEffects).contains {
             if case .workbenchMainFrameFailed = $0 { return true } else { return false }
         }, "不该出现提前拒绝的主区提示：\(hints(switchEffects))")
@@ -3138,34 +3131,32 @@ final class WorkbenchTests: XCTestCase {
         XCTAssertFalse(decision.writesSize, "只移动路径不得写 size")
     }
 
-    /// 超出主区的可调窗口：按原宽高比等比收缩贴边居中，不拉伸变形。
-    func testOversizedResizableWindowScalesDownProportionally() {
+    /// 超出主区的可调窗口：充满主区——放大意图的尽头就是主区（双击缩放/拖大/超屏一致）。
+    func testOversizedResizableWindowFillsMainArea() {
         let mainRect = CGRect(x: 0, y: 0, width: 1_200, height: 800)
         let frame = CGRect(x: -400, y: 0, width: 2_400, height: 1_000)
         let decision = MainPlacementPolicy.decide(mainRect: mainRect, currentFrame: frame,
                                                   isMovable: true, isResizable: true)
         guard case let .resizeAndMove(target) = decision else {
-            return XCTFail("超屏该走收缩写入：\(decision)")
+            return XCTFail("超屏该走充满写入：\(decision)")
         }
-        XCTAssertEqual(target.width, 1_200, accuracy: 1.0, "受限边（宽度比例更极端）贴住主区")
-        XCTAssertEqual(target.width / target.height, 2.4, accuracy: 0.01, "宽高比保持原样")
-        XCTAssertEqual(target.midX, mainRect.midX, accuracy: 1.0)
-        XCTAssertEqual(target.midY, mainRect.midY, accuracy: 1.0)
+        XCTAssertEqual(target, mainRect, "放不下就给主区大小")
     }
 
-    /// dockedRect 与 scaledDownRect 是动画端点与验收期望的唯一计算点：
-    /// 放得下原样、超屏等比、尺寸缺失退主区。
+    /// dockedRect 是动画端点与验收期望的唯一计算点：
+    /// 放得下原样居中、放不下给主区、尺寸缺失退主区。
     func testDockedRectMatchesRespectfulSemantics() {
         let mainRect = CGRect(x: 0, y: 0, width: 1_200, height: 800)
         XCTAssertEqual(FocusGeometry.dockedRect(in: mainRect,
                                                 currentSize: CGSize(width: 900, height: 600),
                                                 isResizable: true),
                        CGRect(x: 150, y: 100, width: 900, height: 600))
-        let scaled = FocusGeometry.scaledDownRect(in: mainRect, currentSize: CGSize(width: 2_400, height: 1_000))
-        XCTAssertEqual(scaled.width, 1_200, accuracy: 1.0)
-        XCTAssertEqual(scaled.width / scaled.height, 2.4, accuracy: 0.01)
-        XCTAssertEqual(FocusGeometry.scaledDownRect(in: mainRect, currentSize: nil), mainRect,
-                       "尺寸未知时退主区，不猜一个数")
+        XCTAssertEqual(FocusGeometry.dockedRect(in: mainRect,
+                                                currentSize: CGSize(width: 2_400, height: 1_000),
+                                                isResizable: true),
+                       mainRect, "放不下就给主区大小")
+        XCTAssertEqual(FocusGeometry.dockedRect(in: mainRect, currentSize: nil, isResizable: true),
+                       mainRect, "尺寸未知时退主区，不猜一个数")
     }
 
     /// v0.1.41 回归守卫：可调窗口不看 isMovable——目录采样会把读取失败折叠成 false，

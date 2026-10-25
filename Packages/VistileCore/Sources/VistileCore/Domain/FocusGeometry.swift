@@ -51,34 +51,22 @@ public enum FocusGeometry {
                       height: height)
     }
 
-    /// 工作台主区停靠：模式决定可调窗口的形态——尊重原尺寸时原样居中/超屏等比收缩
-    /// （方案 §11 修订），充满主区时精确占满（旧语义）；不可调窗口两种模式下都原样居中，
-    /// 放不下按容器夹取兜底。
+    /// 工作台主区停靠（方案 §11 修订）：尊重原尺寸 = 放得下就原样居中、
+    /// 放不下（双击缩放/拖大/超屏/主区被拖小）就充满主区——放大意图的尽头就是主区；
+    /// 充满主区模式恒为精确占满。不可调窗口两种模式下都原样居中，放不下按容器夹取兜底。
+    /// 这是"保持原尺寸"与"放不下给主区"两个语义的唯一计算点，放置决策、动画端点与
+    /// 验收期望都从它取值，三处永远不会对不上。
     public static func dockedRect(in mainRect: CGRect,
                                   currentSize: CGSize?,
                                   isResizable: Bool,
                                   docking: MainAreaDocking = .respectful) -> CGRect {
         guard mainRect.width > 1, mainRect.height > 1 else { return mainRect }
-        if isResizable {
-            return docking == .fill ? mainRect : scaledDownRect(in: mainRect, currentSize: currentSize)
+        guard isResizable, docking == .respectful,
+              let fits = centeredOriginalRect(in: mainRect, size: currentSize) else {
+            if isResizable { return mainRect }
+            return centeredOriginal(in: mainRect, size: currentSize)
         }
-        return centeredOriginal(in: mainRect, size: currentSize)
-    }
-
-    /// 尊重真实尺寸的主区目标：放得下时原样居中（返回的就是原尺寸），放不下时等比收缩贴边。
-    /// 这是"保持原尺寸"与"超屏才收缩"两个语义的唯一计算点，放置决策、动画端点与
-    /// 验收期望都从它取值，三处永远不会对不上（方案 §9.1 修订）。
-    public static func scaledDownRect(in mainRect: CGRect, currentSize: CGSize?) -> CGRect {
-        guard let size = currentSize, size.width > 0, size.height > 0,
-              mainRect.width > 1, mainRect.height > 1 else { return mainRect }
-        if let fits = centeredOriginalRect(in: mainRect, size: size) { return fits }
-        let scale = min(mainRect.width / size.width, mainRect.height / size.height)
-        let scaled = CGSize(width: (size.width * scale).rounded(),
-                            height: (size.height * scale).rounded())
-        return CGRect(x: mainRect.midX - scaled.width / 2,
-                      y: mainRect.midY - scaled.height / 2,
-                      width: scaled.width,
-                      height: scaled.height)
+        return fits
     }
 
     /// 过渡代理的中间矩形：容器矩形插值 + 内容等比适配，不做非均匀图像拉伸。

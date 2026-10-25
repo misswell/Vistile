@@ -564,10 +564,8 @@ public enum WorkbenchReducer {
         } else if canDeferPlacement(record: record, mainRect: mainRect) {
             // 临时计划目标按"尊重原尺寸"语义从缓存尺寸预估；宿主会拿写前实读重新算，
             // 真实放不下仍由它按失败/补偿收口（方案 §6.2、§9.1 修订）。
-            let estimated = state.policy.mainAreaDocking == .fill
-                ? mainRect
-                : FocusGeometry.scaledDownRect(in: mainRect,
-                                                currentSize: (actualFrame(state, identity) ?? record.frame).size)
+            // 放不下时临时计划目标即主区（写前实读重算仍是这个语义）。
+            let estimated = mainRect
             targetFrame = estimated
             placement = .resizeAndMove(target: estimated)
         } else {
@@ -841,10 +839,7 @@ public enum WorkbenchReducer {
         } else if canDeferPlacement(record: record, mainRect: mainRect) {
             // 临时计划目标按"尊重原尺寸"语义从缓存尺寸预估；宿主会拿写前实读重新算，
             // 真实放不下仍由它按失败/补偿收口（方案 §6.2、§9.1 修订）。
-            let estimated = state.policy.mainAreaDocking == .fill
-                ? mainRect
-                : FocusGeometry.scaledDownRect(in: mainRect,
-                                                currentSize: (actualFrame(state, identity) ?? record.frame).size)
+            let estimated = mainRect
             mainTarget = estimated
             placementDecision = .resizeAndMove(target: estimated)
         } else {

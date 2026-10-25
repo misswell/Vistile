@@ -644,12 +644,10 @@ final class WorkbenchDividerTests: XCTestCase {
         rig.writer.openGate()
 
         await pendingUntil { self.geometryResults(rig.events).count == 2 }
-        // 写入目标按"尊重原尺寸"语义算：窗口原尺寸放不下时等比收缩进当次结算的主区。
-        let write1 = FocusGeometry.scaledDownRect(in: first, currentSize: layout.mainRect.size)
-        let write2 = FocusGeometry.scaledDownRect(in: second, currentSize: write1.size)
-        XCTAssertEqual(rig.writer.writtenFrames, [write1, write2], "两次写入按发起顺序串行执行")
+        // 写入目标按"尊重原尺寸"语义算：窗口原尺寸放不下时充满主区（即结算目标原样）。
+        XCTAssertEqual(rig.writer.writtenFrames, [first, second], "两次写入按发起顺序串行执行")
         let settled = await rig.writer.currentFrame(of: element)
-        XCTAssertEqual(settled, write2, "设备上的最终几何 = 最后一次结算的尊重原尺寸目标：旧写入不覆盖它")
+        XCTAssertEqual(settled, second, "设备上的最终几何 = 最后一次结算的目标：旧写入不覆盖它")
         XCTAssertEqual(geometryResults(rig.events).map(\.token), [token1, token2], "每次结算各有自己的令牌回报")
         XCTAssertEqual(geometryResults(rig.events).map(\.targetFrame), [first, second])
 
@@ -693,9 +691,9 @@ final class WorkbenchDividerTests: XCTestCase {
         await pendingUntil { self.geometryResults(rig.events).count == 2 }
         // 写入按"尊重原尺寸"语义：初始是主区尺寸的窗口，先等比收缩进首个目标，
         // 最新一次结算再按收缩后的尺寸继续停靠。
-        let firstWrite = FocusGeometry.scaledDownRect(in: inFlight, currentSize: layout.mainRect.size)
-        let newestWrite = FocusGeometry.scaledDownRect(in: newest, currentSize: firstWrite.size)
-        XCTAssertEqual(rig.writer.writtenFrames, [firstWrite, newestWrite],
+        // 最新目标比窗口大：尊重原尺寸 = 原尺寸居中（写入值与 dockedRect 同源）。
+        let newestWrite = FocusGeometry.dockedRect(in: newest, currentSize: inFlight.size, isResizable: true)
+        XCTAssertEqual(rig.writer.writtenFrames, [inFlight, newestWrite],
                        "四次拖动只有最新那一项落地：中间的必须被合并掉，不是被依次执行")
         let afterCoalescing = rig.writer.totalWrites
         let frameAfterCoalescing = await rig.writer.currentFrame(of: element)
@@ -765,7 +763,7 @@ final class WorkbenchDividerTests: XCTestCase {
         await pendingUntil(timeout: 4) { rig.writer.totalWrites > 0 }
         // 尊重原尺寸：初始主区尺寸的窗口在更大的结算目标里原样居中。
         XCTAssertEqual(rig.writer.writtenFrames,
-                       [FocusGeometry.scaledDownRect(in: fresh, currentSize: layout.mainRect.size)],
+                       [FocusGeometry.dockedRect(in: fresh, currentSize: layout.mainRect.size, isResizable: true)],
                        "新会话的第一笔照常执行")
     }
 

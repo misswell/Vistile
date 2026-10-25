@@ -84,11 +84,12 @@ public enum MainPlacementPolicy {
                 return .resizeAndMove(target: mainRect)
             case .respectful:
                 // 尊重真实尺寸（方案 §9.1 修订）：原尺寸放得下主区就只写位置、不动尺寸；
-                // 只有超出主区的窗口才按原宽高比等比收缩贴边。不再强制放大铺满主区。
+                // 放不下（双击缩放/拖大/超屏/主区被拖小）就充满主区——放大意图的尽头
+                // 就是主区，不再等比收缩留黑边。
                 if let centered = FocusGeometry.centeredOriginalRect(in: mainRect, size: frame.size) {
                     return .moveOnly(origin: centered.origin, originalSize: centered.size)
                 }
-                return .resizeAndMove(target: FocusGeometry.scaledDownRect(in: mainRect, currentSize: frame.size))
+                return .resizeAndMove(target: mainRect)
             }
         }
         guard isMovable else {

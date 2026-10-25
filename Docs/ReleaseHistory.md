@@ -1,5 +1,10 @@
 # Vistile
 
+## 0.1.46 (60) — 2026-10-24
+
+- 双击缩放充满主区：放不下（zoom/拖大/超屏/主区拖小）即充满，不再等比收缩；纯拖动越位仍原尺寸归位。
+  Double-click zoom now fills the main area: anything that no longer fits (zoom/drag-larger/oversized/shrunk main area) fills the area instead of proportional scaling; plain position drift still docks at the original size.
+
 ## 0.1.45 (59) — 2026-10-24
 
 - 修复间歇切换失败：仅位置通道补上与尺寸通道同等的补偿重写（位置异步生效不再被误判拒绝）；替身新增位置延迟脚本并加回归用例。
