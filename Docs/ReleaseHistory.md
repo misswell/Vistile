@@ -1,5 +1,10 @@
 # Vistile
 
+## 0.1.49 (63) — 2026-10-26
+
+- 双击缩放不再被后台应用瞬时激活抢切（焦点跟随稳定窗 80→400ms）；菜单直入不再被点击瞬间的前台漂移误拒。
+  Double-click zoom is no longer stolen by a transient background activation (focus-follow settle window 80→400 ms); menu direct entry is no longer rejected by frontmost drift at click time.
+
 ## 0.1.48 (62) — 2026-10-26
 
 - 直入日志升级为可持久化级别（info 不落盘，事后取证全靠它）；真机验证 v0.1.47 直入完整成功。

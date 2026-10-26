@@ -480,7 +480,12 @@ final class AppCoordinator {
                   !self.isTerminationBegun else { return }
             let front = self.frontmostProcessID()
             let isMenuActivation = processID != nil && front == ProcessInfo.processInfo.processIdentifier
-            guard (front == pid || isMenuActivation), let current,
+            // 菜单路径的 pid 来自菜单打开那一刻的实况（menuNeedsUpdate 捕获，权威）；
+            // 点击过程中的前台瞬时漂移（输入法/菜单宿主/合成事件）屡见不鲜——真机实测
+            // element 相等与目录命中全过、仅 frontmost 漂移就被拒，直入全部失败。
+            // 这条路径只信硬证据（同窗复核 + 目录命中）；热键路径仍要求前台吻合。
+            let frontMatches = front == pid || isMenuActivation || processID != nil
+            guard frontMatches, let current,
                   CFEqual(current.element, focused.element),
                   let record = self.catalog.record(forAXElement: focused.element, processID: pid) else {
                 let frontText = front.map(String.init) ?? "nil"
@@ -700,7 +705,10 @@ final class AppCoordinator {
         let sessionID = state.sessionID
         let epoch = state.sessionEpoch
         focusFollowTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 80_000_000)
+            // 稳定窗 400ms：双击缩放/操作主窗口时，后台应用（聊天、AI 助手）的瞬时激活
+            // 屡见不鲜——80ms 内它仍在前台就会被当成"用户切走了"，把用户正在操作的窗口
+            // 挤出主区（真机日志实证）。400ms 后仍是前台才值得跟随；期间用户切回自动作废。
+            try? await Task.sleep(nanoseconds: 400_000_000)
             guard let self else { return }
             defer { if self.focusFollowRevision == revision { self.focusFollowTask = nil } }
             var unresolvedPID: pid_t?
