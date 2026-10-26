@@ -434,7 +434,7 @@ final class AppCoordinator {
     /// English: Resolve the concrete AX-focused window before showing panels, then enter Workbench directly.
     func openCurrentWindowWorkbench(processID: pid_t? = nil) {
         guard state.phase == .hidden, !isTerminationBegun, !isOpeningCurrentWindowWorkbench else {
-            VistileLog.session.log(level: .info, "[直入] 忽略：终止=\(self.isTerminationBegun) 直入中=\(self.isOpeningCurrentWindowWorkbench)")
+            VistileLog.session.log(level: .default, "[直入] 忽略：终止=\(self.isTerminationBegun) 直入中=\(self.isOpeningCurrentWindowWorkbench)")
             return
         }
         permissionsMayHaveChanged()
@@ -447,7 +447,7 @@ final class AppCoordinator {
             present(.workbenchTransitionFailed("请先选中要使用的窗口，再开启工作台。"))
             return
         }
-        VistileLog.session.log(level: .info, "[直入] 开始 pid=\(pid, privacy: .public)")
+        VistileLog.session.log(level: .default, "[直入] 开始 pid=\(pid, privacy: .public)")
         directEntryRevision &+= 1
         let revision = directEntryRevision
         let epoch = state.sessionEpoch
@@ -462,7 +462,7 @@ final class AppCoordinator {
                 try? await Task.sleep(nanoseconds: 250_000_000)
             }
             guard let focused, !focused.snapshot.isSheetLike else {
-                VistileLog.session.log(level: .info, "[直入] 前台窗口读不到或为 sheet（pid=\(pid, privacy: .public)，含一次重试）")
+                VistileLog.session.log(level: .default, "[直入] 前台窗口读不到或为 sheet（pid=\(pid, privacy: .public)，含一次重试）")
                 if !Task.isCancelled, self.directEntryRevision == revision,
                    self.state.sessionEpoch == epoch, !self.isTerminationBegun { self.present(.cannotLocateWindow) }
                 return
@@ -486,12 +486,12 @@ final class AppCoordinator {
                 let frontText = front.map(String.init) ?? "nil"
                 let elementsEqual = current.map { CFEqual($0.element, focused.element) } ?? false
                 let hasRecord = self.catalog.record(forAXElement: focused.element, processID: pid) != nil
-                VistileLog.session.log(level: .info,
+                VistileLog.session.log(level: .default,
                                        "[直入] 核对失败 front=\(frontText, privacy: .public) pid=\(pid, privacy: .public) current=\(current != nil) element等=\(elementsEqual) record=\(hasRecord)")
                 self.present(.workbenchTransitionFailed("当前窗口已变化或暂时无法识别，请重新选择窗口后重试。"))
                 return
             }
-            VistileLog.session.log(level: .info, "[直入] 目标确认 \(record.identity.journalKey, privacy: .public)，发起总览会话")
+            VistileLog.session.log(level: .default, "[直入] 目标确认 \(record.identity.journalKey, privacy: .public)，发起总览会话")
             self.directWorkbenchTarget = record.identity
             self.directEntrySelectionQueued = false
             self.prepareSlotMemory()
@@ -2667,7 +2667,7 @@ final class AppCoordinator {
             lastHiddenStatus = nil
         } else {
             lastHiddenStatus = text
-            VistileLog.session.log(level: .info, "[hint/隐藏态] \(text, privacy: .public)")
+            VistileLog.session.log(level: .default, "[hint/隐藏态] \(text, privacy: .public)")
         }
         pendingHint = text
         onStatus?(text)

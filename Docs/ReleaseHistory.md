@@ -1,5 +1,10 @@
 # Vistile
 
+## 0.1.48 (62) — 2026-10-26
+
+- 直入日志升级为可持久化级别（info 不落盘，事后取证全靠它）；真机验证 v0.1.47 直入完整成功。
+  Direct-entry logs upgraded to a persistent level (info never hits disk); a real-machine run confirmed v0.1.47 enters the workbench end to end.
+
 ## 0.1.47 (61) — 2026-10-25
 
 - 直入修复：前台读窗各容忍一次 AX 超时（250ms 重试）；隐藏态失败提示显示在菜单栏，不再静默。
